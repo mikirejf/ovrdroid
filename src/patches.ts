@@ -27,7 +27,7 @@ export const patches: readonly Patch[] = [
   {
     name: 'shutdown-flush-deadline',
     find: 'FoH="timeout",yQB=1e4,cQB=1000,',
-    replace: 'FoH="timeout",yQB=1e4,cQB=100.,',
+    replace: 'FoH="timeout",yQB=1e4,cQB=10.0,',
   },
 ];
 
