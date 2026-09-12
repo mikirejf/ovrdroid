@@ -2,15 +2,8 @@
   "minTokens": 50,
   "minLines": 12,
   "threshold": 0,
-  "reporters": [
-    "ai"
-  ],
-  "format": [
-    "typescript",
-    "tsx",
-    "javascript",
-    "jsx"
-  ],
+  "reporters": ["ai"],
+  "format": ["typescript", "tsx", "javascript", "jsx"],
   "ignore": [
     "**/node_modules/**",
     "**/_generated/**",
@@ -26,7 +19,5 @@
     "next-env.d.ts",
     ".agents/**"
   ],
-  "ignorePattern": [
-    "(?ms)^(import|export)\\s[^;]*?from\\s+['\"][^'\"]+['\"];?$"
-  ]
+  "ignorePattern": ["(?ms)^(import|export)\\s[^;]*?from\\s+['\"][^'\"]+['\"];?$"]
 }

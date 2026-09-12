@@ -1,15 +1,13 @@
 {
   "name": "overdroid",
   "version": "0.1.0",
-  "description": "Patch harness for the Droid CLI binary",
-  "type": "module",
   "private": true,
+  "description": "Patch harness for the Droid CLI binary",
   "repository": "mikirejf/overdroid",
-  "packageManager": "bun@1.4.0",
-  "trustedDependencies": ["lefthook"],
   "bin": {
     "overdroid": "./src/index.ts"
   },
+  "type": "module",
   "scripts": {
     "overdroid": "bun run src/index.ts",
     "test": "bun test",
@@ -39,5 +37,9 @@
     "oxlint": "^1.79.0",
     "oxlint-tsgolint": "^7.0.2001",
     "typescript": "^7.0.0"
-  }
+  },
+  "packageManager": "bun@1.4.0",
+  "trustedDependencies": [
+    "lefthook"
+  ]
 }
