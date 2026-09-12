@@ -51,7 +51,7 @@ The harness is deliberately three separate things, in increasing fragility:
 
 ```bash
 bun install
-bun run check
+bun run verify
 ```
 
 ## Safety

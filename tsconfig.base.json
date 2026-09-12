@@ -1,0 +1,9 @@
+{
+  "extends": "@arx1/devkit/typecheck",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node", "bun"],
+    "allowImportingTsExtensions": true
+  }
+}

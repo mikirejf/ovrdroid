@@ -1,0 +1,6 @@
+templates:
+  run: bun run
+  exec: bun --bun run
+
+extends:
+  - node_modules/@arx1/devkit/lefthook.base.yml

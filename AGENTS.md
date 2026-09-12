@@ -48,7 +48,7 @@ Patch in place; never rebuild.
 ## Verify before committing
 
 ```bash
-bun run check    # bunx tsc --noEmit
+bun run verify   # every gate the devkit features own
 bun test
 ```
 
@@ -91,3 +91,28 @@ Droid has built-in instrumentation: `DROID_PROFILE=1` plus
 
 Full investigation notes, including the measured phase breakdown and the ranked
 fix list, live in the handoff document referenced in `README.md`.
+
+<!-- devkit:core:start -->
+
+## Verify
+
+The `verify` script (`pnpm verify`, or `bun run verify` in a Bun repo) is the "am I done?" gate:
+every check the installed features own, run together, all failures reported. Run it before you say a
+task is finished. Fix what it reports in the code, not in the config.
+<!-- devkit:core:end -->
+
+<!-- devkit:comments:start -->
+
+## Comments
+
+Default to none. The `no-comments` lint fails on any comment. Say it in the code instead: clearer
+structure, a name, a type, or a test.
+
+Two shapes pass:
+
+- A tool directive.
+- A block citing a URL outside this repo that proves a constraint we do not control. Links to this
+  repo or to localhost fail.
+
+The URL comment is one or two lines, plain words, and states the fact itself; the link backs it.
+<!-- devkit:comments:end -->

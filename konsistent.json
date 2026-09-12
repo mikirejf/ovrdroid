@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/konsistent/konsistent.schema.json",
+  "version": "v1",
+  "conventions": [
+    {
+      "name": "cli-entry-point",
+      "description": "src is the harness source root and holds the CLI entry that package.json#bin points at, so the published bin path never drifts from the tree.",
+      "paths": "src",
+      "must": {
+        "haveType": "directory",
+        "haveFiles": ["index.ts"]
+      }
+    }
+  ]
+}

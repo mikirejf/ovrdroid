@@ -1,0 +1,32 @@
+{
+  "minTokens": 50,
+  "minLines": 12,
+  "threshold": 0,
+  "reporters": [
+    "ai"
+  ],
+  "format": [
+    "typescript",
+    "tsx",
+    "javascript",
+    "jsx"
+  ],
+  "ignore": [
+    "**/node_modules/**",
+    "**/_generated/**",
+    "**/*.gen.*",
+    "**/*.generated.*",
+    "**/__generated__/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/out/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/public/**",
+    "next-env.d.ts",
+    ".agents/**"
+  ],
+  "ignorePattern": [
+    "(?ms)^(import|export)\\s[^;]*?from\\s+['\"][^'\"]+['\"];?$"
+  ]
+}
