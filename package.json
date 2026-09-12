@@ -1,0 +1,22 @@
+{
+  "name": "overdroid",
+  "version": "0.1.0",
+  "description": "Patch harness for the Droid CLI binary",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "overdroid": "./src/index.ts"
+  },
+  "scripts": {
+    "overdroid": "bun run src/index.ts",
+    "test": "bun test",
+    "check": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^14.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.4",
+    "typescript": "^5.9.3"
+  }
+}
