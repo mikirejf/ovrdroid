@@ -6,17 +6,17 @@ Droid ships as a Bun standalone binary with its application source and precompil
 in a module graph. This project extracts that source, patches it, rebuilds it with the same Bun
 release Droid embeds, and transplants the result back into the binary.
 
-Measured on Droid 0.218.1: time to first paint drops from 1.23s to 0.68s, and exit from 1.24s to
-0.29s.
+Measured on Droid 0.218.1 with `bun run bench`: time to first paint drops from 1.23s to 0.68s, and
+exit from 1.09s to 0.07s.
 
 Status: the harness applies the patch set below.
 
-| Patch                     | What it changes                | Why                                                                                                              |
-| :------------------------ | :----------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `kitty-probe-timeout`     | 150ms probe wait to 30ms       | Ghostty answers the terminal probe in a few ms.                                                                  |
-| `whoami-no-block`         | Drops the `await` on `whoami`  | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches. |
-| `certificate-count-skip`  | Skips the cert count           | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                   |
-| `shutdown-flush-deadline` | 1000ms flush deadline to 100ms | Telemetry flush makes exit ~1.4s instead of ~0.4s.                                                               |
+| Patch                     | What it changes               | Why                                                                                                              |
+| :------------------------ | :---------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `kitty-probe-timeout`     | 150ms probe wait to 30ms      | Ghostty answers the terminal probe in a few ms.                                                                  |
+| `whoami-no-block`         | Drops the `await` on `whoami` | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches. |
+| `certificate-count-skip`  | Skips the cert count          | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                   |
+| `shutdown-flush-deadline` | 1000ms flush deadline to 10ms | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                            |
 
 ```bash
 bun run overdroid update
@@ -24,6 +24,10 @@ bun run overdroid status
 bun run overdroid apply
 bun run overdroid restore
 ```
+
+`bench` launches the binary in a real terminal three times and prints time to first paint and time
+from Ctrl-C to exit. Pass a path to measure a copy, for example
+`bun run bench ~/.local/bin/droid.orig`.
 
 `update` is the one you want day to day: it runs `droid update`, then applies the patch set if the
 binary is stock. Each command takes `--target <path>` and defaults to `~/.local/bin/droid`. `apply`

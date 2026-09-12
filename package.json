@@ -10,6 +10,7 @@
   "type": "module",
   "scripts": {
     "overdroid": "bun run src/index.ts",
+    "bench": "bun run src/bench.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "prepare": "lefthook install && devkit sync",
