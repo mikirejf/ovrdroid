@@ -2,13 +2,18 @@
 
 A patch harness for the [Droid CLI](https://docs.factory.ai/droid-cli/overview).
 
-Droid ships as a Bun standalone binary with its application source and precompiled bytecode embedded
-in a module graph. This project extracts that source, patches it, rebuilds it with the same Bun
-release Droid embeds, and transplants the result back into the binary.
+Droid ships as a Bun standalone binary with its application source, precompiled bytecode and 35
+sidecar files embedded in a module graph. This project extracts all of it, patches the source,
+rebuilds the whole binary on a pinned newer Bun release, and re-signs it.
 
-Measured on Droid 0.218.1 with `bun run bench`: time to first paint drops from 1.23s to 0.68s, and
-exit from 1.09s to 0.07s. The zod patch removes a further 68-79ms of CPU before first paint,
-measured inside the process because this machine's wall-clock noise is larger than the effect.
+Measured on Droid 0.218.1 with `bun run bench`: time to first paint drops from 1.23s to 0.38s, and
+exit from 1.09s to 0.07s.
+
+The Bun upgrade is most of that. Droid 0.218.1 ships Bun 1.3.14; rebuilding on 1.4.2 is worth 173ms
+on its own (n=30 paired rounds, 95% CI 163-183ms), because Bun 1.4.1 packed the bytecode format and
+cut the embedded blob from 143MB to 45MB. Of the patches, the first five are worth about 36ms of CPU
+together and the zod patch removes a further 68-79ms; both were measured inside the process because
+this machine's wall-clock noise is larger than the effect.
 
 Status: the harness applies the patch set below.
 
@@ -99,13 +104,15 @@ Measured on a real terminal, time until the input box appears:
 | :---------------------------- | :---------------------------- |
 | Stock                         | 1.17s (up to 2.9s under load) |
 | Without startup network calls | 0.72s                         |
-| Patched                       | 0.68s                         |
+| Patched, on Bun 1.3.14        | 0.55s                         |
+| Patched, rebuilt on Bun 1.4.2 | 0.38s                         |
 | Hard floor (Bun boot)         | ~0.08s                        |
 
 The original gap was three blocking Factory API calls (`whoami`, then `feature-flags` and
-`managed-settings` behind it) plus a hardcoded 150ms terminal capability probe. Those are gone.
+`managed-settings` behind it) plus a hardcoded 150ms terminal capability probe. Those are gone. The
+last step is the runtime itself, not the app.
 
-## Where the remaining 0.68s goes
+## Where the remaining time goes
 
 Only about 40% of the time to paint is CPU. The rest is waiting on the keychain, the terminal and
 the filesystem, which caps what any CPU optimisation can win.
@@ -127,29 +134,37 @@ The terminal probes look like a 112ms serial stall and are not: replacing the en
 constant changed nothing, because the probes overlap other startup work. A phase's duration is a
 bracket around what it awaits, never its cost.
 
-The one thing that did pay was the zod v3 constructor, which was not a module to defer but work
-inside a constructor that runs 15,215 times. Getting much below that needs the app to import less at
-startup, which is an upstream change. Rebuilding without `--bytecode` was measured at 1.23s, so the
-bytecode cache is already carrying its weight.
+The one thing that did pay inside the app was the zod v3 constructor, which was not a module to
+defer but work inside a constructor that runs 15,215 times. Getting below ~600ms on Bun 1.3.14
+needed the app to import less at startup, which is an upstream change, not a patch. The Bun 1.4.2
+rebuild got there instead by making module loading itself cheaper. Rebuilding without `--bytecode`
+was measured at 1.23s, so the bytecode cache is still carrying its weight.
 
 `FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
 first time.
 
 ## How it works
 
-1. **Extract.** Parse the Bun module graph (trailer, offsets, module table) and read the entry
-   record's source region. Offsets move every release, so they are always derived.
+1. **Extract.** Parse the Bun module graph (trailer, offsets, module table) and read every module:
+   the app source plus 35 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill
+   assets, sounds). Offsets move every release, so they are always derived.
 2. **Patch.** Literal find/replace pairs on the source text, any length, plus a marker statement
    that records which patch set is applied.
-3. **Rebuild.** Download the exact Bun release the binary embeds (1.3.14 for Droid 0.218.1) and run
-   `bun build --compile --bytecode --minify`. This takes ~11s and ~3GB of RAM. Rebuilding is what
-   keeps the bytecode cache valid: editing bytes in place invalidates it and Droid falls back to
-   parsing 20MB of JavaScript, which costs more than the patches save.
-4. **Transplant and re-sign.** Write the rebuilt source, bytecode and module_info back into their
-   original slots, update the three length fields, then `codesign --force --sign -`. Without the
-   signature macOS kills the process on launch.
+3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/bun.ts`) once, cache it
+   under `~/.cache/overdroid/`, and run
+   `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source
+   with an import preamble that re-embeds every sidecar. The build dominates the ~4.5s apply and
+   peaks near 1.8GB; the harness itself maps the binary rather than copying it and stays under
+   200MB. Rebuilding is what keeps the bytecode cache valid: editing bytes in place invalidates it
+   and Droid falls back to parsing 20MB of JavaScript, which costs more than the patches save.
+4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then
+   `codesign --force --sign -`. Without the signature macOS kills the process on launch.
 
-The original binary is always backed up first, and the patched one must report the same `--version`
+The app finds its sidecars through hardcoded `/$bunfs/root/...` literals, one per file. Those are
+never patched: `--asset-naming=[name].[ext]` makes Bun reproduce each name exactly, so the original
+literals keep working.
+
+The original binary is always backed up first, and the rebuilt one must report the same `--version`
 before it is installed.
 
 ## Layers
