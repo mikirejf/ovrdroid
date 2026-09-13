@@ -29,6 +29,11 @@ export const patches: readonly Patch[] = [
     find: 'FoH="timeout",yQB=1e4,cQB=1000,',
     replace: 'FoH="timeout",yQB=1e4,cQB=10.0,',
   },
+  {
+    name: 'session-search-warm-skip',
+    find: 'warmSessionSearch:!T||T.length===0,',
+    replace: 'warmSessionSearch:!1/*T.length*/,',
+  },
 ];
 
 export function markerDigest(list: readonly Patch[] = patches): string {
