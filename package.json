@@ -11,6 +11,7 @@
   "scripts": {
     "overdroid": "bun run src/index.ts",
     "bench": "bun run src/bench.ts",
+    "probe": "bun run src/probe.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "prepare": "lefthook install && devkit sync",

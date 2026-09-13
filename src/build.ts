@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import { withTempDir } from './temp.ts';
 
 export interface BuildResult {
   bytes: Uint8Array;
@@ -8,9 +8,7 @@ export interface BuildResult {
 }
 
 export async function buildBinary(bun: string, source: string): Promise<BuildResult> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'overdroid-build-'));
-
-  try {
+  return await withTempDir('build', async (dir) => {
     await Bun.write(path.join(dir, 'index.js'), source);
 
     const started = Bun.nanoseconds();
@@ -36,7 +34,5 @@ export async function buildBinary(bun: string, source: string): Promise<BuildRes
     }
 
     return { bytes: await Bun.file(path.join(dir, 'rebuilt')).bytes(), seconds };
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  });
 }

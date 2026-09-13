@@ -1,0 +1,87 @@
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
+
+import { patchSource } from './apply.ts';
+import { say } from './cli.ts';
+import { readSource } from './graph.ts';
+import type { Patch } from './patches.ts';
+import { patches } from './patches.ts';
+import { backupPath, INSTALLED_DROID } from './paths.ts';
+import { rebuildInto } from './rebuild.ts';
+import { modulePatches, tracePatches } from './trace-patches.ts';
+
+export interface BuildOptions {
+  target: string;
+  extra?: string;
+  trace?: boolean;
+  modules?: boolean;
+  out: string;
+}
+
+function isPatch(value: unknown): value is Patch {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'find' in value &&
+    typeof value.find === 'string' &&
+    'replace' in value &&
+    typeof value.replace === 'string'
+  );
+}
+
+function isPatchList(value: unknown): value is readonly Patch[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  const entries: readonly unknown[] = value;
+  return entries.every((entry) => isPatch(entry));
+}
+
+export async function readExtra(file: string): Promise<readonly Patch[]> {
+  const parsed: unknown = await Bun.file(file).json();
+  if (!isPatchList(parsed)) {
+    throw new TypeError(`${file}: expected an array of {name, find, replace} strings`);
+  }
+  return parsed;
+}
+
+function resolved(file: string): string {
+  try {
+    return realpathSync(file);
+  } catch {
+    return path.resolve(file);
+  }
+}
+
+function refuseOverwrite(options: BuildOptions): void {
+  const out = resolved(options.out);
+  for (const protectedPath of [options.target, INSTALLED_DROID, backupPath(INSTALLED_DROID)]) {
+    if (out === resolved(protectedPath)) {
+      throw new Error(`refusing to write a probe binary over ${protectedPath}`);
+    }
+  }
+}
+
+export async function buildProbe(options: BuildOptions): Promise<void> {
+  refuseOverwrite(options);
+  const stock = await Bun.file(options.target).bytes();
+  const list: Patch[] = [...patches];
+
+  if (options.trace === true) {
+    list.push(...tracePatches);
+  }
+  if (options.modules === true) {
+    list.push(...modulePatches);
+  }
+  if (options.extra !== undefined) {
+    list.push(...(await readExtra(options.extra)));
+  }
+
+  const patched = patchSource(readSource(stock), list);
+  say(`patched source: ${list.length} patches plus marker`);
+
+  const result = await rebuildInto(stock, patched, options.out);
+  say(`${options.out} (${result.seconds.toFixed(1)}s)`);
+}

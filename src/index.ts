@@ -1,35 +1,20 @@
 #!/usr/bin/env bun
-import { chmodSync, copyFileSync, renameSync, statSync } from 'node:fs';
+import { copyFileSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import path from 'node:path';
 
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
 import { describeStatus, patchSource, statusOf } from './apply.ts';
-import { buildBinary } from './build.ts';
-import { embeddedBunVersion, ensureBun, reportedVersion } from './bun.ts';
-import { locateGraph, readSource, transplantInto } from './graph.ts';
+import { embeddedBunVersion, reportedVersion } from './bun.ts';
+import { guard, say } from './cli.ts';
+import { locateGraph, readSource } from './graph.ts';
 import { patches } from './patches.ts';
-
-const DEFAULT_TARGET = path.join(homedir(), '.local', 'bin', 'droid');
+import { backupPath, INSTALLED_DROID } from './paths.ts';
+import { rebuildInto } from './rebuild.ts';
 
 interface Options {
   target: string;
-}
-
-function fail(message: string): never {
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
-}
-
-function say(message: string): void {
-  process.stdout.write(`${message}\n`);
-}
-
-function backupPath(target: string): string {
-  return `${target}.orig`;
 }
 
 function temporaryPath(target: string): string {
@@ -41,13 +26,6 @@ async function readBinary(target: string): Promise<Uint8Array> {
     return await Bun.file(target).bytes();
   } catch {
     throw new Error(`cannot read target: ${target}`);
-  }
-}
-
-function sign(target: string): void {
-  const result = Bun.spawnSync(['codesign', '--force', '--sign', '-', target]);
-  if (result.exitCode !== 0) {
-    throw new Error(`codesign failed: ${result.stderr.toString().trim()}`);
   }
 }
 
@@ -103,30 +81,13 @@ async function apply(options: Options): Promise<void> {
   }
   const { bytes: stock, origin } = stocked;
 
-  const bunVersion = embeddedBunVersion(stock);
-  say(`embedded Bun ${bunVersion}`);
-  const bunReady = ensureBun(bunVersion);
-
   const expected = reportedVersion(origin);
   const patched = patchSource(readSource(stock), patches);
   say(`patched source: ${patches.length} patches plus marker`);
 
-  const bun = await bunReady;
-  say(`using Bun runtime ${bun}`);
-
-  say('building (this takes ~11s and ~3GB of RAM)');
-  const built = await buildBinary(bun, patched);
-  say(`built in ${built.seconds.toFixed(1)}s`);
-
-  transplantInto(stock, built.bytes);
-  say('transplanted source, bytecode and module_info');
-
   const temporary = temporaryPath(target);
   try {
-    await Bun.write(temporary, stock);
-    chmodSync(temporary, statSync(target).mode);
-    sign(temporary);
-    say('signed');
+    await rebuildInto(stock, patched, temporary);
 
     const reported = reportedVersion(temporary);
     if (reported !== expected) {
@@ -167,22 +128,12 @@ function restore(options: Options): void {
   say(`restored ${options.target} from ${backup}`);
 }
 
-function guard<T>(action: (options: T) => void | Promise<void>) {
-  return async (options: T): Promise<void> => {
-    try {
-      await action(options);
-    } catch (error) {
-      fail(error instanceof Error ? error.message : String(error));
-    }
-  };
-}
-
 const program = new Command()
   .name('overdroid')
   .description('Patch harness for the Droid CLI binary')
   .version(pkg.version);
 
-const targetOption = ['-t, --target <path>', 'path to the Droid binary', DEFAULT_TARGET] as const;
+const targetOption = ['-t, --target <path>', 'path to the Droid binary', INSTALLED_DROID] as const;
 
 program
   .command('status')
