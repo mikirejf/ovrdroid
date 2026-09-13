@@ -90,3 +90,22 @@ strings and the embedded Bun version are release-scoped.
 `--version` is a cache canary, not a benchmark: it skips almost everything Droid does at startup.
 Measure time-to-first-paint in a real PTY, and attribute the time before you patch anything.
 See [`MEASURING.md`](MEASURING.md).
+
+Instrument the binary rather than guessing: patches that write a timeline or per-module costs to a
+file turn an argument into a measurement, and the harness can build such a binary in ~11s. See
+[`INSTRUMENTING.md`](INSTRUMENTING.md).
+
+## Know when to stop
+
+Startup work splits into **waiting** (network, probe timeouts, subprocesses) and **doing** (parsing,
+evaluating modules, laying out the first frame). Patches are good at deleting waiting and almost
+useless against doing.
+
+Once a CPU profile taken before first paint shows no idle samples, the cheap wins are gone. At that
+point every remaining candidate must be built and A/B'd, and on Droid 0.218.1 they all came back
+inside the noise: lazy highlight.js languages, deferring the tools module, skipping the sandbox
+check, deferring cloud session defaults, non-blocking built-in droids, a higher Ink frame cap.
+
+The reason is shape, not size. The cost is spread across ~160 modules whose largest is 11ms, so
+deferring any one of them wins nothing and the sum only moves if the app imports less. That is an
+upstream change. Report it instead of shipping a patch that cannot be measured.

@@ -10,18 +10,34 @@ different program to measure.
 Discipline that keeps the numbers honest:
 
 - Throw away the first run of each binary. A cold 269MB file reads slower, and the first run
-  routinely lands 1s to 2.5s above the rest.
+  routinely lands 1s to 2.5s above the rest. On a machine under memory pressure the pages get
+  evicted again within a minute, so an idle gap re-creates the cold run.
 - Interleave the binaries (stock, patched, stock, patched) rather than running five of each in a
   block, so machine load spreads across both.
-- Report the median of at least five runs plus the raw runs. Means hide the cold outlier.
+- Report a paired confidence interval, not a gap between medians. Identical binaries differ by a
+  126ms standard deviation, so at ten runs nothing under ~80ms exists. If the interval contains
+  zero, the honest result is "not resolved at this sample count".
+- Alternate which binary launches first. Launching in a fixed order makes the second one look 39ms
+  faster, which is enough to flip a result's sign.
+- Answer the terminal's capability queries and scrub the environment: strip `FORCE_COLOR` and every
+  `FACTORY_*`, `DROID_*` and `HERDR_*` variable, or you are measuring a different program. An
+  inherited `FACTORY_DISABLE_SETTINGS_PERSISTENCE` disables whole features, so a patch that defers
+  them measures zero and looks like a null result. See [`INSTRUMENTING.md`](INSTRUMENTING.md).
+- Check the load average before believing a delta. At load 10 the same binary spans 0.6s to 2.7s,
+  which swamps anything a patch can win. Record the load beside the result.
+- Reject a run whose binary painted and then crashed or hung. A dead process reports a very fast
+  paint and a near-instant exit.
 
-Reference numbers for Droid 0.218.1 on an M-series Mac, stock against the four-patch set:
+Reference numbers for Droid 0.218.1 on an M-series Mac, stock against the five-patch set:
 
-| Metric        | Stock  | Patched |
-| :------------ | -----: | ------: |
-| Paint         | 1.13s  |   0.70s |
-| Exit          | 2.42s  |   0.87s |
-| `--version`   | 0.09s  |   0.08s |
+| Metric      | Stock | Patched |
+| :---------- | ----: | ------: |
+| Paint       | 1.23s |   0.68s |
+| Exit        | 1.10s |       - |
+| `--version` | 0.09s |   0.08s |
+
+The exit figures above replace earlier ones taken with a clock that started 50ms after the first
+Ctrl-C, which understated every exit time by up to that much.
 
 ## Time to exit
 
@@ -43,6 +59,22 @@ Do this first; it tells you which phases are network and which are local.
   the shared dependency instead of optimising each phase.
 - Profiling only works on a real binary. It does not work on an extracted bundle run through
   `BUN_BE_BUN`.
+- `BUN_OPTIONS="--cpu-prof --cpu-prof-interval=250 --cpu-prof-dir=<dir>"` works on the compiled
+  binary and gives a `.cpuprofile` with `nodes`, `samples` and `timeDeltas`. Cut the samples at
+  `first_paint` before aggregating, or post-paint work dominates the totals. Zero idle samples
+  before paint means the waiting is gone and no further patch will help.
+- **Two `.cpuprofile` files appear.** Droid spawns a second Droid during startup and it profiles
+  itself too. Pick the one whose filename carries the pid you launched; picking by directory order
+  profiles a different program on different runs.
+- **Never rank frames by summed `timeDeltas`.** A delta is wall time since the previous sample, so a
+  descheduling stall lands entirely on whichever frame was on top. A real profile showed 306ms
+  charged to `readFile` from a **single** sample. Rank by `samples * median(delta)` and treat any
+  frame whose raw sum exceeds that by more than ~2x as an artifact.
+- The achieved sampling period is not the requested one: 250us requested measured 410us. Derive it
+  from the profile.
+- The built-in profile timeline also lands in `~/.factory/logs/droid-log-single.log` as
+  `[tui-startup] Startup phase completed` lines, but batched, late, and shared across concurrent
+  Droids. Instrument the binary instead.
 
 ## Sanity, not just speed
 

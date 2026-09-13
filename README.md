@@ -11,12 +11,13 @@ exit from 1.09s to 0.07s.
 
 Status: the harness applies the patch set below.
 
-| Patch                     | What it changes               | Why                                                                                                              |
-| :------------------------ | :---------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `kitty-probe-timeout`     | 150ms probe wait to 30ms      | Ghostty answers the terminal probe in a few ms.                                                                  |
-| `whoami-no-block`         | Drops the `await` on `whoami` | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches. |
-| `certificate-count-skip`  | Skips the cert count          | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                   |
-| `shutdown-flush-deadline` | 1000ms flush deadline to 10ms | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                            |
+| Patch                      | What it changes                     | Why                                                                                                              |
+| :------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `kitty-probe-timeout`      | 150ms probe wait to 30ms            | Ghostty answers the terminal probe in a few ms.                                                                  |
+| `whoami-no-block`          | Drops the `await` on `whoami`       | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches. |
+| `certificate-count-skip`   | Skips the cert count                | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                   |
+| `shutdown-flush-deadline`  | 1000ms flush deadline to 10ms       | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                            |
+| `session-search-warm-skip` | Skips the session-search cache warm | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.     |
 
 ```bash
 bun run overdroid update
@@ -28,6 +29,55 @@ bun run overdroid restore
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example
 `bun run bench ~/.local/bin/droid.orig`.
+
+## Probing startup
+
+`probe` is the breakdown tool that `bench` is not. Every command launches the binary in a real PTY
+and answers the terminal probes Droid sends. The environment is scrubbed first: `FORCE_COLOR` plus
+every `FACTORY_*`, `DROID_*` and `HERDR_*` variable is stripped, because an inherited `FORCE_COLOR`
+makes Droid skip its truecolor and background-colour probes, and an inherited
+`FACTORY_DISABLE_SETTINGS_PERSISTENCE` switches whole features off so a patch that defers them
+measures nothing. Auto-update is forced off so a benchmark can never replace the binary under test.
+
+A run that paints and then crashes, hangs, or exits non-zero is rejected rather than reported as a
+fast time.
+
+`probe build` rebuilds a probe binary from the stock one (default `~/.local/bin/droid.orig`) without
+touching anything installed. `--trace` adds the tracing patches, and `--extra <patches.json>` adds a
+JSON array of `{name, find, replace}` so you can A/B a candidate patch before committing it.
+
+`probe trace` runs a traced binary and prints the startup timeline: start, end, duration, kind and
+phase for every instrumented span.
+
+```bash
+bun run probe build --trace --out /tmp/droid-trace
+bun run probe trace /tmp/droid-trace --runs 3
+```
+
+`probe modules` answers "what is this startup actually evaluating?". Build with `--modules` and it
+wraps the bundle's own lazy module loader, charging each module its own evaluation time with nested
+imports subtracted, then prints the costliest bodies at first paint.
+
+```bash
+bun run probe build --modules --out /tmp/droid-modules
+bun run probe modules /tmp/droid-modules --top 20
+```
+
+`probe ab` interleaves runs across two or more binaries so machine noise hits all of them equally,
+alternating which binary leads each round so the second position's advantage cancels, and discarding
+a warm-up round. It prints min, p25, median, p75 and the raw paint times for each. Given exactly two
+binaries it also prints the paired difference with a 95% confidence interval and the smallest effect
+that sample count can resolve.
+
+`probe cpu` records a CPU profile of a startup, selects the profile belonging to the process it
+launched (Droid spawns a second Droid, which writes its own), cuts the samples at first paint, and
+ranks frames by `samples * median(sampling period)`. It prints each frame's sample count and, when
+the raw delta sum disagrees with that estimate by 2x or more, an inflation factor. Rank by the
+estimate and treat a high inflation factor as a frame holding someone else's stall, not as work.
+
+Read the numbers with care. This machine's load swings paint between 0.6s and 2.7s. Believe the
+confidence interval `probe ab` prints, not the gap between the medians: if the interval contains
+zero, the difference was not resolved.
 
 `update` is the one you want day to day: it runs `droid update`, then applies the patch set if the
 binary is stock. Each command takes `--target <path>` and defaults to `~/.local/bin/droid`. `apply`
@@ -43,15 +93,39 @@ ln -s "$PWD/src/index.ts" ~/.local/bin/overdroid
 
 Measured on a real terminal, time until the input box appears:
 
-| Setup                                 | Time to interactive           |
-| :------------------------------------ | :---------------------------- |
-| Stock                                 | 1.17s (up to 2.9s under load) |
-| Without startup network calls         | 0.72s                         |
-| Projected, after probe + cert fixes   | ~0.55s                        |
-| Hard floor (Bun boot + module import) | ~0.45s                        |
+| Setup                         | Time to interactive           |
+| :---------------------------- | :---------------------------- |
+| Stock                         | 1.17s (up to 2.9s under load) |
+| Without startup network calls | 0.72s                         |
+| Patched                       | 0.68s                         |
+| Hard floor (Bun boot)         | ~0.08s                        |
 
-Most of the gap is three blocking Factory API calls (`whoami`, then `feature-flags` and
-`managed-settings` behind it) plus a hardcoded 150ms terminal capability probe.
+The original gap was three blocking Factory API calls (`whoami`, then `feature-flags` and
+`managed-settings` behind it) plus a hardcoded 150ms terminal capability probe. Those are gone.
+
+## Where the remaining 0.68s goes
+
+Profiling before first paint shows no idle time left: the CPU is busy the whole way. The measured
+split is roughly 80ms of Bun boot, ~130ms of settings, keychain and terminal probes running in
+parallel, ~200ms of module evaluation, and ~170ms of React laying out the first frame.
+
+Module evaluation is spread thin, not concentrated: about 160 modules, the largest of which
+(highlight.js registering 192 languages) costs 11ms. Deferring the biggest ones was measured and
+rejected:
+
+| Experiment                                 | Result       |
+| :----------------------------------------- | :----------- |
+| Lazy highlight.js language registration    | within noise |
+| Deferring the tools module (zod + schemas) | within noise |
+| Skipping `sandbox_ensure`                  | within noise |
+| Deferring cloud session defaults           | within noise |
+| Non-blocking `ensureBuiltInDroids`         | within noise |
+| Ink `maxFps` 30 to 60                      | within noise |
+| Deferring resource monitor + terminal caps | within noise |
+
+Getting below ~600ms needs the app to import less at startup, which is an upstream change, not a
+patch. Rebuilding without `--bytecode` was measured at 1.23s, so the bytecode cache is already
+carrying its weight.
 
 ## How it works
 
