@@ -8,6 +8,47 @@ const MARKER_PREFIX = 'globalThis.__overdroid="';
 const DIGEST_LENGTH = 12;
 const DIGEST_PATTERN = /^[0-9a-f]+$/u;
 
+export const CONSTRUCTOR_BINDS: readonly string[] = [
+  'parse',
+  'safeParse',
+  'parseAsync',
+  'safeParseAsync',
+  'spa',
+  'refine',
+  'refinement',
+  'superRefine',
+  'optional',
+  'nullable',
+  'nullish',
+  'array',
+  'promise',
+  'or',
+  'and',
+  'transform',
+  'brand',
+  'default',
+  'catch',
+  'describe',
+  'pipe',
+  'readonly',
+  'isNullable',
+  'isOptional',
+];
+
+export const LAZY_METHODS: readonly string[] = CONSTRUCTOR_BINDS.filter((name) => name !== 'spa');
+
+const STANDARD_SCHEMA =
+  'this["~standard"]={version:1,vendor:"zod",validate:(R)=>this["~validate"](R)}';
+
+const OWN_METHOD =
+  'A=(T,K,G)=>(Object.defineProperty(T,K,{value:G,writable:!0,enumerable:!0,configurable:!0}),G)';
+
+const LAZY_GET = 'get(){return Object.hasOwn(this,"_def")?A(this,K,B.bind(this)):B}';
+
+const LAZY_SET = 'set(G){Object.hasOwn(this,"_def")?A(this,K,G):W(this,K,G)}';
+
+const LAZY_ACCESSORS = `static{let P=this.prototype,${OWN_METHOD},W=(T,K,B)=>Object.defineProperty(T,K,{configurable:!0,${LAZY_GET},${LAZY_SET}});${JSON.stringify(LAZY_METHODS)}.forEach((K)=>W(P,K,P[K])),W(P,"spa",P.safeParseAsync)}`;
+
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
@@ -33,6 +74,13 @@ export const patches: readonly Patch[] = [
     name: 'session-search-warm-skip',
     find: 'warmSessionSearch:!T||T.length===0,',
     replace: 'warmSessionSearch:!1/*T.length*/,',
+  },
+  {
+    name: 'zod-v3-lazy-bound-methods',
+    find: `constructor(T){this.spa=this.safeParseAsync,this._def=T,${CONSTRUCTOR_BINDS.map(
+      (name) => `this.${name}=this.${name}.bind(this),`,
+    ).join('')}${STANDARD_SCHEMA}`,
+    replace: `${LAZY_ACCESSORS}constructor(T){this._def=T,${STANDARD_SCHEMA}`,
   },
 ];
 
