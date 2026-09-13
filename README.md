@@ -37,6 +37,88 @@ bun run overdroid restore
 from Ctrl-C to exit. Pass a path to measure a copy, for example
 `bun run bench ~/.local/bin/droid.orig`.
 
+## Hooks
+
+Two Droid hooks ship alongside the patch set. They are official extension points, so they survive
+Droid updates and need no rebuild.
+
+| Hook                   | Event          | What it does                                                     |
+| :--------------------- | :------------- | :--------------------------------------------------------------- |
+| `overdroid-execute.js` | `PreToolUse`   | Approves a delete inside a temp dir or the current repo silently |
+| `overdroid-notify.js`  | `Notification` | Plays `awaitingInputSound` when an approval prompt appears       |
+
+`bun run overdroid hooks` bundles both into `~/.factory/hooks/`, and `overdroid update` re-runs it
+so the installed copies never drift from the source. Wire them up once in
+`~/.factory/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Execute|mcp__.*_Execute",
+        "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/overdroid-execute.js" }]
+      }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/overdroid-notify.js" }] }
+    ]
+  }
+}
+```
+
+Match on the tool name only. A `commandRegex` is tested against the raw command string, which
+silently skips the hook for MCP-wrapped Execute tools.
+
+### Why the prompt is silent without the notify hook
+
+Droid's own awaiting-input sound is unreachable code on this path. `requestConfirmationForToolUses`
+takes the delegated branch whenever `context.requestPermissionFn` is set, which the TUI always sets,
+and returns from there; the only call passing `playAwaitingSound:!0` sits after that return.
+`AskUser` dings because it takes a different path. The `Notification` hook fires on the branch that
+does run, so it plays the same sound the setting already names.
+
+### What the execute hook approves
+
+A delete is approved only when every one of these holds, and it prompts as normal otherwise:
+
+- the command is a plain `rm`, with no shell metacharacters, no `..` path segment, and no
+  unrecognised flags
+- every path lands in one zone: inside a temp root, or inside the current repo
+- no path is a symlink
+- a directory target carries `-r`, and a missing target carries `-f`
+- the payload names the agent's `cwd`; without it the hook passes rather than guess from its own
+
+Repo deletes are rewritten to `/usr/bin/trash`, so they stay recoverable in the macOS Trash, and the
+hook passes when that binary is missing rather than approve a command that would silently fail. Temp
+deletes run as a real `rm`. Droid already exempts `/tmp` itself, via `y6H=["/tmp"]` in `Ugf`, but
+nothing else: `$TMPDIR` and every repo path still prompt, which is the gap this closes.
+
+**Every approval rewrites the command to the canonical paths it checked**, in both zones. Approving
+the agent's original text would check one path and run another: `path.resolve` drops a trailing
+slash, so `rm -rf link/` passes a check against the symlink itself and then deletes the contents of
+whatever it points at. Rewriting binds the executed command to the inspected path, and the symlink
+rule above closes the rest.
+
+A residual race remains: an ancestor directory renamed between the check and the delete would defeat
+it. Closing that needs deletion through verified directory handles, which is not worth it here.
+
+The repo root is found by walking parents for a `.git` entry, which costs microseconds where a
+`git rev-parse` subprocess costs ~13ms on every tool call. It is only looked up once a path misses
+the temp zone, and the result is cached for the rest of the run.
+
+The entry has to prove itself: a directory needs `HEAD`, `objects` and `refs` inside it, and a file
+has to start with `gitdir:`, the linked-worktree form. An empty `.git` directory is not a
+repository, and accepting one would hand any directory holding it an approval zone it never earned.
+
+The root is then **discarded when it is the home directory**, or when the home directory cannot be
+resolved at all. A dotfiles repo whose work tree is `$HOME` otherwise makes every path under home
+look like a repo path, so `~/Downloads` would auto-approve. Paths under `.git`, and the repo root
+itself, are never approved.
+
+The `.git` check is case-insensitive, because the default macOS filesystem is: `.GIT` opens `.git`,
+so a case-sensitive check would trash a repository's history without asking.
+
 ## Probing startup
 
 `probe` is the breakdown tool that `bench` is not. Every command launches the binary in a real PTY

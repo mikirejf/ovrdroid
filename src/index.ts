@@ -7,8 +7,9 @@ import { Command } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { describeStatus, patchSource, statusOf } from './apply.ts';
 import { embeddedBunVersion, reportedVersion, startVersion } from './bun.ts';
-import { guard, messageOf, say } from './cli.ts';
+import { guard, kilobytes, messageOf, say } from './cli.ts';
 import { locateGraph, readSource } from './graph.ts';
+import { installHooks } from './hooks.ts';
 import { patches } from './patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
 import { rebuildInto } from './rebuild.ts';
@@ -117,6 +118,12 @@ async function apply(options: Options): Promise<void> {
   }
 }
 
+async function hooks(): Promise<void> {
+  for (const installed of await installHooks()) {
+    say(`installed ${installed.name} (${kilobytes(installed.bytes)})`);
+  }
+}
+
 async function update(options: Options): Promise<void> {
   const { FACTORY_DROID_AUTO_UPDATE_ENABLED: _, ...env } = Bun.env;
   const before = reportedVersion(options.target);
@@ -132,6 +139,7 @@ async function update(options: Options): Promise<void> {
   const after = reportedVersion(options.target);
   say(after === before ? `still ${after}` : `updated ${before} -> ${after}`);
   await apply(options);
+  await hooks();
 }
 
 function restore(options: Options): void {
@@ -168,6 +176,11 @@ program
   .description('run droid update, then apply the patch set if the binary is stock')
   .option(...targetOption)
   .action(guard(update));
+
+program
+  .command('hooks')
+  .description('bundle the Droid hooks into ~/.factory/hooks')
+  .action(guard(hooks));
 
 program
   .command('restore')
