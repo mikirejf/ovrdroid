@@ -17,6 +17,10 @@ export function seconds(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+export function kilobytes(bytes: number): string {
+  return bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} bytes`;
+}
+
 export function count(raw: string): number {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 1) {

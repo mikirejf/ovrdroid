@@ -1,4 +1,3 @@
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 import { patchSource } from './apply.ts';
@@ -6,7 +5,7 @@ import { say } from './cli.ts';
 import { readSource } from './graph.ts';
 import type { Patch } from './patches.ts';
 import { patches } from './patches.ts';
-import { backupPath, INSTALLED_DROID } from './paths.ts';
+import { backupPath, INSTALLED_DROID, realOrUndefined } from './paths.ts';
 import { rebuildInto } from './rebuild.ts';
 import { modulePatches, tracePatches } from './trace-patches.ts';
 
@@ -48,11 +47,7 @@ export async function readExtra(file: string): Promise<readonly Patch[]> {
 }
 
 function resolved(file: string): string {
-  try {
-    return realpathSync(file);
-  } catch {
-    return path.resolve(file);
-  }
+  return realOrUndefined(file) ?? path.resolve(file);
 }
 
 function refuseOverwrite(options: BuildOptions): void {
