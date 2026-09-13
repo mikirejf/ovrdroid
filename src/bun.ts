@@ -9,6 +9,8 @@ const VERSION_NEEDLE = 'Bun v';
 const VERSION_PATTERN = /^Bun v(?<version>\d+\.\d+\.\d+)/u;
 const ASSET = 'bun-darwin-aarch64';
 
+export const BUILD_BUN_VERSION = '1.4.2';
+
 export function embeddedBunVersion(bytes: Uint8Array): string {
   const buffer = bufferOf(bytes);
   for (let from = 0; ;) {
@@ -27,8 +29,22 @@ export function embeddedBunVersion(bytes: Uint8Array): string {
 }
 
 export function reportedVersion(binary: string): string {
-  const result = Bun.spawnSync([binary, '--version']);
-  return result.exitCode === 0 ? result.stdout.toString().trim() : '';
+  try {
+    const result = Bun.spawnSync([binary, '--version']);
+    return result.exitCode === 0 ? result.stdout.toString().trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+export async function startVersion(binary: string): Promise<string> {
+  try {
+    const child = Bun.spawn([binary, '--version'], { stdout: 'pipe', stderr: 'ignore' });
+    const [text, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+    return exitCode === 0 ? text.trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 function cachedBunPath(version: string): string {

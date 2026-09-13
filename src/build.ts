@@ -1,15 +1,21 @@
 import path from 'node:path';
 
+import { preambleFor, stageEmbeds } from './embeds.ts';
 import { withTempDir } from './temp.ts';
 
-export interface BuildResult {
-  bytes: Uint8Array;
-  seconds: number;
+const SOURCE_FILE = 'entry.js';
+
+export interface BuildRequest {
+  bun: string;
+  source: string;
+  stock: Uint8Array;
+  out: string;
 }
 
-export async function buildBinary(bun: string, source: string): Promise<BuildResult> {
+export async function buildBinary({ bun, source, stock, out }: BuildRequest): Promise<number> {
   return await withTempDir('build', async (dir) => {
-    await Bun.write(path.join(dir, 'index.js'), source);
+    const names = await stageEmbeds(stock, dir);
+    await Bun.write(path.join(dir, SOURCE_FILE), preambleFor(names) + source);
 
     const started = Bun.nanoseconds();
     const build = Bun.spawnSync(
@@ -21,9 +27,10 @@ export async function buildBinary(bun: string, source: string): Promise<BuildRes
         '--format=esm',
         '--minify',
         '--target=bun',
-        'index.js',
+        '--asset-naming=[name].[ext]',
+        SOURCE_FILE,
         '--outfile',
-        'rebuilt',
+        path.resolve(out),
       ],
       { cwd: dir, stdio: ['ignore', 'inherit', 'inherit'] },
     );
@@ -33,6 +40,6 @@ export async function buildBinary(bun: string, source: string): Promise<BuildRes
       throw new Error(`bun build failed with exit code ${build.exitCode}`);
     }
 
-    return { bytes: await Bun.file(path.join(dir, 'rebuilt')).bytes(), seconds };
+    return seconds;
   });
 }

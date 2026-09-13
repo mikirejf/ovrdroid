@@ -2,11 +2,8 @@ const TRAILER = '\n---- Bun! ----\n';
 const OFFSETS_SIZE = 32;
 const RECORD_SIZE = 52;
 
-const REGION_FIELDS = [
-  { key: 'source', label: 'source', offsetField: 8 },
-  { key: 'bytecode', label: 'bytecode', offsetField: 24 },
-  { key: 'moduleInfo', label: 'module_info', offsetField: 32 },
-] as const;
+const HEADER = { byteCount: 0, modulesOff: 8, modulesSize: 12, entryPointId: 16 } as const;
+const FIELD = { name: 0, source: 8, bytecode: 24, moduleInfo: 32 } as const;
 
 export interface Region {
   start: number;
@@ -14,10 +11,22 @@ export interface Region {
 }
 
 export interface Graph {
-  recordPos: number;
   source: Region;
   bytecode: Region;
   moduleInfo: Region;
+}
+
+export interface Module {
+  name: string;
+  source: Region;
+}
+
+interface Layout {
+  view: DataView;
+  base: number;
+  modulesOff: number;
+  recordCount: number;
+  entryPointId: number;
 }
 
 function viewOf(bytes: Uint8Array): DataView {
@@ -28,7 +37,7 @@ export function bufferOf(bytes: Uint8Array): Buffer {
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-export function locateGraph(bytes: Uint8Array): Graph {
+function layoutOf(bytes: Uint8Array): Layout {
   const trailerPos = bufferOf(bytes).lastIndexOf(TRAILER);
   if (trailerPos === -1) {
     throw new Error('Bun trailer not found: this is not a Bun standalone binary');
@@ -36,22 +45,40 @@ export function locateGraph(bytes: Uint8Array): Graph {
 
   const view = viewOf(bytes);
   const offsetsPos = trailerPos - OFFSETS_SIZE;
-  const byteCount = Number(view.getBigUint64(offsetsPos, true));
-  const modulesOff = view.getUint32(offsetsPos + 8, true);
-  const entryPointId = view.getUint32(offsetsPos + 16, true);
-
-  const base = offsetsPos - byteCount;
-  const recordPos = base + modulesOff + entryPointId * RECORD_SIZE;
-  const read = (offsetField: number): Region => ({
-    start: base + view.getUint32(recordPos + offsetField, true),
-    length: view.getUint32(recordPos + offsetField + 4, true),
-  });
+  const byteCount = Number(view.getBigUint64(offsetsPos + HEADER.byteCount, true));
+  const modulesSize = view.getUint32(offsetsPos + HEADER.modulesSize, true);
+  if (modulesSize % RECORD_SIZE !== 0) {
+    throw new Error(`module table is ${modulesSize} bytes, not a multiple of ${RECORD_SIZE}`);
+  }
 
   return {
-    recordPos,
-    source: read(REGION_FIELDS[0].offsetField),
-    bytecode: read(REGION_FIELDS[1].offsetField),
-    moduleInfo: read(REGION_FIELDS[2].offsetField),
+    view,
+    base: offsetsPos - byteCount,
+    modulesOff: view.getUint32(offsetsPos + HEADER.modulesOff, true),
+    recordCount: modulesSize / RECORD_SIZE,
+    entryPointId: view.getUint32(offsetsPos + HEADER.entryPointId, true),
+  };
+}
+
+function recordPosOf(layout: Layout, index: number): number {
+  return layout.base + layout.modulesOff + index * RECORD_SIZE;
+}
+
+function regionAt(layout: Layout, recordPos: number, field: number): Region {
+  return {
+    start: layout.base + layout.view.getUint32(recordPos + field, true),
+    length: layout.view.getUint32(recordPos + field + 4, true),
+  };
+}
+
+export function locateGraph(bytes: Uint8Array): Graph {
+  const layout = layoutOf(bytes);
+  const recordPos = recordPosOf(layout, layout.entryPointId);
+
+  return {
+    source: regionAt(layout, recordPos, FIELD.source),
+    bytecode: regionAt(layout, recordPos, FIELD.bytecode),
+    moduleInfo: regionAt(layout, recordPos, FIELD.moduleInfo),
   };
 }
 
@@ -59,27 +86,28 @@ export function readRegion(bytes: Uint8Array, area: Region): Uint8Array {
   return bytes.subarray(area.start, area.start + area.length);
 }
 
-export function readSource(bytes: Uint8Array, graph = locateGraph(bytes)): string {
-  return bufferOf(readRegion(bytes, graph.source)).toString('utf-8');
+function readText(bytes: Uint8Array, area: Region): string {
+  return bufferOf(readRegion(bytes, area)).toString('utf-8');
 }
 
-export function transplantInto(binary: Uint8Array, rebuilt: Uint8Array): void {
-  const target = locateGraph(binary);
-  const donor = locateGraph(rebuilt);
+export function readModules(bytes: Uint8Array): Module[] {
+  const layout = layoutOf(bytes);
+  const modules: Module[] = [];
 
-  for (const { key, label } of REGION_FIELDS) {
-    if (donor[key].length > target[key].length) {
-      throw new Error(
-        `rebuilt ${label} does not fit its slot: ${donor[key].length} bytes into ${target[key].length}`,
-      );
+  for (let index = 0; index < layout.recordCount; index += 1) {
+    if (index === layout.entryPointId) {
+      continue;
     }
+    const recordPos = recordPosOf(layout, index);
+    modules.push({
+      name: readText(bytes, regionAt(layout, recordPos, FIELD.name)),
+      source: regionAt(layout, recordPos, FIELD.source),
+    });
   }
 
-  const view = viewOf(binary);
-  for (const { key, offsetField } of REGION_FIELDS) {
-    const slot = target[key];
-    binary.fill(0, slot.start, slot.start + slot.length);
-    binary.set(readRegion(rebuilt, donor[key]), slot.start);
-    view.setUint32(target.recordPos + offsetField + 4, donor[key].length, true);
-  }
+  return modules;
+}
+
+export function readSource(bytes: Uint8Array, graph = locateGraph(bytes)): string {
+  return readText(bytes, graph.source);
 }

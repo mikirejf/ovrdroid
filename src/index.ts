@@ -6,8 +6,8 @@ import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
 import { describeStatus, patchSource, statusOf } from './apply.ts';
-import { embeddedBunVersion, reportedVersion } from './bun.ts';
-import { guard, say } from './cli.ts';
+import { embeddedBunVersion, reportedVersion, startVersion } from './bun.ts';
+import { guard, messageOf, say } from './cli.ts';
 import { locateGraph, readSource } from './graph.ts';
 import { patches } from './patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
@@ -21,16 +21,20 @@ function temporaryPath(target: string): string {
   return `${target}.tmp`;
 }
 
-async function readBinary(target: string): Promise<Uint8Array> {
+function isMissing(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+function readBinary(target: string): Uint8Array {
   try {
-    return await Bun.file(target).bytes();
+    return Bun.mmap(target);
   } catch {
     throw new Error(`cannot read target: ${target}`);
   }
 }
 
-async function status(options: Options): Promise<void> {
-  const bytes = await readBinary(options.target);
+function status(options: Options): void {
+  const bytes = readBinary(options.target);
   const graph = locateGraph(bytes);
 
   say(describeStatus(statusOf(readSource(bytes, graph), patches)));
@@ -42,13 +46,15 @@ async function status(options: Options): Promise<void> {
 
 interface Stock {
   bytes: Uint8Array;
+  source: string;
   origin: string;
 }
 
-async function stockFrom(target: string): Promise<Stock | undefined> {
+function stockFrom(target: string): Stock | undefined {
   const backup = backupPath(target);
-  const installed = await readBinary(target);
-  const current = statusOf(readSource(installed), patches);
+  const installed = readBinary(target);
+  const source = readSource(installed);
+  const current = statusOf(source, patches);
 
   if (current.kind === 'applied') {
     return undefined;
@@ -57,38 +63,48 @@ async function stockFrom(target: string): Promise<Stock | undefined> {
     throw new Error(`markers not found (Droid version drift): ${current.names.join(', ')}`);
   }
   if (current.kind === 'stale') {
-    if (!(await Bun.file(backup).exists())) {
+    let restored: Uint8Array;
+    try {
+      restored = Bun.mmap(backup);
+    } catch (error) {
       throw new Error(
-        `target is patched with an older patch set and no backup exists at ${backup}`,
+        isMissing(error)
+          ? `target is patched with an older patch set and no backup exists at ${backup}`
+          : `target is patched with an older patch set and its backup is unreadable: ${backup} (${messageOf(error)})`,
+        { cause: error },
       );
     }
     say(`starting from stock backup ${backup}`);
-    return { bytes: await readBinary(backup), origin: backup };
+    return { bytes: restored, source: readSource(restored), origin: backup };
   }
 
   copyFileSync(target, backup);
   say(`backed up stock binary to ${backup}`);
-  return { bytes: installed, origin: target };
+  return { bytes: installed, source, origin: target };
 }
 
 async function apply(options: Options): Promise<void> {
   const { target } = options;
-  const stocked = await stockFrom(target);
+  const stocked = stockFrom(target);
 
   if (stocked === undefined) {
     say('already applied');
     return;
   }
-  const { bytes: stock, origin } = stocked;
+  const { bytes: stock, source, origin } = stocked;
 
-  const expected = reportedVersion(origin);
-  const patched = patchSource(readSource(stock), patches);
+  const expecting = startVersion(origin);
+  const patched = patchSource(source, patches);
   say(`patched source: ${patches.length} patches plus marker`);
 
   const temporary = temporaryPath(target);
   try {
     await rebuildInto(stock, patched, temporary);
 
+    const expected = await expecting;
+    if (expected === '') {
+      throw new Error(`cannot read version from ${origin}`);
+    }
     const reported = reportedVersion(temporary);
     if (reported !== expected) {
       throw new Error(`patched binary reports ${reported || 'nothing'}, expected ${expected}`);
@@ -143,7 +159,7 @@ program
 
 program
   .command('apply')
-  .description('patch the source, rebuild it and transplant it into the binary')
+  .description('patch the source, rebuild the binary on the pinned Bun and install it')
   .option(...targetOption)
   .action(guard(apply));
 

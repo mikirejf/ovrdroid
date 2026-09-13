@@ -1,9 +1,9 @@
 import { chmodSync } from 'node:fs';
 
 import { buildBinary } from './build.ts';
-import { embeddedBunVersion, ensureBun } from './bun.ts';
+import { BUILD_BUN_VERSION, ensureBun } from './bun.ts';
 import { say } from './cli.ts';
-import { transplantInto } from './graph.ts';
+import { assertSameEmbeds } from './embeds.ts';
 
 const BINARY_MODE = 0o755;
 
@@ -23,23 +23,18 @@ export async function rebuildInto(
   source: string,
   out: string,
 ): Promise<RebuildResult> {
-  const bunVersion = embeddedBunVersion(stock);
-  say(`embedded Bun ${bunVersion}`);
+  const bun = await ensureBun(BUILD_BUN_VERSION);
 
-  const bun = await ensureBun(bunVersion);
-  say(`using Bun runtime ${bun}`);
+  say(`building with Bun ${BUILD_BUN_VERSION}`);
+  const seconds = await buildBinary({ bun, source, stock, out });
+  say(`built in ${seconds.toFixed(1)}s`);
 
-  say('building (this takes ~11s and ~3GB of RAM)');
-  const built = await buildBinary(bun, source);
-  say(`built in ${built.seconds.toFixed(1)}s`);
+  assertSameEmbeds(stock, Bun.mmap(out));
+  say('verified every embedded file survived the rebuild');
 
-  transplantInto(stock, built.bytes);
-  say('transplanted source, bytecode and module_info');
-
-  await Bun.write(out, stock);
   chmodSync(out, BINARY_MODE);
   sign(out);
   say('signed');
 
-  return { seconds: built.seconds };
+  return { seconds };
 }
