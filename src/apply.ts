@@ -9,10 +9,10 @@ export type Status =
 
 function soleOffset(haystack: string, needle: string): number | undefined {
   const first = haystack.indexOf(needle);
-  return first !== -1 && haystack.lastIndexOf(needle) === first ? first : undefined;
+  return first !== -1 && !haystack.includes(needle, first + 1) ? first : undefined;
 }
 
-function countOccurrences(haystack: string, needle: string): number {
+export function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
