@@ -7,17 +7,19 @@ in a module graph. This project extracts that source, patches it, rebuilds it wi
 release Droid embeds, and transplants the result back into the binary.
 
 Measured on Droid 0.218.1 with `bun run bench`: time to first paint drops from 1.23s to 0.68s, and
-exit from 1.09s to 0.07s.
+exit from 1.09s to 0.07s. The zod patch removes a further 68-79ms of CPU before first paint,
+measured inside the process because this machine's wall-clock noise is larger than the effect.
 
 Status: the harness applies the patch set below.
 
-| Patch                      | What it changes                     | Why                                                                                                              |
-| :------------------------- | :---------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `kitty-probe-timeout`      | 150ms probe wait to 30ms            | Ghostty answers the terminal probe in a few ms.                                                                  |
-| `whoami-no-block`          | Drops the `await` on `whoami`       | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches. |
-| `certificate-count-skip`   | Skips the cert count                | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                   |
-| `shutdown-flush-deadline`  | 1000ms flush deadline to 10ms       | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                            |
-| `session-search-warm-skip` | Skips the session-search cache warm | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.     |
+| Patch                       | What it changes                                               | Why                                                                                                                   |
+| :-------------------------- | :------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- |
+| `kitty-probe-timeout`       | 150ms probe wait to 30ms                                      | Ghostty answers the terminal probe in a few ms.                                                                       |
+| `whoami-no-block`           | Drops the `await` on `whoami`                                 | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches.      |
+| `certificate-count-skip`    | Skips the cert count                                          | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                        |
+| `shutdown-flush-deadline`   | 1000ms flush deadline to 10ms                                 | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                                 |
+| `session-search-warm-skip`  | Skips the session-search cache warm                           | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.          |
+| `zod-v3-lazy-bound-methods` | Binds zod schema methods on first use, not in the constructor | The zod v3 constructor runs 24 `.bind(this)` calls per schema, and 15,215 schemas exist before the input box appears. |
 
 ```bash
 bun run overdroid update
@@ -105,27 +107,33 @@ The original gap was three blocking Factory API calls (`whoami`, then `feature-f
 
 ## Where the remaining 0.68s goes
 
-Profiling before first paint shows no idle time left: the CPU is busy the whole way. The measured
-split is roughly 80ms of Bun boot, ~130ms of settings, keychain and terminal probes running in
-parallel, ~200ms of module evaluation, and ~170ms of React laying out the first frame.
+Only about 40% of the time to paint is CPU. The rest is waiting on the keychain, the terminal and
+the filesystem, which caps what any CPU optimisation can win.
 
-Module evaluation is spread thin, not concentrated: about 160 modules, the largest of which
-(highlight.js registering 192 languages) costs 11ms. Deferring the biggest ones was measured and
-rejected:
+Module evaluation is spread thin: 184ms across **3817** modules, and the largest single body costs
+9.7ms. Deferring individual modules was measured and rejected:
 
 | Experiment                                 | Result       |
 | :----------------------------------------- | :----------- |
 | Lazy highlight.js language registration    | within noise |
 | Deferring the tools module (zod + schemas) | within noise |
 | Skipping `sandbox_ensure`                  | within noise |
-| Deferring cloud session defaults           | within noise |
 | Non-blocking `ensureBuiltInDroids`         | within noise |
 | Ink `maxFps` 30 to 60                      | within noise |
 | Deferring resource monitor + terminal caps | within noise |
+| Deleting the whole terminal probe chain    | within noise |
 
-Getting below ~600ms needs the app to import less at startup, which is an upstream change, not a
-patch. Rebuilding without `--bytecode` was measured at 1.23s, so the bytecode cache is already
-carrying its weight.
+The terminal probes look like a 112ms serial stall and are not: replacing the entire chain with a
+constant changed nothing, because the probes overlap other startup work. A phase's duration is a
+bracket around what it awaits, never its cost.
+
+The one thing that did pay was the zod v3 constructor, which was not a module to defer but work
+inside a constructor that runs 15,215 times. Getting much below that needs the app to import less at
+startup, which is an upstream change. Rebuilding without `--bytecode` was measured at 1.23s, so the
+bytecode cache is already carrying its weight.
+
+`FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
+first time.
 
 ## How it works
 

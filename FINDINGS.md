@@ -95,10 +95,79 @@ memory pressure: 350k retained closures that the stub never allocates, which sho
 allocator work spread thinly rather than as one hot frame. This is why the microbenchmark
 understates it and why only the end-to-end A/B gets the real number.
 
-**Status: verified win, not yet a shipped patch.** The stub deletes the binds wholesale, which is a
-ceiling measurement rather than a safe patch. The likely real fix is prototype methods instead of
-per-instance bound copies, or moving the startup path onto zod v4. That work has a measured 47ms
-budget to justify it.
+**Status: shipped as `zod-v3-lazy-bound-methods`.** The wholesale deletion was the ceiling
+measurement. The shipped patch keeps every method reachable.
+
+### The shipped fix: lazy accessors on the prototype
+
+The constructor no longer binds anything. The class installs, once, a getter for each of the 24
+names. The first read of `schema.parse` binds the method, caches the bound copy as an own property
+of that instance, and returns it. A name that is never read costs nothing.
+
+This preserves the property the eager binds existed to provide: a detached `schema.parse` still
+carries its instance, so `arr.map(schema.parse)` keeps working.
+
+Three details had to be preserved deliberately, and tests lock all three:
+
+| Detail                   | Why it matters                                                                      |
+| :----------------------- | :---------------------------------------------------------------------------------- |
+| `Object.hasOwn` guard    | Reading a method off the **prototype** must not cache a copy bound to the prototype |
+| `set` trap on instances  | `schema.parse = fn` must overwrite per instance, without touching the class         |
+| `set` trap on prototypes | `Sub.prototype.parse = fn` must land on `Sub`, stay lazy, and not touch the base    |
+
+The guard is not hypothetical. The first draft omitted it, and one read of
+`Sq.prototype.safeParseAsync` poisoned the cache so every later instance returned
+`undefined:safeParseAsync`. The test
+`reading a method off the prototype does not poison later instances` exists for that bug.
+
+The prototype write was the second bug. An earlier draft reinstalled the accessor on the **base**
+prototype whenever the receiver had no own `_def`, so `Sub.prototype.parse = fn` silently rewrote
+every schema in the process and never landed on `Sub` at all. The setter now installs on its own
+receiver, which is what a plain assignment did in stock zod.
+
+The third bug was a shared descriptor. To save bytes, one mutable descriptor object was reused
+across every `defineProperty` call, on the reasoning that the descriptor is copied synchronously.
+That holds for ordinary objects and fails for a Proxy: a `defineProperty` or
+`getOwnPropertyDescriptor` trap that reads a second lazy method mutates the descriptor mid-flight,
+and the first install lands the wrong function. The payload now passes the value through a local, so
+two installs can never cross. Two Proxy reentrancy tests cover it.
+
+One divergence remains and is accepted: the accessors are non-enumerable, so `Object.keys(schema)`
+returns 2 names instead of 26 and a spread of a schema no longer carries its methods. Nothing in the
+bundle spreads or enumerates a schema, and making the accessors enumerable would give back part of
+the win.
+
+One precondition the design depends on: **no subclass may declare one of the 24 names as a method.**
+A class method is a plain data property on the subclass prototype, so it shadows the accessor and is
+never bound. Stock zod bound whatever the subclass resolved to. Today no subclass does this, and
+`test/stock-source.test.ts` re-checks all 36 direct subclasses against the shipped bundle on every
+run rather than trusting a one-time scan.
+
+Safety was established against the bundle before measuring:
+
+- No subclass of `Sq` overrides any of the 24 names. All 36 direct subclasses were checked, and the
+  6 other `this.<name>=` sites in the bundle belong to unrelated classes (commander, simple-git,
+  grpc, pdf.js).
+- No detached reference to a schema method exists in the bundle: no `.map(x.parse)`, no
+  destructuring, and no `.spa(` call site at all.
+- No schema instance is spread or enumerated. All 172 spreads in the zod region operate on parse
+  contexts and `_def`, never on a schema.
+
+### Re-measured with a self-CPU meter, because wall time could not resolve it
+
+On a machine that never drops below load 4, two identical binaries differ by a 95% interval of
+**206ms** of wall time. A 50ms effect is invisible there, so the shipped patch was measured by CPU
+consumed inside the process, read at `input_mounted` via `process.cpuUsage()`.
+
+| Run                    | n   | Result                                    |
+| :--------------------- | :-- | :---------------------------------------- |
+| base vs base (control) | 12  | 7.8ms, CI -11.7 to 27.3, **not resolved** |
+| base vs lazy           | 16  | lazy **67.7ms** less CPU, CI 50.6 to 84.8 |
+| lazy vs base (flipped) | 16  | lazy **79.2ms** less CPU, CI 62.4 to 96.0 |
+
+The control resolves to zero, and the effect survives order reversal. This agrees with the 47-51ms
+the wall-clock A/B measured on a quieter machine; CPU time is the larger number because it counts
+work the process does in parallel with its own waiting.
 
 ### What is still true from the first pass
 
@@ -106,6 +175,47 @@ budget to justify it.
   compatibility layer. Confirmed again here: every hot frame is under `zod/v3/`.
 - Migrating to v4 remains correct for upstream reasons. Whether it helps startup depends on the
   constructor, not the converter.
+
+### Would upgrading zod fix this instead? Partly, and upstream only
+
+The bundle carries **three** zod copies at once. Counting constructions before `input_mounted` with
+an instrumented build:
+
+| Copy in the bundle | Schemas before paint |
+| :----------------- | -------------------: |
+| v3 compatibility   |           **15,215** |
+| v4.0.0             |                1,018 |
+| v4.3.6             |                   88 |
+
+The expensive path is the v3 one, by three orders of magnitude.
+
+Measured against the **real published packages**, not a reconstruction of them: 15,215 object
+schemas of five fields each, roughly 91,000 zod objects, medians stable across three runs.
+
+| Version                             |  Construct | Retained heap | Own props per schema |
+| :---------------------------------- | ---------: | ------------: | -------------------: |
+| 3.25.76, what Droid runs at startup |    110.3ms |         365MB |                   29 |
+| **3.25.76 + this patch**            | **28.7ms** |      **44MB** |                **7** |
+| 4.6.4, latest                       |     95.4ms |         137MB |                    3 |
+
+**zod 4.6.4 did fix this class of problem.** It moved the methods onto the prototype: a 4.3.6 schema
+carries 56 own properties, a 4.6.4 schema carries 2. That is the same insight as this patch, made
+upstream.
+
+Two things follow:
+
+1. **Upgrading would help, but less than the patch does.** Latest cuts retained heap by 62%; the
+   patch cuts it by 88%, because v3 has less per-schema machinery left once the binds are gone.
+2. **It is not reachable from here.** Which zod each module imports is decided in Factory's source.
+   This harness rewrites compiled output, and moving thousands of schema definitions from the v3 API
+   to the v4 API is an upstream change, not a find-and-replace.
+
+Newer is not automatically faster: 4.3.6, already in the bundle, is the **worst** of the three at
+construction (241.8ms) because it assigns 42 properties per instance. The win in 4.6.4 comes
+specifically from moving them to the prototype.
+
+The `toJSONSchema` precompilation in 4.3.6+ is lazy. `Q0h` (offset `16323824`) returns a closure
+rather than computing at construction, so it neither costs nor saves anything at startup.
 
 ## Module evaluation: the count was understated 24-fold
 
@@ -285,31 +395,44 @@ rather than assumed.
 
 ## Where the remaining time is
 
-| Item                | Duration | Status                                                  |
-| :------------------ | -------: | :------------------------------------------------------ |
-| Waiting, not CPU    |   ~810ms | ~60% of paint. Terminal probes, keychain, file I/O      |
-| `runtime_boot`      |     76ms | Bun itself. Hard floor.                                 |
-| `kitty_probe`       |     84ms | Waits for two replies; resolves only when both arrive   |
-| zod v3 constructor  |  47-51ms | CPU plus GC. **Verified by stub.** Largest single item  |
-| Sub-1ms module tail |    ~89ms | CPU, across 3779 modules. Only fixable by shipping less |
-| `certificates`      |     51ms | Already patched to skip; residue                        |
-| `truecolor_probe`   |     28ms | Terminal                                                |
-| `auth_token`        |     23ms | Keychain                                                |
+| Item                | Duration | Status                                                    |
+| :------------------ | -------: | :-------------------------------------------------------- |
+| Waiting, not CPU    |   ~810ms | ~60% of paint. Keychain and file I/O, **not the probes**  |
+| `runtime_boot`      |     76ms | Bun itself. Hard floor.                                   |
+| `kitty_probe`       |     84ms | **Off the critical path.** Deleting the chain won nothing |
+| zod v3 constructor  |  47-80ms | CPU plus GC. **Shipped.** Largest single item             |
+| Sub-1ms module tail |    ~89ms | CPU, across 3779 modules. Only fixable by shipping less   |
+| `certificates`      |     51ms | Already patched to skip; residue                          |
+| `truecolor_probe`   |     28ms | Terminal. Same chain as `kitty_probe`, same null result   |
+| `auth_token`        |     23ms | Keychain                                                  |
+
+## Retraction: the terminal probes are not on the critical path
+
+The probes really are serial. `MCh` awaits the truecolor probe, which resolves a gate that starts
+the kitty probe (offset `15266417`), which then starts terminal-appearance detection. The render
+path does await the end of that chain, at `15277983`.
+
+That reads like a 112ms serial stall, so the whole chain was replaced with a constant and measured:
+
+| Run             | n   | Result                                    |
+| :-------------- | :-- | :---------------------------------------- |
+| base vs ceiling | 14  | ceiling **15.8ms slower**, CI 2.3 to 29.3 |
+
+Deleting the entire probe chain does not speed up paint. The probes overlap other startup work, so
+their duration is a bracket around waiting, not a cost. The existing `kitty-probe-timeout` patch is
+the only part of this area that ever mattered, and only because a timeout fires when no reply comes.
+
+**Rule confirmed, again:** a phase's duration is not its cost. Stub it before building anything.
 
 ## Open items
 
-- **Turn the zod stub into a shippable patch.** The ceiling is measured at 47-51ms; what exists
-  today is a wholesale deletion of the bind block, which is a measurement, not a fix. Prototype
-  methods or a zod v4 startup path are the candidates, and they have a 47ms budget to justify them.
-  The stub lives at `/tmp/od-zodstub.json` and the built binaries at `/tmp/od-base` and
-  `/tmp/od-zodstub`.
 - Re-run `defer-cloud-session-defaults` in a clean environment. Its null result is void.
 - Re-measure the seven verified experiments with the repaired harness. Their relative ranking is
   probably intact, but every absolute number was taken with a leaked environment and a 50ms-late
   exit clock.
 - The 64ms untraced gap at 392-457ms still has no confirmed owner.
-- `kitty_probe` at 84ms resolves only once **both** `ESC[?u` and `ESC[c` replies arrive (offset
-  `13474379`). Worth testing whether it is on the critical path or merely overlapping.
+- The sub-1ms module tail (~89ms across 3779 modules) is the largest untouched CPU item left. It
+  only moves by shipping fewer modules, which is an upstream change.
 - The harness answers four terminal queries but stock Droid 0.218.1 only ever sends three; the DCS
   truecolor query is never sent when `COLORTERM=truecolor` is inherited. Under a clean environment
   Droid may now send it, which would add a probe the old numbers never included.
