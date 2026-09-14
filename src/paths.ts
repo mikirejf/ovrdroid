@@ -12,6 +12,10 @@ export const FACTORY_SOUNDS = path.join(FACTORY, 'sounds');
 
 export const FACTORY_SETTINGS = path.join(FACTORY, 'settings.json');
 
+export function cacheDir(...parts: readonly string[]): string {
+  return path.join(homedir(), '.cache', 'overdroid', ...parts);
+}
+
 export function backupPath(target: string): string {
   return `${target}.orig`;
 }
