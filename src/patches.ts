@@ -165,6 +165,11 @@ export const patches: readonly Patch[] = [
     replace: 'available:"\\u2193 v{{version}} available \\xB7 run: overdroid update",',
   },
   {
+    name: 'command-menu-prefix-first',
+    find: 'if(I&&w)return 1;if(I)return 2;if(w)return 3;return 4}',
+    replace: 'if(w)return I?1:2;if(I)return 3;return 4}',
+  },
+  {
     name: 'draft-dismiss-no-rerender',
     find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
     replace:
