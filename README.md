@@ -31,6 +31,8 @@ Status: the harness applies the patch set below.
 | `ink-string-width-grapheme-memo-init`  | Adds the two grapheme maps Ink's memo reads                    | The memo needs its narrow and wide maps created when the module is evaluated.                                                      |
 | `app-display-width-grapheme-memo`      | `displayWidth` memoises per grapheme                           | The app measures width separately from Ink and paid the same per-grapheme cost on every keystroke.                                 |
 | `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads                | Same as Ink's: the maps are created at module evaluation.                                                                          |
+| `auto-update-notice-only`              | Stops the update at the check and reports it as available      | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
+| `update-notice-command`                | Adds `run: overdroid update` to the update notice              | The notice has to name the command that now does the updating.                                                                     |
 | `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                        | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
 | `react-production`                     | Swaps React for its production build                           | Droid ships React's development build, whose hook checks and invariants run on every render.                                       |
 | `react-reconciler-production`          | Swaps the reconciler and scheduler for their production builds | Same reason, and the reconciler is the largest share of typing CPU.                                                                |
@@ -302,7 +304,8 @@ bun run verify
 
 ## Safety
 
-- Droid auto-updates and will silently replace a patched binary. Disable it in
-  `~/.factory/update-policy.json` before relying on a patch.
+- A patched binary blocks its own auto-update, so an update can no longer replace it silently. The
+  footer says `v0.219.0 available · run: overdroid update` instead, and `overdroid update` installs
+  it and re-applies the patch set.
 - Never patch `~/.local/bin/droid` in place without a backup.
 - Test on a copy first.

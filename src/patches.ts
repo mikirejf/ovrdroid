@@ -114,6 +114,17 @@ export const patches: readonly Patch[] = [
     replace: 'g0u=/^\\p{RGI_Emoji}$/v;c0R.$n=new Map;c0R.$w=new Map});',
   },
   {
+    name: 'auto-update-notice-only',
+    find: 'if(!$)return cV(t,"no-update"),"no-update";if($.isRollback){',
+    replace:
+      'if(!$)return cV(t,"no-update"),"no-update";return Ja9({type:"update-available",version:$.version.version}),JT("Auto-update blocked by overdroid; run: overdroid update",{version:$.version.version}),cV(t,"skipped"),"skipped";if($.isRollback){',
+  },
+  {
+    name: 'update-notice-command',
+    find: 'available:"\\u2193 v{{version}} available",',
+    replace: 'available:"\\u2193 v{{version}} available \\xB7 run: overdroid update",',
+  },
+  {
     name: 'draft-dismiss-no-rerender',
     find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
     replace:
