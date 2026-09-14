@@ -191,6 +191,12 @@ export const patches: readonly Patch[] = [
     replace: 'FB.useEffect(()=>()=>{GT?.(!1)},[GT]);',
   },
   {
+    name: 'settings-watch-after-paint',
+    find: 'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,',
+    replace:
+      'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,setTimeout(()=>this.$ow(),400).unref?.()}$ow(){if(!this.watchingEnabled)return;this.watchingEnabled=!0,',
+  },
+  {
     name: 'draft-dismiss-no-rerender',
     find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
     replace:
