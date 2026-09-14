@@ -1,3 +1,4 @@
+import { logoPatches } from './logo.ts';
 import { reactProductionPatches } from './react.ts';
 
 export interface Patch {
@@ -195,6 +196,7 @@ export const patches: readonly Patch[] = [
     replace:
       'let $r=PV.useRef(T);$r.current=T;let H=PV.useCallback(()=>{let s=$r.current;if(s.notice.kind==="hidden"||s.dismissed)return;R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
   },
+  ...logoPatches,
 ];
 
 async function productionPatches(): Promise<readonly Patch[]> {
