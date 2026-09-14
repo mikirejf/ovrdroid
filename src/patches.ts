@@ -180,6 +180,16 @@ export const patches: readonly Patch[] = [
     replace: 'isLoading:fT.status==="refreshing"&&!Td.$done}',
   },
   {
+    name: 'command-menu-visibility-same-commit',
+    find: 'WR=FB.useCallback((y9)=>{TH({showCommands:y9}),TT(y9)},[TH])',
+    replace: 'WR=FB.useCallback((y9)=>{TH({showCommands:y9}),TT(y9),GT?.(y9)},[TH,GT])',
+  },
+  {
+    name: 'command-menu-visibility-reset-on-unmount',
+    find: 'FB.useEffect(()=>{GT?.(x)},[x,GT]);',
+    replace: 'FB.useEffect(()=>()=>{GT?.(!1)},[GT]);',
+  },
+  {
     name: 'draft-dismiss-no-rerender',
     find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
     replace:
