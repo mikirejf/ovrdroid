@@ -7,7 +7,8 @@ sidecar files embedded in a module graph. This project extracts all of it, patch
 rebuilds the whole binary on a pinned newer Bun release, and re-signs it.
 
 Measured on Droid 0.218.1 with `bun run bench`: time to first paint drops from 1.23s to 0.38s, and
-exit from 1.09s to 0.07s.
+exit from 1.09s to 0.07s. Typing costs 47% less CPU, measured with `bun run probe keys` and paired
+CPU profiling.
 
 The Bun upgrade is most of that. Droid 0.218.1 ships Bun 1.3.14; rebuilding on 1.4.2 is worth 173ms
 on its own (n=30 paired rounds, 95% CI 163-183ms), because Bun 1.4.1 packed the bytecode format and
@@ -17,21 +18,34 @@ this machine's wall-clock noise is larger than the effect.
 
 Status: the harness applies the patch set below.
 
-| Patch                       | What it changes                                               | Why                                                                                                                   |
-| :-------------------------- | :------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- |
-| `kitty-probe-timeout`       | 150ms probe wait to 30ms                                      | Ghostty answers the terminal probe in a few ms.                                                                       |
-| `whoami-no-block`           | Drops the `await` on `whoami`                                 | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches.      |
-| `certificate-count-skip`    | Skips the cert count                                          | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                        |
-| `shutdown-flush-deadline`   | 1000ms flush deadline to 10ms                                 | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                                 |
-| `session-search-warm-skip`  | Skips the session-search cache warm                           | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.          |
-| `zod-v3-lazy-bound-methods` | Binds zod schema methods on first use, not in the constructor | The zod v3 constructor runs 24 `.bind(this)` calls per schema, and 15,215 schemas exist before the input box appears. |
+| Patch                                  | What it changes                                                | Why                                                                                                                                |
+| :------------------------------------- | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| `kitty-probe-timeout`                  | 150ms probe wait to 30ms                                       | Ghostty answers the terminal probe in a few ms.                                                                                    |
+| `whoami-no-block`                      | Drops the `await` on `whoami`                                  | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches.                   |
+| `certificate-count-skip`               | Skips the cert count                                           | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                                     |
+| `shutdown-flush-deadline`              | 1000ms flush deadline to 10ms                                  | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                                              |
+| `session-search-warm-skip`             | Skips the session-search cache warm                            | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.                       |
+| `zod-v3-lazy-bound-methods`            | Binds zod schema methods on first use, not in the constructor  | The zod v3 constructor runs 24 `.bind(this)` calls per schema, and 15,215 schemas exist before the input box appears.              |
+| `model-alias-lookup-set`               | Model alias lookup scans a Set                                 | It rebuilt an array with `Object.values` and scanned it linearly, once per model id, inside a render that runs on every keystroke. |
+| `ink-string-width-grapheme-memo`       | Ink's width scan memoises per grapheme                         | Ink's cache keys on the whole line, so one new character misses it and re-measures every grapheme again.                           |
+| `ink-string-width-grapheme-memo-init`  | Adds the two grapheme maps Ink's memo reads                    | The memo needs its narrow and wide maps created when the module is evaluated.                                                      |
+| `app-display-width-grapheme-memo`      | `displayWidth` memoises per grapheme                           | The app measures width separately from Ink and paid the same per-grapheme cost on every keystroke.                                 |
+| `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads                | Same as Ink's: the maps are created at module evaluation.                                                                          |
+| `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                        | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
+| `react-production`                     | Swaps React for its production build                           | Droid ships React's development build, whose hook checks and invariants run on every render.                                       |
+| `react-reconciler-production`          | Swaps the reconciler and scheduler for their production builds | Same reason, and the reconciler is the largest share of typing CPU.                                                                |
+| `react-jsx-runtime-production`         | Swaps the JSX runtime for its production build                 | The dev runtime validates and records a stack for every element it creates.                                                        |
 
 ```bash
 bun run overdroid update
 bun run overdroid status
 bun run overdroid apply
+bun run overdroid apply --dev-react
 bun run overdroid restore
 ```
+
+`--dev-react` keeps React's development build, which is slower but keeps the full DevTools
+diagnostics: component and owner stacks, hook checks and readable error messages.
 
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example
@@ -158,6 +172,22 @@ a warm-up round. It prints min, p25, median, p75 and the raw paint times for eac
 binaries it also prints the paired difference with a 95% confidence interval and the smallest effect
 that sample count can resolve.
 
+`probe keys` measures typing rather than startup. It waits for the input box, waits for the terminal
+to go quiet, then reports two things per binary:
+
+- **echo**: milliseconds from one keypress to the first byte back, on an idle input box, with the
+  character deleted between trials so the buffer never grows.
+- **lag**: milliseconds of output still arriving after the last key of a sustained burst. This is
+  the number that moves when a render is too expensive to keep up with a fast typist.
+
+Runs are interleaved and position-balanced like `probe ab`, and both metrics get their own paired
+confidence interval. Echo is per keypress, so it reaches a usable sample count quickly; lag is one
+sample per run and needs far more rounds before its interval means anything.
+
+```bash
+bun run probe keys /tmp/od-base /tmp/od-candidate --runs 4
+```
+
 `probe cpu` records a CPU profile of a startup, selects the profile belonging to the process it
 launched (Droid spawns a second Droid, which writes its own), cuts the samples at first paint, and
 ranks frames by `samples * median(sampling period)`. It prints each frame's sample count and, when
@@ -231,7 +261,10 @@ first time.
    the app source plus 35 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill
    assets, sounds). Offsets move every release, so they are always derived.
 2. **Patch.** Literal find/replace pairs on the source text, any length, plus a marker statement
-   that records which patch set is applied.
+   that records which patch set is applied. A patch may also carry `until`, which extends the
+   replaced range through the first match of that string after `find`. The React production patches
+   are built from tarballs fetched from the npm registry at pinned versions, cached under
+   `~/.cache/overdroid/react`, so they are never read from `node_modules`.
 3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/bun.ts`) once, cache it
    under `~/.cache/overdroid/`, and run
    `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source

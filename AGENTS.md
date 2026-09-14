@@ -35,7 +35,10 @@ SIGKILL on launch.
 
 - **The harness** is TypeScript on Bun. Normal code, normal tooling.
 - **Patch payloads** are hand-written minified JavaScript. They match against already-bundled,
-  already-minified code, so no compiler can reach them. Do not try to author them in TypeScript.
+  already-minified code, so no compiler can reach them. Do not try to author them in TypeScript. A
+  patch may carry `until` to replace a whole span rather than one string, and `src/react.ts` uses
+  that to build span patches from React's production files, fetched from the npm registry at pinned
+  versions and cached under `~/.cache/overdroid/react`.
 
 ## Rebuild the whole binary, on a pinned newer Bun
 

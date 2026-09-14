@@ -6,6 +6,9 @@ after the measurement tooling was repaired.
 Everything here is a measurement, not a theory. Where a measurement was wrong, the retraction is
 kept alongside it, because the way it went wrong is the reusable part.
 
+Typing cost is a separate investigation with its own section at the end of this document. It does
+not share a critical path with startup, and none of the startup numbers below describe it.
+
 ## Read this before trusting any number below
 
 The tooling that produced the first pass had four defects that each manufacture a plausible wrong
@@ -436,3 +439,283 @@ the only part of this area that ever mattered, and only because a timeout fires 
 - The harness answers four terminal queries but stock Droid 0.218.1 only ever sends three; the DCS
   truecolor query is never sent when `COLORTERM=truecolor` is inherited. Under a clean environment
   Droid may now send it, which would add a probe the old numbers never included.
+
+# Typing findings
+
+A separate investigation into what a keystroke costs, measured 2026-09-13 with `probe keys` and
+paired CPU profiling of the typing window. Startup work and typing work share almost nothing, so
+none of the numbers above apply here.
+
+## The headline
+
+| Question                           | Answer                                                        |
+| :--------------------------------- | :------------------------------------------------------------ |
+| Is a single keypress slow?         | No. **4ms** median echo, idle input box                       |
+| Is typing expensive anyway?        | Yes. **580ms of CPU** per 120 keys, ~10x idle                 |
+| Where does it go?                  | 40% React reconciler, 25% a model-policy scan inside render   |
+| Is the bundled React a prod build? | **No. It is the development build**                           |
+| Is React Compiler applied?         | No                                                            |
+| Biggest verified win               | One line: **194ms** of model-registry work per 100 keystrokes |
+
+## Droid ships React's development build
+
+Decisive, and the single most important fact in this section.
+
+| Marker                                                | Build it proves |  Hits |
+| :---------------------------------------------------- | :-------------- | ----: |
+| `Minified React error`                                | production      | **0** |
+| `Invalid hook call`                                   | development     |     2 |
+| `Should have a queue`                                 | development     |     1 |
+| `Rendered more hooks than during the previous render` | development     |     1 |
+| `captureOwnerStack`                                   | development     |     1 |
+| `Internal React error`                                | development     |     3 |
+
+Production React replaces every invariant message with a numbered `Minified React error` link. Zero
+of those exist in the bundle, while the dev-only assertions all do. There is no second prod copy to
+switch to at runtime, so the dev build is what executes.
+
+React is 19.2.3, the reconciler reports 19.2.0, and the renderer is Ink.
+
+**React Compiler is not applied to application code.** No `react/compiler-runtime` import exists,
+and no component shows the compiler's `$[0] !== x` memo-cache shape. The four `useMemoCache` hits
+are React's own dispatcher plumbing.
+
+`StrictMode` is referenced only as an exported symbol and a `getComponentName` case; nothing wraps
+the tree in it, so renders are not doubled.
+
+## Typing costs ten times idle
+
+CPU in a 6.4s window, stock binary, against an idle control of the same length:
+
+| Window                 |   CPU |
+| :--------------------- | ----: |
+| Idle, no keys          |  64ms |
+| 120 keys at 40ms apart | 643ms |
+
+Attribution of the typing window:
+
+| Owner                                 |   CPU | Share |
+| :------------------------------------ | ----: | ----: |
+| React reconciler                      | 258ms | 40.2% |
+| model-registry / `resolveModelPolicy` | 162ms | 25.2% |
+| other                                 |  80ms | 12.4% |
+| ink `string-width` / emoji regex      |  77ms | 11.9% |
+| ink `log-update` + output diff        |  65ms | 10.1% |
+| yoga layout                           | 0.4ms |  0.1% |
+
+Yoga layout is not a factor. The renderer is not the problem; what runs _inside_ the render is.
+
+## Every keystroke re-renders the whole app
+
+The profile resolves the full path. Input state lives at the top of the tree in `app.tsx:679`, so a
+keypress re-runs the root component and everything below it:
+
+```
+values@:0
+lC@packages/utils/src/llm/model-registry.ts:272
+mKR@packages/utils/src/policy/resolveModelPolicy.ts:20
+ajA@packages/utils/src/policy/resolveModelPolicy.ts:33
+bKR@packages/utils/src/models/policy/utils.ts:340
+vlT@src/utils/modelValidation.ts:22
+getAllowedCycleModelIds@src/services/SettingsService.ts:1140
+getModelCycleCandidates@src/services/SettingsService.ts:1149
+useMemo@react-reconciler:18175
+_rD@src/app.tsx:679
+```
+
+A second path reaches the same scan through `hasAnyAvailableModel@SettingsService.ts:1082`, which is
+**not** inside a `useMemo` at all.
+
+The offending line is `lC`, the model alias lookup:
+
+```js
+function lC(T,R){...if(T in RO)return T;if(Object.values(RO).includes(T))return T;return}
+```
+
+`Object.values(RO)` rebuilds an array on every call, then scans it linearly. `lC` is called once per
+model id, inside `.map`, inside `.filter`, inside a render that runs on every keystroke. `RO` is
+never mutated anywhere in the bundle, so the array is rebuilt to produce an identical result.
+
+## Verified: hoisting that lookup into a Set
+
+The patch caches the value set and invalidates it if `RO` is ever replaced:
+
+```js
+if ((lC.$o !== RO && ((lC.$o = RO), (lC.$s = new Set(Object.values(RO)))), lC.$s).has(T)) return T;
+```
+
+Paired CPU profiling of the typing window, 5 rounds, position-balanced, 100 keys per run:
+
+| Owner            |    base | patched | paired difference | 95% CI           | Verdict      |
+| :--------------- | ------: | ------: | ----------------: | :--------------- | :----------- |
+| model-registry   | 230.1ms |  35.6ms |      **-194.4ms** | -203.0 to -185.9 | **RESOLVED** |
+| react reconciler | 784.2ms | 577.7ms |      **-206.6ms** | -253.6 to -159.6 | **RESOLVED** |
+| ink string-width | 101.1ms | 103.6ms |            +2.5ms | -1.0 to 6.0      | not resolved |
+| ink output diff  | 190.4ms | 193.9ms |            +3.5ms | -10.4 to 17.3    | not resolved |
+
+Total CPU in the typing window falls from 907.5ms to 724.6ms. The reconciler figure drops because
+the scan runs _inside_ render, so its cost is charged to both categories; the two numbers overlap
+and must not be added.
+
+**This resolved under a load average of 7.3**, where wall-clock A/B could not. That is the reusable
+part: CPU attribution of a named frame is far more robust to machine noise than paint or lag timing.
+
+## Why wall-clock could not resolve it
+
+`probe keys`, 30 paired rounds, same two binaries:
+
+| Metric | base median | patched median | paired difference | 95% CI       | Verdict      |
+| :----- | ----------: | -------------: | ----------------: | :----------- | :----------- |
+| echo   |         5ms |            6ms |            -5.2ms | -12.6 to 2.2 | not resolved |
+| lag    |        40ms |           40ms |            -3.6ms | -15.8 to 8.6 | not resolved |
+
+Echo latency is ~4ms and the patch does not move it, which is expected: one keypress on an idle box
+never reaches the expensive path often enough to matter. The cost is CPU burned during _sustained_
+typing, and the machine was too loaded for a 10ms wall-clock effect to clear the noise floor.
+
+## Shipped as `model-alias-lookup-set`
+
+The patch is in the set. Confirmed against the rebuilt binary, whose identifiers are re-minified, so
+the check is semantic rather than literal:
+
+| Binary  | set cache | linear scan in `lC` |
+| :------ | :-------- | :------------------ |
+| base    | absent    | present             |
+| patched | present   | absent              |
+
+**Safety.** `RO` is a frozen model-id enum. Within 600k characters around the patch site there are
+zero in-place mutations (`RO[x]=`, `delete RO[x]`, `Object.assign(RO, ...)`), and all 14 nearby uses
+only read it. The guard `lC.$o!==RO` rebuilds the Set if the binding is ever replaced, so the cache
+cannot go stale. The bundle already uses this exact shape elsewhere: `new Set(Object.values(RO))` is
+hoisted to module scope in two other places, so the fix matches existing practice rather than
+inventing one.
+
+**Behaviour.** Driving `/model` through a real PTY and capturing the rendered picker, base and
+patched produce **byte-identical screens** (5187 bytes each, 9 model rows, every provider group and
+every `[disabled by admin]` marker in the same place). The picker is the densest consumer of `lC`,
+since it resolves every alias and applies policy to each one.
+
+Re-measured with the patch in the set, 5 paired rounds, load average 7.05:
+
+| Owner            |    base | patched | paired difference | 95% CI           | Verdict      |
+| :--------------- | ------: | ------: | ----------------: | :--------------- | :----------- |
+| model-registry   | 228.2ms |  36.9ms |      **-191.3ms** | -197.0 to -185.6 | **RESOLVED** |
+| react reconciler | 789.1ms | 559.9ms |      **-229.2ms** | -250.3 to -208.1 | **RESOLVED** |
+| ink output diff  | 192.9ms | 186.9ms |            -6.0ms | -10.9 to -1.1    | RESOLVED     |
+| ink string-width | 100.7ms |  99.3ms |            -1.4ms | -6.2 to 3.3      | not resolved |
+
+Total typing CPU falls from 933.6ms to 676.8ms, a **27% cut**, and the result reproduces across two
+independent build-and-measure cycles.
+
+## What is left after the model patch: no more one-line wins
+
+With `model-alias-lookup-set` applied, the remaining 677ms of typing CPU breaks down like this,
+attributed to the deepest **application** frame on each stack rather than to the library leaf:
+
+| Owner                                 |   CPU | What it is                           |
+| :------------------------------------ | ----: | :----------------------------------- |
+| no app frame (library-only stacks)    | 601ms | Ink, React and the terminal writer   |
+| `missionControlInkIsolation.ts:85`    | 250ms | Ink's commit hook: measure and write |
+| `app.tsx:679`                         | 231ms | The root component re-rendering      |
+| `displayWidth.ts:20`                  |  55ms | App's own width measurement          |
+| `ChatInput.tsx:393`                   |  53ms | The input component itself           |
+| `KeypressProvider.tsx:1457/1510/1810` | ~41ms | Key decoding                         |
+
+**The chat input component is not the problem.** `ChatInput.tsx` accounts for 53ms of 677ms. The
+cost is the frame that a keystroke triggers: the whole screen is re-rendered, re-measured and
+rewritten.
+
+The single hottest leaf is `/^\p{RGI_Emoji}$/v` at **97ms**, reached from `string-width` inside
+`log-update`, inside Ink's `writeFrame`. Ink measures the display width of the **entire frame** on
+every commit, and Unicode-aware width measurement is expensive.
+
+### Two candidate fixes measured, both null
+
+Both were stubbed and measured end to end, per the method. Neither is worth shipping.
+
+| Experiment                     | model-registry | reconciler | string-width | Verdict  |
+| :----------------------------- | -------------: | ---------: | -----------: | :------- |
+| Remove JSX owner-stack capture |         +1.5ms |     +0.2ms |       -0.1ms | **null** |
+| `incrementalRendering: true`   |         -1.4ms |     +7.7ms |       +0.1ms | **null** |
+
+**Owner-stack capture.** React's dev build allocates an `Error` per JSX element to record a stack,
+budgeted at 10,000 per second (`recentlyCreatedOwnerStacks`, reset every 1000ms in the reconciler).
+The bundle has **3,643 `jsxDEV` call sites**, so this looked like the dominant dev-build tax.
+Removing it at all four creation functions (`jsxDEV`, `jsx`, `jsxs`, `createElement`) changed
+nothing measurable. The allocation is cheap next to the render itself.
+
+**Incremental rendering.** Ink ships an `incrementalRendering` option, shipped off
+(`incrementalRendering:!1`). Turning it on did not help: it changes how the frame is _written_, not
+how much of it is measured, and the measurement is where the time goes.
+
+The useful conclusion is that **the width scan is not skippable by a flag**, and the dev-build tax
+is not concentrated in element creation. The remaining costs are structural.
+
+## Shipped: three structural typing fixes
+
+All three numbers below are paired CPU profiling of the typing window, 4 rounds, position-balanced,
+100 keys per run. Together they take typing from 570ms to ~300ms per 100 keys, a **47% cut**. The
+first two alone are -40%.
+
+### Memoise width per grapheme, not per line
+
+Both width scans, Ink's `string-width` and the app's own `displayWidth`, segment a string into
+graphemes and measure each one. Ink already has an LRU cache, but it keys on the **whole line**, so
+typing one more character misses it and re-measures every grapheme in the line again. The cost is
+quadratic in line length for what is a constant per character.
+
+Raising Ink's cache limit was measured first and did nothing (**+6ms**, not resolved), which is the
+proof that the miss rate, not the cache size, was the problem.
+
+Memoising per grapheme instead, in two maps keyed by the narrow/wide ambiguity flag:
+
+| Owner            | Saving    |
+| :--------------- | :-------- |
+| ink string-width | **-90ms** |
+| ink output diff  | **-80ms** |
+
+The output diff falls too because it measures the frame it is diffing.
+
+Four patches ship this: one rewrite and one map-init for each of the two scans.
+
+### Guard the draft-dismiss dispatch
+
+`dismissAfterDraftEdit` dispatched `{type:"draft-edited"}` on every keystroke. The reducer returns
+the **same state object** when the notice is already hidden or dismissed, so React bails out of
+updating, but it still runs the root component function once for the dispatch itself. Bailing out is
+not free when the component in question is the whole app.
+
+Reading the current state from a ref and returning early when there is nothing to dismiss:
+
+| Metric                   | Base | Patched |
+| :----------------------- | ---: | ------: |
+| Root renders per 50 keys |   65 |      18 |
+
+### Production React
+
+Droid ships React's development build (see above). The bundle's lazy-module helper takes a CommonJS
+body, so the four dev modules can be replaced wholesale with the production files fetched from the
+npm registry at pinned versions and cached under `~/.cache/overdroid/react`: `react`,
+`react-jsx-runtime`, `scheduler` and `react-reconciler`.
+
+| Measurement                   | Result     |
+| :---------------------------- | :--------- |
+| Alone, against base           | **-58ms**  |
+| On top of the other two fixes | **~-30ms** |
+| Source size change            | **-140KB** |
+
+The overlap is expected: the other two fixes remove work the reconciler was being charged for.
+
+**The cost is React's development diagnostics.** The production build still exposes the DevTools
+hook, but it drops component stacks, owner stacks, hook-order checks and the readable invariant
+messages, so `--dev-react` keeps the development build for anyone probing render behaviour. The two
+sets hash to different markers, so `apply` sees the other set as `stale` and rebuilds from the
+`.orig` backup.
+
+## Open items
+
+- `hasAnyAvailableModel@SettingsService.ts:1082` runs the policy scan outside any `useMemo`. Worth
+  checking whether the remaining ~36ms is all of it.
+- `probe keys` measures lag with one sample per run, so it needs far more rounds than echo before
+  its interval means anything. Prefer paired CPU attribution for typing work.
+- A session-index cache runs `JSON.stringify` during typing and costs ~8ms even when idle.
