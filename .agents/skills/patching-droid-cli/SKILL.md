@@ -67,6 +67,9 @@ minified line, so read it with `rg` and offsets rather than an editor.
   nearby.
 - Check uniqueness before believing a find string. A one-occurrence check in the harness is the
   guardrail that turns the next Droid release into a clean `missing:` report.
+- **Count occurrences, not lines.** `grep -c` counts matching **lines**, and the bundle is one
+  20MB line per module, so it reports `1` for a string that appears four times and the anchor
+  silently fails the harness's uniqueness check later. Use `grep -o -F "str" file | wc -l`.
 
 ## Safety
 
@@ -145,3 +148,25 @@ check, deferring cloud session defaults, non-blocking built-in droids, a higher 
 The reason is shape, not size. The cost is spread across ~160 modules whose largest is 11ms, so
 deferring any one of them wins nothing and the sum only moves if the app imports less. That is an
 upstream change. Report it instead of shipping a patch that cannot be measured.
+
+Deferring work past paint is the one startup lever that still pays, but two details decide whether
+it works. **A React effect is not the paint boundary**: boundaries like `first_paint` and
+`input_mounted` are recorded inside effects that run before the renderer writes the frame, so
+hanging work there does not move it after paint. A short timer does. And **check what reads the
+flag you are deferring**: if lazily-created objects copy a `watchingEnabled`-style flag at
+construction, deferring the flag leaves them permanently disabled and the feature dies silently
+while the benchmark reports a win. Set the flag immediately; defer only the expensive calls.
+
+Typing work has its own version of this, and one rule covers most of it: **React concurrency is a
+scheduling tool, not a cost-reduction tool.** `useDeferredValue` and `startTransition` render a
+subtree twice on purpose, so they win only when the second pass is both expensive and genuinely
+skippable. Under Ink every commit reaches `resetAfterCommit` and builds a whole terminal frame, so
+the fixed price of splitting a render is one extra frame build, which is the single most expensive
+thing Ink does. Both hooks were built and measured on Droid 0.218.1 and both roughly **doubled**
+commits per keystroke. Count renders before reaching for either.
+
+Two related traps. Ink asks for a legacy root (`concurrent:!1`), which looks like it disables the
+hooks, but React 19.2 compiled legacy mode out and the root is concurrent regardless, so a legacy
+root is not a reason to dismiss the experiment. And state arriving through `useSyncExternalStore`
+cannot be deferred at all: `forceStoreRerender` enqueues at the sync lane unconditionally so a
+store read cannot tear, so there is no patch site to put a transition in.

@@ -6,7 +6,7 @@ tell you exactly. Both matter, and the instrumented build is the one that settle
 The harness in `~/dev/overdroid` ships these as `bun run probe`; the patches themselves live in
 `src/trace-patches.ts` and are worth re-deriving for a new release.
 
-## The two instrumented builds
+## The three instrumented builds
 
 **Phase timeline.** Droid already brackets its startup in named phases (`runtime_boot`,
 `settings_local`, `react_mount`) and in boundaries (`first_paint`, `input_mounted`). Two patches on
@@ -27,6 +27,28 @@ as its label; the bundle has no source paths, so the body is the only way to rec
 
 The two patches must be applied CommonJS-first: the ESM wrapper's replacement references helpers the
 CommonJS replacement declares.
+
+**Render counters.** A profile says how much work happened and never how many times, so anything
+about re-rendering needs counts. Increment a global at each site of interest, sample the counters
+plus `process.cpuUsage()` to a file on a 200ms timer, and diff the file across a window of typed
+keys. The sites worth counting in a React TUI are the root component, the reconciler's
+`resetAfterCommit`, the renderer's frame writer, and whichever component is under suspicion.
+
+Two injection shapes cover almost every site:
+
+```js
+function Cmp({prop,__c=(globalThis.__od??={}).input++,   // component render count
+=((globalThis.__od??={}).suggest++, realCall(a,b))       // any expression position
+```
+
+The **defaulted extra parameter** needs no statement context and cannot disturb the body, so it is
+the safe way to count a minified component whose body you would rather not touch. The comma
+expression is the same trick the statement-versus-expression gotcha below describes.
+
+**Counts resolve where CPU cannot.** On a busy laptop a 60-key CPU window spans hundreds of
+milliseconds of noise and a paired interval will happily contain zero, while the render count over
+the same window is exact and its interval is a couple of percent wide. A candidate that changes
+counts but not measurable CPU is still a real change; a candidate that changes neither is not.
 
 ## Gotchas that cost real time
 

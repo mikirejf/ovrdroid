@@ -70,11 +70,33 @@ Do this first; it tells you which phases are network and which are local.
   descheduling stall lands entirely on whichever frame was on top. A real profile showed 306ms
   charged to `readFile` from a **single** sample. Rank by `samples * median(delta)` and treat any
   frame whose raw sum exceeds that by more than ~2x as an artifact.
+- **Always cut the samples to the window you are asking about.** A profile runs from process start,
+  so ranking the whole thing ranks startup no matter what you did afterwards. Measuring a 1.6s
+  typing window without a cut-off put a file watcher at the top at 81ms; splitting the samples at
+  the first keystroke showed the watcher was ~150ms of **startup** crawl and 1-13ms of typing. The
+  ranking was real, of a question nobody asked. Record the timestamp when your window opens and drop
+  every sample before it.
 - The achieved sampling period is not the requested one: 250us requested measured 410us. Derive it
   from the profile.
 - The built-in profile timeline also lands in `~/.factory/logs/droid-log-single.log` as
   `[tui-startup] Startup phase completed` lines, but batched, late, and shared across concurrent
   Droids. Instrument the binary instead.
+
+## Validate the behaviour test against stock first
+
+A patch that defers work can make the deferred feature stop happening, and a paint benchmark will
+happily report that as a win. So write a behaviour test, and **run it against the stock binary
+before you trust it on the candidate**. A test that has never passed against stock proves nothing.
+
+Driving a TUI to check a feature has its own traps, all of which produced false failures:
+
+- A fresh `HOME` is not a logged-in profile; the app stops at a login screen and no feature under
+  test is reachable.
+- Writing a whole string in one terminal write can produce no output at all. Pace the keys ~40ms
+  apart, like a person.
+- Fuzzy filters ignore long names. Use a short, unusual probe name.
+- Searching the transcript for text you just typed matches your own echo, not the app's response.
+  Clear the transcript before acting, and assert on output only the app can produce.
 
 ## Sanity, not just speed
 

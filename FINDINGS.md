@@ -712,6 +712,335 @@ messages, so `--dev-react` keeps the development build for anyone probing render
 sets hash to different markers, so `apply` sees the other set as `stale` and rebuilds from the
 `.orig` backup.
 
+## React concurrency on the chat input: built, measured, and it doubles the work
+
+Measured 2026-09-14 on Droid 0.218.1. Both `useDeferredValue` and `startTransition` were built as
+real binaries and measured against a counter build. Both roughly **double** React commits per
+keystroke. **Neither ships.**
+
+The question that started this was whether the chat input has render priority, and how much of the
+app re-renders when the transcript is full of messages and tool calls. The answer to the second
+question is what killed the first.
+
+### First, the baseline nobody had: counting renders instead of guessing
+
+Every earlier typing number in this document is CPU attribution. CPU says how much work happened,
+never how many times it happened, and the two fixes shipped above were both really about **counts**.
+So the first build here was a counter, not a candidate: five instrumentation patches that increment
+a global and sample it to a file every 200ms alongside `process.cpuUsage()`.
+
+| Counter   | Patch site                                | What it counts                      |
+| :-------- | :---------------------------------------- | :---------------------------------- |
+| `root`    | `_rD` prologue                            | Root component function calls       |
+| `commit`  | Ink's `resetAfterCommit`                  | React commits reaching the host     |
+| `frame`   | Ink's `writeFrame`                        | Terminal frames built and written   |
+| `input`   | `Y6T` parameter list, via a default value | Chat input component function calls |
+| `suggest` | The slash-command match call              | Slash menu scans                    |
+
+Two shapes are worth keeping. A component's render counts cheaply from a **defaulted extra
+parameter** (`function Y6T({...,__od=(...).input++,`), which needs no statement context and cannot
+disturb the body. A value used in an expression counts through a **comma expression**
+(`=((...).suggest++,OBh(MT,XR))`), which is the same trick `INSTRUMENTING.md` records for marks.
+
+Measured baseline, keys at 16ms apart, empty transcript:
+
+| Window                 | root | commits | input renders | frames |    CPU |
+| :--------------------- | ---: | ------: | ------------: | -----: | -----: |
+| 60 plain keys          |    4 |      62 |            62 |  22-26 | ~280ms |
+| 20 keys after `/`      |  2-4 |      22 |            21 |    7-9 | ~350ms |
+| 1 second idle, no keys |    2 |       1 |             1 |      1 |   44ms |
+
+**The input already renders exactly once per keystroke, and the root is already off the per-key
+path.** 62 commits for 60 keys is the floor, not a symptom. The `draft-dismiss-no-rerender` patch
+took the root out of the loop already; this is the same result seen from the other side.
+
+There was no priority problem to fix. Everything below follows from that.
+
+### Neither hook is used by the app, and legacy mode no longer blocks them
+
+The bundle contains 3 `useDeferredValue`, 10 `startTransition` and 21 `useTransition` occurrences,
+and **every one is inside React's own library files** (lines 134, 23982, 24071 and 24089 of the
+extracted source). Zero application uses.
+
+Ink asks for a **legacy** root. `concurrent:!1` is its shipped default, nothing in Droid overrides
+it, and `let h=T.concurrent?ConcurrentRoot:LegacyRoot` therefore picks `LegacyRoot`. That would
+normally make every concurrency hook a no-op.
+
+It does not, because **React 19.2 compiled legacy mode out**. `createContainer` passes `false` for
+the legacy flag into `createFiberRoot`, `ConcurrentMode` appears **zero** times in the production
+reconciler, and `requestTransitionLane` and `shouldYield` are both present. The root is concurrent
+whatever Ink asks for. That is what made the experiment worth building rather than dismissing.
+
+### Result: both variants are resolved losses
+
+`useDeferredValue` on the two suggestion lists, rendering the deferred copies, 10 paired rounds,
+position-balanced, 20 keys typed after `/`:
+
+| Metric        |    base | deferred | paired difference | 95% CI       | Verdict            |
+| :------------ | ------: | -------: | ----------------: | :----------- | :----------------- |
+| commits       |    22.3 |     41.6 |         **+19.3** | 17.9 to 20.7 | **RESOLVED worse** |
+| input renders |    21.3 |     40.6 |         **+19.3** | 17.9 to 20.7 | **RESOLVED worse** |
+| CPU           | 379.8ms |  405.1ms |       **+25.3ms** | 4.9 to 45.7  | **RESOLVED worse** |
+| frames        |     7.9 |      9.3 |              +1.4 | 0.8 to 2.0   | RESOLVED worse     |
+| root renders  |     2.6 |      3.0 |              +0.4 | -0.4 to 1.2  | not resolved       |
+
+`startTransition` around the same four suggestion setters, 10 paired rounds, same window:
+
+| Metric        |    base | transition | paired difference | 95% CI       | Verdict            |
+| :------------ | ------: | ---------: | ----------------: | :----------- | :----------------- |
+| commits       |    22.3 |       41.8 |         **+19.5** | 18.8 to 20.2 | **RESOLVED worse** |
+| input renders |    21.3 |       41.8 |         **+20.5** | 19.8 to 21.2 | **RESOLVED worse** |
+| CPU           | 350.1ms |    377.0ms |       **+26.9ms** | 13.4 to 40.4 | **RESOLVED worse** |
+
+The same patch on **plain** typing, 8 paired rounds of 60 keys, confirms it is not a slash-menu
+artifact: commits 50.6 to **106.6** (CI 43.1 to 68.9), input renders 50.4 to **106.5**. CPU there
+was not resolved (-50.9ms, CI -316.7 to 215.0) because a 60-key window carries far more machine
+noise; the counts resolve cleanly where CPU cannot, which is the whole reason the counter exists.
+
+Both variants land on the same number, +19 to +20 commits per 20 keys, because both do the same
+thing: they split one render into two.
+
+### Why it backfires
+
+Deferring renders the subtree twice: once with the previous value at urgent priority, then again
+with the new one. That is a win only when the second pass is **expensive and genuinely skippable**,
+so the urgent pass can paint without paying for it.
+
+Neither holds here. The suggestion list is cheap, and it is always on screen while the menu is open,
+so nothing is skipped. Worse, **under Ink every commit reaches `resetAfterCommit`, which builds and
+writes a terminal frame**. Two commits mean two frame builds, and frame building is where this
+document has already located most of the typing cost (the width scan, the output diff). Concurrency
+adds exactly the work the shipped patches were written to remove.
+
+**Rule: concurrency is a scheduling tool, not a cost-reduction tool.** It trades total work for
+responsiveness. Under a renderer that writes a frame per commit, that trade has a fixed price of one
+extra frame build, and it only pays when the deferred subtree is both costly and skippable.
+
+### Streaming output cannot be deferred at all
+
+The obvious follow-up, wrapping streamed agent output in `startTransition`, has no patch site.
+
+The transcript is **not React state**. `QL`, the messages array, is `cy.items` derived from
+`QS=j1t(...)`, which resolves to `useSyncExternalStore` over the session store. Streamed chunks call
+`notifyStreamingChange()` on the store, which schedules `emitMessageThreadUpdated("streaming")`, and
+React re-renders through the store subscription.
+
+React forces those updates to the sync lane unconditionally: `forceStoreRerender` enqueues at lane
+`2`. That is by design, because a store read cannot be allowed to tear across a split render. A
+transition wrapped around a store notification is ignored. There is nothing to patch.
+
+### The transcript is already free, which is the real answer
+
+Answering the original question precisely, from the bundle:
+
+- Finished messages render inside Ink's `Static` (`jKT`, which sets `internal_static:!0`). Ink's
+  output walker skips those nodes (`skipStaticElements`), and `jKT` renders `R.slice(h)` after its
+  layout effect, so an item that has been committed is never rendered again.
+- `MessageList` (`GBh`) splits units into `committedUnits`, which go to the static region, and
+  `liveUnits`, which do not. The live tail is capped at **2 rows** with a pane open and up to **10**
+  while streaming.
+- The static region is rebuilt only when `staticKey` changes (screen clear, resize) or the epoch
+  bumps, which `IHt` does for a retracted segment, a late hook, or a message landing out of order.
+- `fsT`, the tool-call renderer, is a plain unmemoised component, but it sits inside the static
+  region once its tool finishes, so memoising it buys nothing.
+
+So a long transcript costs nothing per keystroke, and there is no per-message work left to schedule.
+The entire per-key cost is the input box plus the frame write, which is why every idea in this
+section had nothing to attack.
+
+### Retraction: the file watcher is a startup cost, not a typing cost
+
+An earlier draft of this section claimed the largest cost during typing was a chokidar file watcher
+at 81ms per 100 keys, ahead of anything React or Ink does. **That is wrong, and the error was in the
+harness, not the binary.**
+
+`od-profile-typing.ts` passed no `untilMicros` to `selfTimes`, so it aggregated the **entire**
+profile: process start, module evaluation, the first paint, and only then the keys. Startup work
+outweighs a 1.6s typing window several times over, so the ranking it printed was mostly a startup
+ranking wearing a typing label. `selfTimes` has always taken a cut-off; this caller simply never
+used it.
+
+Re-measured with the samples split at the first keystroke, 3 runs of 100 keys plus 1 idle run:
+
+| Window                   |   Samples | CPU       | Watcher share                  |
+| :----------------------- | --------: | :-------- | :----------------------------- |
+| Startup, up to first key | 1709-2152 | 615-760ms | 397-438 samples, **140-156ms** |
+| Typing, 100 keys at 16ms |   559-648 | 201-229ms | 3-37 samples, **1-13ms**       |
+| Idle, same duration      |       219 | 78ms      | 4 samples, 1.4ms               |
+
+**The watcher costs ~150ms, all of it before the first keystroke.** During typing it is 1 to 13ms,
+which is noise. It is not timer-driven during a session: the watchers use native `fs.watch`
+(`usePolling:!1` by default, and the polling override is `CHOKIDAR_USEPOLLING`, unset), so an idle
+watcher costs nothing. The cost is the **initial crawl**, `_addToNodeFs` walking and stat-ing the
+tree when the watcher is created at startup.
+
+This also moves the watcher from a typing item to a **startup** item, where ~150ms is worth having
+against a 680ms paint. It belongs with the startup findings above, not here.
+
+**The general lesson is the expensive one.** This document already warns never to rank frames by
+summed `timeDeltas`. This is the second way to get a ranking wrong: **profile a window, or you are
+ranking the startup you did not mean to measure.** A profile with no cut-off answers a question
+nobody asked, and it answers it confidently.
+
+### What typing actually costs now
+
+Typing costs 201-229ms per 100 keys, and idling the same span costs 78ms, so the keys themselves are
+worth ~130ms. The top in-window frames, ranked by `samples * median(delta)` with the cut-off
+applied:
+
+| Frame                               |   CPU | Samples | What it is                       |
+| :---------------------------------- | ----: | ------: | :------------------------------- |
+| `stringify` under `persist`         | 9.2ms |      26 | Session state serialised to disk |
+| `cloneObject`, `copyDataProperties` | 7.1ms |      20 | Object copying in the store      |
+| Ink and React frames                | ~10ms |      29 | The render itself                |
+| `lookup` under `net.connect`        | 3.2ms |       9 | Background network, not typing   |
+
+`persist` is the largest single item and it **also runs while idle** (7.1ms of the idle window's
+78ms), which matches the session-index `JSON.stringify` already in Open items. That is now the
+best-evidenced target in the typing window, and it is a caching problem, not a rendering one.
+
+### The session index: one 4.67MB `JSON.stringify`, and it is not per-key
+
+`persist` belongs to `SessionIndexCache`, a singleton over `~/.factory/sessions`. Traced in full:
+
+- `queuePersist()` sets a flag and a **1000ms** `setTimeout`, then writes the whole index:
+  `writeFile(path, JSON.stringify({version, entries: Array.from(this.cache.values())}))`.
+- On this machine that file, `~/.factory/sessions-index.json`, is **4.67MB**, built from **13,174**
+  `.jsonl` session files across **504** directories.
+- Four things call `queuePersist`: `initialize`, `fullScan`, `refresh` and `admitNewSessions`, plus
+  `invalidate`. None of them is a keystroke.
+- `getAll()` gates rescans behind `maybeRefresh`, which re-scans only when
+  `Date.now() - lastRefreshCompletedAt >= 5000`, otherwise calling `admitNewSessions`, which
+  `readdirSync`s the sessions root and every `-`-prefixed subdirectory looking for new files.
+
+**Both `readdirSync` stacks from the original profile are this scan**, `refresh` and its recursion.
+The measured cost at startup is 19.9ms plus 11.4ms.
+
+Critically, **a 5x longer idle window does not multiply the cost**: 1.6s idle charges 9.1ms to
+`persist` and 8s idle charges 8.6ms. If this were a running timer the longer window would pay ~5x
+more. It does not, so what the profile catches is **one startup-tail serialisation** drifting past
+the window boundary, not per-keystroke work.
+
+That demotes it. It is one 4.67MB stringify at startup, not a typing cost, and the honest reading of
+the earlier "~8ms even when idle" note is the same single event seen twice.
+
+### Where startup time actually goes, split at first paint
+
+Splitting the same profile three ways, at paint and at the first key, separates what **blocks the
+input box** from what merely runs afterwards. Only the first table is worth patching.
+
+Up to first paint (paint at 1017ms):
+
+| Frame                                  |    CPU | Samples | What it is                             |
+| :------------------------------------- | -----: | ------: | :------------------------------------- |
+| `watch` / `FSWatcher` under `fs/watch` | 93.7ms |     261 | Watcher creation and its initial crawl |
+| `spawnSync` under `commandExists`      | 18.3ms |      51 | A blocking `which` probe               |
+| `memoryUsage`                          | 10.4ms |      29 | Repeated `process.memoryUsage()` calls |
+| `Collator`                             |  9.3ms |      26 | Intl collator construction             |
+| Zod schema construction                |  7.9ms |      22 | Still there after the lazy-bind patch  |
+| `JSON.parse` under `loadFromDisk`      |  6.8ms |      19 | Parsing the 4.67MB session index       |
+
+After paint, before the first key (a 722ms settle, 179.5ms of CPU):
+
+| Frame                                      |    CPU | Samples | What it is                    |
+| :----------------------------------------- | -----: | ------: | :---------------------------- |
+| `readdirSync` under `refresh` (two stacks) | 28.8ms |      80 | Scanning 13,174 session files |
+| `alloc` under the index loader             | 15.8ms |      44 | Buffers for the 4.67MB index  |
+| `structuredClone`                          |  7.9ms |      22 | Copying loaded state          |
+
+**This overturns the ranking from the un-split profile.** The session-index scan is _not_ on the
+critical path to paint: `loadFromDisk` parses before paint at 6.8ms, but the expensive `readdirSync`
+crawl and its allocations land in the post-paint settle. Deferring it would move work that is
+already deferred.
+
+**The watcher is the opposite, and it is the one real target.** 93.7ms sits squarely before paint,
+against a ~680ms patched paint, which is about 14% of time-to-interactive and the largest single
+remaining item. Nothing needs a file-change event before the input box exists.
+
+One caveat on the index: it scales with session count. This machine has 13,174 sessions in 504
+directories and a 4.67MB `sessions-index.json`. A fresh profile pays far less, and every startup
+number in this document was measured here, so that cost is inside all of them.
+
+Idle Droid also does 2 root renders and 1 frame write per second from the TTY health poll
+(`setInterval` checking `isatty(0)` and `isatty(1)`).
+
+## Shipped: `settings-watch-after-paint`, worth 92ms of paint
+
+The watcher prediction above held. Deferring the watcher start cuts paint by **89.2ms, n=30 paired,
+CI -110.5 to -67.9**, on top of the existing patch set. That is the largest single startup win since
+the model-registry patch.
+
+### The patch
+
+`SettingsManager.enableWatching()` is called synchronously from `initializeWithManager`, well before
+paint. It walks seven collections of settings sources and calls `startWatching()` on each, and each
+one registers `fs.watch` handles and crawls its tree.
+
+```js
+enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,setTimeout(()=>this.$ow(),400).unref?.()}$ow(){if(!this.watchingEnabled)return;this.watchingEnabled=!0,
+```
+
+The flag is still set **immediately**; only the `startWatching()` calls move. That detail is the
+whole patch, and getting it wrong broke three earlier attempts.
+
+The `$ow()` guard is the second detail, and review caught its absence. `disableWatching()` can run
+inside the 400ms window: `McpService.withTargetedOperation` calls `disableWatching()` then
+`enableWatching()` in a `finally`, and `stopWatching()` and `resetInstance()` both disable. Without
+the guard the pending timer fires afterwards, sets the flag back to true and starts every watcher,
+undoing a cleanup that already ran. Reproduced in isolation:
+
+| Variant                           | After `enableWatching()` then `disableWatching()` |
+| :-------------------------------- | :------------------------------------------------ |
+| No guard                          | `watchingEnabled:true`, calls `stop` then `start` |
+| `if(!this.watchingEnabled)return` | `watchingEnabled:false`, calls `stop` only        |
+
+The `.unref?.()` is the third: a 400ms timer that holds the event loop open would delay exit for a
+short-lived invocation. `--version` still exits in 0.15s.
+
+### Three wrong versions, and the reason they were wrong
+
+**Sources read the flag at construction time.** `ensureFolder()` builds a source with
+`this.folderFactory(this.folderPath, this.watchingEnabled)`, and each source's constructor is
+`constructor(T,R=!1){super();if(this.folderPath=T,R)this.startWatching()}`. Sources are created
+lazily, so any patch that leaves `watchingEnabled` false while startup continues produces sources
+that are **born unwatched** and never start. Watching silently dies.
+
+| Attempt                                           | Paint                   | Behaviour    |
+| :------------------------------------------------ | :---------------------- | :----------- |
+| `setTimeout(...,0)` around the call               | not resolved            | fine         |
+| Hold a closure, release it at `first_paint`       | watcher still pre-paint | fine         |
+| Hold a closure, release it at `input_mounted`     | watcher still pre-paint | **broken**   |
+| Set the flag, defer only the starts (**shipped**) | **-89.2ms**             | verified 3/3 |
+
+`setTimeout(...,0)` fires on the next tick, roughly a second before paint, so it moved nothing. Both
+React boundaries fire **before** the terminal bytes flush, so neither is "after paint" in any useful
+sense. The `input_mounted` version also sat behind an early return (`if(!B||L)return;`), so the
+release could be skipped entirely and the hold never ran.
+
+**The rule: a React effect is not the paint boundary.** `first_paint` and `input_mounted` are
+recorded inside effects that run before Ink writes the frame. For work that must not compete with
+painting, a short timer beats a lifecycle hook, and the timer must not gate a flag that other code
+reads synchronously.
+
+### Verifying behaviour, and a harness bug worth recording
+
+A faster binary that stopped noticing file changes would be a silent regression, so behaviour was
+tested directly: create `~/.factory/commands/<name>.md` **after** paint, open the slash menu, and
+require the new command's description to appear.
+
+The first three versions of that test failed against the **stock** binary, which is the only reason
+they were caught. Four separate bugs:
+
+- A fresh `HOME` lands on the login screen, so the menu never opens. Test against the real profile.
+- Writing the whole command name in one `terminal.write` produced no output at all. Keys must be
+  paced (~40ms apart), exactly as the typing harness does.
+- The menu filters fuzzily, so a long probe name matched nothing. A short name works.
+- Matching on the probe's own name matched the **echo of the typed characters**, not the menu. Match
+  on the command's description instead, and clear the transcript before typing.
+
+**A behaviour test that has never failed against stock has not been validated.** Run the control
+first; a green control is what makes a green candidate mean anything.
+
 ## Open items
 
 - `hasAnyAvailableModel@SettingsService.ts:1082` runs the policy scan outside any `useMemo`. Worth
@@ -719,6 +1048,27 @@ sets hash to different markers, so `apply` sees the other set as `stale` and reb
 - `probe keys` measures lag with one sample per run, so it needs far more rounds than echo before
   its interval means anything. Prefer paired CPU attribution for typing work.
 - A session-index cache runs `JSON.stringify` during typing and costs ~8ms even when idle.
+- The 400ms delay in `settings-watch-after-paint` is a guess that measured well, not a tuned value.
+  Worth sweeping. On a machine slow enough that paint lands after 400ms the watcher crawl lands back
+  on the critical path, so the patch degrades to stock rather than regressing, but it stops paying.
+- A residual ~44ms of `fs.watch` still runs before paint even with the patch applied, so at least
+  one watcher starts outside `enableWatching`. Finding it is the next 40ms.
+- `commandExists` runs a blocking `spawnSync("which", ...)` before paint for 18.3ms. `Bun.which` or
+  a cached lookup would remove it.
+- The session index is **not** worth deferring: its scan already runs after paint. Shrinking the
+  4.67MB file would still help a heavy user, but it is not on the critical path.
+- Every startup number in this document was measured on a machine with 13,174 sessions. The
+  session-index share scales with that count, so results will differ on a fresh profile. Worth
+  re-measuring against an empty `~/.factory/sessions` to separate the fixed cost from the scaling
+  one.
+- The TTY health poll re-renders the root twice a second while idle. Cheap, but it is the only
+  reason an idle Droid renders at all.
+- **Every render count above was taken with an empty transcript.** The static-region reasoning says
+  a long transcript changes nothing per keystroke, but that is read from the code, not measured.
+  Re-run the counter after a real session to confirm it.
+- The counter patches live in `/tmp/od-counters.json` and the harness that reads them is not in the
+  repo. If render counts are worth measuring again, they belong in `src/patch/trace-patches.ts`
+  beside the phase and module probes.
 
 # Feature findings
 
