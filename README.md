@@ -302,8 +302,8 @@ first time.
    replaced range through the first match of that string after `find`. The React production patches
    are built from tarballs fetched from the npm registry at pinned versions, cached under
    `~/.cache/overdroid/react`, so they are never read from `node_modules`.
-3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/bun.ts`) once, cache it
-   under `~/.cache/overdroid/`, and run
+3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/binary/bun.ts`) once,
+   cache it under `~/.cache/overdroid/`, and run
    `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source
    with an import preamble that re-embeds every sidecar. The build dominates the ~4.5s apply and
    peaks near 1.8GB. Binaries are read with `readFileSync`, never memory-mapped: a writable mapping

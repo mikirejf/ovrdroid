@@ -143,8 +143,8 @@ the win.
 One precondition the design depends on: **no subclass may declare one of the 24 names as a method.**
 A class method is a plain data property on the subclass prototype, so it shadows the accessor and is
 never bound. Stock zod bound whatever the subclass resolved to. Today no subclass does this, and
-`test/stock-source.test.ts` re-checks all 36 direct subclasses against the shipped bundle on every
-run rather than trusting a one-time scan.
+`src/patch/__tests__/stock-source.test.ts` re-checks all 36 direct subclasses against the shipped
+bundle on every run rather than trusting a one-time scan.
 
 Safety was established against the bundle before measuring:
 

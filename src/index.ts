@@ -5,15 +5,15 @@ import { rm } from 'node:fs/promises';
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
-import { describeStatus, patchSource, statusOf } from './apply.ts';
-import { embeddedBunVersion, reportedVersion } from './bun.ts';
+import { describeStatus, patchSource, statusOf } from './binary/apply.ts';
+import { embeddedBunVersion, reportedVersion } from './binary/bun.ts';
+import { locateGraph, readSource } from './binary/graph.ts';
+import { rebuildInto } from './binary/rebuild.ts';
 import { guard, kilobytes, messageOf, say } from './cli.ts';
-import { locateGraph, readSource } from './graph.ts';
-import { installHooks } from './hooks.ts';
-import type { Patch } from './patches.ts';
-import { patchSet } from './patches.ts';
+import { installHooks } from './hooks/hooks.ts';
+import type { Patch } from './patch/patches.ts';
+import { patchSet } from './patch/patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
-import { rebuildInto } from './rebuild.ts';
 
 interface Options {
   target: string;

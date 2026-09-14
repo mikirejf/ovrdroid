@@ -42,9 +42,9 @@ stock backup this way corrupts the one copy the harness restores from. Read bina
 - **The harness** is TypeScript on Bun. Normal code, normal tooling.
 - **Patch payloads** are hand-written minified JavaScript. They match against already-bundled,
   already-minified code, so no compiler can reach them. Do not try to author them in TypeScript. A
-  patch may carry `until` to replace a whole span rather than one string, and `src/react.ts` uses
-  that to build span patches from React's production files, fetched from the npm registry at pinned
-  versions and cached under `~/.cache/overdroid/react`.
+  patch may carry `until` to replace a whole span rather than one string, and `src/patch/react.ts`
+  uses that to build span patches from React's production files, fetched from the npm registry at
+  pinned versions and cached under `~/.cache/overdroid/react`.
 
 ## Rebuild the whole binary, on a pinned newer Bun
 
@@ -54,12 +54,12 @@ whole gain. So the source is rebuilt properly:
 `bun build --compile --bytecode --format=esm --minify --target=bun --asset-naming=[name].[ext]`.
 
 **The harness builds on a pinned Bun release, not the one Droid ships.** The version is
-`BUILD_BUN_VERSION` in `src/bun.ts`; bump it on purpose, then re-benchmark. The build downloads that
-release once and caches it under `~/.cache/overdroid/`, so apply works offline after the first run.
-Building on a Bun newer than the one Droid ships was worth 173ms of paint the last time the pin
-moved (measured, n=30 paired, CI 163-183ms), mostly because the newer Bun packed the bytecode format
-and cut the blob by two thirds. Read both versions out of the binary and out of `src/bun.ts` rather
-than trusting a number written here.
+`BUILD_BUN_VERSION` in `src/binary/bun.ts`; bump it on purpose, then re-benchmark. The build
+downloads that release once and caches it under `~/.cache/overdroid/`, so apply works offline after
+the first run. Building on a Bun newer than the one Droid ships was worth 173ms of paint the last
+time the pin moved (measured, n=30 paired, CI 163-183ms), mostly because the newer Bun packed the
+bytecode format and cut the blob by two thirds. Read both versions out of the binary and out of
+`src/bun.ts` rather than trusting a number written here.
 
 That means the **whole binary is replaced**, not patched in place. Transplanting new regions into
 the stock binary does not work and fails silently: the older runtime rejects the newer bytecode,
@@ -83,7 +83,7 @@ bun run overdroid status --target /tmp/droid-test
 ```
 
 `--version` passing proves nothing about the sidecars: a binary with every asset missing still
-prints its version. Launch it and watch for the input box, which is what `src/launch.ts` does.
+prints its version. Launch it and watch for the input box, which is what `src/probe/launch.ts` does.
 
 ## Conventions
 
@@ -104,10 +104,10 @@ So when a scratch script earns its keep, generalise it before you stop:
 
 - Take the hardcoded paths, binaries and magic strings out and make them arguments with defaults.
 - Split the part that **drives** Droid from the part that **reads** the result. The reading half is
-  pure: give it text or numbers in and assertions out, and cover it in `test/`. `src/watch.ts`
-  parses a log its patches produced; a test caught a real bug in that parser with no binary
-  involved.
-- Give it a command in `src/probe.ts` and a description that says what question it answers.
+  pure: give it text or numbers in and assertions out, and cover it in a sibling `__tests__/`
+  folder. `src/probe/watch.ts` parses a log its patches produced; a test caught a real bug in that
+  parser with no binary involved.
+- Give it a command in `src/probe/probe.ts` and a description that says what question it answers.
 - Say the finding in words the output itself explains, not a raw field dump.
   `touched but byte-identical` beats `ctime changed`.
 

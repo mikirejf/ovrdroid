@@ -3,5 +3,5 @@ import { defineConfig } from 'knip/config';
 
 export default defineConfig({
   ...config,
-  entry: ['src/index.ts', 'src/hook-execute.ts', 'src/hook-notify.ts'],
+  entry: ['src/index.ts', 'src/hooks/hook-execute.ts', 'src/hooks/hook-notify.ts'],
 });
