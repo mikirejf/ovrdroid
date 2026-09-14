@@ -56,13 +56,15 @@ whole gain. So the source is rebuilt properly:
 **The harness builds on a pinned Bun release, not the one Droid ships.** The version is
 `BUILD_BUN_VERSION` in `src/bun.ts`; bump it on purpose, then re-benchmark. The build downloads that
 release once and caches it under `~/.cache/overdroid/`, so apply works offline after the first run.
-Droid 0.218.1 ships Bun 1.3.14; building it on 1.4.2 is worth 173ms of paint (measured, n=30 paired,
-CI 163-183ms), mostly because 1.4.1 packed the bytecode format and cut the blob from 143MB to 45MB.
+Building on a Bun newer than the one Droid ships was worth 173ms of paint the last time the pin
+moved (measured, n=30 paired, CI 163-183ms), mostly because the newer Bun packed the bytecode format
+and cut the blob by two thirds. Read both versions out of the binary and out of `src/bun.ts` rather
+than trusting a number written here.
 
 That means the **whole binary is replaced**, not patched in place. Transplanting new regions into
-the stock 1.3.14 binary does not work and fails silently: the old runtime rejects the newer
-bytecode, falls back to parsing source, and costs 326ms. It still runs, so only a benchmark catches
-it. If you ever go back to transplanting, the host and the builder must be the same Bun version.
+the stock binary does not work and fails silently: the older runtime rejects the newer bytecode,
+falls back to parsing source, and costs 326ms. It still runs, so only a benchmark catches it. If you
+ever go back to transplanting, the host and the builder must be the same Bun version.
 
 ## Verify before committing
 
