@@ -94,6 +94,26 @@ prints its version. Launch it and watch for the input box, which is what `src/la
 - Offsets into the binary change with every Droid release. Always derive them by scanning for
   markers; never hardcode a byte offset.
 
+## Every tool you build lands in this repo
+
+If you write something that measures, probes, scans, or reproduces a bug, **it belongs in `src/` as
+a `probe` subcommand, not in `/tmp`**. A throwaway script answers one question once and is gone by
+the next session; the next agent then rebuilds it from nothing and gets a slightly different answer.
+
+So when a scratch script earns its keep, generalise it before you stop:
+
+- Take the hardcoded paths, binaries and magic strings out and make them arguments with defaults.
+- Split the part that **drives** Droid from the part that **reads** the result. The reading half is
+  pure: give it text or numbers in and assertions out, and cover it in `test/`. `src/watch.ts`
+  parses a log its patches produced; a test caught a real bug in that parser with no binary
+  involved.
+- Give it a command in `src/probe.ts` and a description that says what question it answers.
+- Say the finding in words the output itself explains, not a raw field dump.
+  `touched but byte-identical` beats `ctime changed`.
+
+The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modules`, `cpu`, `menu`,
+`watch`, `touches`.
+
 ## Measuring startup
 
 `--version` is **not** a valid benchmark (0.09s, skips almost everything). Measure
@@ -108,6 +128,25 @@ Droid has built-in instrumentation: `DROID_PROFILE=1` plus `FACTORY_PROFILE_DIR=
 - `bootstrap_complete` and `ready` are `taskType: boundary` and carry no `startMonoMs`. Guard for
   that when sorting.
 - It does not work on an extracted bundle run via `BUN_BE_BUN`; profile the real binary.
+
+## Why the command menu rescans
+
+Every Droid startup re-applies mode 600 to `~/.factory/settings.json` and `~/.factory/mcp.json`. The
+files are already 600, so nothing is written and the bytes never change, but macOS still fires a
+change event and the watcher counts both files as relevant. Every **other** Droid already running
+then rescans its whole slash-command catalog. One new terminal tab disturbs every open menu.
+
+Two consequences worth knowing before you chase this again:
+
+- An idle Droid does not loop. Confirmed over 40s with the menu open: zero events, zero rescans. If
+  you cannot reproduce a loop, you are missing the second Droid, not looking at a fixed bug.
+- A file whose content is unchanged can still wake every watcher. `probe touches` exists to tell a
+  real rewrite from a bare metadata touch, because mtime and content both stay put here and only
+  ctime moves.
+
+`probe watch` prints the whole chain (file event, watcher wake-up, rescan, cache write) and
+`probe menu` counts the resulting flicker. Both take `--churn chmod` to trigger it directly, or
+`--churn startup` to trigger it the way a real second terminal does.
 
 ## Background
 
