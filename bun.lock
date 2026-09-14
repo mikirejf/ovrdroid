@@ -22,6 +22,9 @@
       },
     },
   },
+  "trustedDependencies": [
+    "lefthook",
+  ],
   "packages": {
     "@arx1/devkit": ["@arx1/devkit@0.7.2", "https://npm.arx1.com/@arx1/devkit/-/devkit-0.7.2.tgz", { "dependencies": { "@commitlint/config-conventional": "^21.2.2", "@commitlint/types": "^21.2.0", "@oxlint/plugins": "^1.80.0", "eslint-plugin-regexp": "^3.2.0", "picocolors": "^1.1.1" }, "peerDependencies": { "@commitlint/cli": "^21.0.0", "@convex-dev/eslint-plugin": ">=4.0.0", "@effect/tsgo": ">=0.41.0", "eslint-plugin-better-tailwindcss": ">=4.7.0", "eslint-plugin-playwright": ">=2.11.0", "jscpd": ">=5.1.0", "knip": ">=6.33.0", "konsistent": ">=1.0.0-beta.4", "lefthook": ">=2.1.0", "oxfmt": ">=0.65.0", "oxlint": ">=1.79.0", "oxlint-plugin-react-doctor": ">=0.9.12", "oxlint-tsgolint": ">=7.0.2001", "react": ">=19.0.0", "typescript": ">=7.0.0", "vitest": ">=4.1.0" }, "optionalPeers": ["@convex-dev/eslint-plugin", "@effect/tsgo", "eslint-plugin-better-tailwindcss", "eslint-plugin-playwright", "oxlint-plugin-react-doctor", "react", "vitest"], "bin": { "check-bundle-size": "dist/check-bundle-size.mjs", "check-no-wip": "dist/check-no-wip.mjs", "check-shell-comments": "dist/check-shell-comments.mjs", "devkit": "dist/devkit.mjs", "wrap-commit-body": "dist/wrap-commit-body.mjs" } }, "sha512-GxdF8lwmHK9f871kgDL5oOIq7gAZn/mptBIOQQA08dDR+X50st3Xt/XAqVwsJeGu358upDpAKxJfhrvuA1AzIQ=="],
 
