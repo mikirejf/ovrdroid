@@ -719,3 +719,119 @@ sets hash to different markers, so `apply` sees the other set as `stale` and reb
 - `probe keys` measures lag with one sample per run, so it needs far more rounds than echo before
   its interval means anything. Prefer paired CPU attribution for typing work.
 - A session-index cache runs `JSON.stringify` during typing and costs ~8ms even when idle.
+
+# Feature findings
+
+Adding a feature to a binary whose whole purpose is speed, measured 2026-09-14. The patch is the
+turn clock: `↑7m ↓5m` in the footer, how long ago the prompt went out and the reply landed.
+
+## The headline
+
+| Question                             | Answer                                                       |
+| :----------------------------------- | :----------------------------------------------------------- |
+| Did it cost startup?                 | No. Not resolved, n=14, 95% CI -39 to +15ms                  |
+| Did it cost typing?                  | No. 89 bytes of 33,462 for 60 keys, 0.27%                    |
+| What does a continuous display cost? | One repaint per visible change. That floor is not negotiable |
+| What set the cost, then?             | The **format**. Per-second text costs 60x per-minute text    |
+| What did the reviewer catch?         | Timestamps read from the render, not from the session        |
+
+## Measure a patch against a rebuild of itself, never against the installed binary
+
+The first A/B put the new binary against `~/.local/bin/droid` and reported the installed one **44ms
+faster** (n=12, CI -77 to -11), which reads as a real regression.
+
+It was page-cache warmth. The installed binary is launched all day; a freshly written 159MB file in
+`/tmp` is cold. Rebuilding a control from the same patch set **minus the three new patches**, in the
+same directory, moved the same comparison to +4.4ms with the interval spanning zero.
+
+**A control must differ from the candidate by the patch and nothing else**, including where it lives
+and how recently it was written. This is the same class of error as the leaked-environment defect in
+the startup section: the harness, not the app, produced the number.
+
+## The format is the performance decision
+
+A relative clock has one unavoidable cost: the text changes, so something must redraw it. The only
+question is how often, and the **display format alone** decides that.
+
+| Format      | Idle repaint cost        |
+| :---------- | :----------------------- |
+| `↑45s ↓43s` | 30,780 bytes per minute  |
+| `↑<1m ↓<1m` | 3,120 bytes per 150s     |
+| `↑14:32`    | zero, after the one draw |
+
+Same feature, same code shape, 25x apart. Seconds resolution animates a digit nobody reads and pays
+60 repaints per minute for it.
+
+**Pick the coarsest format that answers the question, then let the timer match it.** Precision the
+redraw budget cannot honestly support is a lie anyway: a one-minute timer printing `43s` is wrong
+for most of that minute, which is why the patch prints `<1m` instead.
+
+## Do not subscribe to a shared ticker to animate one label
+
+Droid has `dAT(intervalMs, enabled)`, a `useSyncExternalStore` hook over one **shared 125ms
+interval**. Subscribing is one line and looks like the idiomatic choice.
+
+It is the wrong one. The interval runs for the rest of the session, at 8Hz, whether or not the
+subscribed text has changed, and the hook's `intervalMs` only rounds the value it hands back.
+
+A self-rescheduling `setTimeout`, aligned to the next boundary that changes a digit, costs one timer
+that fires exactly when the display is stale:
+
+```js
+let $age = Date.now() - $last,
+  $step = $age < 36e5 ? 6e4 : $age < 864e5 ? 36e5 : 864e5,
+  $id = setTimeout(() => $re((V) => V + 1), $step - ($age % $step));
+```
+
+Aligning to the boundary rather than sleeping a full step is what keeps a clock that has been idle
+for 40 seconds from showing the wrong minute for another full minute.
+
+## Render-time timestamps are wrong whenever the component is unmounted
+
+The first version stamped `Date.now()` during render, on the edge where session status left or
+returned to `"idle"`. Every live test passed. `sol-reviewer` rejected it anyway, and was right.
+
+The footer renders conditionally: `!NT&&P1.jsxDEV(Yht,{...})`, where `NT` is the command-menu
+visibility state. **Opening the slash-command menu unmounts the footer.** A turn that finished while
+the menu was open was recorded when the menu closed.
+
+Reproduced by opening `/` mid-turn and waiting 70s:
+
+| Build             | Shown after closing the menu |
+| :---------------- | :--------------------------- |
+| Render-stamped    | `↓<1m` (wrong by a minute)   |
+| Reads the session | `↓1m`                        |
+
+Resuming an already-busy session told the same lie: it stamped the resume, not the prompt.
+
+The fix is to separate the two questions. **The edge says when to look; the session says when it
+happened.** Droid already stores the answer:
+
+```js
+XA().getSessionStateManager().getSessionManager(S)?.getDroidWorkingStateChangedAtMs();
+```
+
+Generally: a React render is not a clock. Any timestamp derived from "the moment this component
+noticed" is only correct while the component is continuously mounted, and a TUI that swaps panes
+over its own footer never guarantees that.
+
+## A probe that skips the feature's code path cannot measure it
+
+`probe keys` reported the control **18ms faster on lag** (n=6). It never submits a prompt, so no
+turn exists, so the clock is switched off for the entire probe. The number could not have come from
+this patch.
+
+Counting bytes painted during a 60-key burst **after** a real turn put the difference at 89 bytes of
+33,462.
+
+Before believing a probe, confirm the feature is switched on inside it. `probe keys`'s own lag
+metric is one sample per run and was already flagged unreliable at low n in the typing section; this
+is the second way it misleads.
+
+## Open items
+
+- The single timer aligns to whichever of the two times is newer, so the other may show its previous
+  minute for up to 59s longer. A second timer would fix it and double the idle repaints.
+- Idle repaint cost was measured by counting bytes written to the PTY. `DROID_PROFILE=1` recorded
+  zero `ink-render` events across every run, so the profiler's render instrumentation either does
+  not cover this path or does not flush. Worth finding out before trusting it for render counts.

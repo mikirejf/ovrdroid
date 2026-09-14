@@ -85,6 +85,42 @@ those sites in the new source, update the find/replace pairs, and re-apply from 
 binary. The graph parser, the rebuild and the transplant carry over untouched; only the patch
 strings and the embedded Bun version are release-scoped.
 
+## Adding a feature, not just deleting work
+
+A patch that adds UI is held to the same bar as a startup patch: prove it costs nothing, against a
+control that differs by the patch alone.
+
+**Build the control from the same patch set minus your patches.** Comparing against the installed
+binary measures page-cache warmth, not code: a daily-launched binary beat a fresh 159MB file in
+`/tmp` by 44ms with a confident interval, and the same comparison against a fair control landed on
+zero.
+
+**The display format is the performance decision.** Anything that shows elapsed time has one
+unavoidable cost, a repaint per visible change, so the format sets the bill: seconds resolution cost
+30,780 bytes a minute, minutes resolution 3,120 bytes per 150s, an absolute clock time nothing at
+all. Pick the coarsest format that answers the question and let the timer match it. Precision the
+redraw budget cannot support is a lie regardless: a minute timer printing `43s` is wrong for most of
+that minute, so print `<1m`.
+
+**Do not subscribe to a shared ticker to animate one label.** Droid's `dAT(ms, enabled)` hook is one
+line and looks idiomatic, but it joins a shared **125ms** interval that then runs for the rest of
+the session no matter what the text says; `ms` only rounds the value handed back. A self-rescheduling
+`setTimeout` aligned to the next boundary that changes a digit fires exactly when the display goes
+stale. Align to the boundary (`step - age % step`), never sleep a whole step, or a label that has
+been idle for 40 seconds shows the wrong value for another full minute.
+
+**A React render is not a clock.** Droid's TUI mounts components conditionally: the footer is
+`!NT&&jsxDEV(Yht,...)`, so opening the slash-command menu unmounts it. A timestamp stamped with
+`Date.now()` during render records when the component next drew, so a turn that ended behind that
+menu was recorded when the menu closed, and resuming a busy session stamped the resume. Let the
+lifecycle event tell you **when to look**, and read **when it happened** from state that outlives the
+component, here `getSessionStateManager().getSessionManager(id)?.getDroidWorkingStateChangedAtMs()`.
+Every live test passed before this was caught by review; reproducing it needed a pane swap mid-turn.
+
+**Confirm a probe exercises your feature before believing its number.** `probe keys` never submits a
+prompt, so a turn-scoped feature is switched off for the whole run; it still reported an 18ms
+difference. Counting bytes painted during a burst after a real turn put it at 89 bytes in 33,462.
+
 ## Measuring a performance patch
 
 `--version` is a cache canary, not a benchmark: it skips almost everything Droid does at startup.

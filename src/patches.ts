@@ -52,6 +52,31 @@ const LAZY_SET = 'set(G){Object.hasOwn(this,"_def")?A(this,K,G):W(this,K,G)}';
 
 const LAZY_ACCESSORS = `static{let P=this.prototype,${OWN_METHOD},W=(T,K,B)=>Object.defineProperty(T,K,{configurable:!0,${LAZY_GET},${LAZY_SET}});${JSON.stringify(LAZY_METHODS)}.forEach((K)=>W(P,K,P[K])),W(P,"spa",P.safeParseAsync)}`;
 
+const TURN_CLOCK_STATE =
+  '$ODc={session:null,sent:0,done:0,busy:!1},' +
+  '$ODa=(T)=>{let R=Math.floor(T/6e4);if(R<1)return"<1m";if(R<60)return R+"m";' +
+  'let H=Math.floor(R/60);if(H<24)return H+"h";return Math.floor(H/24)+"d"},' +
+  '$ODt=(S)=>{try{return XA().getSessionStateManager().getSessionManager(S)' +
+  '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
+
+const TURN_CLOCK_TRACK =
+  'let $busy=A!=="idle";' +
+  'if($ODc.session!==h)$ODc.session=h,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
+  'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(h):$ODc.done=$ODt(h);';
+
+const TURN_CLOCK_TICK =
+  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=PV.useState(0);' +
+  'PV.useEffect(()=>{if(!$last)return;' +
+  'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
+  '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
+  'return()=>clearTimeout($id)},[$last,$t]);';
+
+const TURN_CLOCK_PARTS =
+  'if($last){let $ago=[];' +
+  'if($ODc.sent)$ago.push(A_("\\u2191"+$ODa($now-$ODc.sent),{color:DT.text.muted}));' +
+  'if($ODc.done)$ago.push(A_(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:DT.text.muted}));' +
+  'j6T(K,$ago)}';
+
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
@@ -112,6 +137,21 @@ export const patches: readonly Patch[] = [
     name: 'app-display-width-grapheme-memo-init',
     find: 'g0u=/^\\p{RGI_Emoji}$/v});',
     replace: 'g0u=/^\\p{RGI_Emoji}$/v;c0R.$n=new Map;c0R.$w=new Map});',
+  },
+  {
+    name: 'turn-clock-state',
+    find: 'var PV,jht,_BD,uBD=',
+    replace: `var ${TURN_CLOCK_STATE},PV,jht,_BD,uBD=`,
+  },
+  {
+    name: 'turn-clock-track',
+    find: 'isSessionArchived:I,updateNoticeDisplay:w}){let W=DBD(',
+    replace: `isSessionArchived:I,updateNoticeDisplay:w}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let W=DBD(`,
+  },
+  {
+    name: 'turn-clock-parts',
+    find: 'let S=j21(t);if(S)j6T(K,[A_(S,{color:DT.primary})]);let e=[];',
+    replace: `let S=j21(t);if(S)j6T(K,[A_(S,{color:DT.primary})]);${TURN_CLOCK_PARTS}let e=[];`,
   },
   {
     name: 'auto-update-notice-only',

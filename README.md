@@ -31,6 +31,9 @@ Status: the harness applies the patch set below.
 | `ink-string-width-grapheme-memo-init`  | Adds the two grapheme maps Ink's memo reads                    | The memo needs its narrow and wide maps created when the module is evaluated.                                                      |
 | `app-display-width-grapheme-memo`      | `displayWidth` memoises per grapheme                           | The app measures width separately from Ink and paid the same per-grapheme cost on every keystroke.                                 |
 | `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads                | Same as Ink's: the maps are created at module evaluation.                                                                          |
+| `turn-clock-state`                     | Adds the turn clock's state and its duration formatter         | The footer needs somewhere to remember when the last turn started and ended.                                                       |
+| `turn-clock-track`                     | Records the times as the session goes busy and idle            | The footer already re-renders on every status change, so the two edges are free to observe.                                        |
+| `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                           | Shows how long ago the last prompt went out and the last reply landed.                                                             |
 | `auto-update-notice-only`              | Stops the update at the check and reports it as available      | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
 | `update-notice-command`                | Adds `run: overdroid update` to the update notice              | The notice has to name the command that now does the updating.                                                                     |
 | `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                        | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
@@ -48,6 +51,38 @@ bun run overdroid restore
 
 `--dev-react` keeps React's development build, which is slower but keeps the full DevTools
 diagnostics: component and owner stacks, hook checks and readable error messages.
+
+## The turn clock
+
+The footer gains `↑7m ↓5m`: how long ago the last prompt was sent, and how long ago the reply
+finished.
+
+Nothing is added to startup. The clock watches the session status the footer already receives, and
+notices the two edges where it leaves and returns to `idle`, so a session that has sent nothing yet
+renders nothing and schedules nothing. Measured against a control binary built from the same patch
+set minus these three patches, the paint difference was not resolved (n=14, 95% CI -39 to +15ms).
+
+**The edge says when to look; the session says when it happened.** The time itself is read from
+`getDroidWorkingStateChangedAtMs()`, never stamped from the render. The footer is not always
+mounted: it unmounts whenever the slash-command menu is open. Stamping at render time meant a turn
+that ended behind that menu was recorded when the menu closed, showing `↓<1m` for a reply that had
+landed a minute earlier. Resuming a session that was already busy told the same lie.
+
+The display is deliberately coarse: `<1m` until the first minute is up, then `7m`, `2h`, `3d`. That
+buys the repaint budget. One `setTimeout`, aligned to the next boundary that actually changes a
+digit, redraws the footer **once a minute** for the first hour, then hourly, then daily. A second
+would have cost 60x the repaints to animate a digit nobody is watching.
+
+Measured over a 150s idle window: 3120 bytes painted, against 30780 bytes/minute for a per-second
+version of the same patch and 0 bytes for the control. Typing is untouched (median 33.5KB painted
+for 60 keystrokes, against 34.9KB for the control).
+
+The alternative was Droid's own `dAT` tick hook, which subscribes to a shared 125ms interval that
+then runs for the rest of the session even when the visible text has not changed for an hour.
+
+One tradeoff comes with the single timer: it is aligned to whichever of the two times is newer, so
+the other can show its previous minute for up to 59s longer. A second timer would keep both exact
+and double the idle repaints, which is the wrong trade for a minute-resolution display.
 
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example
