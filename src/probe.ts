@@ -4,9 +4,11 @@ import path from 'node:path';
 
 import { Command } from 'commander';
 
-import { pairedStats, summarise } from './ab.ts';
+import type { Series } from './ab.ts';
+import { interleave, pairedStats, summarise } from './ab.ts';
 import { count, guard, messageOf, say, seconds } from './cli.ts';
 import { readProfile, selfTimes } from './cpuprofile.ts';
+import { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, formatKeys, measureKeys } from './keys.ts';
 import type { LaunchResult } from './launch.ts';
 import { launch } from './launch.ts';
 import { formatModules, parseModules } from './modules.ts';
@@ -19,6 +21,7 @@ const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 const SELF_TIME_COUNT = 10;
 const INFLATION_FLOOR = 2;
 const AB_RUNS = 30;
+const KEYS_RUNS = 3;
 const TOP_MODULES = 20;
 const BODY_WIDTH = 110;
 
@@ -106,34 +109,7 @@ async function modules(binary: string, options: ModulesOptions): Promise<void> {
   say(formatModules(report.rows.slice(0, options.top), BODY_WIDTH));
 }
 
-type Series = readonly [string, number[]];
-
-async function abLaunches(entries: readonly Series[]): Promise<void> {
-  const [head, ...rest] = entries;
-  if (head === undefined) {
-    return;
-  }
-  const [binary, values] = head;
-  const timing = await launch(binary).catch((error: unknown) => {
-    throw new Error(`${binary}: launch failed: ${messageOf(error)}`);
-  });
-  values.push(timing.paintMs);
-  await abLaunches(rest);
-}
-
-async function abRound(entries: readonly Series[], round: number): Promise<void> {
-  await abLaunches(round % 2 === 0 ? entries : entries.toReversed());
-}
-
-async function abRounds(entries: readonly Series[], done: number, total: number): Promise<void> {
-  if (done === total) {
-    return;
-  }
-  await abRound(entries, done);
-  await abRounds(entries, done + 1, total);
-}
-
-function sayPaired(results: readonly Series[]): void {
+function sayPaired(results: Series<number>, metric: string): void {
   const [first, second] = results;
   if (first === undefined || second === undefined || results.length !== 2) {
     say('');
@@ -142,7 +118,7 @@ function sayPaired(results: readonly Series[]): void {
   }
   const stats = pairedStats(first[1], second[1]);
   say('');
-  say(`paired difference (${second[0]} minus ${first[0]}), n=${stats.n}`);
+  say(`paired ${metric} difference (${second[0]} minus ${first[0]}), n=${stats.n}`);
   if (stats.n < 2) {
     say('  a spread needs at least two rounds: this difference is one sample, not a result');
     return;
@@ -167,14 +143,16 @@ function sayPaired(results: readonly Series[]): void {
 }
 
 async function ab(binaries: string[], options: RunOptions): Promise<void> {
-  const results: Series[] = binaries.map((binary) => [binary, []]);
-
-  await abRound(results, 0);
-  for (const [, values] of results) {
-    values.length = 0;
-  }
-
-  await abRounds(results, 0, options.runs);
+  const results = await interleave(
+    binaries,
+    async (binary) => {
+      const timing = await launch(binary).catch((error: unknown) => {
+        throw new Error(`${binary}: launch failed: ${messageOf(error)}`);
+      });
+      return timing.paintMs;
+    },
+    options.runs,
+  );
 
   for (const [binary, values] of results) {
     say(binary);
@@ -182,7 +160,51 @@ async function ab(binaries: string[], options: RunOptions): Promise<void> {
     say(`  all ${values.map((value) => value.toFixed(0)).join(' ')}`);
   }
 
-  sayPaired(results);
+  sayPaired(results, 'paint');
+}
+
+interface KeysCommandOptions extends RunOptions {
+  trials: number;
+  chars: number;
+  gap: number;
+}
+
+async function keys(binaries: string[], options: KeysCommandOptions): Promise<void> {
+  const results = await interleave(
+    binaries,
+    async (binary) =>
+      await measureKeys(binary, {
+        trials: options.trials,
+        chars: options.chars,
+        gapMs: options.gap,
+      }).catch((error: unknown) => {
+        throw new Error(`${binary}: ${messageOf(error)}`);
+      }),
+    options.runs,
+  );
+
+  say('echo: ms from keypress to the first byte back, idle input box');
+  say(
+    `lag: ms of output still arriving after the last of ${options.chars} keys at ${options.gap}ms`,
+  );
+  say('');
+
+  for (const [index, [binary, runs]] of results.entries()) {
+    say(binary);
+    say(formatKeys(runs));
+    if (index < results.length - 1) {
+      say('');
+    }
+  }
+
+  sayPaired(
+    results.map(([binary, runs]) => [binary, runs.flatMap((run) => run.echoMs)]),
+    'echo',
+  );
+  sayPaired(
+    results.map(([binary, runs]) => [binary, runs.map((run) => run.lagMs)]),
+    'lag',
+  );
 }
 
 interface CpuOptions {
@@ -234,6 +256,7 @@ program
   .option('-e, --extra <patches.json>', 'extra patches to include')
   .option('--trace', 'include the tracing patches')
   .option('--modules', 'include the module timing patches')
+  .option('--dev-react', "keep React's development build for full DevTools diagnostics", false)
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
 
@@ -257,6 +280,16 @@ program
   .argument('<binaries...>')
   .option('-r, --runs <n>', 'number of runs', count, AB_RUNS)
   .action(guard(ab));
+
+program
+  .command('keys')
+  .description('interleaved A/B of keystroke echo latency and typing lag across binaries')
+  .argument('<binaries...>')
+  .option('-r, --runs <n>', 'number of runs', count, KEYS_RUNS)
+  .option('-n, --trials <n>', 'keypresses timed per run', count, DEFAULT_TRIALS)
+  .option('-c, --chars <n>', 'keys in the sustained burst', count, DEFAULT_CHARS)
+  .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
+  .action(guard(keys));
 
 program
   .command('cpu')

@@ -25,6 +25,30 @@ export function pairedStats(first: readonly number[], second: readonly number[])
   return { n, meanDiff, sdDiff, margin: n === 0 ? 0 : (CONFIDENCE_95 * sdDiff) / Math.sqrt(n) };
 }
 
+export type Series<T> = readonly (readonly [string, T[]])[];
+
+export async function interleave<T>(
+  binaries: readonly string[],
+  measure: (binary: string) => Promise<T>,
+  rounds: number,
+): Promise<Series<T>> {
+  const series: Series<T> = binaries.map((binary) => [binary, []]);
+
+  for (const [binary] of series) {
+    // oxlint-disable-next-line no-await-in-loop
+    await measure(binary);
+  }
+
+  for (let round = 0; round < rounds; round++) {
+    for (const [binary, values] of round % 2 === 0 ? series : series.toReversed()) {
+      // oxlint-disable-next-line no-await-in-loop
+      values.push(await measure(binary));
+    }
+  }
+
+  return series;
+}
+
 export function summarise(values: readonly number[]): string {
   return [
     `min ${quantile(values, 0).toFixed(0)}`,

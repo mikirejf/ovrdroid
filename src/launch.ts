@@ -1,9 +1,10 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-const PAINT_MARKER = '╰';
+export const PAINT_MARKER = '╰';
+export const TERMINAL_SIZE = { cols: 120, rows: 40 } as const;
 const CTRL_C = '\u0003';
 const ESC = '\u001B';
-const PAINT_TIMEOUT_MS = 20_000;
+export const PAINT_TIMEOUT_MS = 20_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const SECOND_CTRL_C_MS = 50;
 const DEFAULT_SETTLE_MS = 300;
@@ -19,6 +20,22 @@ const PROBE_REPLIES: readonly (readonly [string, string])[] = [
   [`${ESC}]11;?`, `${ESC}]11;rgb:1e1e/1e1e/1e1e${ESC}\\`],
   [`${ESC}P$qm${ESC}\\`, `${ESC}P1$r48:2::1:2:3m${ESC}\\`],
 ];
+
+export function probeAnswerer(): (terminal: Bun.Terminal, text: string) => void {
+  const answered = new Set<string>();
+  let tail = '';
+
+  return (terminal, text) => {
+    tail += text;
+    for (const [query, reply] of PROBE_REPLIES) {
+      if (!answered.has(query) && tail.includes(query)) {
+        answered.add(query);
+        terminal.write(reply);
+      }
+    }
+    tail = tail.slice(-WINDOW);
+  };
+}
 
 export interface LaunchOptions {
   env?: LaunchEnv;
@@ -53,7 +70,7 @@ async function expire(ms: number, message: string, signal: AbortSignal): Promise
   throw new Error(message);
 }
 
-async function race<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+export async function race<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   const cancel = new AbortController();
   const deadline = expire(ms, message, cancel.signal);
   try {
@@ -79,7 +96,7 @@ function assertRunning(child: Child): void {
   }
 }
 
-async function dies(child: Child): Promise<never> {
+export async function dies(child: Child): Promise<never> {
   await child.exited;
   throw new Error(`exited with ${deathOf(child) ?? 'no status'} before painting`);
 }
@@ -94,24 +111,16 @@ function assertCleanExit(child: Child): void {
 export async function launch(target: string, options: LaunchOptions = {}): Promise<LaunchResult> {
   const decoder = new TextDecoder();
   const paint = Promise.withResolvers<number>();
-  const answered = new Set<string>();
-  let tail = '';
+  const answerProbes = probeAnswerer();
 
   await using terminal = new Bun.Terminal({
-    cols: 120,
-    rows: 40,
+    ...TERMINAL_SIZE,
     data(self, chunk) {
-      tail += decoder.decode(chunk, { stream: true });
-      for (const [query, reply] of PROBE_REPLIES) {
-        if (!answered.has(query) && tail.includes(query)) {
-          answered.add(query);
-          self.write(reply);
-        }
-      }
-      if (tail.includes(PAINT_MARKER)) {
+      const text = decoder.decode(chunk, { stream: true });
+      answerProbes(self, text);
+      if (text.includes(PAINT_MARKER)) {
         paint.resolve(performance.now());
       }
-      tail = tail.slice(-WINDOW);
     },
   });
 

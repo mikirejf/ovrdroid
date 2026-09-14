@@ -1,43 +1,26 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { chmodSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { messageOf } from '../src/cli.ts';
 import { launch, launchEnv } from '../src/launch.ts';
+import { PAINT_MARKER, rejection, script, scriptDir } from './scripts.ts';
 
 const LAUNCH_SRC = path.join(import.meta.dir, '..', 'src', 'launch.ts');
-const MARKER = '╰';
-const dir = await mkdtemp(path.join(tmpdir(), 'overdroid-launch-'));
+const dir = scriptDir('launch');
 
 afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-async function script(name: string, body: string): Promise<string> {
-  const file = path.join(dir, name);
-  await Bun.write(file, `#!/bin/sh\n${body}\n`);
-  chmodSync(file, 0o755);
-  return file;
-}
-
-const healthy = await script(
-  'healthy.sh',
-  ['stty raw -echo', `printf '${MARKER}'`, 'dd bs=1 count=1 >/dev/null 2>&1', 'exit 0'].join('\n'),
-);
-const crashing = await script('crashing.sh', [`printf '${MARKER}'`, 'exit 42'].join('\n'));
-const silent = await script('silent.sh', 'sleep 30');
-const stillborn = await script('stillborn.sh', 'exit 3');
-
-async function rejection(work: Promise<unknown>): Promise<string> {
-  try {
-    await work;
-  } catch (error) {
-    return messageOf(error);
-  }
-  throw new Error('expected a rejection');
-}
+const healthy = await script(dir, 'healthy.sh', [
+  'stty raw -echo',
+  `printf '${PAINT_MARKER}'`,
+  'dd bs=1 count=1 >/dev/null 2>&1',
+  'exit 0',
+]);
+const crashing = await script(dir, 'crashing.sh', [`printf '${PAINT_MARKER}'`, 'exit 42']);
+const silent = await script(dir, 'silent.sh', ['sleep 30']);
+const stillborn = await script(dir, 'stillborn.sh', ['exit 3']);
 
 describe('launch', () => {
   test('times a healthy target and reports its pid', async () => {
