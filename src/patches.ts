@@ -170,6 +170,16 @@ export const patches: readonly Patch[] = [
     replace: 'if(w)return I?1:2;if(I)return 3;return 4}',
   },
   {
+    name: 'command-catalog-mark-scanned',
+    find: 'function Td(T){if(omR.status===T.status',
+    replace: 'function Td(T){if(T.status==="ready")Td.$done=!0;if(omR.status===T.status',
+  },
+  {
+    name: 'command-menu-loading-first-scan-only',
+    find: 'isLoading:fT.status==="refreshing"}',
+    replace: 'isLoading:fT.status==="refreshing"&&!Td.$done}',
+  },
+  {
     name: 'draft-dismiss-no-rerender',
     find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
     replace:
