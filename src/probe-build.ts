@@ -4,7 +4,7 @@ import { patchSource } from './apply.ts';
 import { say } from './cli.ts';
 import { readSource } from './graph.ts';
 import type { Patch } from './patches.ts';
-import { patches } from './patches.ts';
+import { patchSet } from './patches.ts';
 import { backupPath, INSTALLED_DROID, realOrUndefined } from './paths.ts';
 import { rebuildInto } from './rebuild.ts';
 import { modulePatches, tracePatches } from './trace-patches.ts';
@@ -14,6 +14,7 @@ export interface BuildOptions {
   extra?: string;
   trace?: boolean;
   modules?: boolean;
+  devReact: boolean;
   out: string;
 }
 
@@ -26,7 +27,8 @@ function isPatch(value: unknown): value is Patch {
     'find' in value &&
     typeof value.find === 'string' &&
     'replace' in value &&
-    typeof value.replace === 'string'
+    typeof value.replace === 'string' &&
+    (!('until' in value) || value.until === undefined || typeof value.until === 'string')
   );
 }
 
@@ -62,7 +64,7 @@ function refuseOverwrite(options: BuildOptions): void {
 export async function buildProbe(options: BuildOptions): Promise<void> {
   refuseOverwrite(options);
   const stock = await Bun.file(options.target).bytes();
-  const list: Patch[] = [...patches];
+  const list: Patch[] = [...(await patchSet(options))];
 
   if (options.trace === true) {
     list.push(...tracePatches);

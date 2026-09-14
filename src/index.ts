@@ -10,12 +10,17 @@ import { embeddedBunVersion, reportedVersion, startVersion } from './bun.ts';
 import { guard, kilobytes, messageOf, say } from './cli.ts';
 import { locateGraph, readSource } from './graph.ts';
 import { installHooks } from './hooks.ts';
-import { patches } from './patches.ts';
+import type { Patch } from './patches.ts';
+import { patchSet } from './patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
 import { rebuildInto } from './rebuild.ts';
 
 interface Options {
   target: string;
+}
+
+interface PatchOptions extends Options {
+  devReact: boolean;
 }
 
 function temporaryPath(target: string): string {
@@ -34,11 +39,12 @@ function readBinary(target: string): Uint8Array {
   }
 }
 
-function status(options: Options): void {
+async function status(options: PatchOptions): Promise<void> {
   const bytes = readBinary(options.target);
   const graph = locateGraph(bytes);
+  const list = await patchSet(options);
 
-  say(describeStatus(statusOf(readSource(bytes, graph), patches)));
+  say(describeStatus(statusOf(readSource(bytes, graph), list)));
   say(`bun ${embeddedBunVersion(bytes)}`);
   say(
     `source ${graph.source.length} bytes, bytecode ${graph.bytecode.length} bytes, module_info ${graph.moduleInfo.length} bytes`,
@@ -51,11 +57,11 @@ interface Stock {
   origin: string;
 }
 
-function stockFrom(target: string): Stock | undefined {
+function stockFrom(target: string, list: readonly Patch[]): Stock | undefined {
   const backup = backupPath(target);
   const installed = readBinary(target);
   const source = readSource(installed);
-  const current = statusOf(source, patches);
+  const current = statusOf(source, list);
 
   if (current.kind === 'applied') {
     return undefined;
@@ -84,9 +90,10 @@ function stockFrom(target: string): Stock | undefined {
   return { bytes: installed, source, origin: target };
 }
 
-async function apply(options: Options): Promise<void> {
+async function apply(options: PatchOptions): Promise<void> {
   const { target } = options;
-  const stocked = stockFrom(target);
+  const list = await patchSet(options);
+  const stocked = stockFrom(target, list);
 
   if (stocked === undefined) {
     say('already applied');
@@ -95,8 +102,8 @@ async function apply(options: Options): Promise<void> {
   const { bytes: stock, source, origin } = stocked;
 
   const expecting = startVersion(origin);
-  const patched = patchSource(source, patches);
-  say(`patched source: ${patches.length} patches plus marker`);
+  const patched = patchSource(source, list);
+  say(`patched source: ${list.length} patches plus marker`);
 
   const temporary = temporaryPath(target);
   try {
@@ -124,7 +131,7 @@ async function hooks(): Promise<void> {
   }
 }
 
-async function update(options: Options): Promise<void> {
+async function update(options: PatchOptions): Promise<void> {
   const { FACTORY_DROID_AUTO_UPDATE_ENABLED: _, ...env } = Bun.env;
   const before = reportedVersion(options.target);
   const result = Bun.spawnSync([options.target, 'update'], {
@@ -158,23 +165,31 @@ const program = new Command()
   .version(pkg.version);
 
 const targetOption = ['-t, --target <path>', 'path to the Droid binary', INSTALLED_DROID] as const;
+const devReactOption = [
+  '--dev-react',
+  "keep React's development build for full DevTools diagnostics",
+  false,
+] as const;
 
 program
   .command('status')
   .description('show whether the patch set is applied')
   .option(...targetOption)
+  .option(...devReactOption)
   .action(guard(status));
 
 program
   .command('apply')
   .description('patch the source, rebuild the binary on the pinned Bun and install it')
   .option(...targetOption)
+  .option(...devReactOption)
   .action(guard(apply));
 
 program
   .command('update')
   .description('run droid update, then apply the patch set if the binary is stock')
   .option(...targetOption)
+  .option(...devReactOption)
   .action(guard(update));
 
 program

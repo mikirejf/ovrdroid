@@ -18,16 +18,22 @@ describe('patches', () => {
 
 describe('markerDigest', () => {
   test('is twelve hex characters', () => {
-    expect(markerDigest()).toMatch(/^[0-9a-f]{12}$/u);
+    expect(markerDigest(patches)).toMatch(/^[0-9a-f]{12}$/u);
   });
 
   test('is stable across calls', () => {
-    expect(markerDigest()).toBe(markerDigest());
+    expect(markerDigest(patches)).toBe(markerDigest(patches));
   });
 
   test('changes when a replacement changes', () => {
     const one: readonly Patch[] = [{ name: 'a', find: 'x', replace: 'y' }];
     const two: readonly Patch[] = [{ name: 'a', find: 'x', replace: 'z' }];
+    expect(markerDigest(one)).not.toBe(markerDigest(two));
+  });
+
+  test('changes when an until changes', () => {
+    const one: readonly Patch[] = [{ name: 'a', find: 'x', until: 'y', replace: 'z' }];
+    const two: readonly Patch[] = [{ name: 'a', find: 'x', until: 'w', replace: 'z' }];
     expect(markerDigest(one)).not.toBe(markerDigest(two));
   });
 
@@ -40,7 +46,7 @@ describe('markerDigest', () => {
 
 describe('markerStatement', () => {
   test('is a complete statement carrying the digest', () => {
-    expect(markerStatement()).toBe(`globalThis.__overdroid="${markerDigest()}";\n`);
+    expect(markerStatement(patches)).toBe(`globalThis.__overdroid="${markerDigest(patches)}";\n`);
   });
 });
 
@@ -50,7 +56,7 @@ describe('findMarker', () => {
   });
 
   test('reads the digest out of a marker statement', () => {
-    expect(findMarker(`a=1;${markerStatement()}`)).toBe(markerDigest());
+    expect(findMarker(`a=1;${markerStatement(patches)}`)).toBe(markerDigest(patches));
   });
 
   test('rejects a marker whose digest is not twelve hex characters', () => {

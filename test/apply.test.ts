@@ -33,6 +33,20 @@ describe('patchSource', () => {
     );
   });
 
+  test('replaces everything from find through the end of until', () => {
+    const span: readonly Patch[] = [
+      { name: 'span', find: 'let x=', until: 'go()', replace: 'let x=stop()' },
+    ];
+    expect(patchSource(stock, span)).toContain('let x=stop();wait(150);');
+  });
+
+  test('throws when until is absent after find', () => {
+    const span: readonly Patch[] = [
+      { name: 'span', find: 'let x=', until: 'nope()', replace: 'let x=stop()' },
+    ];
+    expect(() => patchSource(stock, span)).toThrow('patch span: until not found after find');
+  });
+
   test('does not treat $ in a replacement as a capture reference', () => {
     const dollar: readonly Patch[] = [{ name: 'cash', find: 'A', replace: "'$&$1'" }];
     expect(patchSource('xAx', dollar)).toContain("x'$&$1'x");
@@ -64,6 +78,13 @@ describe('statusOf', () => {
 
   test('reports missing and names the patches that did not match once', () => {
     expect(statusOf('wait(150);', list)).toEqual({ kind: 'missing', names: ['await'] });
+  });
+
+  test('reports missing when until never follows find', () => {
+    const span: readonly Patch[] = [
+      { name: 'span', find: 'let x=', until: 'nope()', replace: 'let x=stop()' },
+    ];
+    expect(statusOf(stock, span)).toEqual({ kind: 'missing', names: ['span'] });
   });
 
   test('survives minification collapsing whitespace around the marker', () => {

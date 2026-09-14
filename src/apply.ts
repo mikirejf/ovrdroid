@@ -16,6 +16,19 @@ export function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+function endOfRange(source: string, patch: Patch, at?: number): number | undefined {
+  const start = at ?? soleOffset(source, patch.find);
+  if (start === undefined) {
+    return undefined;
+  }
+  const from = start + patch.find.length;
+  if (patch.until === undefined) {
+    return from;
+  }
+  const until = source.indexOf(patch.until, from);
+  return until === -1 ? undefined : until + patch.until.length;
+}
+
 export function statusOf(source: string, list: readonly Patch[]): Status {
   const found = findMarker(source);
   const current = markerDigest(list);
@@ -27,7 +40,7 @@ export function statusOf(source: string, list: readonly Patch[]): Status {
   }
 
   const names = list
-    .filter((patch) => soleOffset(source, patch.find) === undefined)
+    .filter((patch) => endOfRange(source, patch) === undefined)
     .map((patch) => patch.name);
 
   return names.length > 0 ? { kind: 'missing', names } : { kind: 'pending' };
@@ -56,7 +69,11 @@ export function patchSource(source: string, list: readonly Patch[]): string {
         `patch ${patch.name}: expected 1 occurrence, found ${countOccurrences(out, patch.find)}`,
       );
     }
-    out = out.slice(0, at) + patch.replace + out.slice(at + patch.find.length);
+    const end = endOfRange(out, patch, at);
+    if (end === undefined) {
+      throw new Error(`patch ${patch.name}: until not found after find`);
+    }
+    out = out.slice(0, at) + patch.replace + out.slice(end);
   }
 
   if (findMarker(out) !== undefined) {

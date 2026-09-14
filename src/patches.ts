@@ -1,6 +1,9 @@
+import { reactProductionPatches } from './react.ts';
+
 export interface Patch {
   name: string;
   find: string;
+  until?: string;
   replace: string;
 }
 
@@ -82,15 +85,67 @@ export const patches: readonly Patch[] = [
     ).join('')}${STANDARD_SCHEMA}`,
     replace: `${LAZY_ACCESSORS}constructor(T){this._def=T,${STANDARD_SCHEMA}`,
   },
+  {
+    name: 'model-alias-lookup-set',
+    find: 'if(T in RO)return T;if(Object.values(RO).includes(T))return T;return}',
+    replace:
+      'if(T in RO)return T;if((lC.$o!==RO&&(lC.$o=RO,lC.$s=new Set(Object.values(RO))),lC.$s).has(T))return T;return}',
+  },
+  {
+    name: 'ink-string-width-grapheme-memo',
+    find: 'for(let{segment:B}of IZC.segment(n)){if(NZC(B))continue;if(wZC.test(B)){t+=2;continue}let f=JZC(B).codePointAt(0);t+=g0T(f,_),t+=QZC(B,_)}if(h)OKi(T,t);return t}',
+    replace:
+      'let $m=H?FKT.$n:FKT.$w;for(let{segment:B}of IZC.segment(n)){let c=$m.get(B);if(c===void 0){if(NZC(B))c=0;else if(wZC.test(B))c=2;else{let f=JZC(B).codePointAt(0);c=g0T(f,_)+QZC(B,_)}if($m.size<2e4)$m.set(B,c)}t+=c}if(h)OKi(T,t);return t}',
+  },
+  {
+    name: 'ink-string-width-grapheme-memo-init',
+    find: 'wZC=/^\\p{RGI_Emoji}$/v;H6T=new Map});',
+    replace: 'wZC=/^\\p{RGI_Emoji}$/v;H6T=new Map;FKT.$n=new Map;FKT.$w=new Map});',
+  },
+  {
+    name: 'app-display-width-grapheme-memo',
+    find: 'for(let{segment:_}of Q0u.segment(h)){if(o0u(_))continue;if(g0u.test(_)){n+=2;continue}let B=K0u(_).codePointAt(0);n+=g0T(B,t),n+=F0u(_,t)}return n}',
+    replace:
+      'let $m=H?c0R.$n:c0R.$w;for(let{segment:_}of Q0u.segment(h)){let c=$m.get(_);if(c===void 0){if(o0u(_))c=0;else if(g0u.test(_))c=2;else{let B=K0u(_).codePointAt(0);c=g0T(B,t)+F0u(_,t)}if($m.size<2e4)$m.set(_,c)}n+=c}return n}',
+  },
+  {
+    name: 'app-display-width-grapheme-memo-init',
+    find: 'g0u=/^\\p{RGI_Emoji}$/v});',
+    replace: 'g0u=/^\\p{RGI_Emoji}$/v;c0R.$n=new Map;c0R.$w=new Map});',
+  },
+  {
+    name: 'draft-dismiss-no-rerender',
+    find: 'let H=PV.useCallback(()=>{R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
+    replace:
+      'let $r=PV.useRef(T);$r.current=T;let H=PV.useCallback(()=>{let s=$r.current;if(s.notice.kind==="hidden"||s.dismissed)return;R({type:"draft-edited"})},[]);return{display:T,dismissAfterDraftEdit:H}',
+  },
 ];
 
-export function markerDigest(list: readonly Patch[] = patches): string {
+async function productionPatches(): Promise<readonly Patch[]> {
+  return [...patches, ...(await reactProductionPatches())];
+}
+
+let productionSet: Promise<readonly Patch[]> | undefined;
+
+export async function patchSet(options: { devReact: boolean }): Promise<readonly Patch[]> {
+  if (options.devReact) {
+    return patches;
+  }
+  productionSet ??= productionPatches();
+  return await productionSet;
+}
+
+export function markerDigest(list: readonly Patch[]): string {
   const hasher = new Bun.CryptoHasher('sha256');
-  hasher.update(list.map((patch) => `${patch.name}|${patch.find}|${patch.replace}`).join('\n'));
+  hasher.update(
+    list
+      .map((patch) => `${patch.name}|${patch.find}|${patch.until ?? ''}|${patch.replace}`)
+      .join('\n'),
+  );
   return hasher.digest('hex').slice(0, 12);
 }
 
-export function markerStatement(list: readonly Patch[] = patches): string {
+export function markerStatement(list: readonly Patch[]): string {
   return `${MARKER_PREFIX}${markerDigest(list)}";\n`;
 }
 
