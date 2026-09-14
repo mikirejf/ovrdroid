@@ -2,9 +2,12 @@
 import { Command } from 'commander';
 
 import { modules, trace } from './capture-report.ts';
-import { count, guard } from './cli.ts';
+import type { ChurnKind } from './churn.ts';
+import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
+import { choice, count, guard } from './cli.ts';
 import { cpu } from './cpu-report.ts';
 import { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS } from './keys.ts';
+import { menu, touches, watch } from './menu-report.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
 import { buildProbe } from './probe-build.ts';
 import { ab, keys } from './speed-report.ts';
@@ -13,6 +16,8 @@ const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const TOP_MODULES = 20;
+const DEFAULT_CHURN: ChurnKind = 'startup';
+const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
 
 const program = new Command().name('probe').description('Startup probe tooling for Droid');
 
@@ -23,6 +28,7 @@ program
   .option('-e, --extra <patches.json>', 'extra patches to include')
   .option('--trace', 'include the tracing patches')
   .option('--modules', 'include the module timing patches')
+  .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--dev-react', "keep React's development build for full DevTools diagnostics", false)
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
@@ -57,6 +63,34 @@ program
   .option('-c, --chars <n>', 'keys in the sustained burst', count, DEFAULT_CHARS)
   .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
   .action(guard(keys));
+
+function churnOptions(command: Command): Command {
+  return command
+    .option('--churn <kind>', CHURN_DESCRIPTION, choice(CHURN_KINDS), DEFAULT_CHURN)
+    .option('-r, --rounds <n>', 'how many churn rounds', count, DEFAULT_ROUNDS)
+    .option('-g, --gap <ms>', 'pause between churn rounds', count, CHURN_GAP_MS)
+    .option('--with <path>', 'binary to launch for startup churn', '');
+}
+
+churnOptions(
+  program
+    .command('menu')
+    .description('open the command menu under churn and report flicker')
+    .argument('<binary>'),
+).action(guard(menu));
+
+churnOptions(
+  program
+    .command('watch')
+    .description('log file events, watcher wake-ups and catalog rescans under churn')
+    .argument('<binary>'),
+).action(guard(watch));
+
+program
+  .command('touches')
+  .description('show which config files a startup rewrites and which it only touches')
+  .argument('<binary>')
+  .action(guard(touches));
 
 program
   .command('cpu')

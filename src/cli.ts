@@ -33,6 +33,16 @@ export function count(raw: string): number {
   return Math.floor(parsed);
 }
 
+export function choice<T extends string>(allowed: readonly T[]) {
+  return (raw: string): T => {
+    const found = allowed.find((value) => value === raw);
+    if (found === undefined) {
+      throw new InvalidArgumentError(`expected one of: ${allowed.join(', ')}`);
+    }
+    return found;
+  };
+}
+
 export function guard<T extends unknown[]>(action: (...args: T) => void | Promise<void>) {
   return async (...args: T): Promise<void> => {
     try {

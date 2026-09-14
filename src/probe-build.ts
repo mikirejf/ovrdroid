@@ -8,12 +8,14 @@ import { patchSet } from './patches.ts';
 import { backupPath, INSTALLED_DROID, realOrUndefined } from './paths.ts';
 import { rebuildInto } from './rebuild.ts';
 import { modulePatches, tracePatches } from './trace-patches.ts';
+import { watchPatches } from './watch-patches.ts';
 
 export interface BuildOptions {
   target: string;
   extra?: string;
   trace?: boolean;
   modules?: boolean;
+  watch?: boolean;
   devReact: boolean;
   out: string;
 }
@@ -71,6 +73,9 @@ export async function buildProbe(options: BuildOptions): Promise<void> {
   }
   if (options.modules === true) {
     list.push(...modulePatches);
+  }
+  if (options.watch === true) {
+    list.push(...watchPatches);
   }
   if (options.extra !== undefined) {
     list.push(...(await readExtra(options.extra)));
