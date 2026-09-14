@@ -269,9 +269,10 @@ first time.
    under `~/.cache/overdroid/`, and run
    `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source
    with an import preamble that re-embeds every sidecar. The build dominates the ~4.5s apply and
-   peaks near 1.8GB; the harness itself maps the binary rather than copying it and stays under
-   200MB. Rebuilding is what keeps the bytecode cache valid: editing bytes in place invalidates it
-   and Droid falls back to parsing 20MB of JavaScript, which costs more than the patches save.
+   peaks near 1.8GB. Binaries are read with `readFileSync`, never memory-mapped: a writable mapping
+   invalidates a signed binary permanently, and macOS then kills it on launch. Rebuilding is what
+   keeps the bytecode cache valid: editing bytes in place invalidates it and Droid falls back to
+   parsing 20MB of JavaScript, which costs more than the patches save.
 4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then
    `codesign --force --sign -`. Without the signature macOS kills the process on launch.
 

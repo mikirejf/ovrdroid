@@ -1,4 +1,4 @@
-import { chmodSync } from 'node:fs';
+import { chmodSync, readFileSync } from 'node:fs';
 
 import { buildBinary } from './build.ts';
 import { BUILD_BUN_VERSION, ensureBun } from './bun.ts';
@@ -29,7 +29,7 @@ export async function rebuildInto(
   const seconds = await buildBinary({ bun, source, stock, out });
   say(`built in ${seconds.toFixed(1)}s`);
 
-  assertSameEmbeds(stock, Bun.mmap(out));
+  assertSameEmbeds(stock, readFileSync(out));
   say('verified every embedded file survived the rebuild');
 
   chmodSync(out, BINARY_MODE);

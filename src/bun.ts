@@ -38,16 +38,6 @@ export function reportedVersion(binary: string): string {
   }
 }
 
-export async function startVersion(binary: string): Promise<string> {
-  try {
-    const child = Bun.spawn([binary, '--version'], { stdout: 'pipe', stderr: 'ignore' });
-    const [text, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
-    return exitCode === 0 ? text.trim() : '';
-  } catch {
-    return '';
-  }
-}
-
 function cachedBunPath(version: string): string {
   return cacheDir(`bun-${version}`, 'bun');
 }

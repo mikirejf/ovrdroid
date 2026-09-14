@@ -31,6 +31,12 @@ any more.
 After the rebuild the binary must be signed with `codesign --force --sign -`, otherwise macOS sends
 SIGKILL on launch.
 
+**Never `Bun.mmap` a signed binary.** Bun maps the file writable even with `{ shared: false }`, and
+on macOS a writable mapping invalidates the signature permanently: from then on the file is killed
+on launch with `SIGKILL (Code Signature Invalid)`, and only re-signing brings it back. Mapping the
+stock backup this way corrupts the one copy the harness restores from. Read binaries with
+`readFileSync`; the whole file is a few hundred MB and reading it is fast enough.
+
 ## Two languages, on purpose
 
 - **The harness** is TypeScript on Bun. Normal code, normal tooling.

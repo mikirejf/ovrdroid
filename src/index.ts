@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
-import { copyFileSync, renameSync } from 'node:fs';
+import { copyFileSync, readFileSync, renameSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
 import { describeStatus, patchSource, statusOf } from './apply.ts';
-import { embeddedBunVersion, reportedVersion, startVersion } from './bun.ts';
+import { embeddedBunVersion, reportedVersion } from './bun.ts';
 import { guard, kilobytes, messageOf, say } from './cli.ts';
 import { locateGraph, readSource } from './graph.ts';
 import { installHooks } from './hooks.ts';
@@ -33,7 +33,7 @@ function isMissing(error: unknown): boolean {
 
 function readBinary(target: string): Uint8Array {
   try {
-    return Bun.mmap(target);
+    return readFileSync(target);
   } catch {
     throw new Error(`cannot read target: ${target}`);
   }
@@ -72,7 +72,7 @@ function stockFrom(target: string, list: readonly Patch[]): Stock | undefined {
   if (current.kind === 'stale') {
     let restored: Uint8Array;
     try {
-      restored = Bun.mmap(backup);
+      restored = readFileSync(backup);
     } catch (error) {
       throw new Error(
         isMissing(error)
@@ -101,7 +101,10 @@ async function apply(options: PatchOptions): Promise<void> {
   }
   const { bytes: stock, source, origin } = stocked;
 
-  const expecting = startVersion(origin);
+  const expected = reportedVersion(origin);
+  if (expected === '') {
+    throw new Error(`cannot read version from ${origin}`);
+  }
   const patched = patchSource(source, list);
   say(`patched source: ${list.length} patches plus marker`);
 
@@ -109,10 +112,6 @@ async function apply(options: PatchOptions): Promise<void> {
   try {
     await rebuildInto(stock, patched, temporary);
 
-    const expected = await expecting;
-    if (expected === '') {
-      throw new Error(`cannot read version from ${origin}`);
-    }
     const reported = reportedVersion(temporary);
     if (reported !== expected) {
       throw new Error(`patched binary reports ${reported || 'nothing'}, expected ${expected}`);
