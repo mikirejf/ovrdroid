@@ -10,10 +10,11 @@ import { embeddedBunVersion, reportedVersion } from './binary/bun.ts';
 import { locateGraph, readSource } from './binary/graph.ts';
 import { rebuildInto } from './binary/rebuild.ts';
 import { guard, hasErrorCode, kilobytes, messageOf, quitOnBrokenPipe, say } from './cli.ts';
+import { applyFix, formatFixed, runDoctor } from './doctor/doctor.ts';
 import { installHooks } from './hooks/hooks.ts';
 import type { Patch } from './patch/patches.ts';
 import { patchSet } from './patch/patches.ts';
-import { backupPath, INSTALLED_DROID } from './paths.ts';
+import { backupPath, FACTORY_MCP, INSTALLED_DROID } from './paths.ts';
 
 interface Options {
   target: string;
@@ -21,6 +22,10 @@ interface Options {
 
 interface PatchOptions extends Options {
   devReact: boolean;
+}
+
+interface DoctorOptions {
+  fix: boolean;
 }
 
 function temporaryPath(target: string): string {
@@ -93,6 +98,7 @@ async function apply(options: PatchOptions): Promise<void> {
 
   if (stocked === undefined) {
     say('already applied');
+    runDoctor();
     return;
   }
   const { bytes: stock, source, origin } = stocked;
@@ -115,6 +121,7 @@ async function apply(options: PatchOptions): Promise<void> {
 
     renameSync(temporary, target);
     say(`verified ${reported} and installed to ${target}`);
+    runDoctor();
   } finally {
     await rm(temporary, { force: true });
   }
@@ -142,6 +149,19 @@ async function update(options: PatchOptions): Promise<void> {
   say(after === before ? `still ${after}` : `updated ${before} -> ${after}`);
   await apply(options);
   await hooks();
+}
+
+function doctor(options: DoctorOptions): void {
+  if (!options.fix) {
+    runDoctor();
+    return;
+  }
+  const outcome = applyFix();
+  if (outcome.fixed.length === 0) {
+    say(`doctor: clean (${FACTORY_MCP})`);
+    return;
+  }
+  say(formatFixed(outcome, FACTORY_MCP));
 }
 
 function restore(options: Options): void {
@@ -197,6 +217,16 @@ program
   .description('restore the backup taken before patching')
   .option(...targetOption)
   .action(guard(restore));
+
+program
+  .command('doctor')
+  .description('report MCP config footguns: problem, impact, fix')
+  .option(
+    '--fix',
+    'rewrite wrapper entries to pinned entry points (backs up mcp.json first)',
+    false,
+  )
+  .action(guard(doctor));
 
 quitOnBrokenPipe();
 await program.parseAsync();

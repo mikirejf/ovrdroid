@@ -14,6 +14,8 @@ export const FACTORY_SETTINGS = path.join(FACTORY, 'settings.json');
 
 export const FACTORY_MCP = path.join(FACTORY, 'mcp.json');
 
+export const NPM_NPX_ROOT = path.join(homedir(), '.npm', '_npx');
+
 export const CONFIG_FILES: readonly string[] = [FACTORY_SETTINGS, FACTORY_MCP];
 
 export function cacheDir(...parts: readonly string[]): string {
