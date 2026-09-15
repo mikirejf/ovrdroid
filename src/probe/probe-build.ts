@@ -6,6 +6,7 @@ import { rebuildInto } from '../binary/rebuild.ts';
 import { say } from '../cli.ts';
 import type { Patch } from '../patch/patches.ts';
 import { patchSet } from '../patch/patches.ts';
+import { timerPatches } from '../patch/timer-patches.ts';
 import { modulePatches, tracePatches } from '../patch/trace-patches.ts';
 import { watchPatches } from '../patch/watch-patches.ts';
 import { backupPath, INSTALLED_DROID, realOrUndefined } from '../paths.ts';
@@ -16,6 +17,7 @@ export interface BuildOptions {
   trace?: boolean;
   modules?: boolean;
   watch?: boolean;
+  timers?: boolean;
   devReact: boolean;
   out: string;
 }
@@ -76,6 +78,9 @@ export async function buildProbe(options: BuildOptions): Promise<void> {
   }
   if (options.watch === true) {
     list.push(...watchPatches);
+  }
+  if (options.timers === true) {
+    list.push(...timerPatches);
   }
   if (options.extra !== undefined) {
     list.push(...(await readExtra(options.extra)));
