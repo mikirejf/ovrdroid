@@ -3,6 +3,7 @@ import { Command } from 'commander';
 
 import { choice, count, guard } from '../cli.ts';
 import { backupPath, INSTALLED_DROID } from '../paths.ts';
+import { anchors } from './anchors-report.ts';
 import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
 import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
@@ -91,6 +92,13 @@ program
   .description('show which config files a startup rewrites and which it only touches')
   .argument('<binary>')
   .action(guard(touches));
+
+program
+  .command('anchors')
+  .description('re-find every patch anchor in a new Droid release by identifier shape')
+  .argument('<binary>')
+  .option('--json', 'print the rebased patches as JSON', false)
+  .action(guard(anchors));
 
 program
   .command('cpu')
