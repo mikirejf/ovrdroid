@@ -1,7 +1,7 @@
 import { chmodSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { messageOf } from '../cli.ts';
+import { hasErrorCode, messageOf } from '../cli.ts';
 import { CONFIG_FILES } from '../paths.ts';
 import type { Session } from './session.ts';
 import { openSession } from './session.ts';
@@ -14,10 +14,6 @@ export const DEFAULT_ROUNDS = 3;
 export const DEFAULT_GAP_MS = 6000;
 
 const SETTINGS_MODE = 0o600;
-
-function isMissing(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
-}
 
 export interface ChurnOptions {
   rounds: number;
@@ -58,7 +54,7 @@ export function churnOne(file: string): boolean {
     chmodSync(file, SETTINGS_MODE);
     return true;
   } catch (error) {
-    if (isMissing(error)) {
+    if (hasErrorCode(error, 'ENOENT')) {
       return false;
     }
     throw new Error(`${file}: cannot chmod, so this round churned nothing: ${messageOf(error)}`, {

@@ -9,7 +9,7 @@ import { describeStatus, patchSource, statusOf } from './binary/apply.ts';
 import { embeddedBunVersion, reportedVersion } from './binary/bun.ts';
 import { locateGraph, readSource } from './binary/graph.ts';
 import { rebuildInto } from './binary/rebuild.ts';
-import { guard, kilobytes, messageOf, say } from './cli.ts';
+import { guard, hasErrorCode, kilobytes, messageOf, quitOnBrokenPipe, say } from './cli.ts';
 import { installHooks } from './hooks/hooks.ts';
 import type { Patch } from './patch/patches.ts';
 import { patchSet } from './patch/patches.ts';
@@ -25,10 +25,6 @@ interface PatchOptions extends Options {
 
 function temporaryPath(target: string): string {
   return `${target}.tmp`;
-}
-
-function isMissing(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 function readBinary(target: string): Uint8Array {
@@ -75,7 +71,7 @@ function stockFrom(target: string, list: readonly Patch[]): Stock | undefined {
       restored = readFileSync(backup);
     } catch (error) {
       throw new Error(
-        isMissing(error)
+        hasErrorCode(error, 'ENOENT')
           ? `target is patched with an older patch set and no backup exists at ${backup}`
           : `target is patched with an older patch set and its backup is unreadable: ${backup} (${messageOf(error)})`,
         { cause: error },
@@ -202,4 +198,5 @@ program
   .option(...targetOption)
   .action(guard(restore));
 
+quitOnBrokenPipe();
 await program.parseAsync();

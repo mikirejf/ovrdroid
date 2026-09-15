@@ -9,6 +9,19 @@ export function fail(message: string): never {
   process.exit(1);
 }
 
+export function hasErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code;
+}
+
+export function quitOnBrokenPipe(): void {
+  process.stdout.on('error', (error: unknown) => {
+    if (hasErrorCode(error, 'EPIPE')) {
+      process.exit(0);
+    }
+    fail(messageOf(error));
+  });
+}
+
 export function say(message: string): void {
   process.stdout.write(`${message}\n`);
 }
