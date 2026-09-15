@@ -7,15 +7,18 @@ import { anchors } from './anchors-report.ts';
 import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
 import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
-import { cpu } from './cpu-report.ts';
+import { cpu, idleCpu } from './cpu-report.ts';
+import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS } from './keys.ts';
 import { menu, touches, watch } from './menu-report.ts';
 import { buildProbe } from './probe-build.ts';
 import { ab, keys } from './speed-report.ts';
+import { timers } from './timers-report.ts';
 
 const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
+const IDLE_RUNS = 5;
 const TOP_MODULES = 20;
 const DEFAULT_CHURN: ChurnKind = 'startup';
 const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
@@ -30,6 +33,7 @@ program
   .option('--trace', 'include the tracing patches')
   .option('--modules', 'include the module timing patches')
   .option('--watch', 'include the file-watcher and catalog logging patches')
+  .option('--timers', 'include the timer census patches')
   .option('--dev-react', "keep React's development build for full DevTools diagnostics", false)
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
@@ -99,6 +103,29 @@ program
   .argument('<binary>')
   .option('--json', 'print the rebased patches as JSON', false)
   .action(guard(anchors));
+
+program
+  .command('idle')
+  .description('interleaved A/B of what a Droid costs per minute of standing by')
+  .argument('<binaries...>')
+  .option('-r, --runs <n>', 'number of runs', count, IDLE_RUNS)
+  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
+  .action(guard(idle));
+
+program
+  .command('idle-cpu')
+  .description('profile an idle Droid and print what the standing-by CPU is spent on')
+  .argument('<binary>')
+  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
+  .requiredOption('-o, --out <dir>', 'where to write the profile')
+  .action(guard(idleCpu));
+
+program
+  .command('timers')
+  .description('census of the timers that wake an idle Droid')
+  .argument('<binary>')
+  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
+  .action(guard(timers));
 
 program
   .command('cpu')

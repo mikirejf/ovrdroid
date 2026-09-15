@@ -107,7 +107,7 @@ describe('selfTimes', () => {
   });
 
   test('stops charging once the cut is passed', () => {
-    const report = selfTimes(profile, 10, 8000);
+    const report = selfTimes(profile, 10, { untilMicros: 8000 });
     const work = report.entries.find((entry) => entry.stack[0] === 'work@b.js:10');
     expect(work?.samples).toBe(2);
     expect(work?.micros).toBe(3000);
@@ -116,14 +116,32 @@ describe('selfTimes', () => {
     expect(report.chargedMicros).toBe(4500);
   });
 
+  test('a start skips the samples before it, which is how idle work is isolated', () => {
+    const report = selfTimes(profile, 10, { fromMicros: 8000 });
+    expect(report.sampleCount).toBe(5);
+    expect(report.entries.some((entry) => entry.stack[0] === 'spike@c.js:20')).toBe(false);
+  });
+
+  test('a start and a cut together select a middle window', () => {
+    const report = selfTimes(profile, 10, { fromMicros: 5000, untilMicros: 9500 });
+    expect(report.sampleCount).toBe(4);
+  });
+
+  test('a start past the whole profile yields zeroes rather than NaN', () => {
+    const report = selfTimes(profile, 10, { fromMicros: 999_999 });
+    expect(report.sampleCount).toBe(0);
+    expect(report.periodMicros).toBe(0);
+    expect(numbersOf(report).every((value) => Number.isFinite(value))).toBe(true);
+  });
+
   test('excludes the root sample that falls after the cut', () => {
-    const { entries } = selfTimes(profile, 10, 8000);
+    const { entries } = selfTimes(profile, 10, { untilMicros: 8000 });
     expect(entries.some((entry) => entry.stack[0] === 'root@a.js:1')).toBe(false);
   });
 
   test('derives the period from the included deltas only', () => {
     expect(selfTimes(shifting, 10).periodMicros).toBe(9);
-    expect(selfTimes(shifting, 10, 3000).periodMicros).toBe(1000);
+    expect(selfTimes(shifting, 10, { untilMicros: 3000 }).periodMicros).toBe(1000);
   });
 
   test('an empty profile yields zeroes rather than NaN', () => {
@@ -135,7 +153,7 @@ describe('selfTimes', () => {
   });
 
   test('a fully cut profile yields zeroes rather than NaN', () => {
-    const report = selfTimes(profile, 10, 0);
+    const report = selfTimes(profile, 10, { untilMicros: 0 });
     expect(report.entries).toHaveLength(0);
     expect(report.sampleCount).toBe(0);
     expect(report.periodMicros).toBe(0);

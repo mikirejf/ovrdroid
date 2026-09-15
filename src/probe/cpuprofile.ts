@@ -116,10 +116,15 @@ function median(values: readonly number[]): number {
   return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 }
 
+export interface SampleWindow {
+  fromMicros?: number;
+  untilMicros?: number;
+}
+
 export function selfTimes(
   profile: CpuProfile,
   count: number,
-  untilMicros?: number,
+  window: SampleWindow = {},
 ): SelfTimeReport {
   const tree: Tree = { byId: new Map(), parents: new Map() };
 
@@ -137,8 +142,11 @@ export function selfTimes(
   for (const [index, id] of profile.samples.entries()) {
     const micros = profile.timeDeltas[index] ?? 0;
     elapsed += micros;
-    if (untilMicros !== undefined && elapsed > untilMicros) {
+    if (window.untilMicros !== undefined && elapsed > window.untilMicros) {
       break;
+    }
+    if (window.fromMicros !== undefined && elapsed < window.fromMicros) {
+      continue;
     }
     const charge = charges.get(id) ?? { rawMicros: 0, samples: 0 };
     charge.rawMicros += micros;
