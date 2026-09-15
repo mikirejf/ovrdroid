@@ -39,32 +39,32 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-overdroid',
-    find: 'kRi=`',
+    find: 'kPc=`',
     until: '`.trim().split(`\n`),',
-    replace: `kRi=${literal(WORDMARK_ROWS)},`,
+    replace: `kPc=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-overdroid',
-    find: 'JRi=[',
-    until: '],ZaR=[',
-    replace: `JRi=${literal(COMPACT_ROWS)},ZaR=[`,
+    find: 'OPc=[',
+    until: '],yzt=[',
+    replace: `OPc=${literal(COMPACT_ROWS)},yzt=[`,
   },
   {
     name: 'wordmark-over-accent-style',
-    find: 'logo:{color:DT.headerLogo,bold:!0,italic:!1},',
-    replace: `logo:{color:DT.headerLogo,bold:!0,italic:!1},"${OVER_STYLE}":{color:DT.highlight,bold:!0,italic:!1},`,
+    find: 'logo:{color:fe.headerLogo,bold:!0,italic:!1},',
+    replace: `logo:{color:fe.headerLogo,bold:!0,italic:!1},"${OVER_STYLE}":{color:fe.highlight,bold:!0,italic:!1},`,
   },
   {
     name: 'wordmark-over-accent-paint',
-    find: 'njC(K,S,e,O,"logo");',
+    find: 'MTm(x,M,F,R,"logo");',
     replace:
-      `njC(K,S,e,O,"logo");` +
-      `if(O===kRi)njC(K,S,e,O.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
-      `else kV(K,S+${COMPACT_ACCENT_ROW},e+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
+      `MTm(x,M,F,R,"logo");` +
+      `if(R===kPc)MTm(x,M,F,R.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
+      `else Qj(x,M+${COMPACT_ACCENT_ROW},F+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
   },
   {
     name: 'wordmark-width-threshold',
-    find: 'dYC=58,aYC=24',
-    replace: `dYC=${WORDMARK_WIDTH},aYC=24`,
+    find: 'ITm=58,wTm=24',
+    replace: `ITm=${WORDMARK_WIDTH},wTm=24`,
   },
 ];

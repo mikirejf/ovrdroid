@@ -95,30 +95,30 @@ export async function reactProductionPatches(): Promise<readonly Patch[]> {
     productionSources(RECONCILER),
   ]);
   const reconciler = swapRequire(
-    swapRequire(rawReconciler, 'react', 'cT(HA())'),
+    swapRequire(rawReconciler, 'react', 'ke(ar())'),
     'scheduler',
-    'cT(uHh())',
+    'ke(Djo())',
   );
 
   return [
     {
       name: 'react-production',
-      find: 'var HA=yT((Wnu,X5H)=>{',
-      until: 'p(Error())})()});var b7n=yT(',
-      replace: `var HA=yT((exports,module)=>{${react}\n});var b7n=yT(`,
+      find: 'var ar=Se(function(U8d,bbn){',
+      until: 'registerInternalModuleStop(Error())})()});var tus=Se(',
+      replace: `var ar=Se(function(exports,module){${react}\n});var tus=Se(`,
     },
     {
       name: 'react-reconciler-production',
-      find: 'var uHh=yT((teC)=>{',
+      find: 'var Djo=Se(function(aEt){',
       until:
-        ',XAH.exports.default=XAH.exports,Object.defineProperty(XAH.exports,"__esModule",{value:!0})});var _eC=(T)=>{',
-      replace: `var uHh=yT((exports,module)=>{${scheduler}\n});var Woi=yT((exports,module)=>{${reconciler}\n});var _eC=(T)=>{`,
+        ',gen.exports.default=gen.exports,Object.defineProperty(gen.exports,"__esModule",{value:!0})});var Fpm=(e)=>{',
+      replace: `var Djo=Se(function(exports,module){${scheduler}\n});var FRl=Se(function(exports,module){${reconciler}\n});var Fpm=(e)=>{`,
     },
     {
       name: 'react-jsx-runtime-production',
-      find: 'var PR=yT((XYC)=>{',
-      until: ',PT?RT(A(GT)):hT)}})()});function SYC(T)',
-      replace: `var PR=yT((exports,module)=>{${jsx}\nexports.jsxDEV=exports.jsx;\n});function SYC(T)`,
+      find: 'var $t=Se(function(fTm){',
+      until: ',Me?ee(r(xe)):ie)}})()});function mTm(',
+      replace: `var $t=Se(function(exports,module){${jsx}\nexports.jsxDEV=exports.jsx;\n});function mTm(`,
     },
   ];
 }
