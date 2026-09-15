@@ -3,7 +3,20 @@ const OFFSETS_SIZE = 32;
 const RECORD_SIZE = 52;
 
 const HEADER = { byteCount: 0, modulesOff: 8, modulesSize: 12, entryPointId: 16 } as const;
-const FIELD = { name: 0, source: 8, bytecode: 24, moduleInfo: 32 } as const;
+const FIELD = {
+  name: 0,
+  source: 8,
+  bytecode: 24,
+  moduleInfo: 32,
+  encoding: 48,
+  loader: 49,
+} as const;
+
+export const LOADER_FILE = 5;
+export const LOADER_TEXT = 13;
+
+export const ENCODING_LATIN1 = 1;
+export const ENCODING_UTF16LE = 2;
 
 export interface Region {
   start: number;
@@ -19,6 +32,8 @@ export interface Graph {
 export interface Module {
   name: string;
   source: Region;
+  loader: number;
+  encoding: number;
 }
 
 interface Layout {
@@ -102,6 +117,8 @@ export function readModules(bytes: Uint8Array): Module[] {
     modules.push({
       name: readText(bytes, regionAt(layout, recordPos, FIELD.name)),
       source: regionAt(layout, recordPos, FIELD.source),
+      loader: layout.view.getUint8(recordPos + FIELD.loader),
+      encoding: layout.view.getUint8(recordPos + FIELD.encoding),
     });
   }
 

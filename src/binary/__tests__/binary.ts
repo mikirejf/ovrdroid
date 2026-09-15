@@ -6,7 +6,13 @@ export interface Parts {
   source: string;
   bytecode?: string;
   moduleInfo?: string;
+  loader?: number;
+  encoding?: number;
 }
+
+const LOADER_FILE = 5;
+const LOADER_TEXT = 13;
+const ENCODING_LATIN1 = 1;
 
 export function build(modules: readonly Parts[], entryPointId = 0): Uint8Array {
   const prefix = Buffer.alloc(64, 0x41);
@@ -34,6 +40,8 @@ export function build(modules: readonly Parts[], entryPointId = 0): Uint8Array {
       record.writeUInt32LE(off ?? 0, index * 8);
       record.writeUInt32LE(len ?? 0, index * 8 + 4);
     }
+    record.writeUInt8(parts.encoding ?? 0, 48);
+    record.writeUInt8(parts.loader ?? LOADER_FILE, 49);
     records.push(record);
   }
 
@@ -59,6 +67,13 @@ export const entry: Parts = {
 export const ripgrep: Parts = { name: '/$bunfs/root/rg-kc7jt1ak.', source: 'RIPGREP-BYTES' };
 export const skill: Parts = { name: '/$bunfs/root/SKILL.md-9e33f36r.asset', source: '# a skill' };
 export const sidecars: Parts[] = [ripgrep, skill];
+
+export const skillText: Parts = {
+  name: '/$bunfs/root/SKILL-byzgh4q6.md',
+  source: '# a text skill',
+  loader: LOADER_TEXT,
+  encoding: ENCODING_LATIN1,
+};
 
 export function text(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('utf-8');

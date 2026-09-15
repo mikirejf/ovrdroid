@@ -1,7 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
-import { locateGraph, readModules, readRegion, readSource } from '../graph.ts';
-import { build, entry, sidecars, text } from './binary.ts';
+import {
+  ENCODING_LATIN1,
+  LOADER_FILE,
+  LOADER_TEXT,
+  locateGraph,
+  readModules,
+  readRegion,
+  readSource,
+} from '../graph.ts';
+import { build, entry, ripgrep, sidecars, skillText, text } from './binary.ts';
 
 describe('locateGraph', () => {
   test('round-trips the three regions of the entry record', () => {
@@ -55,6 +63,15 @@ describe('readModules', () => {
     const found = readModules(bytes).map((module) => text(readRegion(bytes, module.source)));
 
     expect(found).toEqual(['RIPGREP-BYTES', '# a skill']);
+  });
+
+  test('reads the loader and encoding of each embedded file', () => {
+    const modules = readModules(build([entry, ripgrep, skillText]));
+
+    expect(modules.map((module) => [module.loader, module.encoding])).toEqual([
+      [LOADER_FILE, 0],
+      [LOADER_TEXT, ENCODING_LATIN1],
+    ]);
   });
 
   test('returns nothing when the entry point is the only record', () => {

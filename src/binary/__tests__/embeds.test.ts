@@ -3,12 +3,17 @@ import path from 'node:path';
 
 import { messageOf } from '../../cli.ts';
 import { withTempDir } from '../../temp.ts';
+import type { StagedEmbed } from '../embeds.ts';
 import { assertSameEmbeds, preambleFor, stageEmbeds } from '../embeds.ts';
-import { build, entry, ripgrep, sidecars, skill } from './binary.ts';
+import { build, entry, ripgrep, sidecars, skill, skillText } from './binary.ts';
+
+function files(...specifiers: string[]): StagedEmbed[] {
+  return specifiers.map((specifier) => ({ specifier, kind: 'file' }));
+}
 
 describe('preambleFor', () => {
   test('imports every embedded file as a file asset', () => {
-    const preamble = preambleFor(['rg-kc7jt1ak.', 'SKILL.md-9e33f36r.asset']);
+    const preamble = preambleFor(files('rg-kc7jt1ak.', 'SKILL.md-9e33f36r.asset'));
 
     expect(preamble).toContain('import __od0 from "./assets/rg-kc7jt1ak." with { type: "file" };');
     expect(preamble).toContain(
@@ -16,16 +21,24 @@ describe('preambleFor', () => {
     );
   });
 
+  test('imports a text module as text so require returns a string', () => {
+    const preamble = preambleFor([{ specifier: '1/SKILL.md', kind: 'text' }]);
+
+    expect(preamble).toContain('import __od0 from "./assets/1/SKILL.md" with { type: "text" };');
+  });
+
   test('escapes a name that would otherwise break the import specifier', () => {
-    expect(preambleFor(['od"d.asset'])).toContain('from "./assets/od\\"d.asset"');
+    expect(preambleFor(files('od"d.asset'))).toContain('from "./assets/od\\"d.asset"');
   });
 
   test('keeps every import referenced so minification cannot drop it', () => {
-    expect(preambleFor(['a', 'b', 'c'])).toContain('globalThis.__odAssets=[__od0,__od1,__od2];');
+    expect(preambleFor(files('a', 'b', 'c'))).toContain(
+      'globalThis.__odAssets=[__od0,__od1,__od2];',
+    );
   });
 
   test('ends with a newline so it cannot fuse with the source that follows', () => {
-    expect(preambleFor(['a'])).toEndWith('\n');
+    expect(preambleFor(files('a'))).toEndWith('\n');
   });
 
   test('produces only the keep-alive when nothing is embedded', () => {
@@ -49,12 +62,54 @@ describe('stageEmbeds', () => {
     const stock = build([entry, ...sidecars]);
 
     await withTempDir('embeds-test', async (dir) => {
-      const names = await stageEmbeds(stock, dir);
+      const embeds = await stageEmbeds(stock, dir);
 
-      expect(names).toEqual(['rg-kc7jt1ak.', 'SKILL.md-9e33f36r.asset']);
-      expect(await Bun.file(path.join(dir, 'assets', names[0] ?? '')).text()).toBe('RIPGREP-BYTES');
-      expect(await Bun.file(path.join(dir, 'assets', names[1] ?? '')).text()).toBe('# a skill');
+      expect(embeds).toEqual(files('rg-kc7jt1ak.', 'SKILL.md-9e33f36r.asset'));
+      expect(await Bun.file(path.join(dir, 'assets', 'rg-kc7jt1ak.')).text()).toBe('RIPGREP-BYTES');
+      expect(await Bun.file(path.join(dir, 'assets', 'SKILL.md-9e33f36r.asset')).text()).toBe(
+        '# a skill',
+      );
     });
+  });
+
+  test('stages a text module hash-stripped under its own directory', async () => {
+    const stock = build([entry, ripgrep, skillText]);
+
+    await withTempDir('embeds-test', async (dir) => {
+      const embeds = await stageEmbeds(stock, dir);
+
+      expect(embeds[1]).toEqual({ specifier: '1/SKILL.md', kind: 'text' });
+      expect(await Bun.file(path.join(dir, 'assets', '1', 'SKILL.md')).text()).toBe(
+        '# a text skill',
+      );
+    });
+  });
+
+  test('keeps two text modules sharing a stem apart', async () => {
+    const twin = { ...skillText, name: '/$bunfs/root/SKILL-aaaaaaaa.md', source: '# other' };
+    const stock = build([entry, skillText, twin]);
+
+    await withTempDir('embeds-test', async (dir) => {
+      const embeds = await stageEmbeds(stock, dir);
+
+      expect(embeds.map((embed) => embed.specifier)).toEqual(['0/SKILL.md', '1/SKILL.md']);
+    });
+  });
+
+  test('rejects an embedded file whose loader it does not know', async () => {
+    const stock = build([entry, { ...ripgrep, loader: 7 }]);
+
+    expect(await staging(stock)).toBe(
+      'embedded file /$bunfs/root/rg-kc7jt1ak. uses unknown loader 7',
+    );
+  });
+
+  test('rejects a text module whose encoding it does not know', async () => {
+    const stock = build([entry, { ...skillText, encoding: 0 }]);
+
+    expect(await staging(stock)).toBe(
+      'embedded file /$bunfs/root/SKILL-byzgh4q6.md carries unknown text encoding 0',
+    );
   });
 
   test('rejects a binary whose sidecars share a stored name', async () => {
@@ -138,6 +193,22 @@ describe('assertSameEmbeds', () => {
     expect(() => {
       check(build([entry, { ...ripgrep, source: 'SHORT' }, skill]));
     }).toThrow('embedded files changed content: /$bunfs/root/rg-kc7jt1ak.');
+  });
+
+  test('names an embedded file the rebuild re-embedded under another loader', () => {
+    const textStock = build([entry, skillText]);
+
+    expect(() => {
+      assertSameEmbeds(textStock, build([entry, { ...skillText, loader: 5 }]));
+    }).toThrow('embedded files changed loader: /$bunfs/root/SKILL-byzgh4q6.md');
+  });
+
+  test('names an embedded file the rebuild re-embedded under another encoding', () => {
+    const textStock = build([entry, skillText]);
+
+    expect(() => {
+      assertSameEmbeds(textStock, build([entry, { ...skillText, encoding: 2 }]));
+    }).toThrow('embedded files changed text encoding: /$bunfs/root/SKILL-byzgh4q6.md');
   });
 
   test('rejects a rebuild whose sidecars share a name', () => {
