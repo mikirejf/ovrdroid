@@ -44,7 +44,7 @@ stock backup this way corrupts the one copy the harness restores from. Read bina
   already-minified code, so no compiler can reach them. Do not try to author them in TypeScript. A
   patch may carry `until` to replace a whole span rather than one string, and `src/patch/react.ts`
   uses that to build span patches from React's production files, fetched from the npm registry at
-  pinned versions and cached under `~/.cache/overdroid/react`.
+  pinned versions and cached under `~/.cache/ovrdroid/react`.
 
 ## Rebuild the whole binary, on a pinned newer Bun
 
@@ -55,7 +55,7 @@ whole gain. So the source is rebuilt properly:
 
 **The harness builds on a pinned Bun release, not the one Droid ships.** The version is
 `BUILD_BUN_VERSION` in `src/binary/bun.ts`; bump it on purpose, then re-benchmark. The build
-downloads that release once and caches it under `~/.cache/overdroid/`, so apply works offline after
+downloads that release once and caches it under `~/.cache/ovrdroid/`, so apply works offline after
 the first run. Building on a Bun newer than the one Droid ships was worth 173ms of paint the last
 time the pin moved (measured, n=30 paired, CI 163-183ms), mostly because the newer Bun packed the
 bytecode format and cut the blob by two thirds. Read both versions out of the binary and out of
@@ -78,8 +78,8 @@ one:
 
 ```bash
 cp ~/.local/bin/droid /tmp/droid-test
-bun run overdroid apply --target /tmp/droid-test
-bun run overdroid status --target /tmp/droid-test
+bun run ovrdroid apply --target /tmp/droid-test
+bun run ovrdroid status --target /tmp/droid-test
 ```
 
 `--version` passing proves nothing about the sidecars: a binary with every asset missing still

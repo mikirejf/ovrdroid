@@ -19,7 +19,7 @@ export const NPM_NPX_ROOT = path.join(homedir(), '.npm', '_npx');
 export const CONFIG_FILES: readonly string[] = [FACTORY_SETTINGS, FACTORY_MCP];
 
 export function cacheDir(...parts: readonly string[]): string {
-  return path.join(homedir(), '.cache', 'overdroid', ...parts);
+  return path.join(homedir(), '.cache', 'ovrdroid', ...parts);
 }
 
 export function backupPath(target: string): string {

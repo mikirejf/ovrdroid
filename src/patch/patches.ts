@@ -8,7 +8,7 @@ export interface Patch {
   replace: string;
 }
 
-const MARKER_PREFIX = 'globalThis.__overdroid="';
+const MARKER_PREFIX = 'globalThis.__ovrdroid="';
 const DIGEST_LENGTH = 12;
 const DIGEST_PATTERN = /^[0-9a-f]+$/u;
 
@@ -158,12 +158,12 @@ export const patches: readonly Patch[] = [
     name: 'auto-update-notice-only',
     find: 'if(!g)return Jj(a,"no-update"),"no-update";if(g.isRollback){',
     replace:
-      'if(!g)return Jj(a,"no-update"),"no-update";return s7o({type:"update-available",version:g.version.version}),ve("Auto-update blocked by overdroid; run: overdroid update",{version:g.version.version}),Jj(a,"skipped"),"skipped";if(g.isRollback){',
+      'if(!g)return Jj(a,"no-update"),"no-update";return s7o({type:"update-available",version:g.version.version}),ve("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:g.version.version}),Jj(a,"skipped"),"skipped";if(g.isRollback){',
   },
   {
     name: 'update-notice-command',
     find: 'available:"\\u2193 v{{version}} available",',
-    replace: 'available:"\\u2193 v{{version}} available \\xB7 run: overdroid update",',
+    replace: 'available:"\\u2193 v{{version}} available \\xB7 run: ovrdroid update",',
   },
   {
     name: 'command-menu-prefix-first',

@@ -46,7 +46,7 @@ describe('markerDigest', () => {
 
 describe('markerStatement', () => {
   test('is a complete statement carrying the digest', () => {
-    expect(markerStatement(patches)).toBe(`globalThis.__overdroid="${markerDigest(patches)}";\n`);
+    expect(markerStatement(patches)).toBe(`globalThis.__ovrdroid="${markerDigest(patches)}";\n`);
   });
 });
 
@@ -60,7 +60,7 @@ describe('findMarker', () => {
   });
 
   test('rejects a marker whose digest is not twelve hex characters', () => {
-    expect(findMarker('globalThis.__overdroid="nothex";')).toBeUndefined();
-    expect(findMarker(`globalThis.__overdroid="${'a'.repeat(13)}";`)).toBeUndefined();
+    expect(findMarker('globalThis.__ovrdroid="nothex";')).toBeUndefined();
+    expect(findMarker(`globalThis.__ovrdroid="${'a'.repeat(13)}";`)).toBeUndefined();
   });
 });

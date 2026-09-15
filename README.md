@@ -1,4 +1,4 @@
-# overdroid
+# ovrdroid
 
 A patch harness for the [Droid CLI](https://docs.factory.ai/droid-cli/overview).
 
@@ -35,7 +35,7 @@ Status: the harness applies the patch set below.
 | `turn-clock-track`                     | Records the times as the session goes busy and idle            | The footer already re-renders on every status change, so the two edges are free to observe.                                        |
 | `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                           | Shows how long ago the last prompt went out and the last reply landed.                                                             |
 | `auto-update-notice-only`              | Stops the update at the check and reports it as available      | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
-| `update-notice-command`                | Adds `run: overdroid update` to the update notice              | The notice has to name the command that now does the updating.                                                                     |
+| `update-notice-command`                | Adds `run: ovrdroid update` to the update notice               | The notice has to name the command that now does the updating.                                                                     |
 | `settings-watch-after-paint`           | Starts the settings file watchers 400ms later                  | Registering them crawls the settings trees before the input box paints, and nothing needs a file-change event that early.          |
 | `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                        | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
 | `react-production`                     | Swaps React for its production build                           | Droid ships React's development build, whose hook checks and invariants run on every render.                                       |
@@ -43,11 +43,11 @@ Status: the harness applies the patch set below.
 | `react-jsx-runtime-production`         | Swaps the JSX runtime for its production build                 | The dev runtime validates and records a stack for every element it creates.                                                        |
 
 ```bash
-bun run overdroid update
-bun run overdroid status
-bun run overdroid apply
-bun run overdroid apply --dev-react
-bun run overdroid restore
+bun run ovrdroid update
+bun run ovrdroid status
+bun run ovrdroid apply
+bun run ovrdroid apply --dev-react
+bun run ovrdroid restore
 ```
 
 `--dev-react` keeps React's development build, which is slower but keeps the full DevTools
@@ -94,14 +94,13 @@ from Ctrl-C to exit. Pass a path to measure a copy, for example
 Two Droid hooks ship alongside the patch set. They are official extension points, so they survive
 Droid updates and need no rebuild.
 
-| Hook                   | Event          | What it does                                                     |
-| :--------------------- | :------------- | :--------------------------------------------------------------- |
-| `overdroid-execute.js` | `PreToolUse`   | Approves a delete inside a temp dir or the current repo silently |
-| `overdroid-notify.js`  | `Notification` | Plays `awaitingInputSound` when an approval prompt appears       |
+| Hook                  | Event          | What it does                                                     |
+| :-------------------- | :------------- | :--------------------------------------------------------------- |
+| `ovrdroid-execute.js` | `PreToolUse`   | Approves a delete inside a temp dir or the current repo silently |
+| `ovrdroid-notify.js`  | `Notification` | Plays `awaitingInputSound` when an approval prompt appears       |
 
-`bun run overdroid hooks` bundles both into `~/.factory/hooks/`, and `overdroid update` re-runs it
-so the installed copies never drift from the source. Wire them up once in
-`~/.factory/settings.json`:
+`bun run ovrdroid hooks` bundles both into `~/.factory/hooks/`, and `ovrdroid update` re-runs it so
+the installed copies never drift from the source. Wire them up once in `~/.factory/settings.json`:
 
 ```json
 {
@@ -109,11 +108,11 @@ so the installed copies never drift from the source. Wire them up once in
     "PreToolUse": [
       {
         "matcher": "Execute|mcp__.*_Execute",
-        "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/overdroid-execute.js" }]
+        "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/ovrdroid-execute.js" }]
       }
     ],
     "Notification": [
-      { "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/overdroid-notify.js" }] }
+      { "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/ovrdroid-notify.js" }] }
     ]
   }
 }
@@ -272,7 +271,7 @@ backs the stock binary up to `<target>.orig` before patching.
 To run it from anywhere, link the entry point onto your `PATH`:
 
 ```bash
-ln -s "$PWD/src/index.ts" ~/.local/bin/overdroid
+ln -s "$PWD/src/index.ts" ~/.local/bin/ovrdroid
 ```
 
 ## Why
@@ -349,9 +348,9 @@ first time.
    that records which patch set is applied. A patch may also carry `until`, which extends the
    replaced range through the first match of that string after `find`. The React production patches
    are built from tarballs fetched from the npm registry at pinned versions, cached under
-   `~/.cache/overdroid/react`, so they are never read from `node_modules`.
+   `~/.cache/ovrdroid/react`, so they are never read from `node_modules`.
 3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/binary/bun.ts`) once,
-   cache it under `~/.cache/overdroid/`, and run
+   cache it under `~/.cache/ovrdroid/`, and run
    `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source
    with an import preamble that re-embeds every sidecar. The build dominates the ~4.5s apply and
    peaks near 1.8GB. Binaries are read with `readFileSync`, never memory-mapped: a writable mapping
@@ -388,7 +387,7 @@ bun run verify
 ## Safety
 
 - A patched binary blocks its own auto-update, so an update can no longer replace it silently. The
-  footer says `v0.219.0 available · run: overdroid update` instead, and `overdroid update` installs
-  it and re-applies the patch set.
+  footer says `v0.219.0 available · run: ovrdroid update` instead, and `ovrdroid update` installs it
+  and re-applies the patch set.
 - Never patch `~/.local/bin/droid` in place without a backup.
 - Test on a copy first.

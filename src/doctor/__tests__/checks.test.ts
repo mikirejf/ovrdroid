@@ -31,10 +31,10 @@ describe('checkMcpConfig flags the package wrapper', () => {
 
   test('npm and npx wrappers point at the autofix, others do not', () => {
     expect(checkMcpConfig(configOf({ command: 'npx', args: ['-y', 'x'] }))[0]?.fixHint).toBe(
-      'overdroid doctor --fix',
+      'ovrdroid doctor --fix',
     );
     expect(checkMcpConfig(configOf({ command: 'npm', args: ['exec', 'x'] }))[0]?.fixHint).toBe(
-      'overdroid doctor --fix',
+      'ovrdroid doctor --fix',
     );
     expect(checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }))[0]?.fixHint).toBeUndefined();
   });
@@ -93,7 +93,7 @@ describe('report states problem, impact and fix', () => {
     const found = checkMcpConfig(
       configOf({ command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] }),
     );
-    expect(formatReport(found, '/tmp/mcp.json')).toContain('run: overdroid doctor --fix');
+    expect(formatReport(found, '/tmp/mcp.json')).toContain('run: ovrdroid doctor --fix');
     const manual = checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }));
     expect(formatReport(manual, '/tmp/mcp.json')).not.toContain('run:');
   });

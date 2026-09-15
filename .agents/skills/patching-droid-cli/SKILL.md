@@ -13,7 +13,7 @@ plain JavaScript source plus a precompiled JSC **bytecode** blob, indexed by a *
 at the tail of the file. Everything patchable lives in that graph, and every mistake worth
 knowing about comes from the bytecode blob.
 
-Working reference implementation: `~/dev/overdroid` (TypeScript, Bun). Read it before writing a
+Working reference implementation: `~/dev/ovrdroid` (TypeScript, Bun). Read it before writing a
 new harness.
 
 ## Rebuild the source, never edit bytes in place
@@ -37,7 +37,7 @@ So patches are ordinary text edits of any length on the extracted source, and th
    [`MODULE-GRAPH.md`](MODULE-GRAPH.md).
 2. **Patch the source text.** Literal find/replace pairs, each required to match exactly once, so
    a Droid update that moves the code fails loudly instead of patching the wrong site.
-3. **Stamp a marker.** Append `globalThis.__overdroid="<digest>";` where the digest covers your
+3. **Stamp a marker.** Append `globalThis.__ovrdroid="<digest>";` where the digest covers your
    patch set. Minification renames the identifiers your find strings matched, so the patched
    binary is no longer searchable by those strings; the marker string literal survives and is how
    `status` later tells applied from stale from stock.

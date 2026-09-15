@@ -1,15 +1,15 @@
 {
-  "name": "overdroid",
+  "name": "ovrdroid",
   "version": "0.1.0",
   "private": true,
   "description": "Patch harness for the Droid CLI binary",
-  "repository": "mikirejf/overdroid",
+  "repository": "mikirejf/ovrdroid",
   "bin": {
-    "overdroid": "./src/index.ts"
+    "ovrdroid": "./src/index.ts"
   },
   "type": "module",
   "scripts": {
-    "overdroid": "bun run src/index.ts",
+    "ovrdroid": "bun run src/index.ts",
     "bench": "bun run src/probe/bench.ts",
     "probe": "bun run src/probe/probe.ts",
     "test": "bun test",

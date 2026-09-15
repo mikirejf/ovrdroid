@@ -6,7 +6,7 @@ export default defineConfig({
   jsPlugins: [...config.jsPlugins, { name: 'no-comments', specifier: '@arx1/devkit/comments' }],
   rules: {
     ...config.rules,
-    'no-comments/no-comments': ['error', { ownRepo: 'mikirejf/overdroid' }],
+    'no-comments/no-comments': ['error', { ownRepo: 'mikirejf/ovrdroid' }],
     // Bun maps writable even with { shared: false }, and on macOS a writable mapping
     // permanently invalidates a signed binary: it is SIGKILLed on every later launch.
     'no-restricted-properties': [

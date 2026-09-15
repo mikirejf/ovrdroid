@@ -32,7 +32,7 @@ interface FakeManifest {
 }
 
 function makeTemp(): string {
-  return realpathSync(mkdtempSync(path.join(tmpdir(), 'overdroid-doctor-')));
+  return realpathSync(mkdtempSync(path.join(tmpdir(), 'ovrdroid-doctor-')));
 }
 
 interface FakeCopy {

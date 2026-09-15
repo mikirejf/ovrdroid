@@ -175,7 +175,7 @@ function restore(options: Options): void {
 }
 
 const program = new Command()
-  .name('overdroid')
+  .name('ovrdroid')
   .description('Patch harness for the Droid CLI binary')
   .version(pkg.version);
 

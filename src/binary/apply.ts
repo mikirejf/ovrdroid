@@ -77,7 +77,7 @@ export function patchSource(source: string, list: readonly Patch[]): string {
   }
 
   if (findMarker(out) !== undefined) {
-    throw new Error('source already carries an overdroid marker');
+    throw new Error('source already carries an ovrdroid marker');
   }
 
   return out + markerStatement(list);

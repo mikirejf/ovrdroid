@@ -65,7 +65,7 @@ export function checkMcpConfig(raw: unknown): readonly Footgun[] {
       fix: 'run the server file itself: {"command": "node", "args": ["<path to the server>.js", ...]}',
     };
     if (base === 'npm' || base === 'npx') {
-      footgun.fixHint = 'overdroid doctor --fix';
+      footgun.fixHint = 'ovrdroid doctor --fix';
     }
     found.push(footgun);
   }

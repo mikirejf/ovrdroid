@@ -695,7 +695,7 @@ Reading the current state from a ref and returning early when there is nothing t
 
 Droid ships React's development build (see above). The bundle's lazy-module helper takes a CommonJS
 body, so the four dev modules can be replaced wholesale with the production files fetched from the
-npm registry at pinned versions and cached under `~/.cache/overdroid/react`: `react`,
+npm registry at pinned versions and cached under `~/.cache/ovrdroid/react`: `react`,
 `react-jsx-runtime`, `scheduler` and `react-reconciler`.
 
 | Measurement                   | Result     |

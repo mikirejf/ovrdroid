@@ -88,7 +88,7 @@ describe('statusOf', () => {
   });
 
   test('survives minification collapsing whitespace around the marker', () => {
-    const minified = `a=1;globalThis.__overdroid="${markerDigest(list)}";`;
+    const minified = `a=1;globalThis.__ovrdroid="${markerDigest(list)}";`;
     expect(statusOf(minified, list).kind).toBe('applied');
   });
 });

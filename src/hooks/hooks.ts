@@ -10,8 +10,8 @@ export interface InstalledHook {
 }
 
 const ENTRIES = [
-  { entry: 'hook-execute.ts', name: 'overdroid-execute.js' },
-  { entry: 'hook-notify.ts', name: 'overdroid-notify.js' },
+  { entry: 'hook-execute.ts', name: 'ovrdroid-execute.js' },
+  { entry: 'hook-notify.ts', name: 'ovrdroid-notify.js' },
 ] as const;
 
 function bundledName(entry: string): string {

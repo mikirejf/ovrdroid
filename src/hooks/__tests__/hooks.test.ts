@@ -29,8 +29,8 @@ describe('installHooks', () => {
       const installed = await installHooks(dir);
 
       expect(installed.map((hook) => hook.name)).toEqual([
-        'overdroid-execute.js',
-        'overdroid-notify.js',
+        'ovrdroid-execute.js',
+        'ovrdroid-notify.js',
       ]);
       for (const hook of installed) {
         expect(hook.bytes).toBeGreaterThan(0);
@@ -58,13 +58,13 @@ describe('installHooks', () => {
       const installed = await installHooks(into);
 
       expect(installed).toHaveLength(2);
-      expect(await Bun.file(path.join(into, 'overdroid-execute.js')).exists()).toBe(true);
+      expect(await Bun.file(path.join(into, 'ovrdroid-execute.js')).exists()).toBe(true);
     });
   });
 
   test('the bundled execute hook allows a real delete', async () => {
     await withTempDir('hooks', async (dir) => {
-      const execute = hookNamed(await installHooks(dir), 'overdroid-execute.js');
+      const execute = hookNamed(await installHooks(dir), 'ovrdroid-execute.js');
       const victim = path.join(dir, 'victim.txt');
       await Bun.write(victim, 'gone soon');
 
@@ -80,7 +80,7 @@ describe('installHooks', () => {
 
   test('the bundled notify hook stays silent on other notifications', async () => {
     await withTempDir('hooks', async (dir) => {
-      const notify = hookNamed(await installHooks(dir), 'overdroid-notify.js');
+      const notify = hookNamed(await installHooks(dir), 'ovrdroid-notify.js');
 
       const { code, stdout } = await runHook(notify.path, { notification_type: 'agent_done' });
 

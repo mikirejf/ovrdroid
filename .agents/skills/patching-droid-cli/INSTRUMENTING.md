@@ -3,7 +3,7 @@
 Sampling profilers tell you roughly where time went. Patches that make Droid report its own timings
 tell you exactly. Both matter, and the instrumented build is the one that settles arguments.
 
-The harness in `~/dev/overdroid` ships these as `bun run probe`; the patches themselves live in
+The harness in `~/dev/ovrdroid` ships these as `bun run probe`; the patches themselves live in
 `src/trace-patches.ts` and are worth re-deriving for a new release.
 
 ## The three instrumented builds
