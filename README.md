@@ -226,6 +226,35 @@ sample per run and needs far more rounds before its interval means anything.
 bun run probe keys /tmp/od-base /tmp/od-candidate --runs 4
 ```
 
+`probe idle` measures what a Droid costs while nobody is typing, which is the number that decides
+how many sessions fit on one machine. It waits for the input box, walks the whole process tree, and
+reads it once at the start and once at the end of an idle window, so the probe itself adds nothing
+to the window it is timing. Runs are interleaved and position-balanced like `probe ab`, and both
+metrics get a paired confidence interval.
+
+It reports **physical footprint**, not `ps` RSS. A Droid reports 350MB of RSS against a 179MB
+footprint: every process maps the same 159MB binary and RSS charges each one a full copy, so summing
+RSS across sessions overstates the machine's load by gigabytes. RSS stays in the output as a
+diagnostic.
+
+```bash
+bun run probe idle ~/.local/bin/droid.orig ~/.local/bin/droid --runs 4 --window 45
+```
+
+`probe timers` answers "what wakes an idle Droid?". Build with `--timers` and it wraps `setInterval`
+and `setTimeout`, logging every arm and every fire with the source of the callback, then groups the
+fires by site. An idle Droid fires 227 wake-ups a minute; the census is what proved they are not the
+idle cost.
+
+```bash
+bun run probe build --timers --out /tmp/od-timers
+bun run probe timers /tmp/od-timers --window 60
+```
+
+`probe idle-cpu` profiles the window **after** paint rather than before it, and ranks the frames an
+idle process is spending time in. Read it with the same care as `probe cpu`: a high inflation factor
+is a stall holding someone else's time, not work.
+
 `probe cpu` records a CPU profile of a startup, selects the profile belonging to the process it
 launched (Droid spawns a second Droid, which writes its own), cuts the samples at first paint, and
 ranks frames by `samples * median(sampling period)`. It prints each frame's sample count and, when
@@ -289,6 +318,24 @@ defer but work inside a constructor that runs 15,215 times. Getting below ~600ms
 needed the app to import less at startup, which is an upstream change, not a patch. The Bun 1.4.2
 rebuild got there instead by making module loading itself cheaper. Rebuilding without `--bytecode`
 was measured at 1.23s, so the bytecode cache is still carrying its weight.
+
+## What an idle session costs
+
+An idle session is **~540ms of CPU per minute** and **~300MB** of real memory, and the patch set is
+already the largest win there: **-657ms/min** against stock (n=4, 95% CI -889 to -425), mostly from
+the React production swap, because an idle Droid still renders.
+
+Two idle experiments were measured and rejected:
+
+| Experiment                           | Result                               |
+| :----------------------------------- | :----------------------------------- |
+| Slow every 1s idle poll by 10x       | within noise (n=6, CI -41.9 to +6.4) |
+| Force a full GC every 10s while idle | 250ms/min **worse**, frees nothing   |
+
+The memory that caps parallel sessions is mostly not Droid. One session is **five processes**, and
+the two Droid ones are the smaller half; the `npm exec` wrapper around an MCP server costs ~77MB per
+session and does nothing after startup. Pointing the MCP config at the resolved entry point removes
+one process per session for an identical response. That is a config change, not a patch.
 
 `FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
 first time.

@@ -1185,3 +1185,131 @@ is the second way it misleads.
 - Idle repaint cost was measured by counting bytes written to the PTY. `DROID_PROFILE=1` recorded
   zero `ink-render` events across every run, so the profiler's render instrumentation either does
   not cover this path or does not flush. Worth finding out before trusting it for render counts.
+
+# Idle findings
+
+Measured on Droid 0.218.2, 2026-09-14. The question is what a Droid costs while nobody is typing,
+because that cost is what decides how many sessions fit on one machine.
+
+## The headline
+
+| Question                              | Answer                                                          |
+| :------------------------------------ | :-------------------------------------------------------------- |
+| What does an idle session cost?       | **~540ms of CPU per minute** and **~300MB** of real memory      |
+| Does the patch set already help?      | Yes. **-657ms/min** of idle CPU (n=4, CI -889 to -425) vs stock |
+| Is the idle CPU in the timers?        | No. Slowing every 1s poll by 10x changed nothing                |
+| Does forcing GC while idle reclaim?   | No. Costs 250ms/min and frees nothing resolvable                |
+| What actually caps parallel sessions? | Memory, and most of it is **not** the Droid processes           |
+
+## `ps` RSS is the wrong number, and it is wrong by 2x
+
+A Droid process reports **350MB of RSS** and a **179MB physical footprint**. The gap is the 159MB
+binary: every Droid maps the same file, and RSS charges each one the full copy even though the
+kernel holds one set of pages.
+
+That matters here more than anywhere else, because the whole question is how many sessions fit.
+Summing RSS across 12 sessions double-counts the shared binary twelve times and overstates the
+machine's real load by gigabytes.
+
+**`probe idle` reports physical footprint as the headline and keeps RSS beside it as a diagnostic.**
+Footprint comes from `vmmap -summary`, which costs ~1s per process, so it is read once at the end of
+the window rather than on every sample.
+
+| Metric             | One idle session pair | What it means                      |
+| :----------------- | --------------------: | :--------------------------------- |
+| `ps` RSS           |                ~412MB | Counts the shared binary twice     |
+| Physical footprint |                ~300MB | What the machine actually gives up |
+
+## The patch set is already the largest idle win
+
+Stock against the same patch set, interleaved, 45s idle windows:
+
+| Binary  |    Idle CPU | Footprint |
+| :------ | ----------: | --------: |
+| Stock   | ~1180ms/min |    ~557MB |
+| Patched |  ~520ms/min |    ~555MB |
+
+Paired difference: **-657ms/min of idle CPU** (n=4, 95% CI -889 to -425) and **-146MB of footprint**
+(n=4, CI -242 to -50). Most of that is the React production swap: the development build's hook
+checks and invariants run on every render, and an idle Droid still renders.
+
+## Null result: the idle timers are not the idle cost
+
+An idle Droid fires **227 timer wake-ups per minute**, which looks like the obvious target. It is
+not. Four intervals dominate the count:
+
+| Fires/min | Delay  | What it does                                                |
+| --------: | :----- | :---------------------------------------------------------- |
+|        61 | 1000ms | TTY health poll, `isatty(0)` and `isatty(1)`                |
+|        61 | 1000ms | Terminal size poll, backs up `resize` and `SIGWINCH`        |
+|        61 | 1000ms | Status line poll, re-reads the configured status line       |
+|        31 | 2000ms | Background task list, walks processes and `JSON.stringify`s |
+
+Slowing **all three 1-second polls to 10 seconds** moved nothing: **-17.7ms/min, n=6, 95% CI -41.9
+to +6.4**, against a resolvable floor of 24ms. Footprint likewise unresolved.
+
+**A wake-up is not a cost.** Each of these does a few microseconds of work and goes back to sleep;
+227 of them a minute is still under a millisecond of real work. The idle CPU is somewhere else, and
+counting timers cannot find it. `probe timers` is still worth having, because it is what turned a
+plausible target into a measured non-target in one run.
+
+## Null result: forcing GC while idle
+
+Droid's own resource monitor calls `Bun.gc()` on its sampling path, so a more aggressive version
+looked plausible for a long-lived idle session. A 10s forced full GC was **250ms/min more
+expensive** (n=4, CI +76 to +423) and freed nothing resolvable (CI -287 to +305 MB).
+
+Idle memory is not garbage waiting to be collected. It is live: loaded modules, the session index,
+and the JIT's own code. Measured over a 5-minute idle window, growth is **+2.2MB/min** for the TUI
+and **+0.3MB/min** for the exec child, which is drift, not a leak.
+
+## The real memory story is the process count, not the process
+
+One session is **five processes**, and the two Droid ones are the smaller half:
+
+| Process                         | Footprint |  Idle CPU |
+| :------------------------------ | --------: | --------: |
+| `droid` (TUI)                   |    ~167MB | 300ms/min |
+| `droid exec` (JSON-RPC child)   |    ~126MB | 207ms/min |
+| `chrome-devtools-mcp`           |    ~129MB |  38ms/min |
+| `npm exec chrome-devtools-mcp`  |     ~91MB |   0ms/min |
+| watchdog (`telemetry/watchdog`) |     ~16MB |   0ms/min |
+
+Across 12 live sessions on this machine: **31 Droid processes, 39 MCP processes, 9.7GB**.
+
+**The `npm exec` wrapper is the cheapest win available and it is not a patch.** It costs ~77MB per
+session on average and does nothing after startup: it resolves a package that is already on disk and
+then sits there as a parent. Pointing the MCP config at the resolved entry point removes one process
+per session and returns an identical `initialize` response:
+
+```json
+{
+  "command": "node",
+  "args": [
+    "~/.npm/_npx/<hash>/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js",
+    "--browserUrl",
+    "http://127.0.0.1:9333"
+  ]
+}
+```
+
+Verified by driving both forms with a raw JSON-RPC `initialize` and diffing the reply: same protocol
+version, same `serverInfo`, one fewer process. The tradeoff is that the pinned path stops following
+`@latest`, which is a deliberate choice rather than a free win.
+
+**The ranked idle list is therefore: MCP servers first, then the exec child, then the TUI.** Two
+thirds of the memory behind a parallel session is not Droid's code at all, and no patch to the
+binary can reach it.
+
+## Open items
+
+- The 2000ms background-task interval `JSON.stringify`s a process list on every tick. It survived
+  the 10x sweep untested because that sweep only touched the 1s polls. Worth its own A/B.
+- Idle CPU was never attributed to a single frame. `probe idle-cpu` profiles the window after paint
+  and the top frame is a 24.7ms `findLastIndex` over an invocations array, but at 1031x inflation
+  that is a stall holding someone else's time, not work. Needs a longer window before it means
+  anything.
+- The exec child costs 207ms/min and ~126MB while idle and was never investigated. It is the second
+  largest item and nothing here explains what it does while nobody is typing.
+- Every idle number was measured with one MCP server configured. A profile with none is the control
+  that separates Droid's idle cost from its servers', and it was never run.
