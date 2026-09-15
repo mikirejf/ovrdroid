@@ -7,6 +7,7 @@ import { withTempDir } from '../temp.ts';
 import type { ChurnKind } from './churn.ts';
 import { describeChurn, induceChurn } from './churn.ts';
 import { launch } from './launch.ts';
+import { logSize, logSlice } from './log-file.ts';
 import { LOADING_TEXT, openMenuSession, readFrames } from './menu.ts';
 import { touchesDuring } from './touches.ts';
 import { formatWatch, parseWatch, summariseWatch, WATCH_HEADER } from './watch.ts';
@@ -58,14 +59,10 @@ export async function watch(binary: string, options: ChurnCommandOptions): Promi
       await session.open();
       say(`while the menu is open: ${describeChurn(options.churn)}`);
 
-      const writtenBefore = Bun.file(file).size;
+      const writtenBefore = logSize(file);
       await induceChurn(options.churn, churnArguments(binary, options));
 
-      const added = await Bun.file(file)
-        .slice(writtenBefore)
-        .text()
-        .catch(() => '');
-      const report = parseWatch(added);
+      const report = parseWatch(await logSlice(file, writtenBefore));
       if (report.rows.length === 0) {
         say('no watcher rows: was the binary built with --watch?');
         return;

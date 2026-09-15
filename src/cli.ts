@@ -26,12 +26,23 @@ export function say(message: string): void {
   process.stdout.write(`${message}\n`);
 }
 
+export const MS_PER_SECOND = 1000;
+export const KIB = 1024;
+
 export function seconds(ms: number): string {
-  return `${(ms / 1000).toFixed(2)}s`;
+  return `${(ms / MS_PER_SECOND).toFixed(2)}s`;
 }
 
 export function kilobytes(bytes: number): string {
-  return bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} bytes`;
+  return bytes >= KIB ? `${(bytes / KIB).toFixed(1)} KB` : `${bytes} bytes`;
+}
+
+export function mebibytes(kib: number): number {
+  return kib / KIB;
+}
+
+export function megabytes(kib: number): string {
+  return `${mebibytes(kib).toFixed(1)} MB`;
 }
 
 export interface RunOptions {

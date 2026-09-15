@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { MS_PER_SECOND, say } from '../cli.ts';
 import type { LaunchEnv } from './launch.ts';
 import {
   dies,
@@ -31,13 +32,21 @@ interface Cut {
 
 export interface SessionOptions {
   env?: LaunchEnv;
+  signal?: NodeJS.Signals;
+  collect?: boolean;
 }
 
+export const SETTLE_MS = 3000;
+export const SETTLE_TIMEOUT_MS = 15_000;
+
 export interface Session {
+  pid: number;
+  startedAt: number;
   type: (text: string) => Promise<void>;
   quiet: (quietMs: number, timeoutMs: number) => Promise<void>;
   mark: () => undefined;
   frames: () => readonly Frame[];
+  bytes: () => number;
   close: () => Promise<void>;
 }
 
@@ -68,6 +77,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
   let markedAt = performance.now();
   let lastOutputAt = performance.now();
   let collected: Frame[] = [];
+  let written = 0;
 
   const terminal = new Bun.Terminal({
     ...TERMINAL_SIZE,
@@ -77,18 +87,30 @@ export async function openSession(binary: string, options: SessionOptions = {}):
       if (text.includes(PAINT_MARKER)) {
         painted.resolve(true);
       }
+      written += chunk.byteLength;
       lastOutputAt = performance.now();
+      if (options.collect === false) {
+        return;
+      }
       const cut = cutFrames(pending + text);
       pending = cut.rest;
       const atMs = lastOutputAt - markedAt;
-      collected.push(...cut.frames.map((frame) => ({ atMs, text: plain(frame) })));
+      for (const frame of cut.frames) {
+        collected.push({ atMs, text: plain(frame) });
+      }
     },
   });
 
+  const startedAt = performance.now();
   const child = Bun.spawn([binary], { terminal, env: launchEnv(options.env) });
 
+  let closed = false;
   const close = async (): Promise<void> => {
-    child.kill('SIGKILL');
+    if (closed) {
+      return;
+    }
+    closed = true;
+    child.kill(options.signal ?? 'SIGKILL');
     await child.exited;
     await terminal[Symbol.asyncDispose]();
   };
@@ -122,9 +144,39 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     mark(): undefined {
       collected = [];
       pending = '';
+      written = 0;
       markedAt = performance.now();
     },
     frames: () => collected,
+    bytes: () => written,
+    pid: child.pid,
+    startedAt,
     close,
   };
+}
+
+export interface SettledSession {
+  session: Session;
+  settledAt: number;
+}
+
+export async function openSettledSession(
+  binary: string,
+  options: SessionOptions = {},
+): Promise<SettledSession> {
+  const session = await openSession(binary, options);
+  try {
+    await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);
+  } catch (error) {
+    await session.close();
+    throw error;
+  }
+  const settledAt = performance.now();
+  session.mark();
+  return { session, settledAt };
+}
+
+export async function standBy(windowSeconds: number): Promise<void> {
+  say(`standing by for ${windowSeconds}s`);
+  await delay(windowSeconds * MS_PER_SECOND);
 }
