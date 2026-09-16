@@ -708,9 +708,8 @@ The overlap is expected: the other two fixes remove work the reconciler was bein
 
 **The cost is React's development diagnostics.** The production build still exposes the DevTools
 hook, but it drops component stacks, owner stacks, hook-order checks and the readable invariant
-messages, so `--dev-react` keeps the development build for anyone probing render behaviour. The two
-sets hash to different markers, so `apply` sees the other set as `stale` and rebuilds from the
-`.orig` backup.
+messages. Droid 0.220.0 ships production React itself, so the swap and its `--dev-react` escape
+hatch are gone.
 
 ## React concurrency on the chat input: built, measured, and it doubles the work
 

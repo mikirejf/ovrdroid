@@ -13,11 +13,13 @@ serial blocking API calls and ~0.15s is a hardcoded terminal probe timeout.
 
 ## The one rule that shapes everything
 
-**Every embedded file must come back out the other side.** Droid's binary holds 36 modules: the app
-plus 35 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill assets, sounds). The
-harness extracts all of them, writes an import preamble that re-embeds them, and rebuilds the whole
-binary. `assertSameEmbeds` fails the build if any sidecar goes missing, appears from nowhere, or
-changes a single byte.
+**Every embedded file must come back out the other side.** Since 0.220.0 the binary holds the app as
+an entry module plus hundreds of split JS chunks that import each other by `/$bunfs/root/` path,
+alongside the 65 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill assets,
+sounds). The harness extracts all of them, writes an import preamble that re-embeds the sidecars,
+and rebuilds the whole binary with `--splitting`. Chunk names are free to change on rebuild because
+nothing addresses them by literal, but every sidecar must survive byte for byte: `assertSameEmbeds`
+fails the build if one goes missing, appears from nowhere, or changes a byte.
 
 The names matter as much as the bytes. The app addresses its sidecars through hardcoded literals
 like `var BUn="/$bunfs/root/rg-kc7jt1ak.";`, one per sidecar, and those literals are never patched.
@@ -42,9 +44,8 @@ stock backup this way corrupts the one copy the harness restores from. Read bina
 - **The harness** is TypeScript on Bun. Normal code, normal tooling.
 - **Patch payloads** are hand-written minified JavaScript. They match against already-bundled,
   already-minified code, so no compiler can reach them. Do not try to author them in TypeScript. A
-  patch may carry `until` to replace a whole span rather than one string, and `src/patch/react.ts`
-  uses that to build span patches from React's production files, fetched from the npm registry at
-  pinned versions and cached under `~/.cache/ovrdroid/react`.
+  patch may carry `until` to replace a whole span rather than one string;
+  `wordmark-compact-ovrdroid` in `src/patch/logo.ts` uses that to swap an entire array literal.
 
 ## Rebuild the whole binary, on a pinned newer Bun
 
@@ -112,7 +113,13 @@ So when a scratch script earns its keep, generalise it before you stop:
   `touched but byte-identical` beats `ctime changed`.
 
 The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modules`, `cpu`, `menu`,
-`watch`, `touches`.
+`watch`, `touches`, `extract`, `anchors`.
+
+## After a Droid update
+
+`ovrdroid update` printing `markers not found (Droid version drift)` is the patch set falling behind
+a release. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it runs `probe anchors`
+and `probe extract`, re-anchors each patch, and proves the result on a copy.
 
 ## Measuring startup
 

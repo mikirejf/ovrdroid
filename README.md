@@ -18,40 +18,33 @@ this machine's wall-clock noise is larger than the effect.
 
 Status: the harness applies the patch set below.
 
-| Patch                                  | What it changes                                                | Why                                                                                                                                |
-| :------------------------------------- | :------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
-| `kitty-probe-timeout`                  | 150ms probe wait to 30ms                                       | Ghostty answers the terminal probe in a few ms.                                                                                    |
-| `whoami-no-block`                      | Drops the `await` on `whoami`                                  | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches.                   |
-| `certificate-count-skip`               | Skips the cert count                                           | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                                     |
-| `shutdown-flush-deadline`              | 1000ms flush deadline to 10ms                                  | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                                              |
-| `session-search-warm-skip`             | Skips the session-search cache warm                            | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.                       |
-| `zod-v3-lazy-bound-methods`            | Binds zod schema methods on first use, not in the constructor  | The zod v3 constructor runs 24 `.bind(this)` calls per schema, and 15,215 schemas exist before the input box appears.              |
-| `model-alias-lookup-set`               | Model alias lookup scans a Set                                 | It rebuilt an array with `Object.values` and scanned it linearly, once per model id, inside a render that runs on every keystroke. |
-| `ink-string-width-grapheme-memo`       | Ink's width scan memoises per grapheme                         | Ink's cache keys on the whole line, so one new character misses it and re-measures every grapheme again.                           |
-| `ink-string-width-grapheme-memo-init`  | Adds the two grapheme maps Ink's memo reads                    | The memo needs its narrow and wide maps created when the module is evaluated.                                                      |
-| `app-display-width-grapheme-memo`      | `displayWidth` memoises per grapheme                           | The app measures width separately from Ink and paid the same per-grapheme cost on every keystroke.                                 |
-| `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads                | Same as Ink's: the maps are created at module evaluation.                                                                          |
-| `turn-clock-state`                     | Adds the turn clock's state and its duration formatter         | The footer needs somewhere to remember when the last turn started and ended.                                                       |
-| `turn-clock-track`                     | Records the times as the session goes busy and idle            | The footer already re-renders on every status change, so the two edges are free to observe.                                        |
-| `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                           | Shows how long ago the last prompt went out and the last reply landed.                                                             |
-| `auto-update-notice-only`              | Stops the update at the check and reports it as available      | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
-| `update-notice-command`                | Adds `run: ovrdroid update` to the update notice               | The notice has to name the command that now does the updating.                                                                     |
-| `settings-watch-after-paint`           | Starts the settings file watchers 400ms later                  | Registering them crawls the settings trees before the input box paints, and nothing needs a file-change event that early.          |
-| `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                        | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
-| `react-production`                     | Swaps React for its production build                           | Droid ships React's development build, whose hook checks and invariants run on every render.                                       |
-| `react-reconciler-production`          | Swaps the reconciler and scheduler for their production builds | Same reason, and the reconciler is the largest share of typing CPU.                                                                |
-| `react-jsx-runtime-production`         | Swaps the JSX runtime for its production build                 | The dev runtime validates and records a stack for every element it creates.                                                        |
+| Patch                                  | What it changes                                               | Why                                                                                                                                |
+| :------------------------------------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------- |
+| `kitty-probe-timeout`                  | 150ms probe wait to 30ms                                      | Ghostty answers the terminal probe in a few ms.                                                                                    |
+| `whoami-no-block`                      | Drops the `await` on `whoami`                                 | The call costs 450-800ms and gates feature flags and org settings, which already fall back to their disk caches.                   |
+| `certificate-count-skip`               | Skips the cert count                                          | It spawns three shell pipelines just to validate a cache that has a 7-day TTL.                                                     |
+| `shutdown-flush-deadline`              | 1000ms flush deadline to 10ms                                 | Exit waits the whole deadline for telemetry flushes that never finish in time anyway.                                              |
+| `session-search-warm-skip`             | Skips the session-search cache warm                           | It scans every saved session at startup, before the input box is up, to prime a search nobody has typed yet.                       |
+| `zod-v3-lazy-bound-methods`            | Binds zod schema methods on first use, not in the constructor | The zod v3 constructor runs 24 `.bind(this)` calls per schema, and 15,215 schemas exist before the input box appears.              |
+| `model-alias-lookup-set`               | Model alias lookup scans a Set                                | It rebuilt an array with `Object.values` and scanned it linearly, once per model id, inside a render that runs on every keystroke. |
+| `ink-string-width-grapheme-memo`       | Ink's width scan memoises per grapheme                        | Ink's cache keys on the whole line, so one new character misses it and re-measures every grapheme again.                           |
+| `ink-string-width-grapheme-memo-init`  | Adds the two grapheme maps Ink's memo reads                   | The memo needs its narrow and wide maps created when the module is evaluated.                                                      |
+| `app-display-width-grapheme-memo`      | `displayWidth` memoises per grapheme                          | The app measures width separately from Ink and paid the same per-grapheme cost on every keystroke.                                 |
+| `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads               | Same as Ink's: the maps are created at module evaluation.                                                                          |
+| `turn-clock-state`                     | Adds the turn clock's state and its duration formatter        | The footer needs somewhere to remember when the last turn started and ended.                                                       |
+| `turn-clock-track`                     | Records the times as the session goes busy and idle           | The footer already re-renders on every status change, so the two edges are free to observe.                                        |
+| `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                          | Shows how long ago the last prompt went out and the last reply landed.                                                             |
+| `auto-update-notice-only`              | Stops the update at the check and reports it as available     | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
+| `update-notice-command`                | Adds `run: ovrdroid update` to the update notice              | The notice has to name the command that now does the updating.                                                                     |
+| `settings-watch-after-paint`           | Starts the settings file watchers 400ms later                 | Registering them crawls the settings trees before the input box paints, and nothing needs a file-change event that early.          |
+| `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                       | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
 
 ```bash
 bun run ovrdroid update
 bun run ovrdroid status
 bun run ovrdroid apply
-bun run ovrdroid apply --dev-react
 bun run ovrdroid restore
 ```
-
-`--dev-react` keeps React's development build, which is slower but keeps the full DevTools
-diagnostics: component and owner stacks, hook checks and readable error messages.
 
 ## The turn clock
 
@@ -342,21 +335,23 @@ first time.
 ## How it works
 
 1. **Extract.** Parse the Bun module graph (trailer, offsets, module table) and read every module:
-   the app source plus 35 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill
-   assets, sounds). Offsets move every release, so they are always derived.
-2. **Patch.** Literal find/replace pairs on the source text, any length, plus a marker statement
-   that records which patch set is applied. A patch may also carry `until`, which extends the
-   replaced range through the first match of that string after `find`. The React production patches
-   are built from tarballs fetched from the npm registry at pinned versions, cached under
-   `~/.cache/ovrdroid/react`, so they are never read from `node_modules`.
+   the entry module plus its hundreds of split JS chunks, alongside the 65 sidecars (ripgrep,
+   agent-browser, keytar, the Rust PTY libraries, skill assets, sounds). Offsets move every release,
+   so they are always derived.
+2. **Patch.** Literal find/replace pairs on the source text, any length, plus a marker statement on
+   the entry module that records which patch set is applied. Each find must match exactly once
+   across the whole app, whichever chunk it lands in. A patch may also carry `until`, which extends
+   the replaced range through the first match of that string after `find`.
 3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/binary/bun.ts`) once,
    cache it under `~/.cache/ovrdroid/`, and run
-   `bun build --compile --bytecode --minify --asset-naming=[name].[ext]` over the patched source
-   with an import preamble that re-embeds every sidecar. The build dominates the ~4.5s apply and
-   peaks near 1.8GB. Binaries are read with `readFileSync`, never memory-mapped: a writable mapping
-   invalidates a signed binary permanently, and macOS then kills it on launch. Rebuilding is what
-   keeps the bytecode cache valid: editing bytes in place invalidates it and Droid falls back to
-   parsing 20MB of JavaScript, which costs more than the patches save.
+   `bun build --compile --bytecode --splitting --format=esm --minify --asset-naming=[name].[ext]`
+   over the patched modules with an import preamble that re-embeds every sidecar. Chunk imports are
+   rewritten from `/$bunfs/root/` paths to relative ones so the rebuild resolves them. The build
+   dominates the ~4.5s apply and peaks near 1.8GB. Binaries are read with `readFileSync`, never
+   memory-mapped: a writable mapping invalidates a signed binary permanently, and macOS then kills
+   it on launch. Rebuilding is what keeps the bytecode cache valid: editing bytes in place
+   invalidates it and Droid falls back to parsing 20MB of JavaScript, which costs more than the
+   patches save.
 4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then
    `codesign --force --sign -`. Without the signature macOS kills the process on launch.
 
