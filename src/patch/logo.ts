@@ -59,32 +59,32 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-ovrdroid',
-    find: 'kPc=`',
+    find: 'T6=`',
     until: '`.trim().split(`\n`),',
-    replace: `kPc=${literal(WORDMARK_ROWS)},`,
+    replace: `T6=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-ovrdroid',
-    find: 'OPc=[',
-    until: '],yzt=[',
-    replace: `OPc=${literal(COMPACT_ROWS)},yzt=[`,
+    find: 'R6=[',
+    until: '];var i0=',
+    replace: `R6=${literal(COMPACT_ROWS)};var i0=`,
   },
   {
     name: 'wordmark-over-accent-style',
-    find: 'logo:{color:fe.headerLogo,bold:!0,italic:!1},',
-    replace: `logo:{color:fe.headerLogo,bold:!0,italic:!1},"${OVER_STYLE}":{color:fe.highlight,bold:!0,italic:!1},`,
+    find: 'logo:{color:s.headerLogo,bold:!0,italic:!1},',
+    replace: `logo:{color:s.headerLogo,bold:!0,italic:!1},"${OVER_STYLE}":{color:s.highlight,bold:!0,italic:!1},`,
   },
   {
     name: 'wordmark-over-accent-paint',
-    find: 'MTm(x,M,F,R,"logo");',
+    find: 'jq(xe,Te,we,le,"logo");',
     replace:
-      `MTm(x,M,F,R,"logo");` +
-      `if(R===kPc)MTm(x,M,F,R.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
-      `else Qj(x,M+${COMPACT_ACCENT_ROW},F+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
+      `jq(xe,Te,we,le,"logo");` +
+      `if(le===T6)jq(xe,Te,we,le.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
+      `else Gi(xe,Te+${COMPACT_ACCENT_ROW},we+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
   },
   {
     name: 'wordmark-width-threshold',
-    find: 'ITm=58,wTm=24',
-    replace: `ITm=${WORDMARK_WIDTH},wTm=24`,
+    find: 'Fq=58,$q=24',
+    replace: `Fq=${WORDMARK_WIDTH},$q=24`,
   },
 ];

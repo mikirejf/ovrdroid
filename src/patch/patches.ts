@@ -1,5 +1,4 @@
 import { logoPatches } from './logo.ts';
-import { reactProductionPatches } from './react.ts';
 
 export interface Patch {
   name: string;
@@ -42,7 +41,7 @@ export const CONSTRUCTOR_BINDS: readonly string[] = [
 export const LAZY_METHODS: readonly string[] = CONSTRUCTOR_BINDS.filter((name) => name !== 'spa');
 
 const STANDARD_SCHEMA =
-  'this["~standard"]={version:1,vendor:"zod",validate:(t)=>this["~validate"](t)}';
+  'this["~standard"]={version:1,vendor:"zod",validate:(r)=>this["~validate"](r)}';
 
 const OWN_METHOD =
   'A=(e,K,G)=>(Object.defineProperty(e,K,{value:G,writable:!0,enumerable:!0,configurable:!0}),G)';
@@ -57,108 +56,108 @@ const TURN_CLOCK_STATE =
   '$ODc={session:null,sent:0,done:0,busy:!1},' +
   '$ODa=(T)=>{let R=Math.floor(T/6e4);if(R<1)return"<1m";if(R<60)return R+"m";' +
   'let H=Math.floor(R/60);if(H<24)return H+"h";return Math.floor(H/24)+"d"},' +
-  '$ODt=(S)=>{try{return Kr().getSessionStateManager().getSessionManager(S)' +
+  '$ODt=(S)=>{try{return P().getSessionStateManager().getSessionManager(S)' +
   '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
 
 const TURN_CLOCK_TRACK =
-  'let $busy=r!=="idle";' +
-  'if($ODc.session!==o)$ODc.session=o,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
-  'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(o):$ODc.done=$ODt(o);';
+  'let $busy=F!=="idle";' +
+  'if($ODc.session!==U)$ODc.session=U,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
+  'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(U):$ODc.done=$ODt(U);';
 
 const TURN_CLOCK_TICK =
-  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=rJ.useState(0);' +
-  'rJ.useEffect(()=>{if(!$last)return;' +
+  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=g(0);' +
+  'D(()=>{if(!$last)return;' +
   'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
   '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
   'return()=>clearTimeout($id)},[$last,$t]);';
 
 const TURN_CLOCK_PARTS =
   'if($last){let $ago=[];' +
-  'if($ODc.sent)$ago.push(ad("\\u2191"+$ODa($now-$ODc.sent),{color:fe.text.muted}));' +
-  'if($ODc.done)$ago.push(ad(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:fe.text.muted}));' +
-  'jve(x,$ago)}';
+  'if($ODc.sent)$ago.push(We("\\u2191"+$ODa($now-$ODc.sent),{color:s.text.muted}));' +
+  'if($ODc.done)$ago.push(We(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:s.text.muted}));' +
+  'dc(xe,$ago)}';
 
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
-    find: 'catch{u(!1);return}setTimeout(()=>u(!1),150)',
-    replace: 'catch{u(!1);return}setTimeout(()=>u(!1),30.)',
+    find: 'catch{n(!1);return}setTimeout(()=>n(!1),150)',
+    replace: 'catch{n(!1);return}setTimeout(()=>n(!1),30.)',
   },
   {
     name: 'whoami-no-block',
-    find: 'let c=await EMd(r,n);if(c.resolved&&VE&&VE.tokenHash===t)',
-    replace: 'let c=/**/  EMd(r,n);if(c.resolved&&VE&&VE.tokenHash===t)',
+    find: 'let h=await No(s,a);if(h.resolved&&S&&S.tokenHash===r)',
+    replace: 'let h=/**/  No(s,a);if(h.resolved&&S&&S.tokenHash===r)',
   },
   {
     name: 'certificate-count-skip',
-    find: 'async function nch(){let e=await Yds(),t=await iIs(e);',
-    replace: 'async function nch(){let e=null/*Yds*/,t=await iIs(e);',
+    find: 'async function tt(){let e=await F(),t=await x(e);',
+    replace: 'async function tt(){let e=null/*F*/,t=await x(e);',
   },
   {
     name: 'shutdown-flush-deadline',
-    find: '$ip=1e4,Wip=1000,',
-    replace: '$ip=1e4,Wip=10.0,',
+    find: 'pn=1e4,mn=1000,',
+    replace: 'pn=1e4,mn=10.0,',
   },
   {
     name: 'session-search-warm-skip',
-    find: 'warmSessionSearch:!e||e.length===0,',
-    replace: 'warmSessionSearch:!1/*e.length*/,',
+    find: 'warmSessionSearch:!o||o.length===0,',
+    replace: 'warmSessionSearch:!1/*o.length*/,',
   },
   {
     name: 'zod-v3-lazy-bound-methods',
-    find: `constructor(e){this.spa=this.safeParseAsync,this._def=e,${CONSTRUCTOR_BINDS.map(
+    find: `constructor(t){this.spa=this.safeParseAsync,this._def=t,${CONSTRUCTOR_BINDS.map(
       (name) => `this.${name}=this.${name}.bind(this),`,
     ).join('')}${STANDARD_SCHEMA}`,
-    replace: `${LAZY_ACCESSORS}constructor(e){this._def=e,${STANDARD_SCHEMA}`,
+    replace: `${LAZY_ACCESSORS}constructor(t){this._def=t,${STANDARD_SCHEMA}`,
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(e in JE)return e;if(Object.values(JE).includes(e))return e;return}',
+    find: 'if(e in jn)return e;if(Object.values(jn).includes(e))return e;return}',
     replace:
-      'if(e in JE)return e;if((Sm.$o!==JE&&(Sm.$o=JE,Sm.$s=new Set(Object.values(JE))),Sm.$s).has(e))return e;return}',
+      'if(e in jn)return e;if((Tt.$o!==jn&&(Tt.$o=jn,Tt.$s=new Set(Object.values(jn))),Tt.$s).has(e))return e;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',
-    find: 'for(let{segment:u}of Ehm.segment(i)){if(xhm(u))continue;if(Hhm.test(u)){a+=2;continue}let d=Dhm(u).codePointAt(0);a+=Fse(d,c),a+=khm(u,c)}if(o)FTl(e,a);return a}',
+    find: 'for(let{segment:N}of Q0.segment(m)){if(F0(N))continue;if(m0.test(N)){h+=2;continue}let M=y0(N).codePointAt(0);h+=Xc(M,S),h+=S0(N,S)}if(f)ec(n,h);return h}',
     replace:
-      'let $m=n?b2e.$n:b2e.$w;for(let{segment:u}of Ehm.segment(i)){let $c=$m.get(u);if($c===void 0){if(xhm(u))$c=0;else if(Hhm.test(u))$c=2;else{let d=Dhm(u).codePointAt(0);$c=Fse(d,c)+khm(u,c)}if($m.size<2e4)$m.set(u,$c)}a+=$c}if(o)FTl(e,a);return a}',
+      'let $m=o?kn.$n:kn.$w;for(let{segment:N}of Q0.segment(m)){let $c=$m.get(N);if($c===void 0){if(F0(N))$c=0;else if(m0.test(N))$c=2;else{let M=y0(N).codePointAt(0);$c=Xc(M,S)+S0(N,S)}if($m.size<2e4)$m.set(N,$c)}h+=$c}if(f)ec(n,h);return h}',
   },
   {
     name: 'ink-string-width-grapheme-memo-init',
-    find: 'Hhm=/^\\p{RGI_Emoji}$/v;nve=new Map});',
-    replace: 'Hhm=/^\\p{RGI_Emoji}$/v;nve=new Map;b2e.$n=new Map;b2e.$w=new Map});',
+    find: 'm0=/^\\p{RGI_Emoji}$/v;function tc(n){',
+    replace: 'm0=/^\\p{RGI_Emoji}$/v;kn.$n=new Map;kn.$w=new Map;function tc(n){',
   },
   {
     name: 'app-display-width-grapheme-memo',
-    find: 'for(let{segment:c}of jFd.segment(o)){if(QFd(c))continue;if(VFd.test(c)){i+=2;continue}let u=zFd(c).codePointAt(0);i+=Fse(u,a),i+=XFd(c,a)}return i}',
+    find: 'for(let{segment:S}of _0.segment(f)){if(W0(S))continue;if(Z0.test(S)){m+=2;continue}let N=V0(S).codePointAt(0);m+=Xc(N,h),m+=j0(S,h)}return m}',
     replace:
-      'let $m=n?Qit.$n:Qit.$w;for(let{segment:c}of jFd.segment(o)){let $c=$m.get(c);if($c===void 0){if(QFd(c))$c=0;else if(VFd.test(c))$c=2;else{let u=zFd(c).codePointAt(0);$c=Fse(u,a)+XFd(c,a)}if($m.size<2e4)$m.set(c,$c)}i+=$c}return i}',
+      'let $m=o?Si.$n:Si.$w;for(let{segment:S}of _0.segment(f)){let $c=$m.get(S);if($c===void 0){if(W0(S))$c=0;else if(Z0.test(S))$c=2;else{let N=V0(S).codePointAt(0);$c=Xc(N,h)+j0(S,h)}if($m.size<2e4)$m.set(S,$c)}m+=$c}return m}',
   },
   {
     name: 'app-display-width-grapheme-memo-init',
-    find: 'VFd=/^\\p{RGI_Emoji}$/v});function pFr(e)',
-    replace: 'VFd=/^\\p{RGI_Emoji}$/v;Qit.$n=new Map;Qit.$w=new Map});function pFr(e)',
+    find: 'Z0=/^\\p{RGI_Emoji}$/v;function V0(n){',
+    replace: 'Z0=/^\\p{RGI_Emoji}$/v;Si.$n=new Map;Si.$w=new Map;function V0(n){',
   },
   {
     name: 'turn-clock-state',
-    find: 'var rJ,pFl,IPm,wPm="\\uF418",',
-    replace: `var ${TURN_CLOCK_STATE},rJ,pFl,IPm,wPm="\\uF418",`,
+    find: 'var Nte=new Set(["thinking","streaming","compressing","executing_tool"]),Fte="\\uF418",',
+    replace: `var ${TURN_CLOCK_STATE},Nte=new Set(["thinking","streaming","compressing","executing_tool"]),Fte="\\uF418",`,
   },
   {
     name: 'turn-clock-track',
-    find: 'isSessionArchived:A,updateNoticeDisplay:S}){let E=OPm(',
-    replace: `isSessionArchived:A,updateNoticeDisplay:S}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let E=OPm(`,
+    find: 'isSessionArchived:ce,updateNoticeDisplay:ue}){let de=Vte(',
+    replace: `isSessionArchived:ce,updateNoticeDisplay:ue}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let de=Vte(`,
   },
   {
     name: 'turn-clock-parts',
-    find: 'let M=zcc(a);if(M)jve(x,[ad(M,{color:fe.primary})]);let F=[];',
-    replace: `let M=zcc(a);if(M)jve(x,[ad(M,{color:fe.primary})]);${TURN_CLOCK_PARTS}let F=[];`,
+    find: 'let Te=Z$(q);if(Te)dc(xe,[We(Te,{color:s.primary})]);let we=[];',
+    replace: `let Te=Z$(q);if(Te)dc(xe,[We(Te,{color:s.primary})]);${TURN_CLOCK_PARTS}let we=[];`,
   },
   {
     name: 'auto-update-notice-only',
-    find: 'if(!g)return Jj(a,"no-update"),"no-update";if(g.isRollback){',
+    find: 'if(!m)return s(u,"no-update"),"no-update";if(m.isRollback){',
     replace:
-      'if(!g)return Jj(a,"no-update"),"no-update";return s7o({type:"update-available",version:g.version.version}),ve("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:g.version.version}),Jj(a,"skipped"),"skipped";if(g.isRollback){',
+      'if(!m)return s(u,"no-update"),"no-update";return _({type:"update-available",version:m.version.version}),l("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:m.version.version}),s(u,"skipped"),"skipped";if(m.isRollback){',
   },
   {
     name: 'update-notice-command',
@@ -167,28 +166,28 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'command-menu-prefix-first',
-    find: 'if(A&&S)return 1;if(A)return 2;if(S)return 3;return 4}',
-    replace: 'if(S)return A?1:2;if(A)return 3;return 4}',
+    find: 'if(ce&&ue)return 1;if(ce)return 2;if(ue)return 3;return 4}',
+    replace: 'if(ue)return ce?1:2;if(ce)return 3;return 4}',
   },
   {
     name: 'command-catalog-mark-scanned',
-    find: 'function lne(e){if(yJt.status===e.status',
-    replace: 'function lne(e){if(e.status==="ready")lne.$done=!0;if(yJt.status===e.status',
+    find: 'function Wa(n){if(r.status===n.status',
+    replace: 'function Wa(n){if(n.status==="ready")Lo.$done=!0;if(r.status===n.status',
   },
   {
     name: 'command-menu-loading-first-scan-only',
-    find: 'isLoading:de.status==="refreshing"}',
-    replace: 'isLoading:de.status==="refreshing"&&!lne.$done}',
+    find: 'isLoading:to.status==="refreshing"}',
+    replace: 'isLoading:to.status==="refreshing"&&!Lo.$done}',
   },
   {
     name: 'command-menu-visibility-same-commit',
-    find: 'Lt=Np.useCallback((Do)=>{on({showCommands:Do}),oe(Do)},[on])',
-    replace: 'Lt=Np.useCallback((Do)=>{on({showCommands:Do}),oe(Do),xe?.(Do)},[on,xe])',
+    find: 'gt=A((yn)=>{Io({showCommands:yn}),Xt(yn)},[Io])',
+    replace: 'gt=A((yn)=>{Io({showCommands:yn}),Xt(yn),At?.(yn)},[Io,At])',
   },
   {
     name: 'command-menu-visibility-reset-on-unmount',
-    find: 'Np.useEffect(()=>{xe?.(K)},[K,xe]);',
-    replace: 'Np.useEffect(()=>()=>{xe?.(!1)},[xe]);',
+    find: 'D(()=>{At?.(io)},[io,At]);',
+    replace: 'D(()=>()=>{At?.(!1)},[At]);',
   },
   {
     name: 'settings-watch-after-paint',
@@ -198,26 +197,12 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'draft-dismiss-no-rerender',
-    find: 'let n=rJ.useCallback(()=>{t({type:"draft-edited"})},[]);return{display:e,dismissAfterDraftEdit:n}',
+    find: 'let C=A(()=>{w({type:"draft-edited"})},[]);return{display:b,dismissAfterDraftEdit:C}',
     replace:
-      'let $r=rJ.useRef(e);$r.current=e;let n=rJ.useCallback(()=>{let s=$r.current;if(s.notice.kind==="hidden"||s.dismissed)return;t({type:"draft-edited"})},[]);return{display:e,dismissAfterDraftEdit:n}',
+      'let $r=v(b);$r.current=b;let C=A(()=>{let $s=$r.current;if($s.notice.kind==="hidden"||$s.dismissed)return;w({type:"draft-edited"})},[]);return{display:b,dismissAfterDraftEdit:C}',
   },
   ...logoPatches,
 ];
-
-async function productionPatches(): Promise<readonly Patch[]> {
-  return [...patches, ...(await reactProductionPatches())];
-}
-
-let productionSet: Promise<readonly Patch[]> | undefined;
-
-export async function patchSet(options: { devReact: boolean }): Promise<readonly Patch[]> {
-  if (options.devReact) {
-    return patches;
-  }
-  productionSet ??= productionPatches();
-  return await productionSet;
-}
 
 export function markerDigest(list: readonly Patch[]): string {
   const hasher = new Bun.CryptoHasher('sha256');

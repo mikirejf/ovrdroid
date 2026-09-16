@@ -1,22 +1,32 @@
 import { describe, expect, test } from 'bun:test';
 
 import { countOccurrences } from '../../binary/apply.ts';
-import { readSource } from '../../binary/graph.ts';
+import type { App } from '../../binary/graph.ts';
+import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { CONSTRUCTOR_BINDS, findMarker, patches } from '../patches.ts';
 
-async function stockSourceOf(target: string): Promise<string | undefined> {
-  let source: string;
+async function stockModulesOf(target: string): Promise<App | undefined> {
+  let app: App;
   try {
-    source = readSource(await Bun.file(target).bytes());
+    app = readApp(await Bun.file(target).bytes());
   } catch {
     return undefined;
   }
-  return findMarker(source) === undefined ? source : undefined;
+  return findMarker(app[0].text) === undefined ? app : undefined;
 }
 
-const source =
-  (await stockSourceOf(INSTALLED_DROID)) ?? (await stockSourceOf(backupPath(INSTALLED_DROID)));
+const modules =
+  (await stockModulesOf(INSTALLED_DROID)) ?? (await stockModulesOf(backupPath(INSTALLED_DROID)));
+
+const source = modules === undefined ? undefined : joinApp(modules);
+
+const ZOD_ANCHOR = patches.find((patch) => patch.name === 'zod-v3-lazy-bound-methods')?.find;
+
+const schemaChunk =
+  ZOD_ANCHOR === undefined
+    ? undefined
+    : modules?.find((module) => module.text.includes(ZOD_ANCHOR))?.text;
 
 const cases = patches.map((patch) => [patch.name, patch.find] as const);
 
@@ -26,7 +36,7 @@ describe.skipIf(source === undefined)('every find string still matches the shipp
   });
 });
 
-const SCHEMA_CLASS = 'PT';
+const SCHEMA_CLASS = 'Kt';
 const SCHEMA_REGION_BYTES = 200_000;
 
 function classBodyAt(text: string, start: number): string {
@@ -68,8 +78,8 @@ function methodNamesIn(body: string): string[] {
   return names;
 }
 
-describe.skipIf(source === undefined)('the lazy-accessor preconditions still hold', () => {
-  const text = source ?? '';
+describe.skipIf(schemaChunk === undefined)('the lazy-accessor preconditions still hold', () => {
+  const text = schemaChunk ?? '';
   const bound = new Set(CONSTRUCTOR_BINDS);
 
   test(`no subclass of ${SCHEMA_CLASS} overrides a name the accessors install`, () => {
