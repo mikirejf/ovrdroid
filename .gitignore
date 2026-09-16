@@ -4,3 +4,6 @@ dist/
 
 # Extracted bundles and binary backups are large and machine-specific.
 work/
+
+# Local probe settings; copy from .env.example.
+.env

@@ -8,17 +8,20 @@ import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
 import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
+import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
-import { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS } from './keys.ts';
 import { menu, touches, watch } from './menu-report.ts';
 import { buildProbe } from './probe-build.ts';
-import { ab, keys } from './speed-report.ts';
+import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
 const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const IDLE_RUNS = 5;
+const EXEC_RUNS = 30;
+const EXEC_PROMPT = 'Reply with exactly: ok';
+const EXEC_EXPECT = 'ok';
 const TOP_MODULES = 20;
 const DEFAULT_CHURN: ChurnKind = 'startup';
 const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
@@ -68,6 +71,17 @@ program
   .option('-c, --chars <n>', 'keys in the sustained burst', count, DEFAULT_CHARS)
   .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
   .action(guard(keys));
+
+program
+  .command('exec')
+  .description('interleaved A/B of non-interactive exec: startup, answer and shutdown')
+  .argument('<binaries...>')
+  .option('-r, --runs <n>', 'number of runs', count, EXEC_RUNS)
+  .option('--stage <kind>', `what to time: ${STAGES.join(', ')}`, choice(STAGES), 'turn')
+  .option('-m, --model <id>', 'model for the turn stage', defaultModel())
+  .option('-p, --prompt <text>', 'prompt for the turn stage', EXEC_PROMPT)
+  .option('-e, --expect <text>', 'text every run must print, or the probe stops', EXEC_EXPECT)
+  .action(guard(exec));
 
 function churnOptions(command: Command): Command {
   return command

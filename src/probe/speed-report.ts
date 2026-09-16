@@ -5,6 +5,8 @@ import { formatKeys, measureKeys } from './keys.ts';
 import { launch } from './launch.ts';
 import { sayPaired } from './paired.ts';
 
+export { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS } from './keys.ts';
+
 export interface KeysOptions extends RunOptions {
   trials: number;
   chars: number;
