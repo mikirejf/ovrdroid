@@ -1313,3 +1313,56 @@ binary can reach it.
   largest item and nothing here explains what it does while nobody is typing.
 - Every idle number was measured with one MCP server configured. A profile with none is the control
   that separates Droid's idle cost from its servers', and it was never run.
+
+# Exec startup findings
+
+## The headline
+
+**Droid 0.219.0 added a blocking wait for the connectors tool catalog to `exec` startup, and it
+costs ~450ms on every `droid exec` launch, `--help` included.** Stock 0.218.2 against stock 0.219.0,
+`probe exec --stage help -r 30`, n=30 paired, first byte: 0.219.0 slower by 450ms (CI 387 to 513).
+Shutdown tail did not move.
+
+## Where it is
+
+Droid's own profile (`DROID_PROFILE=1`) shows one blocking phase that 0.218.2 does not have:
+`catalog_ready`, median 581ms, starting right after `handler_import` and ending right before the
+handler runs. Its partner `catalog_prime` is a background task started once feature flags warm.
+
+In the extracted 0.219.0 source the exec startup does, in order: warm feature flags, then `.then`
+into `tG("catalog_prime", hjt)`, and later `await Xg("catalog_ready", () => s_(a, 2500))`, which is
+a 2.5s timeout race on that same promise. `hjt` returns at once unless the `connectors` feature flag
+is on; with it on, `pvo` fetches the catalog revision (`GET toolsRevision`, 2s cap) and, on a miss,
+the tool list (`POST toolsList`, 10s cap). The interactive TUI has no equivalent wait.
+
+## Verified with the flag forced off
+
+`FACTORY_FEATURE_FLAGS_OVERRIDES='{"connectors":false}'` drops `catalog_prime` and `catalog_ready`
+to 0.1ms and 0.0ms. Three-way `probe exec --stage help -r 30`, medians to first byte:
+
+| binary                        | first byte |
+| ----------------------------- | ---------- |
+| 0.218.2 stock                 | 949ms      |
+| 0.219.0 stock                 | 1316ms     |
+| 0.219.0 stock, connectors off | 819ms      |
+
+So with the catalog wait removed, 0.219.0 is ~130ms faster than 0.218.2. The rest of the release
+(newer Bun, tighter bytecode) is a win, not a loss.
+
+On the patched 0.219.0, where the settings patches already cut `feature_flags_warm` to ~5ms, the
+catalog wait is most of what is left: 470 to 780ms of a 720 to 1120ms startup.
+
+## Not patched: the TUI does not pay for it
+
+The interactive startup runs the same `catalog_ready` wait, but the input box paints before it
+resolves. `probe ab -r 20` on stock 0.219.0 with and without the connectors flag: medians 965ms and
+966ms, paired difference unresolved (CI -118 to 226). Since the patch set optimises the TUI, the
+exec wait is left alone. If that changes, the fix is to drop only the `catalog_ready` await: the
+agent turn already fetches the catalog lazily with its own 2.5s cap (`pcc`) when nothing is primed.
+
+## Notes
+
+- `probe exec` strips every `FACTORY_*` variable from the child's environment, so an env override
+  needs a wrapper script. `work/bins/droid-0.219.0-nocatalog` is the one used above.
+- There is no download URL for old Droid releases. Stock and patched 0.218.2 are kept under
+  `work/bins/` (gitignored) alongside 0.219.0, with both extracted sources under `work/src/`.
