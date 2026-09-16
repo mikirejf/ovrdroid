@@ -32,33 +32,40 @@ So patches are ordinary text edits of any length on the extracted source, and th
 
 ## The pipeline
 
-1. **Locate the graph** and read the entry record's source region. Offsets change every release,
-   so always derive them from the trailer; never hardcode. See
-   [`MODULE-GRAPH.md`](MODULE-GRAPH.md).
-2. **Patch the source text.** Literal find/replace pairs, each required to match exactly once, so
-   a Droid update that moves the code fails loudly instead of patching the wrong site.
+1. **Locate the graph** and read every app module: the entry record plus, since Droid 0.220.0,
+   hundreds of split `chunk-*.js` records (loader 1) that import each other by `/$bunfs/root/`
+   path. Offsets change every release, so always derive them from the trailer; never hardcode.
+   See [`MODULE-GRAPH.md`](MODULE-GRAPH.md).
+2. **Patch the source text.** Literal find/replace pairs, each required to match exactly once
+   across all modules, so a Droid update that moves the code fails loudly instead of patching the
+   wrong site.
 3. **Stamp a marker.** Append `globalThis.__ovrdroid="<digest>";` where the digest covers your
    patch set. Minification renames the identifiers your find strings matched, so the patched
    binary is no longer searchable by those strings; the marker string literal survives and is how
    `status` later tells applied from stale from stock.
-4. **Rebuild with the Bun release the binary embeds.** Read it out of the binary
-   (`/Bun v(\d+\.\d+\.\d+)/`), download that exact release, and run
-   `bun build --compile --bytecode --format=esm --minify --target=bun`. A different Bun writes a
-   different JSC cache version and the runtime rejects the cache. Budget ~11s and ~3GB of RAM.
-5. **Transplant** the rebuilt source, bytecode and module_info back into the stock binary's
-   original offsets, and update their three length fields. Nothing moves; the file size never
-   changes.
+4. **Rebuild the whole binary on a pinned Bun.** Stage the chunks as files with their
+   `/$bunfs/root/chunk-X.js` imports rewritten to `./chunk-X.js`, stage every sidecar behind an
+   import preamble, and run
+   `bun build --compile --bytecode --splitting --format=esm --minify --target=bun --asset-naming=[name].[ext]`.
+   The Bun version is `BUILD_BUN_VERSION` in `src/binary/bun.ts`, newer than the one Droid ships,
+   because its bytecode format is smaller and faster to load. Budget ~6s.
+5. **Verify the sidecars** survived byte for byte under their original names
+   (`assertSameEmbeds`). Chunk names may change; sidecar names never may, because the app
+   addresses them by string literal.
 6. **Re-sign** with `codesign --force --sign -`. Skip this and macOS kills the process with
    SIGKILL at launch.
-7. **Prove it before installing.** Run the patched copy's `--version`, require the same output as
-   stock, and time it: a hit is ~0.09s, a cache miss ~0.35s. That timing is your **cache canary**,
-   the one cheap check that the bytecode path survived. Confirm with
-   `BUN_JSC_verboseDiskCache=1`, which prints `Cache hit for sourceCode`.
+7. **Prove it before installing.** `--version` must match stock, and the copy must paint in a
+   PTY (`probe ab`). A `--version` that passes says nothing about the chunks or the sidecars.
+
+Transplanting rebuilt regions into the stock binary in place was the old path. It fails silently
+on a Bun version mismatch (the runtime rejects the cache and parses source, +326ms) and cannot
+carry split chunks; the harness rebuilds the whole file instead.
 
 ## Finding a patch site
 
-Extract the source region to a file and work on that text, not the binary. It is one 20MB
-minified line, so read it with `rg` and offsets rather than an editor.
+`bun run probe extract <binary> -o work/src/<version>` writes one file per module. Work on that
+text, not the binary. Each file is one minified line, so read it with `rg` and offsets rather than
+an editor.
 
 - Anchor on strings the minifier cannot rename: log messages, telemetry event names, URL paths,
   env var names. Then walk outward to the identifier you need.
@@ -83,10 +90,10 @@ minified line, so read it with `rg` and offsets rather than an editor.
 
 ## After a Droid update
 
-`status` reports `missing:` with the patch names whose find strings no longer match once. Re-find
-those sites in the new source, update the find/replace pairs, and re-apply from the new stock
-binary. The graph parser, the rebuild and the transplant carry over untouched; only the patch
-strings and the embedded Bun version are release-scoped.
+`ovrdroid update` or `status` reports `missing:` with the patch names whose find strings no longer
+match once. The full procedure, from triage through the proof on a copy, is
+[`UPDATING.md`](UPDATING.md). Only the patch strings are release-scoped; the graph parser and the
+rebuild carry over, unless every patch goes missing at once, which means the module layout moved.
 
 ## Adding a feature, not just deleting work
 
