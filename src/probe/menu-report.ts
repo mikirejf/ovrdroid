@@ -6,6 +6,7 @@ import { CONFIG_FILES } from '../paths.ts';
 import { withTempDir } from '../temp.ts';
 import type { ChurnKind } from './churn.ts';
 import { describeChurn, induceChurn } from './churn.ts';
+import { askForHighlight, describeHighlight } from './highlight.ts';
 import { launch } from './launch.ts';
 import { logSize, logSlice } from './log-file.ts';
 import { LOADING_TEXT, openMenuSession, readFrames } from './menu.ts';
@@ -76,6 +77,14 @@ export async function watch(binary: string, options: ChurnCommandOptions): Promi
       await session.close();
     }
   });
+}
+
+export async function highlight(binary: string): Promise<void> {
+  const reading = await askForHighlight(binary);
+  say(describeHighlight(reading));
+  if (reading.crashed) {
+    process.exitCode = 1;
+  }
 }
 
 export async function touches(binary: string): Promise<void> {

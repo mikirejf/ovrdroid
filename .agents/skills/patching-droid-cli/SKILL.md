@@ -49,13 +49,22 @@ So patches are ordinary text edits of any length on the extracted source, and th
    `bun build --compile --bytecode --splitting --format=esm --minify --target=bun --asset-naming=[name].[ext]`.
    The Bun version is `BUILD_BUN_VERSION` in `src/binary/bun.ts`, newer than the one Droid ships,
    because its bytecode format is smaller and faster to load. Budget ~6s.
+   Two chunks (highlight.js and one other big library) are not imported; the app loads them on
+   demand with `import.meta.require("/$bunfs/root/chunk-X.js")`. Bun leaves that call alone and
+   only rewrites the string, so the chunk is dropped from the graph and the first code block
+   crashes the session with `Cannot find module './chunk-X.js'`. `rewriteImports` turns those
+   calls into `require("./chunk-X.js")`, which Bun bundles like any other edge.
 5. **Verify the sidecars** survived byte for byte under their original names
    (`assertSameEmbeds`). Chunk names may change; sidecar names never may, because the app
-   addresses them by string literal.
+   addresses them by string literal. Then **verify every path the app names resolves**
+   (`assertRefsResolve`): no `import.meta.require("./…")` left behind, and every
+   `/$bunfs/root/…` literal names a record the binary carries.
 6. **Re-sign** with `codesign --force --sign -`. Skip this and macOS kills the process with
    SIGKILL at launch.
-7. **Prove it before installing.** `--version` must match stock, and the copy must paint in a
-   PTY (`probe ab`). A `--version` that passes says nothing about the chunks or the sidecars.
+7. **Prove it before installing.** `--version` must match stock, the copy must paint in a PTY
+   (`probe ab`), and it must render a code block (`probe highlight`). A `--version` that passes
+   says nothing about the chunks or the sidecars, and a paint says nothing about chunks loaded
+   later.
 
 Transplanting rebuilt regions into the stock binary in place was the old path. It fails silently
 on a Bun version mismatch (the runtime rejects the cache and parses source, +326ms) and cannot

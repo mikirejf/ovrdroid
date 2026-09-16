@@ -18,8 +18,15 @@ an entry module plus hundreds of split JS chunks that import each other by `/$bu
 alongside the 65 sidecars (ripgrep, agent-browser, keytar, the Rust PTY libraries, skill assets,
 sounds). The harness extracts all of them, writes an import preamble that re-embeds the sidecars,
 and rebuilds the whole binary with `--splitting`. Chunk names are free to change on rebuild because
-nothing addresses them by literal, but every sidecar must survive byte for byte: `assertSameEmbeds`
-fails the build if one goes missing, appears from nowhere, or changes a byte.
+imports are rewritten, but every sidecar must survive byte for byte: `assertSameEmbeds` fails the
+build if one goes missing, appears from nowhere, or changes a byte.
+
+Not every chunk is reached by an import. A few are loaded on demand with
+`import.meta.require("/$bunfs/root/chunk-X.js")` (highlight.js is one), and Bun does not follow that
+call: it rewrites the string and drops the chunk, so the build passes and the first code block in a
+session crashes with `Cannot find module`. `rewriteImports` turns those calls into plain `require`
+so Bun bundles them, and `assertRefsResolve` fails the build if any path the app names by string
+does not resolve to a record in the rebuilt binary.
 
 The names matter as much as the bytes. The app addresses its sidecars through hardcoded literals
 like `var BUn="/$bunfs/root/rg-kc7jt1ak.";`, one per sidecar, and those literals are never patched.
@@ -85,6 +92,8 @@ bun run ovrdroid status --target /tmp/droid-test
 
 `--version` passing proves nothing about the sidecars: a binary with every asset missing still
 prints its version. Launch it and watch for the input box, which is what `src/probe/launch.ts` does.
+Painting proves nothing about chunks loaded later: run `bun run probe highlight /tmp/droid-test`,
+which asks for a code block in a real session and fails on a `Cannot find module` crash.
 
 ## Conventions
 

@@ -72,11 +72,14 @@ cp ~/.local/bin/droid /tmp/droid-test
 bun run ovrdroid apply --target /tmp/droid-test
 bun run ovrdroid status --target /tmp/droid-test     # applied <digest>
 bun run probe ab -r 8 /tmp/droid-stock /tmp/droid-test
+bun run probe highlight /tmp/droid-test              # rendered a highlighted code block
 ```
 
 `--version` proves nothing: it skips the app. `probe ab` launches the binary in a PTY and waits
-for the input box, so a rebuild that boots and then dies shows up as a timeout there. Only after
-the copy passes: `bun run ovrdroid apply`.
+for the input box, so a rebuild that boots and then dies shows up as a timeout there.
+`probe highlight` asks the model for a code block, which is the first thing that loads a chunk
+by name at runtime; a chunk that fell out of the graph crashes there and nowhere earlier. Only
+after the copy passes both: `bun run ovrdroid apply`.
 
 `src/patch/__tests__/stock-source.test.ts` reruns every `find` against the installed binary, so
 it is the regression gate for the next release: it goes red the moment Droid updates underneath.

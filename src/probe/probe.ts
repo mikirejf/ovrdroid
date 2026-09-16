@@ -9,7 +9,7 @@ import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './c
 import { cpu, idleCpu } from './cpu-report.ts';
 import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
-import { menu, touches, watch } from './menu-report.ts';
+import { highlight, menu, touches, watch } from './menu-report.ts';
 import { buildProbe } from './probe-build.ts';
 import { anchors, extract } from './release-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
@@ -103,6 +103,12 @@ churnOptions(
     .description('log file events, watcher wake-ups and catalog rescans under churn')
     .argument('<binary>'),
 ).action(guard(watch));
+
+program
+  .command('highlight')
+  .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
+  .argument('<binary>')
+  .action(guard(highlight));
 
 program
   .command('touches')

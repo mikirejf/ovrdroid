@@ -13,6 +13,7 @@ export interface BuildRequest {
 }
 
 const EMBED_LITERAL = new RegExp(`"${EMBED_PREFIX.replaceAll('$', '\\$')}([^"]+)"`, 'gu');
+const LAZY_REQUIRE = /import\.meta\.require\("\.\//gu;
 
 function stagedNames(app: App): Map<string, string> {
   const [entry, ...chunks] = app;
@@ -33,10 +34,12 @@ export function rewriteImports(app: App): App {
   const names = stagedNames(app);
   const [entry, ...chunks] = app.map((module) => ({
     name: module.name,
-    text: module.text.replace(EMBED_LITERAL, (literal, name: string) => {
-      const staged = names.get(name);
-      return staged === undefined ? literal : `"./${staged}"`;
-    }),
+    text: module.text
+      .replace(EMBED_LITERAL, (literal, name: string) => {
+        const staged = names.get(name);
+        return staged === undefined ? literal : `"./${staged}"`;
+      })
+      .replace(LAZY_REQUIRE, 'require("./'),
   }));
 
   if (entry === undefined) {

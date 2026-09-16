@@ -31,6 +31,19 @@ describe('rewriteImports', () => {
     expect(rewriteImports(modules)[1]?.text).toBe('await import("./chunk-bbbbbbbb.js")');
   });
 
+  test('turns a lazy require into one Bun bundles, so the chunk survives the rebuild', () => {
+    const modules = app(
+      ['droid', ''],
+      [
+        'chunk-aaaaaaaa.js',
+        'let{default:M}=import.meta.require("/$bunfs/root/chunk-bbbbbbbb.js");',
+      ],
+      ['chunk-bbbbbbbb.js', ''],
+    );
+
+    expect(rewriteImports(modules)[1]?.text).toBe('let{default:M}=require("./chunk-bbbbbbbb.js");');
+  });
+
   test('points an import of the entry at the file the entry is staged as', () => {
     const modules = app(['droid', ''], ['chunk-aaaaaaaa.js', 'await import("/$bunfs/root/droid")']);
 
