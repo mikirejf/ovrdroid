@@ -10,6 +10,7 @@ export interface Parts {
   encoding?: number;
 }
 
+const LOADER_JS = 1;
 const LOADER_FILE = 5;
 const LOADER_TEXT = 13;
 const ENCODING_LATIN1 = 1;
@@ -62,7 +63,13 @@ export const entry: Parts = {
   source: 'let a=1;',
   bytecode: 'BYTECODE-BLOB',
   moduleInfo: 'MODULE-INFO',
+  loader: LOADER_JS,
+  encoding: ENCODING_LATIN1,
 };
+
+export function chunk(name: string, source: string): Parts {
+  return { name: `/$bunfs/root/${name}`, source, loader: LOADER_JS, encoding: ENCODING_LATIN1 };
+}
 
 export const ripgrep: Parts = { name: '/$bunfs/root/rg-kc7jt1ak.', source: 'RIPGREP-BYTES' };
 export const skill: Parts = { name: '/$bunfs/root/SKILL.md-9e33f36r.asset', source: '# a skill' };

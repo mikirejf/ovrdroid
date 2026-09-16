@@ -1,11 +1,11 @@
 import path from 'node:path';
 
 import { patchSource } from '../binary/apply.ts';
-import { readSource } from '../binary/graph.ts';
+import { readApp } from '../binary/graph.ts';
 import { rebuildInto } from '../binary/rebuild.ts';
 import { say } from '../cli.ts';
 import type { Patch } from '../patch/patches.ts';
-import { patchSet } from '../patch/patches.ts';
+import { patches } from '../patch/patches.ts';
 import { timerPatches } from '../patch/timer-patches.ts';
 import { modulePatches, tracePatches } from '../patch/trace-patches.ts';
 import { watchPatches } from '../patch/watch-patches.ts';
@@ -18,7 +18,6 @@ export interface BuildOptions {
   modules?: boolean;
   watch?: boolean;
   timers?: boolean;
-  devReact: boolean;
   out: string;
 }
 
@@ -68,7 +67,7 @@ function refuseOverwrite(options: BuildOptions): void {
 export async function buildProbe(options: BuildOptions): Promise<void> {
   refuseOverwrite(options);
   const stock = await Bun.file(options.target).bytes();
-  const list: Patch[] = [...(await patchSet(options))];
+  const list: Patch[] = [...patches];
 
   if (options.trace === true) {
     list.push(...tracePatches);
@@ -86,7 +85,7 @@ export async function buildProbe(options: BuildOptions): Promise<void> {
     list.push(...(await readExtra(options.extra)));
   }
 
-  const patched = patchSource(readSource(stock), list);
+  const patched = patchSource(readApp(stock), list);
   say(`patched source: ${list.length} patches plus marker`);
 
   const result = await rebuildInto(stock, patched, options.out);

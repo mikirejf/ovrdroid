@@ -4,6 +4,7 @@ import { say } from '../cli.ts';
 import { buildBinary } from './build.ts';
 import { BUILD_BUN_VERSION, ensureBun } from './bun.ts';
 import { assertSameEmbeds } from './embeds.ts';
+import type { App } from './graph.ts';
 
 const BINARY_MODE = 0o755;
 
@@ -20,13 +21,13 @@ function sign(target: string): void {
 
 export async function rebuildInto(
   stock: Uint8Array,
-  source: string,
+  app: App,
   out: string,
 ): Promise<RebuildResult> {
   const bun = await ensureBun(BUILD_BUN_VERSION);
 
   say(`building with Bun ${BUILD_BUN_VERSION}`);
-  const seconds = await buildBinary({ bun, source, stock, out });
+  const seconds = await buildBinary({ bun, app, stock, out });
   say(`built in ${seconds.toFixed(1)}s`);
 
   assertSameEmbeds(stock, readFileSync(out));

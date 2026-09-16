@@ -3,15 +3,16 @@ import path from 'node:path';
 import type { Module } from './graph.ts';
 import {
   bufferOf,
+  embedName,
   ENCODING_LATIN1,
   ENCODING_UTF16LE,
   LOADER_FILE,
+  LOADER_JS,
   LOADER_TEXT,
   readModules,
   readRegion,
 } from './graph.ts';
 
-const EMBED_PREFIX = '/$bunfs/root/';
 const ASSET_DIR = 'assets';
 const CONTENT_HASH = /-[a-z0-9]{8}(?<ext>\.\w+)$/u;
 
@@ -24,16 +25,13 @@ function importName(index: number): string {
   return `__od${index}`;
 }
 
-function assetNameOf(module: Module): string {
-  return module.name.startsWith(EMBED_PREFIX)
-    ? module.name.slice(EMBED_PREFIX.length)
-    : module.name;
-}
-
 function embedsOf(bytes: Uint8Array): Map<string, Module> {
   const embeds = new Map<string, Module>();
 
   for (const module of readModules(bytes)) {
+    if (module.loader === LOADER_JS) {
+      continue;
+    }
     if (embeds.has(module.name)) {
       throw new Error(`two embedded files share the name ${module.name}`);
     }
@@ -66,10 +64,10 @@ export function preambleFor(embeds: readonly StagedEmbed[]): string {
 export async function stageEmbeds(stock: Uint8Array, dir: string): Promise<StagedEmbed[]> {
   const staged = [...embedsOf(stock).values()].map((module, index) => {
     if (module.loader === LOADER_FILE) {
-      return { specifier: assetNameOf(module), kind: 'file' as const, module };
+      return { specifier: embedName(module.name), kind: 'file' as const, module };
     }
     if (module.loader === LOADER_TEXT) {
-      const stem = assetNameOf(module).replace(CONTENT_HASH, '$<ext>');
+      const stem = embedName(module.name).replace(CONTENT_HASH, '$<ext>');
       return { specifier: `${index}/${stem}`, kind: 'text' as const, module };
     }
     throw new Error(`embedded file ${module.name} uses unknown loader ${module.loader}`);

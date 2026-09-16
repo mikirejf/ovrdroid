@@ -4,30 +4,47 @@ import {
   ENCODING_LATIN1,
   LOADER_FILE,
   LOADER_TEXT,
-  locateGraph,
+  readApp,
   readModules,
   readRegion,
-  readSource,
 } from '../graph.ts';
-import { build, entry, ripgrep, sidecars, skillText, text } from './binary.ts';
+import { build, chunk, entry, ripgrep, sidecars, skillText, text } from './binary.ts';
 
-describe('locateGraph', () => {
-  test('round-trips the three regions of the entry record', () => {
-    const bytes = build([entry, ...sidecars]);
-    const graph = locateGraph(bytes);
-
-    expect(text(readRegion(bytes, graph.source))).toBe(entry.source);
-    expect(text(readRegion(bytes, graph.bytecode))).toBe(entry.bytecode ?? '');
-    expect(text(readRegion(bytes, graph.moduleInfo))).toBe(entry.moduleInfo ?? '');
+describe('readApp', () => {
+  test('returns the entry module alone when there are no chunks', () => {
+    expect(readApp(build([entry, ...sidecars]))).toEqual([
+      { name: '/$bunfs/root/index.js', text: 'let a=1;' },
+    ]);
   });
 
-  test('reads the entry record even when it is not first', () => {
-    const bytes = build([...sidecars, entry], sidecars.length);
-    expect(readSource(bytes)).toBe(entry.source);
+  test('puts the entry first even when it sits last in the table', () => {
+    const app = readApp(build([...sidecars, entry], sidecars.length));
+
+    expect(app.map((module) => module.name)).toEqual(['/$bunfs/root/index.js']);
+  });
+
+  test('keeps the chunks in table order behind the entry', () => {
+    const one = chunk('chunk-aaaaaaaa.js', 'let b=2;');
+    const two = chunk('chunk-bbbbbbbb.js', 'let c=3;');
+    const app = readApp(build([one, entry, two], 1));
+
+    expect(app.map((module) => module.name)).toEqual([
+      '/$bunfs/root/index.js',
+      '/$bunfs/root/chunk-aaaaaaaa.js',
+      '/$bunfs/root/chunk-bbbbbbbb.js',
+    ]);
+  });
+
+  test('excludes the sidecars', () => {
+    const app = readApp(
+      build([entry, chunk('chunk-aaaaaaaa.js', 'let b=2;'), ...sidecars, skillText]),
+    );
+
+    expect(app.map((module) => module.text)).toEqual(['let a=1;', 'let b=2;']);
   });
 
   test('throws without a Bun trailer', () => {
-    expect(() => locateGraph(new Uint8Array(Buffer.from('not a bun binary')))).toThrow(
+    expect(() => readApp(new Uint8Array(Buffer.from('not a bun binary')))).toThrow(
       'Bun trailer not found',
     );
   });
@@ -37,7 +54,7 @@ describe('locateGraph', () => {
     const trailerPos = bytes.length - '\n---- Bun! ----\n'.length;
     new DataView(bytes.buffer).setUint32(trailerPos - 32 + 12, 100, true);
 
-    expect(() => locateGraph(bytes)).toThrow('not a multiple of 52');
+    expect(() => readApp(bytes)).toThrow('not a multiple of 52');
   });
 });
 

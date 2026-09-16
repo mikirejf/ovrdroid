@@ -5,7 +5,7 @@ import { messageOf } from '../../cli.ts';
 import { withTempDir } from '../../temp.ts';
 import type { StagedEmbed } from '../embeds.ts';
 import { assertSameEmbeds, preambleFor, stageEmbeds } from '../embeds.ts';
-import { build, entry, ripgrep, sidecars, skill, skillText } from './binary.ts';
+import { build, chunk, entry, ripgrep, sidecars, skill, skillText } from './binary.ts';
 
 function files(...specifiers: string[]): StagedEmbed[] {
   return specifiers.map((specifier) => ({ specifier, kind: 'file' }));
@@ -69,6 +69,17 @@ describe('stageEmbeds', () => {
       expect(await Bun.file(path.join(dir, 'assets', 'SKILL.md-9e33f36r.asset')).text()).toBe(
         '# a skill',
       );
+    });
+  });
+
+  test('leaves the app chunks alone because they are code, not sidecars', async () => {
+    const stock = build([entry, chunk('chunk-aaaaaaaa.js', 'let b=2;'), ...sidecars]);
+
+    await withTempDir('embeds-test', async (dir) => {
+      const embeds = await stageEmbeds(stock, dir);
+
+      expect(embeds).toEqual(files('rg-kc7jt1ak.', 'SKILL.md-9e33f36r.asset'));
+      expect(await Bun.file(path.join(dir, 'assets', 'chunk-aaaaaaaa.js')).exists()).toBe(false);
     });
   });
 
@@ -137,6 +148,14 @@ describe('assertSameEmbeds', () => {
   test('accepts a rebuild carrying the same embedded files', () => {
     expect(() => {
       check(build([{ ...entry, source: 'let a=2;' }, ...sidecars]));
+    }).not.toThrow();
+  });
+
+  test('accepts a rebuild whose chunk set changed entirely', () => {
+    const split = build([entry, chunk('chunk-aaaaaaaa.js', 'let b=2;'), ...sidecars]);
+
+    expect(() => {
+      assertSameEmbeds(split, build([entry, chunk('entry-99999999.js', 'let z=9;'), ...sidecars]));
     }).not.toThrow();
   });
 

@@ -4,40 +4,79 @@ import type { Patch } from '../../patch/patches.ts';
 import { markerDigest, markerStatement } from '../../patch/patches.ts';
 import type { Status } from '../apply.ts';
 import { describeStatus, patchSource, statusOf } from '../apply.ts';
+import type { App } from '../graph.ts';
 
 const list: readonly Patch[] = [
   { name: 'timeout', find: 'wait(150)', replace: 'wait(30)' },
   { name: 'await', find: 'let x=await go()', replace: 'let x=go()' },
 ];
 
-const stock = 'let x=await go();wait(150);done();';
+function app(entry: string, ...chunks: string[]): App {
+  return [
+    { name: 'entry', text: entry },
+    ...chunks.map((text, index) => ({ name: `chunk-${index + 1}.js`, text })),
+  ];
+}
+
+const stock = app('let x=await go();wait(150);done();');
 
 describe('patchSource', () => {
   test('applies every patch and appends the marker', () => {
-    const out = patchSource(stock, list);
+    const [entry] = patchSource(stock, list);
 
-    expect(out).toContain('let x=go();');
-    expect(out).toContain('wait(30);');
-    expect(out).toContain(markerStatement(list));
+    expect(entry.text).toContain('let x=go();');
+    expect(entry.text).toContain('wait(30);');
+    expect(entry.text).toContain(markerStatement(list));
   });
 
   test('throws when a find string is absent', () => {
-    expect(() => patchSource('nothing here', list)).toThrow(
+    expect(() => patchSource(app('nothing here'), list)).toThrow(
       'patch timeout: expected 1 occurrence, found 0',
     );
   });
 
   test('throws when a find string occurs twice', () => {
-    expect(() => patchSource(`${stock}wait(150);`, list)).toThrow(
+    expect(() => patchSource(app(`${stock[0].text}wait(150);`), list)).toThrow(
       'patch timeout: expected 1 occurrence, found 2',
     );
+  });
+
+  test('throws when a find string occurs once in each of two modules', () => {
+    expect(() => patchSource(app('wait(150);', 'let x=await go();wait(150);'), list)).toThrow(
+      'patch timeout: expected 1 occurrence, found 2',
+    );
+  });
+
+  test('patches a chunk and leaves the other modules untouched', () => {
+    const split = app('let x=await go();', 'wait(150);done();', 'other();');
+    const out = patchSource(split, list);
+
+    expect(out[1]?.text).toBe('wait(30);done();');
+    expect(out[2]?.text).toBe('other();');
+  });
+
+  test('appends the marker to the entry even when every patch hit a chunk', () => {
+    const split = app('head();', 'let x=await go();wait(150);');
+    const out = patchSource(split, list);
+
+    expect(out[0].text).toBe(`head();${markerStatement(list)}`);
+    expect(out[1]?.text).not.toContain('__ovrdroid');
+  });
+
+  test('patches the module that satisfies until, not a later one that does not', () => {
+    const span: readonly Patch[] = [
+      { name: 'span', find: 'let x=', until: 'go()', replace: 'let x=stop()' },
+    ];
+    const out = patchSource(app('head();', 'let x=await go();done();'), span);
+
+    expect(out[1]?.text).toBe('let x=stop();done();');
   });
 
   test('replaces everything from find through the end of until', () => {
     const span: readonly Patch[] = [
       { name: 'span', find: 'let x=', until: 'go()', replace: 'let x=stop()' },
     ];
-    expect(patchSource(stock, span)).toContain('let x=stop();wait(150);');
+    expect(patchSource(stock, span)[0].text).toContain('let x=stop();wait(150);');
   });
 
   test('throws when until is absent after find', () => {
@@ -49,13 +88,17 @@ describe('patchSource', () => {
 
   test('does not treat $ in a replacement as a capture reference', () => {
     const dollar: readonly Patch[] = [{ name: 'cash', find: 'A', replace: "'$&$1'" }];
-    expect(patchSource('xAx', dollar)).toContain("x'$&$1'x");
+    expect(patchSource(app('xAx'), dollar)[0].text).toContain("x'$&$1'x");
   });
 });
 
 describe('statusOf', () => {
   test('reports pending when every find occurs once and no marker is present', () => {
     expect(statusOf(stock, list)).toEqual({ kind: 'pending' });
+  });
+
+  test('reports pending when the finds are spread across modules', () => {
+    expect(statusOf(app('let x=await go();', 'wait(150);'), list)).toEqual({ kind: 'pending' });
   });
 
   test('reports applied when the marker matches the current digest', () => {
@@ -67,7 +110,7 @@ describe('statusOf', () => {
 
   test('reports stale when the marker is from a different patch set', () => {
     const older: readonly Patch[] = [{ name: 'timeout', find: 'wait(150)', replace: 'wait(1)' }];
-    const status = statusOf(`done();${markerStatement(older)}`, list);
+    const status = statusOf(app(`done();${markerStatement(older)}`), list);
 
     expect(status).toEqual({
       kind: 'stale',
@@ -76,8 +119,15 @@ describe('statusOf', () => {
     });
   });
 
+  test('ignores a marker that sits in a chunk rather than the entry', () => {
+    expect(statusOf(app('wait(150);', markerStatement(list)), list)).toEqual({
+      kind: 'missing',
+      names: ['await'],
+    });
+  });
+
   test('reports missing and names the patches that did not match once', () => {
-    expect(statusOf('wait(150);', list)).toEqual({ kind: 'missing', names: ['await'] });
+    expect(statusOf(app('wait(150);'), list)).toEqual({ kind: 'missing', names: ['await'] });
   });
 
   test('reports missing when until never follows find', () => {
@@ -89,7 +139,7 @@ describe('statusOf', () => {
 
   test('survives minification collapsing whitespace around the marker', () => {
     const minified = `a=1;globalThis.__ovrdroid="${markerDigest(list)}";`;
-    expect(statusOf(minified, list).kind).toBe('applied');
+    expect(statusOf(app(minified), list).kind).toBe('applied');
   });
 });
 

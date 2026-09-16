@@ -3,7 +3,6 @@ import { Command } from 'commander';
 
 import { choice, count, guard } from '../cli.ts';
 import { backupPath, INSTALLED_DROID } from '../paths.ts';
-import { anchors } from './anchors-report.ts';
 import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
 import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
@@ -12,6 +11,7 @@ import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { menu, touches, watch } from './menu-report.ts';
 import { buildProbe } from './probe-build.ts';
+import { anchors, extract } from './release-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
@@ -37,7 +37,6 @@ program
   .option('--modules', 'include the module timing patches')
   .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--timers', 'include the timer census patches')
-  .option('--dev-react', "keep React's development build for full DevTools diagnostics", false)
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
 
@@ -110,6 +109,13 @@ program
   .description('show which config files a startup rewrites and which it only touches')
   .argument('<binary>')
   .action(guard(touches));
+
+program
+  .command('extract')
+  .description('write every app module of a binary to a directory, one file each, for grepping')
+  .argument('<binary>')
+  .requiredOption('-o, --out <dir>', 'where to write the modules')
+  .action(guard(extract));
 
 program
   .command('anchors')

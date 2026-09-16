@@ -12,21 +12,38 @@ const FIELD = {
   loader: 49,
 } as const;
 
+export const LOADER_JS = 1;
 export const LOADER_FILE = 5;
 export const LOADER_TEXT = 13;
 
 export const ENCODING_LATIN1 = 1;
 export const ENCODING_UTF16LE = 2;
 
+export const EMBED_PREFIX = '/$bunfs/root/';
+export const ENTRY_FILE = 'entry.js';
+
 export interface Region {
   start: number;
   length: number;
 }
 
-export interface Graph {
-  source: Region;
-  bytecode: Region;
-  moduleInfo: Region;
+export interface AppModule {
+  name: string;
+  text: string;
+}
+
+export type App = readonly [AppModule, ...AppModule[]];
+
+export function embedName(name: string): string {
+  return name.startsWith(EMBED_PREFIX) ? name.slice(EMBED_PREFIX.length) : name;
+}
+
+export function appBytes(app: App): number {
+  return app.reduce((sum, module) => sum + module.text.length, 0);
+}
+
+export function joinApp(app: App): string {
+  return app.map((module) => module.text).join('\n');
 }
 
 export interface Module {
@@ -86,17 +103,6 @@ function regionAt(layout: Layout, recordPos: number, field: number): Region {
   };
 }
 
-export function locateGraph(bytes: Uint8Array): Graph {
-  const layout = layoutOf(bytes);
-  const recordPos = recordPosOf(layout, layout.entryPointId);
-
-  return {
-    source: regionAt(layout, recordPos, FIELD.source),
-    bytecode: regionAt(layout, recordPos, FIELD.bytecode),
-    moduleInfo: regionAt(layout, recordPos, FIELD.moduleInfo),
-  };
-}
-
 export function readRegion(bytes: Uint8Array, area: Region): Uint8Array {
   return bytes.subarray(area.start, area.start + area.length);
 }
@@ -125,6 +131,40 @@ export function readModules(bytes: Uint8Array): Module[] {
   return modules;
 }
 
-export function readSource(bytes: Uint8Array, graph = locateGraph(bytes)): string {
-  return readText(bytes, graph.source);
+function readAppModule(bytes: Uint8Array, layout: Layout, recordPos: number): AppModule {
+  const name = readText(bytes, regionAt(layout, recordPos, FIELD.name));
+  const encoding = layout.view.getUint8(recordPos + FIELD.encoding);
+  if (encoding !== ENCODING_LATIN1) {
+    throw new Error(`app module ${name} carries unexpected text encoding ${encoding}`);
+  }
+  return {
+    name,
+    text: bufferOf(readRegion(bytes, regionAt(layout, recordPos, FIELD.source))).toString('latin1'),
+  };
+}
+
+export function readApp(bytes: Uint8Array): App {
+  const layout = layoutOf(bytes);
+  let entry: AppModule | undefined;
+  const chunks: AppModule[] = [];
+
+  for (let index = 0; index < layout.recordCount; index += 1) {
+    const recordPos = recordPosOf(layout, index);
+    const isEntry = index === layout.entryPointId;
+    if (!isEntry && layout.view.getUint8(recordPos + FIELD.loader) !== LOADER_JS) {
+      continue;
+    }
+    const module = readAppModule(bytes, layout, recordPos);
+    if (isEntry) {
+      entry = module;
+    } else {
+      chunks.push(module);
+    }
+  }
+
+  if (entry === undefined) {
+    throw new Error('binary has no entry module');
+  }
+
+  return [entry, ...chunks];
 }
