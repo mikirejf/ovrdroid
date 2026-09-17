@@ -59,23 +59,23 @@ const TURN_CLOCK_STATE =
   '$ODt=(S)=>{try{return P().getSessionStateManager().getSessionManager(S)' +
   '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
 
+const TURN_CLOCK_TICK =
+  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=g(0);' +
+  'x(()=>{if(!$last)return;' +
+  'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
+  '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
+  'return()=>clearTimeout($id)},[$last,$t]);';
+
 const TURN_CLOCK_TRACK =
   'let $busy=F!=="idle";' +
   'if($ODc.session!==U)$ODc.session=U,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
   'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(U):$ODc.done=$ODt(U);';
 
-const TURN_CLOCK_TICK =
-  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=g(0);' +
-  'D(()=>{if(!$last)return;' +
-  'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
-  '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
-  'return()=>clearTimeout($id)},[$last,$t]);';
-
 const TURN_CLOCK_PARTS =
   'if($last){let $ago=[];' +
-  'if($ODc.sent)$ago.push(We("\\u2191"+$ODa($now-$ODc.sent),{color:s.text.muted}));' +
-  'if($ODc.done)$ago.push(We(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:s.text.muted}));' +
-  'dc(xe,$ago)}';
+  'if($ODc.sent)$ago.push(je("\\u2191"+$ODa($now-$ODc.sent),{color:s.text.muted}));' +
+  'if($ODc.done)$ago.push(je(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:s.text.muted}));' +
+  'pc(xe,$ago)}';
 
 export const patches: readonly Patch[] = [
   {
@@ -85,8 +85,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'whoami-no-block',
-    find: 'let h=await No(s,a);if(h.resolved&&S&&S.tokenHash===r)',
-    replace: 'let h=/**/  No(s,a);if(h.resolved&&S&&S.tokenHash===r)',
+    find: 'let h=await Uo(s,a);if(h.resolved&&S&&S.tokenHash===r)',
+    replace: 'let h=Uo(s,a);if(h.resolved&&S&&S.tokenHash===r)',
   },
   {
     name: 'certificate-count-skip',
@@ -95,13 +95,13 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'shutdown-flush-deadline',
-    find: 'pn=1e4,mn=1000,',
-    replace: 'pn=1e4,mn=10.0,',
+    find: 'Cn=1e4,Rn=1000,',
+    replace: 'Cn=1e4,Rn=10,',
   },
   {
     name: 'session-search-warm-skip',
-    find: 'warmSessionSearch:!o||o.length===0,',
-    replace: 'warmSessionSearch:!1/*o.length*/,',
+    find: 'warmSessionSearch:!a||a.length===0,',
+    replace: 'warmSessionSearch:!1,',
   },
   {
     name: 'zod-v3-lazy-bound-methods',
@@ -112,46 +112,46 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(e in jn)return e;if(Object.values(jn).includes(e))return e;return}',
+    find: 'if(e in Xn)return e;if(Object.values(Xn).includes(e))return e;return}',
     replace:
-      'if(e in jn)return e;if((Tt.$o!==jn&&(Tt.$o=jn,Tt.$s=new Set(Object.values(jn))),Tt.$s).has(e))return e;return}',
+      'if(e in Xn)return e;if((St.$o!==Xn&&(St.$o=Xn,St.$s=new Set(Object.values(Xn))),St.$s).has(e))return e;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',
-    find: 'for(let{segment:N}of Q0.segment(m)){if(F0(N))continue;if(m0.test(N)){h+=2;continue}let M=y0(N).codePointAt(0);h+=Xc(M,S),h+=S0(N,S)}if(f)ec(n,h);return h}',
+    find: 'for(let{segment:F}of D0.segment(f)){if(N0(F))continue;if(p0.test(F)){d+=2;continue}let G=S0(F).codePointAt(0);d+=dl(G,h),d+=R0(F,h)}if(Q)uc(n,d);return d}',
     replace:
-      'let $m=o?kn.$n:kn.$w;for(let{segment:N}of Q0.segment(m)){let $c=$m.get(N);if($c===void 0){if(F0(N))$c=0;else if(m0.test(N))$c=2;else{let M=y0(N).codePointAt(0);$c=Xc(M,S)+S0(N,S)}if($m.size<2e4)$m.set(N,$c)}h+=$c}if(f)ec(n,h);return h}',
+      'let $m=o?kn.$n:kn.$w;for(let{segment:F}of D0.segment(f)){let $c=$m.get(F);if($c===void 0){if(N0(F))$c=0;else if(p0.test(F))$c=2;else{let G=S0(F).codePointAt(0);$c=dl(G,h)+R0(F,h)}if($m.size<2e4)$m.set(F,$c)}d+=$c}if(Q)uc(n,d);return d}',
   },
   {
     name: 'ink-string-width-grapheme-memo-init',
-    find: 'm0=/^\\p{RGI_Emoji}$/v;function tc(n){',
-    replace: 'm0=/^\\p{RGI_Emoji}$/v;kn.$n=new Map;kn.$w=new Map;function tc(n){',
+    find: 'p0=/^\\p{RGI_Emoji}$/v;function nc(n){',
+    replace: 'p0=/^\\p{RGI_Emoji}$/v;kn.$n=new Map;kn.$w=new Map;function nc(n){',
   },
   {
     name: 'app-display-width-grapheme-memo',
-    find: 'for(let{segment:S}of _0.segment(f)){if(W0(S))continue;if(Z0.test(S)){m+=2;continue}let N=V0(S).codePointAt(0);m+=Xc(N,h),m+=j0(S,h)}return m}',
+    find: 'for(let{segment:h}of Z0.segment(Q)){if($0(h))continue;if(j0.test(h)){f+=2;continue}let F=P0(h).codePointAt(0);f+=dl(F,d),f+=Am(h,d)}return f}',
     replace:
-      'let $m=o?Si.$n:Si.$w;for(let{segment:S}of _0.segment(f)){let $c=$m.get(S);if($c===void 0){if(W0(S))$c=0;else if(Z0.test(S))$c=2;else{let N=V0(S).codePointAt(0);$c=Xc(N,h)+j0(S,h)}if($m.size<2e4)$m.set(S,$c)}m+=$c}return m}',
+      'let $m=o?Si.$n:Si.$w;for(let{segment:h}of Z0.segment(Q)){let $c=$m.get(h);if($c===void 0){if($0(h))$c=0;else if(j0.test(h))$c=2;else{let F=P0(h).codePointAt(0);$c=dl(F,d)+Am(h,d)}if($m.size<2e4)$m.set(h,$c)}f+=$c}return f}',
   },
   {
     name: 'app-display-width-grapheme-memo-init',
-    find: 'Z0=/^\\p{RGI_Emoji}$/v;function V0(n){',
-    replace: 'Z0=/^\\p{RGI_Emoji}$/v;Si.$n=new Map;Si.$w=new Map;function V0(n){',
+    find: 'j0=/^\\p{RGI_Emoji}$/v;function P0(n){',
+    replace: 'j0=/^\\p{RGI_Emoji}$/v;Si.$n=new Map;Si.$w=new Map;function P0(n){',
   },
   {
     name: 'turn-clock-state',
-    find: 'var Nte=new Set(["thinking","streaming","compressing","executing_tool"]),Fte="\\uF418",',
-    replace: `var ${TURN_CLOCK_STATE},Nte=new Set(["thinking","streaming","compressing","executing_tool"]),Fte="\\uF418",`,
+    find: 'var Wte=new Set(["thinking","streaming","compressing","executing_tool"]),zte="\\uF418",',
+    replace: `var ${TURN_CLOCK_STATE},Wte=new Set(["thinking","streaming","compressing","executing_tool"]),zte="\\uF418",`,
   },
   {
     name: 'turn-clock-track',
-    find: 'isSessionArchived:ce,updateNoticeDisplay:ue}){let de=Vte(',
-    replace: `isSessionArchived:ce,updateNoticeDisplay:ue}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let de=Vte(`,
+    find: 'isSessionArchived:de,updateNoticeDisplay:me}){let pe=qte(',
+    replace: `isSessionArchived:de,updateNoticeDisplay:me}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let pe=qte(`,
   },
   {
     name: 'turn-clock-parts',
-    find: 'let Te=Z$(q);if(Te)dc(xe,[We(Te,{color:s.primary})]);let we=[];',
-    replace: `let Te=Z$(q);if(Te)dc(xe,[We(Te,{color:s.primary})]);${TURN_CLOCK_PARTS}let we=[];`,
+    find: 'let Te=R7(K);if(Te)pc(xe,[je(Te,{color:s.primary})]);let ve=[];',
+    replace: `let Te=R7(K);if(Te)pc(xe,[je(Te,{color:s.primary})]);${TURN_CLOCK_PARTS}let ve=[];`,
   },
   {
     name: 'auto-update-notice-only',
@@ -165,29 +165,47 @@ export const patches: readonly Patch[] = [
     replace: 'available:"\\u2193 v{{version}} available \\xB7 run: ovrdroid update",',
   },
   {
+    name: 'update-notice-sticky',
+    find:
+      'function Zte({chatDraftEmpty:b,updateNoticeDisplay:w}){' +
+      'let{t:C}=ut("common"),{hasIssues:F,results:U}=Z1();',
+    replace:
+      'function Zte({chatDraftEmpty:b,updateNoticeDisplay:w}){' +
+      'let{t:C}=ut("common"),{hasIssues:F,results:U}=Z1();' +
+      'if($ODu(w.notice))return{text:C(w.notice.key,{version:w.notice.version}),color:s.warning};',
+  },
+  {
+    name: 'update-notice-sticky-predicate',
+    find: 'function eF(b){if(b===null)return{kind:"hidden"};',
+    replace:
+      'function $ODu(N){return N.kind==="progress"&&N.key==="update.available"}' +
+      'function eF(b){if(b===null)return{kind:"hidden"};',
+  },
+  {
     name: 'command-menu-prefix-first',
-    find: 'if(ce&&ue)return 1;if(ce)return 2;if(ue)return 3;return 4}',
-    replace: 'if(ue)return ce?1:2;if(ce)return 3;return 4}',
+    find: 'if(de&&me)return 1;if(de)return 2;if(me)return 3;return 4}',
+    replace: 'if(me)return de?1:2;if(de)return 3;return 4}',
   },
   {
     name: 'command-catalog-mark-scanned',
-    find: 'function Wa(n){if(r.status===n.status',
-    replace: 'function Wa(n){if(n.status==="ready")Lo.$done=!0;if(r.status===n.status',
+    find: 'function ec(n){let t=l();if(t.snapshot.status===n.status',
+    replace:
+      'function ec(n){if(n.status==="ready")$o.$done=!0;let t=l();if(t.snapshot.status===n.status',
   },
   {
     name: 'command-menu-loading-first-scan-only',
-    find: 'isLoading:to.status==="refreshing"}',
-    replace: 'isLoading:to.status==="refreshing"&&!Lo.$done}',
+    find: 'isLoading:uo.status==="refreshing"}',
+    replace: 'isLoading:uo.status==="refreshing"&&!$o.$done}',
   },
   {
     name: 'command-menu-visibility-same-commit',
-    find: 'gt=A((yn)=>{Io({showCommands:yn}),Xt(yn)},[Io])',
-    replace: 'gt=A((yn)=>{Io({showCommands:yn}),Xt(yn),At?.(yn)},[Io,At])',
+    find: 'xt=A((Tn)=>{Ao({showCommands:Tn}),ao(Tn)},[Ao])',
+    replace: 'xt=A((Tn)=>{Ao({showCommands:Tn}),ao(Tn),Bt?.(Tn)},[Ao,Bt])',
   },
   {
     name: 'command-menu-visibility-reset-on-unmount',
-    find: 'D(()=>{At?.(io)},[io,At]);',
-    replace: 'D(()=>()=>{At?.(!1)},[At]);',
+    find: 'x(()=>{Bt?.(go)},[go,Bt]);',
+    replace: 'x(()=>()=>{Bt?.(!1)},[Bt]);',
   },
   {
     name: 'settings-watch-after-paint',
