@@ -11,7 +11,7 @@ import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { highlight, menu, touches, watch } from './menu-report.ts';
 import { buildProbe } from './probe-build.ts';
-import { anchors, extract } from './release-report.ts';
+import { anchors, extract, grep, names } from './release-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
@@ -23,6 +23,7 @@ const EXEC_RUNS = 30;
 const EXEC_PROMPT = 'Reply with exactly: ok';
 const EXEC_EXPECT = 'ok';
 const TOP_MODULES = 20;
+const CONTEXT_SPAN = 200;
 const DEFAULT_CHURN: ChurnKind = 'startup';
 const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
 
@@ -129,6 +130,23 @@ program
   .argument('<binary>')
   .option('--json', 'print the rebased patches as JSON', false)
   .action(guard(anchors));
+
+program
+  .command('grep')
+  .description('count where a literal occurs across the app: can it anchor a patch on its own?')
+  .argument('<binary>')
+  .argument('<needle>')
+  .option('-s, --span <chars>', 'characters of surrounding code to print', count, CONTEXT_SPAN)
+  .option('-q, --quiet', 'print only the verdict, not the surrounding code', false)
+  .action(guard(grep));
+
+program
+  .command('names')
+  .description('resolve the free names a patch body uses, in the module its anchor sits in')
+  .argument('<binary>')
+  .argument('<anchor>')
+  .argument('<names...>')
+  .action(guard(names));
 
 program
   .command('idle')
