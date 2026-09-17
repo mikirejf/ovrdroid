@@ -122,13 +122,17 @@ So when a scratch script earns its keep, generalise it before you stop:
   `touched but byte-identical` beats `ctime changed`.
 
 The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modules`, `cpu`, `menu`,
-`watch`, `touches`, `extract`, `anchors`.
+`watch`, `touches`, `extract`, `anchors`, `grep`, `names`.
 
 ## After a Droid update
 
 `ovrdroid update` printing `markers not found (Droid version drift)` is the patch set falling behind
 a release. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it runs `probe anchors`
-and `probe extract`, re-anchors each patch, and proves the result on a copy.
+to rebase what it can, `probe grep` and `probe names` to settle the rest, re-anchors the tests that
+carry their own release-scoped names, and proves the result on a copy.
+
+Searching the bundle with shell `grep` does not work: a chunk is one 1.2MB line, so `grep -c` says
+`1` for a string occurring four times. Use `probe grep`.
 
 ## Measuring startup
 

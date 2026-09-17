@@ -7,22 +7,28 @@ patch whose `find` no longer occurs exactly once. Work from the stock binary the
 Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints, and
 `probe ab` against the stock copy resolves faster.
 
+Budget: 0.221.0 took 13 patches rebased automatically, 7 by hand, and 2 test files whose own
+anchors had drifted. Expect the mechanical half to be free and the hand half to be the work.
+
 ## 1. Triage the drift
 
 ```bash
 cp ~/.local/bin/droid /tmp/droid-stock
 bun run ovrdroid status                 # the missing list
-bun run probe anchors ~/.local/bin/droid
+bun run probe anchors /tmp/droid-stock
 ```
 
 `anchors` re-finds each patch by identifier **shape** and prints one line per patch:
 
-- `unchanged` / `rebased` with `old->new` renames: the mechanical part is done. Its `replace`
-  still needs the same renames applied by hand, and any name it lists as `unresolved` is a
-  free identifier in `replace` (a module-scope function, a React hook, a theme object) that the
-  find string never captured, so you look those up in step 3.
+- `unchanged` / `rebased` with `old->new` renames: the mechanical part is done. `--json` prints
+  the rebased `find`, `until` and `replace` for every patch with the renames already applied, so
+  copy those in rather than renaming by hand.
 - `missing`: the code moved or was rewritten. Step 3.
 - `ambiguous N places`: the shape now matches N sites. Widen the `find` until it is unique.
+
+`unresolved: X Y` on a rebased line is the part `--json` cannot do for you: a free name in
+`replace` (a module-scope function, a React hook, a theme object) that the `find` never captured,
+so the rename map never learned it. Step 3 resolves those.
 
 If **every** patch is missing at once, the drift is structural, not cosmetic: the module layout
 changed under the harness (0.220.0 split one module into 496 chunks). Check `status`'s
@@ -32,7 +38,7 @@ reading the wrong module. Fix `src/binary/` first, patches second.
 ## 2. Extract the source
 
 ```bash
-bun run probe extract ~/.local/bin/droid -o work/src/<version>
+bun run probe extract /tmp/droid-stock -o work/src/<version>
 ```
 
 One file per module, `entry.js` plus `chunk-*.js`, ASCII, one line each. Keep the previous
@@ -43,32 +49,64 @@ release's extraction beside it: the diff between two releases is where the renam
 Start from a literal the minifier cannot rename (a log message, an event name, a `"draft-edited"`
 action type, a `\uF418` glyph, `RGI_Emoji`) and walk outward to the code the patch touches.
 
+**Do not reach for `grep` here.** A chunk is one 1.2MB line, which breaks the usual tools three
+different ways: `grep -c` counts matching **lines**, so it reports `1` for a string occurring four
+times; `grep -o -E '.{400}…'` dies with `invalid repetition count`; and a plain recursive `grep`
+over 502 chunks times out. Two probe commands answer those questions instead, straight off the
+binary, no extraction needed.
+
 ```bash
-grep -l -F '"draft-edited"' work/src/<version>/*.js       # which chunk
-grep -o -F 'let C=A(()=>{w({type:"draft-edited"})' work/src/<version>/*.js | wc -l   # exactly 1
+bun run probe grep /tmp/droid-stock 'gZ=58,hZ=24'          # can this literal anchor a patch?
+bun run probe grep /tmp/droid-stock 'status:"ready"' -q    # verdict only, no surrounding code
 ```
 
-Count with `grep -o ... | wc -l`, never `grep -c`: a chunk is one line, so `-c` says `1` for a
-string that occurs four times.
+`grep` prints the verdict first (`1 place … unique, so it can anchor a patch`, or `3 places across
+3 modules … widen it`) and then each place with its chunk, offset and surrounding code. A patch
+whose `find` is not unique fails the harness's own check later, so settle it here.
 
-Names a patch needs beyond its `find` come from the chunk's import header (first ~2KB): with
-splitting, React hooks arrive as `import{A,D,v,g}from"…chunk-4hgqprmy.js"` and are used bare, so
-`rJ.useState` becomes `g`, `useEffect` becomes `D`, `useRef` becomes `v`, `useCallback` becomes
-`A`. Confirm each by reading its definition in the exporting chunk (`g=function(t){return
-i.H.useState(t)}`).
+```bash
+bun run probe names /tmp/droid-stock '<the rebased find string>' g x P je pc
+```
+
+`names` takes the patch's anchor, finds the chunk it sits in, and resolves each name **as that
+chunk sees it**: imported (naming the chunk it comes from), defined locally (with the definition),
+or free. Feed it exactly the `unresolved:` list from step 1. A name it calls free is a crash
+waiting at runtime, not a warning.
+
+This is also the trap that makes eyeballing wrong. In 0.220.0 `T6` was the wordmark; in 0.221.0
+the wordmark moved to `O$` and `T6` became an unrelated markdown regex in a different chunk. A
+rename carried over by hand would have compiled, shipped, and drawn garbage. `names` says which
+one you have.
+
+With splitting, React hooks arrive through the import header and are used bare: `useState` is `g`,
+`useEffect` is `x`, `useRef` is `v`, `useCallback` is `A`, `useMemo` is `E`. Those letters are
+release-scoped; `names` re-derives them in one call, so never carry them across a release.
 
 A patch that hangs a flag on a function (`X.$done`) must hang it on a name that both the writing
 site and the reading site can see. Across chunks that means an **exported** name the reader
-imports; read the reader's import line before choosing.
+imports; `names` on the reader's anchor tells you which.
 
 When a stock feature the patch replaced now ships upstream (0.220.0 shipped production React, so
 the React swap went), delete the patch rather than re-anchoring it.
 
-## 4. Prove it
+## 4. Re-anchor the tests too
+
+`bun test` goes red on a release for two reasons, and only one of them is your patches. Tests that
+evaluate a patch payload carry **their own** copies of release-scoped names, and those drift on the
+same schedule:
+
+- `src/patch/__tests__/command-menu.test.ts` builds the ranking function around the bindings the
+  bundle gives it (`de`, `me` on 0.221.0). They rename with the patch.
+- `src/patch/__tests__/stock-source.test.ts` pins the zod base class (`SCHEMA_CLASS`, `en` on
+  0.221.0). Find the new one from the constructor the patch matches, then read back to `class`.
+
+A failure there is drift, not a bug. Fix the test's anchor the same way you fixed the patch's.
+
+## 5. Prove it
 
 ```bash
 bun test && bun run verify
-cp ~/.local/bin/droid /tmp/droid-test
+cp /tmp/droid-stock /tmp/droid-test
 bun run ovrdroid apply --target /tmp/droid-test
 bun run ovrdroid status --target /tmp/droid-test     # applied <digest>
 bun run probe ab -r 8 /tmp/droid-stock /tmp/droid-test

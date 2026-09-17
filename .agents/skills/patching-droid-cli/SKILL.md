@@ -72,20 +72,29 @@ carry split chunks; the harness rebuilds the whole file instead.
 
 ## Finding a patch site
 
-`bun run probe extract <binary> -o work/src/<version>` writes one file per module. Work on that
-text, not the binary. Each file is one minified line, so read it with `rg` and offsets rather than
-an editor.
+Two probe commands read the binary directly and answer the only two questions a patch site poses:
+
+```bash
+bun run probe grep <binary> 'gZ=58,hZ=24'        # is this literal unique enough to anchor?
+bun run probe names <binary> '<find>' g x P je   # what are the free names in the replacement?
+```
+
+`grep` prints a verdict (`unique, so it can anchor a patch`, or `N places … widen it`) then every
+place with its chunk and surrounding code. `names` resolves each name as the anchor's own chunk
+sees it: imported, locally defined, or free. **Never reach for shell `grep` here**: a chunk is one
+1.2MB line, so `grep -c` reports `1` for a string occurring four times, long `-E '.{400}'` context
+patterns error out, and a recursive grep over 502 chunks times out.
+
+`bun run probe extract <binary> -o work/src/<version>` writes one file per module when you need to
+read a whole region rather than query it. Keep the previous release's extraction beside it.
 
 - Anchor on strings the minifier cannot rename: log messages, telemetry event names, URL paths,
   env var names. Then walk outward to the identifier you need.
-- Minified identifiers (`ARu`, `pIn`, `cQB`) are release-scoped. Never treat one as stable, and
-  keep each find string long enough to be unique but short enough to survive unrelated edits
-  nearby.
+- Minified identifiers (`ARu`, `pIn`, `cQB`) are release-scoped, and a name is **reused across
+  releases for unrelated code**: `T6` was the wordmark on 0.220.0 and a markdown regex on 0.221.0.
+  Resolve every name against the new binary rather than carrying one across.
 - Check uniqueness before believing a find string. A one-occurrence check in the harness is the
   guardrail that turns the next Droid release into a clean `missing:` report.
-- **Count occurrences, not lines.** `grep -c` counts matching **lines**, and the bundle is one
-  20MB line per module, so it reports `1` for a string that appears four times and the anchor
-  silently fails the harness's uniqueness check later. Use `grep -o -F "str" file | wc -l`.
 
 ## Safety
 
