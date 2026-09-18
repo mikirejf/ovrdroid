@@ -77,6 +77,33 @@ const TURN_CLOCK_PARTS =
   'if($ODc.done)$ago.push(je(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:s.text.muted}));' +
   'pc(xe,$ago)}';
 
+const UPDATE_FILE_NAME = 'ovrdroid-update.json';
+
+const UPDATE_FILE_WRITER_NAME = '$ODw';
+
+const UPDATE_FILE_READER_NAME = '$ODr';
+
+const UPDATE_LOCAL = '$ODv';
+
+const UPDATE_STYLE = 'ovrdroid-update';
+
+const UPDATE_FILE_WRITER =
+  `function ${UPDATE_FILE_WRITER_NAME}(V){` +
+  `try{let P=Y.join(L(),k(),${JSON.stringify(UPDATE_FILE_NAME)});` +
+  'if(V===null)C.rmSync(P,{force:!0});' +
+  'else C.writeFileSync(P,JSON.stringify({version:V}))}catch{}}';
+
+const UPDATE_FILE_READER =
+  `function ${UPDATE_FILE_READER_NAME}(){` +
+  `try{let P=Ff.join(L(),k(),${JSON.stringify(UPDATE_FILE_NAME)}),` +
+  'V=JSON.parse(Dc.readFileSync(P,"utf8")).version;' +
+  'return typeof V==="string"&&V!==Ui()?V:null}catch{return null}}';
+
+const UPDATE_HEADER_LINE =
+  `if(${UPDATE_LOCAL}){` +
+  `let $x="\\u2193 v"+${UPDATE_LOCAL}+" available \\xB7 run: ovrdroid update";` +
+  `Zi(xe,Ie,Ce($x),$x,"${UPDATE_STYLE}"),Ie+=2}`;
+
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
@@ -157,29 +184,34 @@ export const patches: readonly Patch[] = [
     name: 'auto-update-notice-only',
     find: 'if(!m)return s(u,"no-update"),"no-update";if(m.isRollback){',
     replace:
-      'if(!m)return s(u,"no-update"),"no-update";return _({type:"update-available",version:m.version.version}),l("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:m.version.version}),s(u,"skipped"),"skipped";if(m.isRollback){',
+      `if(!m)return ${UPDATE_FILE_WRITER_NAME}(null),s(u,"no-update"),"no-update";` +
+      `return ${UPDATE_FILE_WRITER_NAME}(m.version.version),` +
+      'l("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:m.version.version}),' +
+      's(u,"skipped"),"skipped";if(m.isRollback){',
   },
   {
-    name: 'update-notice-command',
-    find: 'available:"\\u2193 v{{version}} available",',
-    replace: 'available:"\\u2193 v{{version}} available \\xB7 run: ovrdroid update",',
+    name: 'update-notice-writer',
+    find: 'function j(){return Y.join(L(),k(),Z)}',
+    replace: `${UPDATE_FILE_WRITER}function j(){return Y.join(L(),k(),Z)}`,
   },
   {
-    name: 'update-notice-sticky',
-    find:
-      'function Zte({chatDraftEmpty:b,updateNoticeDisplay:w}){' +
-      'let{t:C}=ut("common"),{hasIssues:F,results:U}=Z1();',
+    name: 'update-notice-reader',
+    find: 'function MZ(b){return{empty:{color:void 0,bold:!1,italic:!1},',
     replace:
-      'function Zte({chatDraftEmpty:b,updateNoticeDisplay:w}){' +
-      'let{t:C}=ut("common"),{hasIssues:F,results:U}=Z1();' +
-      'if($ODu(w.notice))return{text:C(w.notice.key,{version:w.notice.version}),color:s.warning};',
+      `${UPDATE_FILE_READER}function MZ(b){return{empty:{color:void 0,bold:!1,italic:!1},` +
+      `"${UPDATE_STYLE}":{color:s.warning,bold:!0,italic:!1},`,
   },
   {
-    name: 'update-notice-sticky-predicate',
-    find: 'function eF(b){if(b===null)return{kind:"hidden"};',
+    name: 'update-notice-header-room',
+    find: 'de=!ae().isProductionTier,me=!ne&&!!Ui(),he=ue.length+2+(de?1:0)+(me?2:0)+5,',
     replace:
-      'function $ODu(N){return N.kind==="progress"&&N.key==="update.available"}' +
-      'function eF(b){if(b===null)return{kind:"hidden"};',
+      `de=!ae().isProductionTier,me=!ne&&!!Ui(),${UPDATE_LOCAL}=${UPDATE_FILE_READER_NAME}(),` +
+      `he=ue.length+2+(de?1:0)+(me?2:0)+(${UPDATE_LOCAL}?2:0)+5,`,
+  },
+  {
+    name: 'update-notice-header-line',
+    find: 'Zi(xe,Ie,Ce(Ye),Ye,"box-label"),Ie+=2;',
+    replace: `${UPDATE_HEADER_LINE}Zi(xe,Ie,Ce(Ye),Ye,"box-label"),Ie+=2;`,
   },
   {
     name: 'command-menu-prefix-first',

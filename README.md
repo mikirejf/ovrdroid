@@ -34,8 +34,11 @@ Status: the harness applies the patch set below.
 | `turn-clock-state`                     | Adds the turn clock's state and its duration formatter        | The footer needs somewhere to remember when the last turn started and ended.                                                       |
 | `turn-clock-track`                     | Records the times as the session goes busy and idle           | The footer already re-renders on every status change, so the two edges are free to observe.                                        |
 | `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                          | Shows how long ago the last prompt went out and the last reply landed.                                                             |
-| `auto-update-notice-only`              | Stops the update at the check and reports it as available     | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
-| `update-notice-command`                | Adds `run: ovrdroid update` to the update notice              | The notice has to name the command that now does the updating.                                                                     |
+| `auto-update-notice-only`              | Stops the update at the check and records the version found   | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.      |
+| `update-notice-writer`                 | Writes the version found to `~/.factory/ovrdroid-update.json` | The check finishes long after the header is painted, so the answer has to outlive the session that found it.                       |
+| `update-notice-reader`                 | Reads that file when the header paints                        | One `readFileSync` of a tiny file, and it returns nothing once the installed version has caught up.                                |
+| `update-notice-header-room`            | Reserves a header row for the notice                          | The header sizes its canvas up front, so the extra line has to be counted before anything is drawn.                                |
+| `update-notice-header-line`            | Draws `↓ vX available · run: ovrdroid update` in the header   | The notice belongs where a session starts, not in the status bar where it competes with live state for the rest of the session.    |
 | `settings-watch-after-paint`           | Starts the settings file watchers 400ms later                 | Registering them crawls the settings trees before the input box paints, and nothing needs a file-change event that early.          |
 | `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                       | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                |
 
@@ -382,7 +385,7 @@ bun run verify
 ## Safety
 
 - A patched binary blocks its own auto-update, so an update can no longer replace it silently. The
-  footer says `v0.219.0 available · run: ovrdroid update` instead, and `ovrdroid update` installs it
-  and re-applies the patch set.
+  header of the next session says `↓ v0.219.0 available · run: ovrdroid update` instead, and
+  `ovrdroid update` installs it and re-applies the patch set.
 - Never patch `~/.local/bin/droid` in place without a backup.
 - Test on a copy first.
