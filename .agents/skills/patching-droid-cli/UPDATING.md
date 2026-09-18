@@ -7,7 +7,7 @@ patch whose `find` no longer occurs exactly once. Work from the stock binary the
 Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints, and
 `probe ab` against the stock copy resolves faster.
 
-Budget: 0.221.0 took 13 patches rebased automatically, 7 by hand, and 2 test files whose own
+Budget: 0.222.0 took 16 patches rebased automatically, 6 by hand, and 2 test files whose own
 anchors had drifted. Expect the mechanical half to be free and the hand half to be the work.
 
 ## 1. Triage the drift
@@ -84,10 +84,32 @@ release-scoped; `names` re-derives them in one call, so never carry them across 
 
 A patch that hangs a flag on a function (`X.$done`) must hang it on a name that both the writing
 site and the reading site can see. Across chunks that means an **exported** name the reader
-imports; `names` on the reader's anchor tells you which.
+imports; `names` on the reader's anchor tells you which. That name is itself release-scoped: the
+command-catalog snapshot was `$o` on 0.221.0 and `Go` on 0.222.0, and `$o` survived the release as
+an unrelated terminal-service getter in a different chunk, so carrying it over would have compiled.
+
+When `names` calls a name **free**, it says the old name is dead, not what replaced it. Find the
+replacement by the shape it must have, in the chunk the anchor sits in: an `fs` or `path` default
+import is `import <name> from"fs"`, so search the extracted chunk for that and read the binding off
+it. On 0.222.0 that turned the reader's `Dc`/`Ff` into `Hoe`/`rne`.
 
 When a stock feature the patch replaced now ships upstream (0.220.0 shipped production React, so
 the React swap went), delete the patch rather than re-anchoring it.
+
+### Rebase the shared payload constants, not just the patch entries
+
+A `replace` assembled from module-scope constants (`TURN_CLOCK_TRACK`, `UPDATE_HEADER_LINE`,
+`UPDATE_FILE_READER` in `src/patch/patches.ts`) holds release-scoped names **outside** the patch
+entry, and `--json` hands you the fully expanded string without pointing at which constant to edit.
+Rebase every constant the patch set names, then diff your expanded `replace` against the `--json`
+one before building.
+
+Nothing catches a stale name before the build, because **every gate up to that point grades `find`
+alone**: `status` prints `pending` once each `find` is unique, `bun test` reruns those same finds,
+and `verify` never reads the bundle. On 0.222.0 that let three patched header names ship into
+`bun build`, which failed with `Cannot assign to import "Ie"`. Read that error as the signal it is:
+a stale name that happens to collide with an import in the new chunk. The same mistake on a name
+that collides with nothing compiles clean and crashes at runtime instead.
 
 ## 4. Re-anchor the tests too
 
@@ -96,9 +118,12 @@ evaluate a patch payload carry **their own** copies of release-scoped names, and
 same schedule:
 
 - `src/patch/__tests__/command-menu.test.ts` builds the ranking function around the bindings the
-  bundle gives it (`de`, `me` on 0.221.0). They rename with the patch.
-- `src/patch/__tests__/stock-source.test.ts` pins the zod base class (`SCHEMA_CLASS`, `en` on
-  0.221.0). Find the new one from the constructor the patch matches, then read back to `class`.
+  bundle gives it (`ue`, `de`, and the query `K` on 0.222.0). They rename with the patch. Read the
+  whole preamble off the bundle rather than renaming the letters: on 0.222.0 the query variable and
+  the entry variable both moved, and the preamble also has to keep the test's own shape, so
+  `re.command.suggestionKind==="internal-menu"` from the bundle becomes `re.internalMenu` here.
+- `src/patch/__tests__/stock-source.test.ts` pins the zod base class (`SCHEMA_CLASS`, `tn` on
+  0.222.0). Find the new one from the constructor the patch matches, then read back to `class`.
 
 A failure there is drift, not a bug. Fix the test's anchor the same way you fixed the patch's.
 
@@ -113,11 +138,16 @@ bun run probe ab -r 8 /tmp/droid-stock /tmp/droid-test
 bun run probe highlight /tmp/droid-test              # rendered a highlighted code block
 ```
 
-`--version` proves nothing: it skips the app. `probe ab` launches the binary in a PTY and waits
-for the input box, so a rebuild that boots and then dies shows up as a timeout there.
+`bun run ovrdroid apply` is the first gate that reads your `replace` strings at all, so treat its
+`bun build failed` as a patch bug and not a harness one. `--version` proves nothing: it skips the
+app. `probe ab` launches the binary in a PTY and waits for the input box, so a rebuild that boots
+and then dies shows up as a timeout there.
 `probe highlight` asks the model for a code block, which is the first thing that loads a chunk
 by name at runtime; a chunk that fell out of the graph crashes there and nowhere earlier. Only
 after the copy passes both: `bun run ovrdroid apply`.
 
 `src/patch/__tests__/stock-source.test.ts` reruns every `find` against the installed binary, so
 it is the regression gate for the next release: it goes red the moment Droid updates underneath.
+
+Finish with `bun run ovrdroid hooks`. `update` runs it for you, but a release you rebased by hand
+ends on a bare `apply`, which leaves the hooks in `~/.factory/hooks` built against the old release.
