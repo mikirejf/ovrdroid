@@ -59,15 +59,15 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-ovrdroid',
-    find: 'O$=`',
+    find: 'K$=`',
     until: '`.trim().split(`\n`),',
-    replace: `O$=${literal(WORDMARK_ROWS)},`,
+    replace: `K$=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-ovrdroid',
-    find: 'L$=[',
-    until: '];var Z0=',
-    replace: `L$=${literal(COMPACT_ROWS)};var Z0=`,
+    find: 'z$=[',
+    until: '];var tv=',
+    replace: `z$=${literal(COMPACT_ROWS)};var tv=`,
   },
   {
     name: 'wordmark-over-accent-style',
@@ -76,15 +76,15 @@ export const logoPatches: readonly Patch[] = [
   },
   {
     name: 'wordmark-over-accent-paint',
-    find: 'CZ(xe,Te,ve,ue,"logo");',
+    find: 'yZ(ge,xe,we,le,"logo");',
     replace:
-      `CZ(xe,Te,ve,ue,"logo");` +
-      `if(ue===O$)CZ(xe,Te,ve,ue.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
-      `else Zi(xe,Te+${COMPACT_ACCENT_ROW},ve+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
+      `yZ(ge,xe,we,le,"logo");` +
+      `if(le===K$)yZ(ge,xe,we,le.map(($)=>$.slice(0,${OVER_COLUMNS})),"${OVER_STYLE}");` +
+      `else Gi(ge,xe+${COMPACT_ACCENT_ROW},we+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},"${OVER_STYLE}");`,
   },
   {
     name: 'wordmark-width-threshold',
-    find: 'gZ=58,hZ=24',
-    replace: `gZ=${WORDMARK_WIDTH},hZ=24`,
+    find: 'cZ=58,uZ=24',
+    replace: `cZ=${WORDMARK_WIDTH},uZ=24`,
   },
 ];

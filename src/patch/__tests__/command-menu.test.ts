@@ -20,11 +20,11 @@ if (patch === undefined) {
 
 function buildRank(body: string): Rank {
   // SAFETY: the body is the patch payload, evaluated with the same bindings the
-  // shipped bundle gives it: `ae` the entry, `Q` the lowercased query.
+  // shipped bundle gives it: `re` the entry, `K` the lowercased query.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
   return new Function(
-    'Q',
-    `return function(ae){if(!ae.matchesName)return 5;let le=ae.name.toLowerCase();if(le===Q)return 0;let de=ae.internalMenu,me=le.startsWith(Q);${body}`,
+    'K',
+    `return function(re){if(!re.matchesName)return 5;let le=re.name.toLowerCase();if(le===K)return 0;let ue=re.internalMenu,de=le.startsWith(K);${body}`,
   )(QUERY) as Rank;
 }
 

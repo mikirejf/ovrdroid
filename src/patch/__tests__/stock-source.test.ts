@@ -36,7 +36,7 @@ describe.skipIf(source === undefined)('every find string still matches the shipp
   });
 });
 
-const SCHEMA_CLASS = 'en';
+const SCHEMA_CLASS = 'tn';
 const SCHEMA_REGION_BYTES = 200_000;
 
 function classBodyAt(text: string, start: number): string {
