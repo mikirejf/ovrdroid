@@ -11,7 +11,7 @@ export type ChurnKind = 'startup' | 'chmod' | 'none';
 export const CHURN_KINDS: readonly ChurnKind[] = ['startup', 'chmod', 'none'];
 
 export const DEFAULT_ROUNDS = 3;
-export const DEFAULT_GAP_MS = 6000;
+export const CHURN_GAP_MS = 6000;
 
 const SETTINGS_MODE = 0o600;
 

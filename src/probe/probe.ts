@@ -2,20 +2,39 @@
 import { Command } from 'commander';
 
 import { choice, count, guard } from '../cli.ts';
-import { backupPath, INSTALLED_DROID } from '../paths.ts';
+import {
+  ARM_NAMES,
+  busts,
+  DEFAULT_BUST_SOURCE,
+  DEFAULT_CLIFF_MINUTES,
+  DEFAULT_LOG_SOURCE,
+  DEFAULT_LOG_STORE,
+  DEFAULT_MODEL,
+  DEFAULT_PROMPT_TOKENS,
+  DEFAULT_QUOTA_MODEL,
+  DEFAULT_QUOTA_PROMPT_TOKENS,
+  DEFAULT_QUOTA_RUNS,
+  DEFAULT_QUOTA_STEPS,
+  DEFAULT_TTL_RUNS,
+  logs,
+  minuteList,
+  prices,
+  quota,
+  SCHEDULE_NAMES,
+  ttl,
+} from './cache-report.ts';
 import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
-import { CHURN_KINDS, DEFAULT_GAP_MS as CHURN_GAP_MS, DEFAULT_ROUNDS } from './churn.ts';
+import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS } from './churn.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
 import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { highlight, menu, touches, watch } from './menu-report.ts';
-import { buildProbe } from './probe-build.ts';
+import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, extract, grep, names } from './release-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
-const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const IDLE_RUNS = 5;
@@ -170,6 +189,62 @@ program
   .argument('<binary>')
   .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
   .action(guard(timers));
+
+program
+  .command('logs')
+  .description(
+    "copy Droid's request logs out of rotation and say what per-request cache truth they hold",
+  )
+  .option('--from <dir>', 'where Droid rotates its logs', DEFAULT_LOG_SOURCE)
+  .option('--to <dir>', 'where to preserve them', DEFAULT_LOG_STORE)
+  .action(guard(logs));
+
+program
+  .command('busts')
+  .description(
+    'join every cache-miss warning to the quota it actually rewrote: what kills the cache, and what that costs',
+  )
+  .option('--from <dir>', 'where the preserved logs are', DEFAULT_BUST_SOURCE)
+  .option('--runs <file>', 'quota runs to price the rewrites against', DEFAULT_QUOTA_RUNS)
+  .action(guard(busts));
+
+program
+  .command('prices')
+  .description('the per-model price table every dollar figure rests on, from models.dev')
+  .argument('[ids...]')
+  .option('--refresh', 'fetch the catalog again instead of using the cached copy', false)
+  .action(guard(prices));
+
+program
+  .command('ttl')
+  .description(
+    'measure the prompt cache through DroidProxy: one schedule per documented rule, live usage back',
+  )
+  .argument('<schedule>', SCHEDULE_NAMES.join(', '), choice(SCHEDULE_NAMES))
+  .option('-m, --model <id>', 'customModels entry to send through', DEFAULT_MODEL)
+  .option('--prompt-tokens <n>', 'size of the cached prefix', count, DEFAULT_PROMPT_TOKENS)
+  .option('--minutes <list>', 'gaps to try, cliff only', minuteList, DEFAULT_CLIFF_MINUTES)
+  .option('--yes', 'actually send, and spend the tokens', false)
+  .option(
+    '--direct',
+    'talk to Anthropic with the OAuth token instead of DroidProxy, which rewrites every ttl to 1h; --model then takes an API model id',
+    false,
+  )
+  .option('--out <file>', 'where every send is appended', DEFAULT_TTL_RUNS)
+  .action(guard(ttl));
+
+program
+  .command('quota')
+  .description(
+    'measure what a cache write, a cache read and plain input each cost against the Claude Max quota, talking to Anthropic directly',
+  )
+  .argument('<arm>', ARM_NAMES.join(', '), choice(ARM_NAMES))
+  .option('-m, --model <id>', 'model to send to', DEFAULT_QUOTA_MODEL)
+  .option('--prompt-tokens <n>', 'size of the prompt', count, DEFAULT_QUOTA_PROMPT_TOKENS)
+  .option('--steps <n>', 'how many 1% crossings to observe', count, DEFAULT_QUOTA_STEPS)
+  .option('--yes', 'actually send, and spend the quota', false)
+  .option('--out <file>', 'where every send is appended', DEFAULT_QUOTA_RUNS)
+  .action(guard(quota));
 
 program
   .command('cpu')

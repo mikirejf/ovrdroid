@@ -1365,3 +1365,265 @@ agent turn already fetches the catalog lazily with its own 2.5s cap (`pcc`) when
   needs a wrapper script. `work/bins/droid-0.219.0-nocatalog` is the one used above.
 - There is no download URL for old Droid releases. Stock and patched 0.218.2 are kept under
   `work/bins/` (gitignored) alongside 0.219.0, with both extracted sources under `work/src/`.
+
+# Prompt cache findings
+
+Work on `TOKEN_OPTIMIZER.md` starts here. Measured on Droid 0.222.0, 2026-09-18.
+
+## Shipped: `cache-usage-log`, the first per-request record on disk
+
+Droid never writes per-request token usage. `commitTurnTokenUsage(t,r)` in `chunk-37dfzwbw.js` is
+called once per finished, non-aborted LLM request with
+`{inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens}` and the model
+id; it only adds the numbers into session sums. The patch appends one line per call to
+`~/.factory/ovrdroid/cache-usage.jsonl`:
+
+```
+{"t":1789735449729,"s":"13a0a153-...","m":"claude-opus-5","in":2,"cr":0,"cw":26108,"out":4,"th":0}
+```
+
+Gated on the directory existing, `appendFileSync` in a try/catch, never throws into a turn. A second
+anchor, `cache-usage-log-promote`, writes `{"t","s","m","promote":true}` when the built-in 1h
+promotion timer fires (`W4e`, still gated to JSON-RPC mode or an agent process, so it never fires in
+the terminal today).
+
+Verified: `ovrdroid apply --target /tmp/droid-test` builds and signs; one `exec` turn produced the
+line above. `bun test src/patch` green.
+
+What 0.222.0 does **not** do, read off the bundle (`probe grep`, unique anchors):
+
+- The stream reducer reads `cache_creation_input_tokens` and `cache_read_input_tokens` only. It
+  never reads `cache_creation.ephemeral_5m_input_tokens` or `ephemeral_1h_input_tokens` (zero
+  occurrences in the whole bundle). So the 5m/1h split of a write cannot be logged from Droid; it
+  needs `probe ttl` against the API directly.
+- The `{type:"ephemeral",ttl:"1h"}` marker (`hb`) is not only for promotion: the system prompt gets
+  `cache_control:hb` in `chunk-7qfj9w75.js`, and `Qi` applies it when `cacheSystemPrompt` is on.
+  Whether that 1h request survives DroidProxy is an open ledger row.
+- The `[Agent] Streaming result` log line carries usage but no session id or model in its own
+  object; both sit in `tags`. The rotating logs are the only per-request truth for the past 3 days.
+
+## Ground truth preserved
+
+`~/.factory/logs/droid-log-single.log*` is copied to `~/.factory/ovrdroid/logs/` by `probe logs` (13
+files, 950 MB, 2026-09-14 to 2026-09-18). Its first summary: 11,794 `Streaming result` lines across
+405 sessions; 190 `prompt_cache_miss_detected` warnings, every one `prefix_mismatch`, and 189 of 190
+with the mismatch at a `tools.N` segment (114 anthropic, 75 openai_responses) while the previous
+request's segment at that index was `messages.0.user.metadata`. Read plainly: when Droid detects a
+broken cache prefix, it is almost always the tools array that changed, not the messages.
+
+Two caveats on the log. `callingSessionIdPresent` is `"false"` on every line, so subagent requests
+cannot be told apart from the parent's in this source; the transcript lineage in Part 2 has to do
+that. And the OpenAI models report `cache written 0` throughout, because that provider bills no
+write; the replay must not treat that as a miss.
+
+## Measured: DroidProxy upgrades every cache write to 1 hour
+
+`probe ttl price --yes --prompt-tokens 8000` on `custom:droidproxy:fable-5-1`, 2026-09-18, and two
+by-hand repeats with fresh 22k-token prompts:
+
+| request asked for                             | `cache_creation` split back            |
+| --------------------------------------------- | -------------------------------------- |
+| `{type:"ephemeral"}` (no ttl, the 5m default) | `ephemeral_5m: 0, ephemeral_1h: 22136` |
+| `{type:"ephemeral",ttl:"5m"}`                 | `ephemeral_5m: 0, ephemeral_1h: 22140` |
+| `{type:"ephemeral",ttl:"1h"}`                 | `ephemeral_5m: 0, ephemeral_1h: 27136` |
+
+The proxy (CLIProxyM on `localhost:8317`) returns the full `cache_creation` split, so the field is
+trustworthy, and it never returns a 5 minute write. Two consequences:
+
+- Through this proxy there is no 5 minute cache to optimise. Every write is already the 1h kind, and
+  Droid's `cacheCreationInputTokens` (which it bills at 1.25x in its own cost estimate) is really 1h
+  tokens. The whole "promote to 1h" question is moot for DroidProxy users; the open question is
+  instead whether the proxy bills the 2x write rate or absorbs it.
+- `probe ttl cliff` and `refresh` cannot measure a 5 minute expiry here. The verdict now says so
+  whenever every 5m write comes back as 1h tokens. Those schedules need a direct Anthropic key to
+  answer the ledger rows they were written for.
+
+Two timed runs the same afternoon confirm it from the other side.
+`probe ttl one-hour --yes --prompt-tokens 8000`: a 1h write of 10,313 tokens was read in full after
+a 20 minute gap. `probe ttl cliff --yes --prompt-tokens 9000 --minutes 6,12`: a plain
+`{type:"ephemeral"}` write of 11,576 tokens was read in full after 6 minutes and again after 12. A
+true 5 minute cache would have missed both. Every send is in `~/.factory/ovrdroid/ttl-runs.jsonl`.
+
+Also read off the run: the `3.5 chars/token` filler estimate ran 29% low (8000 asked, 10313 cached),
+and 146 tokens cached nothing while 22k did, consistent with the documented minimum.
+
+Ledger moves: `ttl:"1h"` survives DroidProxy, **measured**. 5 minute cliff through DroidProxy,
+**measured as not applicable**. The economics table in `TOKEN_OPTIMIZER.md` needs a per-endpoint
+caveat before any replay uses it.
+
+**The conclusion drawn from this run was wrong and is retracted in `TOKEN_OPTIMIZER.md`.** It read
+the forced 1h write as making the TTL question moot. The measurement holds; the reading of it does
+not. Avoiding the 1h write is worth 21.6% of the Claude bill. Everything downstream of that run,
+including the nine month replay, the oracle ceiling and the OpenAI comparison, lives in
+`TOKEN_OPTIMIZER.md` under "Findings". This file keeps only the patch records and the probe runs
+that produced them.
+
+## Measured: the subscription meter has no large 1h premium
+
+2026-09-18, `claude-fable-5-1`, straight to `https://api.anthropic.com/v1/messages` with the OAuth
+token from `~/.cli-proxy-api/claude-*.json`, bypassing DroidProxy. The account is
+`rate_limit_tier: default_claude_max_20x`, `billing_type: stripe_subscription`, from
+`/api/oauth/profile`. Every send is in `~/.factory/ovrdroid/quota-runs.jsonl`; `probe quota` is the
+command that reproduces it.
+
+Method: send fresh, unique, uncacheable prompts of one kind until
+`anthropic-ratelimit-unified-5h-utilization` rises by 1 percent, and count the tokens between rises.
+The meter reports whole percents, so a span is quantised to the send size; the mean over several
+spans is the number.
+
+| kind of token         | sends |  per send | tokens per 1% of the 5h quota |
+| :-------------------- | ----: | --------: | ----------------------------: |
+| 1h cache write        |    36 | 90k / 30k |           210,719 (n=6 spans) |
+| 5m cache write        |    36 | 90k / 30k |           220,685 (n=6 spans) |
+| plain input, no cache |    34 |       30k |           261,837 (n=3 spans) |
+| cache read            |   134 |       90k |   about 4.9M, **not trusted** |
+
+What the data can and cannot say, after review (`sol-reviewer`, same day):
+
+- **The API's 1.6x premium (2.0 over 1.25) is rejected.** If the meter charged it, the 1h arm at 30k
+  per send would cross every 4 to 5 sends, about 130k tokens per percent. It crossed every 7 sends,
+  three times in a row, 211k each. The 5m arm crossed at 181k to 242k. A 1.6x ratio would put the
+  two arms 80k apart; they are 10k apart.
+- **A small premium is not excluded.** One 30k send is about 14% of a span, so anything under
+  roughly 5% to 10% is inside the quantisation. Arms ran one after another in the same 5h window
+  with other Droid sessions uncontrolled, so a few percent of drift is possible.
+- **Writes cost about 20% more than plain input.** Plain came out at 262k per percent against 211k
+  and 221k for writes, and the ranges do not overlap. That matches the API's 1.25x write multiple
+  applied to both TTLs.
+- **The read number is not a measurement.** The meter fell from 0.15 to 0.14 during the read arm,
+  which means older usage aged out of the window mid-run, and the two spans (5.85M and 3.96M)
+  disagree far beyond the send size. All it supports is "a read is far cheaper than a write". The
+  probe now flags a run where the meter fell and refuses to present its spans as clean.
+
+So the finding is: **1h and 5m writes cost the same on the meter within a few percent, and both cost
+about 1.25x plain input.** The 2.0x versus 1.25x ratio that the nine month replay in
+`TOKEN_OPTIMIZER.md` turned into $837 a month is API list pricing and is not what limits this
+account.
+
+To make it solid: stop every other Droid session, wait for the 5h meter to settle, then run 1h and
+5m arms interleaved (ABAB) at 10k sends, and a separate read arm asking for at least five clean
+crossings. `probe quota` does each arm; the interleaving is a shell loop. **That rerun was done the
+next day; see below.**
+
+## Measured, controlled: 1h and 5m are the same, and a read is nearly free
+
+2026-09-19, `claude-opus-5`, 700 sends, same direct endpoint and method as the run above.
+
+The rerun moves off Fable to `claude-opus-5`, because a Fable number is not a whole number.
+`/api/oauth/usage` returns a `limits[]` array beside the unified meters, and on 2026-09-19 it
+carried a `weekly_scoped` entry bound to Fable at 22% and `is_active: true` while the unified 7d
+read 15%. `probe quota` counts crossings of the unified 5h header only, so a Fable send spends a cap
+the probe cannot see. Opus and Sonnet had no scoped entry, which makes the unified meter the whole
+cost for them, and Opus is the model this machine actually runs. A direct 1h send to `claude-opus-5`
+was checked the same day: 200, `ephemeral_1h_input_tokens: 11066`, no `claude_code_version_too_old`.
+
+Two things fixed the resolution problem that spoiled the first run. Opus turned out to be about 3.7x
+cheaper per token on the meter than Fable (777k tokens per percent against 211k), so a percent holds
+far more sends; and the arms ran ABAB in one shell loop, so drift hits both arms alike. At 20k sends
+a span is 22 to 44 sends wide, against 7 before, which is what pulled the scatter down to under 5%.
+
+Idleness was checked rather than assumed: with other Droid sessions open but untouched, the meter
+sat flat for seven readings over two minutes. An idle session spends nothing; only a running turn
+does. No arm saw the meter fall, so nothing aged out mid-run.
+
+| kind of token         | sends | spans | tokens per 1% of the 5h quota |     vs plain |
+| :-------------------- | ----: | ----: | ----------------------------: | -----------: |
+| 1h cache write        |   222 |     8 |       776,667, sd 36,881 (5%) |       1.245x |
+| 5m cache write        |   176 |     6 |       786,094, sd 21,644 (3%) |       1.230x |
+| plain input, no cache |   102 |     3 |        966,776, sd 6,334 (1%) |       1.000x |
+| cache read            |   200 |     0 |    never moved the meter once | below 0.014x |
+
+- **1h and 5m are the same, now within 1.2%.** The two arms differ by 9,427 tokens per percent with
+  a standard error of 15,751, so the difference is smaller than its own noise (t = 0.60). The
+  earlier "within 10%" is now within about 3% at one standard error. An API-style 1.6x premium would
+  have put the arms 300k apart; the arms are interleaved and repeat, so it cannot hide.
+- **Writes cost 1.25x plain input, exactly the API's write multiple.** 1.245x and 1.230x, with the
+  plain arm's own scatter at 0.7%. This is the one place the API list multiple does carry over to
+  the subscription meter.
+- **A cache read is nearly free, and this time it is a real bound.** 200 consecutive reads of a
+  35,550 token prefix, 7,110,000 tokens in total, did not move the 5h meter off 0.19 even once. So a
+  read costs under 1% per 7.11M tokens, against 777k for a write: **at least 9x cheaper than a
+  write, and at least 71x cheaper than plain input.** The bound is one-sided, because the arm hit
+  the probe's 200 send cap before the meter ever rose. Unlike the Fable read arm this one is clean:
+  the meter never fell, so no ageing-out inflated it.
+
+Method note for anyone rerunning: `probe quota read` reports
+`0 crossings; the run stopped before a span could be measured`, which reads like a failure and is in
+fact the result. A ceiling needs the send count and the flat meter, not a mean. Raising `MAX_SENDS`
+would sharpen the bound at linear cost in quota.
+
+Cost of the whole rerun: about 19% of one 5 hour window, 2% to 21%.
+
+Also measured on the same runs:
+
+- Explicit `ttl:"5m"` sent direct comes back as `ephemeral_5m_input_tokens: 30195`, so Anthropic
+  honours it. Sent through DroidProxy the same block comes back as 1h: the bundled backend
+  (`cli-proxy-api v7.3.3+dirty`) overrides a client `ttl`, contrary to the upstream `main` source
+  the earlier "escape hatch" reading rested on. That ledger row is now **measured as false**.
+- DroidProxy forwards none of the `anthropic-ratelimit-*` headers. Quota is invisible through the
+  proxy; only a direct call or `/api/oauth/usage` shows it.
+- A `user-agent` older than `claude-cli/2.1.251` is rejected for Fable with
+  `claude_code_version_too_old`.
+
+Consequence for the plan: on a subscription, TTL choice costs at most a few percent, so the proxy's
+forced 1h is the right setting and the 5m patch is dropped. What moves the meter is the rewrite
+versus read ratio. The usage optimiser is therefore a bust optimiser: keep the prefix cached, and
+stop the tools array from rebuilding it.
+
+## Measured: the TTL is a sliding idle window, and a read refreshes it for free
+
+2026-09-19, `claude-opus-5`, `probe ttl refresh --direct --prompt-tokens 20000 --yes`, 25,538 cached
+tokens. This row had been carried as "documented" since the first pass; it is now measured.
+
+The test needs `--direct`. DroidProxy rewrites every `ttl` to 1h, so a 5 minute schedule sent
+through it measures the 1 hour cache and every gap under an hour reads, which proves nothing about
+refresh. Sent direct with the OAuth token the same block comes back `ephemeral_5m_input_tokens`, so
+the 5 minute clock is real and a missed gap is visible within minutes instead of an hour.
+
+| send | gap | age of the entry |                         result |
+| ---: | :-- | :--------------- | -----------------------------: |
+|    1 | 0   | 0m               |      read 25,538 (from set-up) |
+|    2 | 4m  | 4m               |                    read 25,538 |
+|    3 | 4m  | 8m               |                    read 25,538 |
+|    4 | 4m  | 12m              |                    read 25,538 |
+|    5 | 6m  | 18m              | **write 25,538 at 5m**, missed |
+
+The entry lived 12 minutes on a 5 minute TTL, more than twice its nominal lifetime, and every 4
+minute gap read the full prefix. Then one 6 minute gap killed it. A fixed lifetime would have
+expired it at minute 5 and made send 2 a write. So **each read pushes the expiry a full TTL past
+that read**, and the cost of the refresh is the read itself, which the controlled quota run above
+measured at under 1/9 of a write.
+
+What decides a bust is therefore the gap between requests, never the age of the entry. Against the
+nine month traffic profile (median gap 8.7 seconds, 98.6% of turns under 5 minutes) the window
+effectively never closes on an active session, and on the forced 1h the idle gap needed to lose a
+prefix is an hour. Time is not what busts this cache; the tools array is.
+
+## Measured: the clock starts at request start, so a long answer eats the window
+
+2026-09-19, `claude-opus-5`, `probe ttl clock-start --direct --prompt-tokens 20000 --yes`. The other
+half of the sliding-window question: the gap that matters runs from the **start of the previous
+request**, not from the moment its answer finished.
+
+| send | answer time | then   |                   result |
+| ---: | ----------: | :----- | -----------------------: |
+|    1 |      161.2s | -      |       write 25,538 at 5m |
+|    2 |        3.2s | 4m gap | **write 25,538**, missed |
+
+161s of answering plus a 240s gap is 401s since the request began, past the 300s TTL, while the gap
+by itself is well under it. The second send missed. If the clock had started when the response
+ended, only 240s would have elapsed and it would have read. So the window is measured from request
+start, and a slow turn spends its own TTL while it is still talking.
+
+The first attempt at this run proved nothing and is worth recording as a method trap. The schedule
+asked for 400 animals and a 3 minute gap; Opus answered in 39s, so only 219s had passed on either
+theory and the send read. A hit there is consistent with both clocks, and reading it as evidence for
+either would have been wrong. The schedule now asks for 1500 animals with `MAX_TOKENS_SLOW` at
+16,000 and waits 4 minutes, and `clockTestDecides` refuses a verdict unless the answer plus the gap
+exceeds the TTL while the gap alone stays under it. A run that cannot separate the two clocks now
+says so instead of picking a side.
+
+Consequence: the danger window is not the pause between two user messages, it is the whole turn. A
+20 minute agent turn on a 5 minute TTL busts its own prefix mid-turn. On the forced 1h the margin is
+comfortable, but a very long turn plus a pause can still cross an hour counted from request start
+rather than from the last reply.

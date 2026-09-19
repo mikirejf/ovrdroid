@@ -333,7 +333,9 @@ session and does nothing after startup. Pointing the MCP config at the resolved 
 one process per session for an identical response. That is a config change, not a patch.
 
 `FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
-first time.
+first time. `TOKEN_OPTIMIZER.md` covers the prompt cache: what a write and a read cost on the
+subscription meter, what busted the cache and how the patches close it, and where the remaining
+token spend sits. Its opening section is the settled summary.
 
 ## How it works
 

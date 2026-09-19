@@ -45,6 +45,17 @@ export function megabytes(kib: number): string {
   return `${mebibytes(kib).toFixed(1)} MB`;
 }
 
+const ISO_DATE_CHARS = 10;
+
+export function whole(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+export function isoDate(stamp: string | number): string {
+  const text = typeof stamp === 'string' ? stamp : new Date(stamp).toISOString();
+  return text.slice(0, ISO_DATE_CHARS);
+}
+
 export interface RunOptions {
   runs: number;
 }

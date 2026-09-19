@@ -11,6 +11,8 @@ import { modulePatches, tracePatches } from '../patch/trace-patches.ts';
 import { watchPatches } from '../patch/watch-patches.ts';
 import { backupPath, INSTALLED_DROID, realOrUndefined } from '../paths.ts';
 
+export const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
+
 export interface BuildOptions {
   target: string;
   extra?: string;
