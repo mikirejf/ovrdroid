@@ -1,4 +1,5 @@
 import { logoPatches } from './logo.ts';
+import { usagePatches } from './usage-patches.ts';
 
 export interface Patch {
   name: string;
@@ -251,7 +252,30 @@ export const patches: readonly Patch[] = [
     replace:
       'let $r=v(f);$r.current=f;let w=A(()=>{let $s=$r.current;if($s.notice.kind==="hidden"||$s.dismissed)return;b({type:"draft-edited"})},[]);return{display:f,dismissAfterDraftEdit:w}',
   },
+  {
+    name: 'web-fetch-always-loaded',
+    find: 'outputSchemas:{result:Ke},toolkit:"Web Search",deferred:!0,isToolEnabled:!0}',
+    replace: 'outputSchemas:{result:Ke},toolkit:"Web Search",deferred:!1,isToolEnabled:!0}',
+  },
+  {
+    name: 'web-search-always-loaded',
+    find: 'outputSchemas:{result:Qt},toolkit:"Web Search",deferred:!0,isToolEnabled:!0}',
+    replace: 'outputSchemas:{result:Qt},toolkit:"Web Search",deferred:!1,isToolEnabled:!0}',
+  },
+  {
+    name: 'gate-first-turn-on-ide-connect',
+    find: 'if(!this.isBlockOnMcpLoadEnabled())return;await this.awaitMcpReadinessBeforeAgentTurn()}',
+    replace:
+      'if(this.ideInitPromise){let $t;await Promise.race([this.ideInitPromise.catch(()=>{}),new Promise((r)=>{$t=setTimeout(r,5000);$t.unref?.()})]);clearTimeout($t)}' +
+      'if(!this.isBlockOnMcpLoadEnabled())return;await this.awaitMcpReadinessBeforeAgentTurn()}',
+  },
+  {
+    name: 'mcp-gate-timeout-15s',
+    find: 'Ot=60000;function _t(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
+    replace: 'Ot=15000;function _t(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
+  },
   ...logoPatches,
+  ...usagePatches,
 ];
 
 export function markerDigest(list: readonly Patch[]): string {
