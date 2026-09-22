@@ -4,11 +4,13 @@
 patch whose `find` no longer occurs exactly once. Work from the stock binary the update installed;
 `apply` will back it up to `<target>.orig` on its own.
 
-Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints, and
-`probe ab` against the stock copy resolves faster.
+Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints and renders a code
+block, and `probe ab` against the stock copy shows it is **never slower**. Faster is not the bar:
+as Droid moves its own waits after paint, the paint gap shrinks toward zero, and an interval that
+straddles zero at `-r 24` is a pass.
 
-Budget: 0.222.0 took 16 patches rebased automatically, 6 by hand, and 2 test files whose own
-anchors had drifted. Expect the mechanical half to be free and the hand half to be the work.
+Budget: expect the mechanical half to be free and the hand half to be the work. The hand half
+clusters: most of it is usually one or two sites Droid **rewrote** rather than renamed.
 
 ## 1. Triage the drift
 
@@ -25,6 +27,9 @@ bun run probe anchors /tmp/droid-stock
   copy those in rather than renaming by hand.
 - `missing`: the code moved or was rewritten. Step 3.
 - `ambiguous N places`: the shape now matches N sites. Widen the `find` until it is unique.
+  `anchors` turns every name into a wildcard, so a `find` that is mostly names (`K$=\``) becomes a
+  shape matching thousands of sites. Anchor such patches on a neighbouring keyword or literal
+  (`var Hz=\``) so they carry some shape of their own into the next release.
 
 `unresolved: X Y` on a rebased line is the part `--json` cannot do for you: a free name in
 `replace` (a module-scope function, a React hook, a theme object) that the `find` never captured,
@@ -88,13 +93,30 @@ imports; `names` on the reader's anchor tells you which. That name is itself rel
 command-catalog snapshot was `$o` on 0.221.0 and `Go` on 0.222.0, and `$o` survived the release as
 an unrelated terminal-service getter in a different chunk, so carrying it over would have compiled.
 
-When `names` calls a name **free**, it says the old name is dead, not what replaced it. Find the
-replacement by the shape it must have, in the chunk the anchor sits in: an `fs` or `path` default
-import is `import <name> from"fs"`, so search the extracted chunk for that and read the binding off
-it. On 0.222.0 that turned the reader's `Dc`/`Ff` into `Hoe`/`rne`.
+`names` proves a name **resolves**, not that it is the **right binding**. A big chunk reuses its
+short names many times over, so `defined in this module` is usually a stranger, and an
+`unresolved:` name that `--json` left untouched in `replace` is still the old release's name. Settle
+every such name by **role**: read what it was at the old site (which destructured key, which prop,
+which import, which hook), then find what plays that role at the new site. Reading the two
+extractions side by side is the fastest way to do that. On 0.224.1, four names resolved cleanly and
+all four were strangers, one of them swapping `ambiguousIsNarrow` for `countAnsiEscapeCodes`.
 
-When a stock feature the patch replaced now ships upstream (0.220.0 shipped production React, so
-the React swap went), delete the patch rather than re-anchoring it.
+When `names` calls a name **free**, it says the old name is dead, not what replaced it. The same
+role search finds the replacement.
+
+When the old site was **rewritten** rather than renamed (no shape match, and the literal you walk
+out from lands in code of a different form), port the payload's intent into the new form instead of
+forcing the old form back. On 0.224.1 the header dropped its named-style registry for inline style
+objects, so the two patches that registered styles merged into the patches that paint.
+
+Give payloads as few borrowed bindings as possible. Every chunk import, hook, or helper a `replace`
+leans on is another name to re-derive next release, and another chance to bind a stranger. Node
+built-ins and fixed paths never need borrowing: `require("fs")` and `require("os").homedir()` work
+in any chunk, which is why ovrdroid's own files live under `~/.factory/ovrdroid/`.
+
+Before re-anchoring, read what the old site did. When stock now does the same thing, delete the
+patch rather than re-anchoring it: 0.220.0 shipped production React, and 0.224.1 stopped blocking
+startup on the whoami call.
 
 ### Rebase the shared payload constants, not just the patch entries
 
@@ -134,9 +156,18 @@ bun test && bun run verify
 cp /tmp/droid-stock /tmp/droid-test
 bun run ovrdroid apply --target /tmp/droid-test
 bun run ovrdroid status --target /tmp/droid-test     # applied <digest>
-bun run probe ab -r 8 /tmp/droid-stock /tmp/droid-test
+bun run probe ab -r 24 /tmp/droid-stock /tmp/droid-test
 bun run probe highlight /tmp/droid-test              # rendered a highlighted code block
 ```
+
+Stock paint has outliers several times the median, so `-r 8` rarely resolves anything; start at 24.
+
+When a probe fails on the **stock** binary, the probe's model of Droid drifted, not your patches.
+Fix the probe in `src/probe/` with a test, then rerun. 0.224.1 started exiting 130 on Ctrl-C, which
+`probe ab` read as a crash.
+
+No gate looks at the screen. A patch that paints (header lines, logo accents, footer text) can
+build, pass every probe, and draw nothing or draw in the wrong place. Launch the copy and look.
 
 `bun run ovrdroid apply` is the first gate that reads your `replace` strings at all, so treat its
 `bun build failed` as a patch bug and not a harness one. `--version` proves nothing: it skips the
