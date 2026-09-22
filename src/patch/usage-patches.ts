@@ -11,14 +11,14 @@ const OPEN =
 export const usagePatches: readonly Patch[] = [
   {
     name: 'cache-usage-log',
-    find: 'commitTurnTokenUsage(t,r){if(!this.currentSessionId)return;',
+    find: 'commitTurnTokenUsage(t,o){if(!this.currentSessionId)return;',
     replace:
-      'commitTurnTokenUsage(t,r){if(!this.currentSessionId)return;' +
-      `${OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:r,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens});`,
+      'commitTurnTokenUsage(t,o){if(!this.currentSessionId)return;' +
+      `${OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:o,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens});`,
   },
   {
     name: 'cache-usage-log-promote',
-    find: 'cb.set(t,{capturedAt:r.capturedAt,attemptedAt:Date.now()}),',
-    replace: `cb.set(t,{capturedAt:r.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:r.modelId,promote:!0}),`,
+    find: 'Qu.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
+    replace: `Qu.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
   },
 ];
