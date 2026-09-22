@@ -18,6 +18,12 @@ const healthy = await script(dir, 'healthy.sh', [
   'dd bs=1 count=1 >/dev/null 2>&1',
   'exit 0',
 ]);
+const interrupted = await script(dir, 'interrupted.sh', [
+  'stty raw -echo',
+  `printf '${PAINT_MARKER}'`,
+  'dd bs=1 count=1 >/dev/null 2>&1',
+  'exit 130',
+]);
 const crashing = await script(dir, 'crashing.sh', [`printf '${PAINT_MARKER}'`, 'exit 42']);
 const silent = await script(dir, 'silent.sh', ['sleep 30']);
 const stillborn = await script(dir, 'stillborn.sh', ['exit 3']);
@@ -31,6 +37,11 @@ describe('launch', () => {
     expect(result.exitMs).toBeLessThan(10_000);
     expect(result.pid).toBeGreaterThan(0);
     expect(result.pid).not.toBe(process.pid);
+  }, 30_000);
+
+  test('accepts the conventional Ctrl-C exit code 130 as a clean exit', async () => {
+    const result = await launch(interrupted, { settleMs: 50 });
+    expect(result.paintMs).toBeGreaterThan(0);
   }, 30_000);
 
   test('rejects when the target exits before settling', async () => {

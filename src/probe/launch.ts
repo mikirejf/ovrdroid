@@ -7,6 +7,7 @@ const ESC = '\u001B';
 export const PAINT_TIMEOUT_MS = 20_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const SECOND_CTRL_C_MS = 50;
+const INTERRUPTED_EXIT_CODE = 130;
 const DEFAULT_SETTLE_MS = 300;
 const INJECTED_PREFIXES = ['FACTORY_', 'DROID_', 'HERDR_'];
 const AUTO_UPDATE = 'FACTORY_DROID_AUTO_UPDATE_ENABLED';
@@ -102,7 +103,11 @@ export async function dies(child: Child): Promise<never> {
 }
 
 function assertCleanExit(child: Child): void {
-  if (child.signalCode === 'SIGINT' || child.exitCode === 0) {
+  if (
+    child.signalCode === 'SIGINT' ||
+    child.exitCode === 0 ||
+    child.exitCode === INTERRUPTED_EXIT_CODE
+  ) {
     return;
   }
   throw new Error(`exited with ${deathOf(child) ?? 'no status'} after Ctrl-C`);
