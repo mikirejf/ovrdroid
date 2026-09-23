@@ -18,7 +18,7 @@ export const usagePatches: readonly Patch[] = [
   },
   {
     name: 'cache-usage-log-promote',
-    find: 'Qu.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
-    replace: `Qu.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
+    find: 'df.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
+    replace: `df.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
   },
 ];

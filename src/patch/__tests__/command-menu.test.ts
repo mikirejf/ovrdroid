@@ -24,7 +24,7 @@ function buildRank(body: string): Rank {
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
   return new Function(
     'K',
-    `return function(re){if(!re.matchesName)return 5;let le=re.name.toLowerCase();if(le===K)return 0;let ue=re.internalMenu,de=le.startsWith(K);${body}`,
+    `return function(re){if(!re.matchesName)return 5;let le=re.name.toLowerCase();if(le===K)return 0;let ue=re.internalMenu,me=le.startsWith(K);${body}`,
   )(QUERY) as Rank;
 }
 

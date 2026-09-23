@@ -63,20 +63,20 @@ const TURN_CLOCK_STATE =
 
 const TURN_CLOCK_TICK =
   'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=A(0);' +
-  'D(()=>{if(!$last)return;' +
+  'I(()=>{if(!$last)return;' +
   'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
   '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
   'return()=>clearTimeout($id)},[$last,$t]);';
 
 const TURN_CLOCK_TRACK =
-  'let $busy=I!=="idle";' +
+  'let $busy=D!=="idle";' +
   'if($ODc.session!==z)$ODc.session=z,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
   'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(z):$ODc.done=$ODt(z);';
 
 const TURN_CLOCK_PARTS =
   'if($last){let $ago=[];' +
-  'if($ODc.sent)$ago.push($e("\\u2191"+$ODa($now-$ODc.sent),{color:o.text.muted}));' +
-  'if($ODc.done)$ago.push($e(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:o.text.muted}));' +
+  'if($ODc.sent)$ago.push(Fe("\\u2191"+$ODa($now-$ODc.sent),{color:o.text.muted}));' +
+  'if($ODc.done)$ago.push(Fe(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:o.text.muted}));' +
   'Al(be,$ago)}';
 
 const UPDATE_FILE_NAME = 'update.json';
@@ -98,7 +98,7 @@ const UPDATE_FILE_WRITER =
 const UPDATE_FILE_READER =
   `function ${UPDATE_FILE_READER_NAME}(){` +
   `try{let V=JSON.parse(require("fs").readFileSync(${UPDATE_FILE_PATH},"utf8")).version;` +
-  'return typeof V==="string"&&V!==rs()?V:null}catch{return null}}';
+  'return typeof V==="string"&&V!==ls()?V:null}catch{return null}}';
 
 const UPDATE_HEADER_LINE =
   `if(${UPDATE_LOCAL}){` +
@@ -123,9 +123,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-search-warm-skip',
-    find: 'if(S(te),!t){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
+    find: 'if(!t){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
     replace:
-      'if(S(te),!1){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
+      'if(!1){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
   },
   {
     name: 'zod-v3-lazy-bound-methods',
@@ -136,15 +136,15 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(e in nr)return e;if(Object.values(nr).includes(e))return e;return}',
+    find: 'if(o in rr)return o;if(Object.values(rr).includes(o))return o;return}',
     replace:
-      'if(e in nr)return e;if((ut.$o!==nr&&(ut.$o=nr,ut.$s=new Set(Object.values(nr))),ut.$s).has(e))return e;return}',
+      'if(o in rr)return o;if((ut.$o!==rr&&(ut.$o=rr,ut.$s=new Set(Object.values(rr))),ut.$s).has(o))return o;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',
-    find: 'for(let{segment:F}of mD.segment(C)){if(RD(F))continue;if(hD.test(F)){d+=2;continue}let v=ND(F).codePointAt(0);d+=ul(v,h),d+=GD(F,h)}if(B)gr(n,d);return d}',
+    find: 'for(let{segment:F}of mD.segment(Q)){if(RD(F))continue;if(hD.test(F)){p+=2;continue}let v=ND(F).codePointAt(0);p+=hl(v,y),p+=GD(F,y)}if(B)gr(n,p);return p}',
     replace:
-      'let $m=l?kn.$n:kn.$w;for(let{segment:F}of mD.segment(C)){let $c=$m.get(F);if($c===void 0){if(RD(F))$c=0;else if(hD.test(F))$c=2;else{let v=ND(F).codePointAt(0);$c=ul(v,h)+GD(F,h)}if($m.size<2e4)$m.set(F,$c)}d+=$c}if(B)gr(n,d);return d}',
+      'let $m=l?kn.$n:kn.$w;for(let{segment:F}of mD.segment(Q)){let $c=$m.get(F);if($c===void 0){if(RD(F))$c=0;else if(hD.test(F))$c=2;else{let v=ND(F).codePointAt(0);$c=hl(v,y)+GD(F,y)}if($m.size<2e4)$m.set(F,$c)}p+=$c}if(B)gr(n,p);return p}',
   },
   {
     name: 'ink-string-width-grapheme-memo-init',
@@ -153,29 +153,29 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'app-display-width-grapheme-memo',
-    find: 'for(let{segment:u}of S.segment(o)){if(x(u))continue;if(_.test(u)){r+=2;continue}let f=w(u).codePointAt(0);r+=ul(f,s),r+=D(u,s)}return r}',
+    find: 'for(let{segment:u}of S.segment(o)){if(x(u))continue;if(_.test(u)){r+=2;continue}let f=w(u).codePointAt(0);r+=hl(f,s),r+=D(u,s)}return r}',
     replace:
-      'let $m=e?TS.$n:TS.$w;for(let{segment:u}of S.segment(o)){let $c=$m.get(u);if($c===void 0){if(x(u))$c=0;else if(_.test(u))$c=2;else{let f=w(u).codePointAt(0);$c=ul(f,s)+D(u,s)}if($m.size<2e4)$m.set(u,$c)}r+=$c}return r}',
+      'let $m=e?nS.$n:nS.$w;for(let{segment:u}of S.segment(o)){let $c=$m.get(u);if($c===void 0){if(x(u))$c=0;else if(_.test(u))$c=2;else{let f=w(u).codePointAt(0);$c=hl(f,s)+D(u,s)}if($m.size<2e4)$m.set(u,$c)}r+=$c}return r}',
   },
   {
     name: 'app-display-width-grapheme-memo-init',
     find: '_=/^\\p{RGI_Emoji}$/v;function w(n){',
-    replace: '_=/^\\p{RGI_Emoji}$/v;TS.$n=new Map;TS.$w=new Map;function w(n){',
+    replace: '_=/^\\p{RGI_Emoji}$/v;nS.$n=new Map;nS.$w=new Map;function w(n){',
   },
   {
     name: 'turn-clock-state',
-    find: 'var QY=new Set(["thinking","streaming","compressing","executing_tool"]),JY="\\uF418",',
-    replace: `var ${TURN_CLOCK_STATE},QY=new Set(["thinking","streaming","compressing","executing_tool"]),JY="\\uF418",`,
+    find: 'var tX=new Set(["thinking","streaming","compressing","executing_tool"]),oX="\\uF418",',
+    replace: `var ${TURN_CLOCK_STATE},tX=new Set(["thinking","streaming","compressing","executing_tool"]),oX="\\uF418",`,
   },
   {
     name: 'turn-clock-track',
-    find: 'isSessionArchived:ue,updateNoticeDisplay:de}){let me=tX(',
-    replace: `isSessionArchived:ue,updateNoticeDisplay:de}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let me=tX(`,
+    find: 'isSessionArchived:ue,updateNoticeDisplay:me}){let pe=iX(',
+    replace: `isSessionArchived:ue,updateNoticeDisplay:me}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let pe=iX(`,
   },
   {
     name: 'turn-clock-parts',
-    find: 'let ye=M$(j);if(ye)Al(be,[$e(ye,{color:o.primary})]);let we=[];',
-    replace: `let ye=M$(j);if(ye)Al(be,[$e(ye,{color:o.primary})]);${TURN_CLOCK_PARTS}let we=[];`,
+    find: 'let xe=B$(G);if(xe)Al(be,[Fe(xe,{color:o.primary})]);let Me=[];',
+    replace: `let xe=B$(G);if(xe)Al(be,[Fe(xe,{color:o.primary})]);${TURN_CLOCK_PARTS}let Me=[];`,
   },
   {
     name: 'auto-update-notice-only',
@@ -188,19 +188,19 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'update-notice-writer',
-    find: 'function x(){return IN(fX)}',
-    replace: `${UPDATE_FILE_WRITER}function x(){return IN(fX)}`,
+    find: 'function F(){return SN(oX)}',
+    replace: `${UPDATE_FILE_WRITER}function F(){return SN(oX)}`,
   },
   {
     name: 'update-notice-reader',
-    find: 'function rD({width:t,height:e,t:n}){',
-    replace: `${UPDATE_FILE_READER}function rD({width:t,height:e,t:n}){`,
+    find: 'function QP({width:t,height:e,t:n}){',
+    replace: `${UPDATE_FILE_READER}function QP({width:t,height:e,t:n}){`,
   },
   {
     name: 'update-notice-header-room',
-    find: 'L=!oe().isProductionTier,A=rs(),C=!h&&!!A,R=x.length+2+(L?1:0)+(C?2:0)+5,',
+    find: 'L=!Te().isProductionTier,A=ls(),C=!h&&!!A,R=x.length+2+(L?1:0)+(C?2:0)+5,',
     replace:
-      `L=!oe().isProductionTier,A=rs(),C=!h&&!!A,${UPDATE_LOCAL}=${UPDATE_FILE_READER_NAME}(),` +
+      `L=!Te().isProductionTier,A=ls(),C=!h&&!!A,${UPDATE_LOCAL}=${UPDATE_FILE_READER_NAME}(),` +
       `R=x.length+2+(L?1:0)+(C?2:0)+(${UPDATE_LOCAL}?2:0)+5,`,
   },
   {
@@ -210,29 +210,29 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'command-menu-prefix-first',
-    find: 'if(ue&&de)return 1;if(ue)return 2;if(de)return 3;return 4}',
-    replace: 'if(de)return ue?1:2;if(ue)return 3;return 4}',
+    find: 'if(ue&&me)return 1;if(ue)return 2;if(me)return 3;return 4}',
+    replace: 'if(me)return ue?1:2;if(ue)return 3;return 4}',
   },
   {
     name: 'command-catalog-mark-scanned',
-    find: 'function Ys(a){let t=o();if(t.snapshot.status===a.status',
+    find: 'function n0(a){let t=o();if(t.snapshot.status===a.status',
     replace:
-      'function Ys(a){if(a.status==="ready")Di.$done=!0;let t=o();if(t.snapshot.status===a.status',
+      'function n0(a){if(a.status==="ready")Ii.$done=!0;let t=o();if(t.snapshot.status===a.status',
   },
   {
     name: 'command-menu-loading-first-scan-only',
-    find: 'isLoading:zt.status==="refreshing"}',
-    replace: 'isLoading:zt.status==="refreshing"&&!Di.$done}',
+    find: 'isLoading:so.status==="refreshing"}',
+    replace: 'isLoading:so.status==="refreshing"&&!Ii.$done}',
   },
   {
     name: 'command-menu-visibility-same-commit',
-    find: 'ao=f((Xo)=>{xt({showCommands:Xo}),Kt(Xo)},[xt])',
-    replace: 'ao=f((Xo)=>{xt({showCommands:Xo}),Kt(Xo),kt?.(Xo)},[xt,kt])',
+    find: 'mt=f((Jo)=>{Co({showCommands:Jo}),eo(Jo)},[Co])',
+    replace: 'mt=f((Jo)=>{Co({showCommands:Jo}),eo(Jo),Mt?.(Jo)},[Co,Mt])',
   },
   {
     name: 'command-menu-visibility-reset-on-unmount',
-    find: 'D(()=>{kt?.(Yt)},[Yt,kt]);',
-    replace: 'D(()=>()=>{kt?.(!1)},[kt]);',
+    find: 'I(()=>{Mt?.(Xt)},[Xt,Mt]);',
+    replace: 'I(()=>()=>{Mt?.(!1)},[Mt]);',
   },
   {
     name: 'settings-watch-after-paint',
@@ -266,8 +266,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'mcp-gate-timeout-15s',
-    find: 'kt=60000;function Lt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
-    replace: 'kt=15000;function Lt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
+    find: '_t=60000;function Nt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
+    replace: '_t=15000;function Nt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
   },
   ...logoPatches,
   ...usagePatches,

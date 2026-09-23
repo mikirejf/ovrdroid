@@ -57,22 +57,22 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-ovrdroid',
-    find: 'var Hz=`',
+    find: 'var dz=`',
     until: '`.trim().split(`\n`),',
-    replace: `var Hz=${literal(WORDMARK_ROWS)},`,
+    replace: `var dz=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-ovrdroid',
-    find: ',Oz=[',
-    until: '];var dq=',
-    replace: `,Oz=${literal(COMPACT_ROWS)};var dq=`,
+    find: ',_z=["\\u2554',
+    until: '];var eq=',
+    replace: `,_z=${literal(COMPACT_ROWS)};var eq=`,
   },
   {
     name: 'wordmark-over-accent-paint',
     find: 'nt(m,0,H,x,i);',
     replace:
       `nt(m,0,H,x,i);let $over={color:o.highlight,bold:!0};` +
-      `if(x===Hz)nt(m,0,H,x.map(($)=>$.slice(0,${OVER_COLUMNS})),$over);` +
+      `if(x===dz)nt(m,0,H,x.map(($)=>$.slice(0,${OVER_COLUMNS})),$over);` +
       `else b(m,${COMPACT_ACCENT_ROW},H+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},$over);`,
   },
   {
