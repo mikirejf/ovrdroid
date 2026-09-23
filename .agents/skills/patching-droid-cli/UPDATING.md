@@ -25,15 +25,24 @@ bun run probe anchors /tmp/droid-stock
 - `unchanged` / `rebased` with `old->new` renames: the mechanical part is done. `--json` prints
   the rebased `find`, `until` and `replace` for every patch with the renames already applied, so
   copy those in rather than renaming by hand.
-- `missing`: the code moved or was rewritten. Step 3.
+- `missing`: the code moved or was rewritten. Step 3. Before assuming a rewrite, check whether
+  only a **neighbour** moved: a `find` that reaches past the code its `replace` touches goes
+  missing when that extra code changes. On 0.225.2 `session-search-warm-skip` carried a leading
+  `if(S(te),` that Droid split into its own statement; trimming the `find` to `if(!t){…` fixed it.
+  Keep every `find` to what its `replace` actually changes.
 - `ambiguous N places`: the shape now matches N sites. Widen the `find` until it is unique.
   `anchors` turns every name into a wildcard, so a `find` that is mostly names (`K$=\``) becomes a
   shape matching thousands of sites. Anchor such patches on a neighbouring keyword or literal
-  (`var Hz=\``) so they carry some shape of their own into the next release.
+  (`var Hz=\``) so they carry some shape of their own into the next release. The rename alone can
+  tip a short `find` over: `,Oz=[` was unique on 0.224.1, but its new name `,_z=[` matched 2194
+  places on 0.225.2. Extend it into the value it assigns (`,_z=["\u2554`), which is literal and
+  does not rename.
 
 `unresolved: X Y` on a rebased line is the part `--json` cannot do for you: a free name in
 `replace` (a module-scope function, a React hook, a theme object) that the `find` never captured,
-so the rename map never learned it. Step 3 resolves those.
+so the rename map never learned it. Step 3 resolves those. The list also includes the payload's
+own bindings (arrow parameters like `T`, `let` locals, `globalThis` names like `__odUsage`), which
+need no work. Read the payload and strike those first; what remains is the real list.
 
 If **every** patch is missing at once, the drift is structural, not cosmetic: the module layout
 changed under the harness (0.220.0 split one module into 496 chunks). Check `status`'s
@@ -100,6 +109,9 @@ every such name by **role**: read what it was at the old site (which destructure
 which import, which hook), then find what plays that role at the new site. Reading the two
 extractions side by side is the fastest way to do that. On 0.224.1, four names resolved cleanly and
 all four were strangers, one of them swapping `ambiguousIsNarrow` for `countAnsiEscapeCodes`.
+On 0.225.2 two letters traded roles in the footer: `useEffect` went from `D` to `I` while the
+`statusState` prop went from `I` to `D`. A payload left on the old letters still compiles, then
+calls a string as a hook and compares a function to `"idle"`.
 
 When `names` calls a name **free**, it says the old name is dead, not what replaced it. The same
 role search finds the replacement.
