@@ -10,6 +10,16 @@ interface ExecutePayload {
 
 interface NotificationPayload {
   notification_type: string;
+  session_id: string;
+  transcript_path: string;
+}
+
+interface SessionTag {
+  name: string;
+}
+
+interface TaggedSettings {
+  tags: readonly SessionTag[];
 }
 
 interface SoundSettings {
@@ -41,7 +51,11 @@ export function isNotificationPayload(value: unknown): value is NotificationPayl
     typeof value === 'object' &&
     value !== null &&
     'notification_type' in value &&
-    typeof value.notification_type === 'string'
+    typeof value.notification_type === 'string' &&
+    'session_id' in value &&
+    typeof value.session_id === 'string' &&
+    'transcript_path' in value &&
+    typeof value.transcript_path === 'string'
   );
 }
 
@@ -51,6 +65,22 @@ export function isSoundSettings(value: unknown): value is SoundSettings {
     value !== null &&
     'awaitingInputSound' in value &&
     typeof value.awaitingInputSound === 'string'
+  );
+}
+
+function isNamedTag(value: unknown): value is SessionTag {
+  return (
+    typeof value === 'object' && value !== null && 'name' in value && typeof value.name === 'string'
+  );
+}
+
+export function isTaggedSettings(value: unknown): value is TaggedSettings {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'tags' in value &&
+    Array.isArray(value.tags) &&
+    value.tags.every(isNamedTag)
   );
 }
 
