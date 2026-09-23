@@ -29,7 +29,7 @@ import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS } from './churn.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
 import { defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
-import { highlight, menu, touches, watch } from './menu-report.ts';
+import { clear, highlight, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, extract, grep, names } from './release-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
@@ -129,6 +129,12 @@ program
   .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
   .argument('<binary>')
   .action(guard(highlight));
+
+program
+  .command('clear')
+  .description('run /clear and type straight away: how fast is the new session, is the text kept?')
+  .argument('<binary>')
+  .action(guard(clear));
 
 program
   .command('touches')

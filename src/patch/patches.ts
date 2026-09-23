@@ -269,6 +269,24 @@ export const patches: readonly Patch[] = [
     find: '_t=60000;function Nt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
     replace: '_t=15000;function Nt(){let e=process.env.FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS',
   },
+  {
+    name: 'slash-command-keeps-typed-input',
+    find: 'let qo=So.slice(1),Sn=await bn.execute(qo,Br);if(Sn.handled){if(typeof Sn.insertText==="string")return hs(Sn.insertText),"accepted";hs("");',
+    replace:
+      'let qo=So.slice(1),$ODi=gs.current,Sn=await bn.execute(qo,Br);if(Sn.handled){if(typeof Sn.insertText==="string")return hs(Sn.insertText),"accepted";if(gs.current===$ODi)hs("");',
+  },
+  {
+    name: 'new-session-loads-in-background',
+    find: 'if(Re?.missionV2)await dt().startPlanning(rt);return await Ma(rt),rt}',
+    replace:
+      'if(Re?.missionV2)return await dt().startPlanning(rt),await Ma(rt),rt;return Ma(rt),rt}',
+  },
+  {
+    name: 'settings-wait-for-session-load',
+    find: 'Ht=f(async(It)=>{let ro=w(),it=ye.current;if(!it&&Me.current)it=await qe();',
+    replace:
+      'Ht=f(async(It)=>{let ro=w();if(xe.current)await xe.current;let it=ye.current;if(!it&&Me.current)it=await qe();',
+  },
   ...logoPatches,
   ...usagePatches,
 ];
