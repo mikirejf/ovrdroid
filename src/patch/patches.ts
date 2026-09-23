@@ -282,10 +282,10 @@ export const patches: readonly Patch[] = [
       'if(Re?.missionV2)return await dt().startPlanning(rt),await Ma(rt),rt;return Ma(rt),rt}',
   },
   {
-    name: 'settings-wait-for-session-load',
-    find: 'Ht=f(async(It)=>{let ro=w(),it=ye.current;if(!it&&Me.current)it=await qe();',
+    name: 'session-load-keeps-pending-settings',
+    find: 'Pe.current=wt;return await it.loadSession({sessionId:It}),ye.current=It,et.current={},X.emit(',
     replace:
-      'Ht=f(async(It)=>{let ro=w();if(xe.current)await xe.current;let it=ye.current;if(!it&&Me.current)it=await qe();',
+      'Pe.current=wt;await it.loadSession({sessionId:It}),ye.current=It;let $ODs=et.current;if(et.current={},lC($ODs))try{await it.updateSessionSettings({sessionId:It,...$ODs})}catch(mo){n("[useDaemonAgent] Failed to sync pending session settings",{cause:mo})}return X.emit(',
   },
   ...logoPatches,
   ...usagePatches,

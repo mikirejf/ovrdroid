@@ -32,7 +32,7 @@ import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { clear, highlight, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, extract, grep, names } from './release-report.ts';
-import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, keys } from './speed-report.ts';
+import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, effort, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
 const AB_RUNS = 30;
@@ -135,6 +135,13 @@ program
   .description('run /clear and type straight away: how fast is the new session, is the text kept?')
   .argument('<binary>')
   .action(guard(clear));
+
+program
+  .command('effort')
+  .description('cycle reasoning effort as early as it shows: does the label move at once and stay?')
+  .argument('<binary>')
+  .option('--after-clear', 'cycle it straight after /clear instead of at startup', false)
+  .action(guard(effort));
 
 program
   .command('touches')

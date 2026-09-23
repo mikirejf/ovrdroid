@@ -1,6 +1,12 @@
 import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
 import { interleave, summarise } from './ab.ts';
+import {
+  cycleEffortAfterClear,
+  cycleEffortAtStartup,
+  describeEffort,
+  effortHeld,
+} from './effort.ts';
 import { formatKeys, measureKeys } from './keys.ts';
 import { launch } from './launch.ts';
 import { sayPaired } from './paired.ts';
@@ -70,4 +76,14 @@ export async function keys(binaries: string[], options: KeysOptions): Promise<vo
     results.map(([binary, runs]) => [binary, runs.map((run) => run.lagMs)]),
     'lag',
   );
+}
+
+export async function effort(binary: string, options: { afterClear: boolean }): Promise<void> {
+  const reading = options.afterClear
+    ? await cycleEffortAfterClear(binary)
+    : await cycleEffortAtStartup(binary);
+  say(describeEffort(reading));
+  if (!effortHeld(reading)) {
+    process.exitCode = 1;
+  }
 }
