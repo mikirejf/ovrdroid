@@ -10,6 +10,11 @@ const OPEN =
 
 export const usagePatches: readonly Patch[] = [
   {
+    name: 'custom-openai-shared-cache-key',
+    find: 'prompt_cache_key:Be??s,',
+    replace: 'prompt_cache_key:Be??(m?"ovrdroid":s),',
+  },
+  {
     name: 'cache-usage-log',
     find: 'commitTurnTokenUsage(t,o){if(!this.currentSessionId)return;',
     replace:

@@ -1627,3 +1627,63 @@ Consequence: the danger window is not the pause between two user messages, it is
 20 minute agent turn on a 5 minute TTL busts its own prefix mid-turn. On the forced 1h the margin is
 comfortable, but a very long turn plus a pause can still cross an hour counted from request start
 rather than from the last reply.
+
+## Shipped: `custom-openai-shared-cache-key`, new GPT sessions start warm
+
+2026-09-24, Droid 0.225.2. Prompted by Cursor's token efficiency post
+(https://cursor.com/blog/improved-token-efficiency), whose cache section is about keeping the start
+of every request stable so later requests reuse it.
+
+Droid sends OpenAI a `prompt_cache_key` equal to the session id: `prompt_cache_key:Be??s` in the
+stock `chunk-ae8takas.js`, where `Be` is a caller key that is `undefined` for custom models. OpenAI
+only reuses a cached prefix inside one key, so every new session and every subagent on a custom GPT
+model started cold. In `cache-usage.jsonl` (5.9 days, 192 GPT sessions) the first request of a GPT
+session read 0 tokens from cache at the median and sent ~13.5k uncached; those first requests were
+16.4% of all uncached GPT input. Claude does not have the problem: 63% of Opus 5 sessions already
+read ~10.8k on their first request.
+
+The patch makes the fallback `m?"ovrdroid":s`, where `m` is `isCustomModel`, so every custom OpenAI
+model shares one key. Built-in models keep the session id. A prefix only matches a cache written by
+the same model, so sharing the key across models cannot mix their caches; it only puts them in one
+routing group.
+
+Checked before shipping, all through DroidProxy 1.8.148 (embedded CLIProxyAPI v7.3.15, commit
+673131f5, source read at that commit; Codex Plus account):
+
+- **The proxy passes the key through.** `codex_executor_request.go` copies `prompt_cache_key` into
+  `cache.ID` for OpenAI Responses input and sends it as `Session-Id`. Live: two keys against one
+  prefix, 3s apart, both missed on first use and both read 28,416 on their second, so the key really
+  gates reuse. A warm prefix sent under a fresh key usually read 0, but not always: in a 12-send
+  alternation, 2 of 6 fresh keys read the shared key's prefix, and stock Droid read 4.6k and 9.7k on
+  2 of 11 fresh sessions. The key steers routing to a machine; landing on a warm one without it is
+  luck.
+- **The proxy's per-key state does not bite.** Its reasoning replay cache is keyed on
+  `prompt_cache_key`, but `codexReasoningReplayEnabledForSource` enables it only for Claude-format
+  input, and Droid talks to custom GPT in the Responses format. Session affinity pins a key to one
+  account; there is one Codex account here.
+- **Concurrent sessions on one key are fine.** Four parallel requests on a warm key all read 26,368
+  of ~27,200. OpenAI says traffic over ~15 requests/min per key can overflow to other machines
+  (https://developers.openai.com/api/docs/guides/prompt-caching); the log's 60s rolling rate crosses
+  15 for 18-37% of GPT requests on the busy models. Overflow can cost a read, never correctness, and
+  the live runs show no loss at this scale.
+
+Measured, `/tmp/droid-ck` (stock + patch set) against `/tmp/droid-ck.orig`,
+`exec -m custom:droidproxy:gpt-6-luna`, two fresh sessions per binary, twice:
+
+| binary  | session 1 cache read | session 2 cache read | uncached input |
+| :------ | -------------------: | -------------------: | -------------: |
+| stock   |                0 / 0 |                0 / 0 |         10,346 |
+| patched |           0 / 10,752 |      10,752 / 10,752 |            114 |
+
+The first patched session missed only because nothing had written the shared key yet. From then on
+every fresh session read 10,752 of 10,866 prompt tokens (99%).
+
+`bun run probe cachekey /tmp/droid-ck.orig /tmp/droid-ck -m custom:droidproxy:gpt-6-luna -r 8`
+repeats it: stock median cache read 0 (range 0 to 9.7k), patched 10.8k on all 8. Time to first token
+is not resolved (paired mean +2.8s, 95% CI -1.7s to 7.3s, sd 6.5s): single sends swing from 1.5s to
+22s on both sides, and a direct API alternation of shared and fresh keys showed no latency
+difference. The saving is uncached input, not speed.
+
+Not done, and not worth it on this plan: explicit `prompt_cache_breakpoint` markers (Droid has none;
+GPT-5.6+ implicit mode already breaks at the last developer message and each user turn), trimming
+the system prompt, and changing Read's line numbers (Droid's Read shows none).

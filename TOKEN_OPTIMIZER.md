@@ -35,6 +35,9 @@ What is in place:
   tools array mid-session. Cost 700 tokens per request against a median 15k bust.
 - `cache-usage-log` writes one line per request to `~/.factory/ovrdroid/cache-usage.jsonl`;
   `probe busts` joins the miss warnings to it and reports loss per cause.
+- Patch `custom-openai-shared-cache-key` gives every custom OpenAI model one `prompt_cache_key`
+  instead of the session id, so a new GPT session or subagent reads the ~10.7k prefix an earlier one
+  wrote instead of sending it uncached. `probe cachekey` measures it; see FINDINGS.md.
 - `disabledSkills` in `settings.json` hides built-in skills the model never invokes; the skills list
   is rebuilt per session, so every name removed saves its description on every first turn.
 

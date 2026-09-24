@@ -27,7 +27,7 @@ import { modules, trace } from './capture-report.ts';
 import type { ChurnKind } from './churn.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS } from './churn.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
-import { defaultModel, exec, STAGES } from './exec-report.ts';
+import { cachekey, DEFAULT_CACHEKEY_DIR, defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import { clear, highlight, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
@@ -39,6 +39,7 @@ const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const IDLE_RUNS = 5;
 const EXEC_RUNS = 30;
+const CACHEKEY_RUNS = 5;
 const EXEC_PROMPT = 'Reply with exactly: ok';
 const EXEC_EXPECT = 'ok';
 const TOP_MODULES = 20;
@@ -101,6 +102,17 @@ program
   .option('-p, --prompt <text>', 'prompt for the turn stage', EXEC_PROMPT)
   .option('-e, --expect <text>', 'text every run must print, or the probe stops', EXEC_EXPECT)
   .action(guard(exec));
+
+program
+  .command('cachekey')
+  .description(
+    'start two fresh sessions on a custom OpenAI model: does the second reuse the prompt cache the first wrote?',
+  )
+  .argument('<binaries...>')
+  .option('-m, --model <id>', 'custom OpenAI model to run both sessions on', defaultModel())
+  .option('-r, --runs <n>', 'number of runs', count, CACHEKEY_RUNS)
+  .option('--cwd <dir>', 'directory both sessions run in', DEFAULT_CACHEKEY_DIR)
+  .action(guard(cachekey));
 
 function churnOptions(command: Command): Command {
   return command

@@ -5,6 +5,7 @@ import type { ExecRun, Stage } from './exec.ts';
 import { checkRun, formatExec, MODEL_VARIABLE, measureExec, workloadFor } from './exec.ts';
 import { sayPaired } from './paired.ts';
 
+export { cachekey, DEFAULT_CACHEKEY_DIR } from './cachekey-report.ts';
 export { defaultModel, STAGES } from './exec.ts';
 
 export interface ExecOptions extends RunOptions {
