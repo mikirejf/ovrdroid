@@ -1,4 +1,5 @@
 import { OVRDROID_UNDER_HOME } from '../paths.ts';
+import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
 import { usagePatches } from './usage-patches.ts';
 
@@ -289,6 +290,7 @@ export const patches: readonly Patch[] = [
   },
   ...logoPatches,
   ...usagePatches,
+  ...denylistPatches,
 ];
 
 export function markerDigest(list: readonly Patch[]): string {
