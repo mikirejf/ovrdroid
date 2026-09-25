@@ -126,6 +126,21 @@ describe('resolveName tells an imported name from a locally defined one', () => 
     expect(resolveName(LOGO, 'L$', SPAN).kind).toBe('define');
   });
 
+  test('a default import of a builtin is imported, not free', () => {
+    const fs = chunk('c.js', 'var a=1;import kn from"fs";import _n from"path";kn.renameSync(a)');
+    expect(resolveName(fs, 'kn', SPAN)).toEqual({
+      kind: 'import',
+      name: 'kn',
+      from: 'fs',
+      exported: 'kn',
+    });
+  });
+
+  test('a namespace import is imported, not free', () => {
+    const fs = chunk('c.js', 'import*as Be from"fs";Be.openSync()');
+    expect(resolveName(fs, 'Be', SPAN).kind).toBe('import');
+  });
+
   test('an import wins over a same-named definition, as the module scope does', () => {
     const shadow = chunk('c.js', `${HEADER}function g(){}`);
     expect(resolveName(shadow, 'g', SPAN).kind).toBe('import');

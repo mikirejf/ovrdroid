@@ -36,7 +36,7 @@ describe.skipIf(source === undefined)('every find string still matches the shipp
   });
 });
 
-const SCHEMA_CLASS = 'b';
+const SCHEMA_CLASS = 'k';
 const SCHEMA_REGION_BYTES = 200_000;
 
 function classBodyAt(text: string, start: number): string {

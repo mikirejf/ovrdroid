@@ -19,6 +19,8 @@ export type Origin =
 
 const IMPORT = /import\{(?<names>[^}]*)\}from"(?<from>[^"]+)"/gu;
 
+const WHOLE_IMPORT = /import(?:\*as | )(?<local>[\w$]+) ?from"(?<from>[^"]+)"/gu;
+
 const ESCAPE = /[.*+?^${}()|[\]\\]/gu;
 
 function definitionPattern(name: string): RegExp {
@@ -76,6 +78,16 @@ function importedAs(module: AppModule, name: string): Origin | undefined {
           exported: exported.trim(),
         };
       }
+    }
+  }
+  for (const match of module.text.matchAll(WHOLE_IMPORT)) {
+    if (match.groups?.['local'] === name) {
+      return {
+        kind: 'import',
+        name,
+        from: embedName(match.groups['from'] ?? ''),
+        exported: name,
+      };
     }
   }
   return undefined;

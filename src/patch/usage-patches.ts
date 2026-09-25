@@ -11,8 +11,8 @@ const OPEN =
 export const usagePatches: readonly Patch[] = [
   {
     name: 'custom-openai-shared-cache-key',
-    find: 'prompt_cache_key:Be??s,',
-    replace: 'prompt_cache_key:Be??(m?"ovrdroid":s),',
+    find: 'prompt_cache_key:ze??s,prompt_cache_retention:',
+    replace: 'prompt_cache_key:ze??(m?"ovrdroid":s),prompt_cache_retention:',
   },
   {
     name: 'cache-usage-log',
@@ -23,7 +23,7 @@ export const usagePatches: readonly Patch[] = [
   },
   {
     name: 'cache-usage-log-promote',
-    find: 'df.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
-    replace: `df.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
+    find: 'bf.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
+    replace: `bf.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
   },
 ];
