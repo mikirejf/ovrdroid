@@ -22,6 +22,13 @@ describe('tokenize splits code into holes and everything else', () => {
     expect(holes).toEqual(['H', 'FKT', 'g', 'A']);
   });
 
+  test('a spread name is a hole, unlike a name behind a dot', () => {
+    const holes = tokenize('[...A,...B.c,{...D}]')
+      .filter((token) => token.kind === 'ident')
+      .map((token) => token.text);
+    expect(holes).toEqual(['A', 'B', 'D']);
+  });
+
   test('a regex literal stays verbatim so its flags and classes are not holes', () => {
     const holes = tokenize('B=/^\\p{RGI_Emoji}$/v;H=new Map')
       .filter((token) => token.kind === 'ident')

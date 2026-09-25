@@ -282,11 +282,6 @@ export const patches: readonly Patch[] = [
       'if(!this.isBlockOnMcpLoadEnabled())return;',
   },
   {
-    name: 'mcp-gate-timeout-15s',
-    find: 'Ot=60000;function _t(){let e=Ci("FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS")',
-    replace: 'Ot=15000;function _t(){let e=Ci("FACTORY_MCP_BLOCKING_LOAD_TIMEOUT_MS")',
-  },
-  {
     name: 'slash-command-keeps-typed-input',
     find: 'let Pn=No.slice(1),cr=await Dn.execute(Pn,Rs);if(cr.handled){if(typeof cr.insertText==="string")return Ti(cr.insertText),"accepted";Ti("");',
     replace:
@@ -303,6 +298,56 @@ export const patches: readonly Patch[] = [
     find: 'De.current=Ot;return await Et.loadSession({sessionId:qt}),xe.current=qt,Xe.current={},X.emit(',
     replace:
       'De.current=Ot;await Et.loadSession({sessionId:qt}),xe.current=qt;let $ODs=Xe.current;if(Xe.current={},ak($ODs))try{await Et.updateSessionSettings({sessionId:qt,...$ODs})}catch(mo){n("[useDaemonAgent] Failed to sync pending session settings",{cause:mo})}return X.emit(',
+  },
+  {
+    name: 'session-worker-starts-mcp-in-background',
+    find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnMcpLoad||Qi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+    replace:
+      'if(!(e.listTools===!0||e.inputFormat==="stream-json"||(t.blockOnMcpLoad&&e.inputFormat!=="stream-jsonrpc")||Qi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+  },
+  {
+    name: 'first-message-shows-at-once',
+    find:
+      'Vt=f(async(qt)=>{let _o=J(),Ot=(Me.current||be.current?null:xe.current)??await wt();if(!Ot)return"rejected_with_notice";' +
+      'let bo=qt.message,mo=qt.requestId??we(),po=qt.messageId??we(),Go=_o.getSessionStateManager().getSessionManager(Ot),' +
+      'fn=Go?.getDroidWorkingState()==="idle",Nt=ho(qt.queuePlacement),Bt=fn&&Nt==="end_of_turn";if(Bt){',
+    replace:
+      'Vt=f(async(qt)=>{let _o=J(),$ODn=Me.current||be.current?null:xe.current,bo=qt.message,mo=qt.requestId??we(),' +
+      'po=qt.messageId??we(),Nt=ho(qt.queuePlacement),$ODe=null;if(!$ODn&&Nt==="end_of_turn"){' +
+      'let $ODk=A().getCurrentSessionId(),$ODm=$ODk?_o.getSessionStateManager().getSessionManager($ODk):null;' +
+      'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
+      '$ODm.addOptimisticMessage(mo,{id:po,role:qt.role??"user",content:Fc({text:bo,images:iG(qt.images)}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...qt.visibility&&{visibility:qt.visibility}}),' +
+      '$ODm.setThinking(),$ODm.$ODr=mo,$ODm.$ODc=!1,$ODe=$ODm}}' +
+      'let $ODu=()=>{if(!$ODe)return;$ODe.$ODr=null;$ODe.removeOptimisticMessage(mo);' +
+      'if($ODe.getDroidWorkingState()==="thinking")$ODe.stopStreaming();$ODe=null},' +
+      'Ot=$ODn??await wt();if($ODe){let $ODx=$ODe.$ODc;$ODe.$ODr=null,$ODe.$ODc=!1;if($ODx)return $ODe=null,"accepted"}' +
+      'if(!Ot)return $ODu(),"rejected_with_notice";' +
+      'let Go=_o.getSessionStateManager().getSessionManager(Ot);if($ODe!==Go)$ODu();' +
+      'let fn=Go?.getDroidWorkingState()==="idle",Bt=fn&&Nt==="end_of_turn";if(Bt){',
+  },
+  {
+    name: 'first-message-shows-at-once-undo',
+    find: 'if(Bt&&Go)Go.removeOptimisticMessage(mo);return R(yt,"[useDaemonAgent] Failed to send message"),b(fz(yt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[b,wt])',
+    replace:
+      'if(Bt&&Go)Go.removeOptimisticMessage(mo);return $ODu(),R(yt,"[useDaemonAgent] Failed to send message"),b(fz(yt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[b,wt])',
+  },
+  {
+    name: 'first-message-cancel-before-session',
+    find: 'eo=f(()=>{if(qe.current)return qe.current;let qt=xe.current;if(!qt)return Promise.resolve();',
+    replace:
+      'eo=f(()=>{if(qe.current)return qe.current;let qt=xe.current;if(!qt){' +
+      'let $ODk=A().getCurrentSessionId(),$ODm=$ODk?J().getSessionStateManager().getSessionManager($ODk):null;' +
+      'if($ODm?.$ODr){$ODm.removeOptimisticMessage($ODm.$ODr),$ODm.$ODr=null,$ODm.$ODc=!0;' +
+      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming();' +
+      'b(u().t("common:appMessages.requestCancelledByUser"),{messageType:"text",visibility:"user_only"})}' +
+      'return Promise.resolve()}',
+  },
+  {
+    name: 'mcp-servers-start-together',
+    find: 'for(let[A,E]of b)try{await this.addServer(A,E),',
+    until: 'await Promise.all(T.map(async([A,E])=>{',
+    replace: 'await Promise.all([...b,...T].map(async([A,E])=>{',
   },
   ...logoPatches,
   ...usagePatches,

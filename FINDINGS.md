@@ -1366,6 +1366,113 @@ agent turn already fetches the catalog lazily with its own 2.5s cap (`pcc`) when
 - There is no download URL for old Droid releases. Stock and patched 0.218.2 are kept under
   `work/bins/` (gitignored) alongside 0.219.0, with both extracted sources under `work/src/`.
 
+# First message findings
+
+## The headline
+
+**In a new session the first message, slash-command skills included, does not appear until the
+`droid exec` worker has started every MCP server.** With `blockOnMcpLoad: true` in
+`~/.factory/settings.json` the worker's `mcp_init` phase blocks its ready signal, and the TUI's
+`runAgent` (hook `useDaemonAgent`) awaits session creation (`qe` → `initializeTuiSession`) before it
+adds the optimistic message. Across 246 worker starts in the logs, ready took p50 1.8s, p90 8.5s,
+max 17.8s. The turn gate is not the cause: all 173 logged gates were under 0.5s.
+
+## Shipped: `first-message-shows-at-once`
+
+The pre-created session id (`p().getCurrentSessionId()`) already has a session manager before `qe`
+resolves, and `initializeSession` keeps optimistic messages. So the patch adds the message and sets
+"Thinking..." on that manager before the await, and undoes both if session creation fails, the send
+throws, or the session that comes back is a different one. The message still goes to the daemon with
+the same request id, so the daemon treats it as the running turn, not a queued one.
+
+`bun run probe first-send <binary> --cwd <project>` measures it. In fightsignal (9 MCP servers),
+five alternating runs each: patched shows the message and "Thinking..." after 6 to 42ms, stock after
+1.2 to 20.6s. The reply time does not change (it is still MCP start plus the model), and no run
+showed "queued". A `/skill` first message behaves the same (patched 7ms, stock 3.3s).
+
+Those numbers were taken with a probe that typed the message a key at a time, which takes ~3s and
+hides most of the wait. The probe now pastes it in one write and times from Enter. On 0.227.0 in
+fightsignal, `--after-clear`: stock shows the message after 1.4 to 2.3s, patched after 0.1 to 0.2s.
+The working spinner is " Streaming... " on 0.227.0, so the probe keys on "(Press ESC to stop)".
+
+The spinner offers Esc, but stock's stop callback returns at once while `xe.current` is still null,
+so Esc did nothing and the turn went out once the session was created.
+`first-message-cancel-before-session` fills that gap: the early message records its request id on
+the manager (`$ODr`), Esc before the session exists removes the message, stops the spinner, posts
+the stock "Request cancelled by user" notice, and marks it cancelled (`$ODc`); the send then returns
+"accepted" without sending, so no caller re-queues it. /tmp/slowmcp (one 15s MCP server), Esc ~150ms
+after the message shows: patched shows the cancel notice 0.4s later, no reply in 30s, and the next
+message replies in 2.6s.
+
+## Project MCP servers: npx is most of the stdio cost
+
+Per-server start latency from the logs, p50: trigger (npx) 3.2s, db-local (npx) 2.2s, vercel (remote
+HTTP) 2.1s, the rest under 0.5s. `npx` resolves the package against the registry on every start;
+`--prefer-offline` and `--offline` do not help, and inside a pnpm workspace npx is slower still.
+Running the package's own entry file with `node` from the project's `node_modules` cuts a server to
+~0.45s (trigger) and ~0.05s (postgres) standalone.
+
+A shared project file cannot name a machine path, and stdio servers start in the session cwd, not
+the project root, with args not env-expanded. The portable form is
+`sh -c 'exec node "$(git rev-parse --show-toplevel)/<path>" "$@"'`; it costs ~20ms. fightsignal
+rewritten by hand this way: `mcp_init` went from 6.3 to 9.7s (6 runs) to 4.3 to 7.8s. trigger now
+starts in 0.76 to 1.0s and db-local in 0.09 to 0.2s once warm. The spread is the remote servers.
+
+`ovrdroid doctor` checks only the user `~/.factory/mcp.json`. A project scan with an automatic fix
+was built (git stash "doctor: scan and --fix project .factory/mcp.json", ~180 lines plus tests) and
+shelved: most of it was the fix, and a hand edit per repo is two lines.
+
+## Shipped: `mcp-servers-start-together`
+
+Stock `reloadServers` connects remote HTTP and SSE servers one after another in a `for` loop, then
+starts stdio servers in parallel. With 5 remote servers in fightsignal that serial chain was the
+longest part of `mcp_init`. The patch starts all of them in one `Promise.all`; each server keeps its
+own try/catch, so one failure still cannot stop the others. OAuth flows can now run at once; the
+callback server already keys pending flows by state, so they do not collide.
+
+fightsignal, `droid exec --list-tools`, 8 alternating pairs against the build without it: `mcp_init`
+median 3.9s against 5.1s, faster in all 8 pairs (paired median 0.87s, range 0.17 to 2.85s), and all
+377 MCP tools loaded on every run.
+
+## Shipped: `session-worker-starts-mcp-in-background`
+
+The TUI's worker (`droid exec --input-format stream-jsonrpc`) waited for MCP twice with
+`blockOnMcpLoad` on: once at worker boot (`s3`, before it answers `initialize_session`) and again
+before every agent turn (`awaitMcpReadinessBeforeAgentTurnIfEnabled`, which starts MCP itself if
+needed). The patch sends the jsonrpc worker down `s3`'s background branch, so the session exists at
+once and the per-turn gate does the only wait. Logs confirm the order flips: `Session initialized`
+now comes before `mcp_init` completes.
+
+The exemption covers `blockOnMcpLoad` only. The first version overrode the whole condition, so
+`listTools` and tool-selection flags (`Qi(e)`) lost their wait too:
+`droid exec --input-format stream-jsonrpc --only-tools MCP:<server>` validated its selectors before
+any MCP tool existed and exited 1 with `Unknown tool identifier(s)`. It now exits 0, as stock does.
+
+It does not replace the TUI patches. Built without each one:
+
+- without `first-message-shows-at-once`, a message typed as soon as the box paints showed after 1.4
+  to 2.3s instead of ~0.3s: session creation still costs the worker boot.
+- without `new-session-loads-in-background`, `/clear` took 1.2 to 1.4s instead of ~30ms.
+- without `session-load-keeps-pending-settings`, an effort change right after `/clear` was lost.
+
+What it buys is overlap: session setup runs while MCP starts. fightsignal,
+`probe first-send --at-paint`, 12 alternating pairs against the build without it: reply median 7.5s
+against 8.9s, faster in 8 of 12 pairs, paired median 0.73s. Model latency makes single pairs noisy.
+
+With the boot wait gone, the per-turn gate is the only thing keeping late MCP tools out of turn two,
+where they would grow the tools array and bust the whole prompt cache (`TOKEN_OPTIMIZER.md`, "Busts
+closed"). The old `mcp-gate-timeout-15s` patch capped that gate at 15s, which was harmless while the
+uncapped boot wait covered turn one; logs show `mcp_init` up to 36s and 13 of 447 starts over 15s,
+so it would now cost a bust on ~3% of starts. It is dropped, and the gate keeps stock's 60s cap. The
+message still shows at once either way; only the first reply waits.
+
+## Open items
+
+- Per-server start times reach the log only when the TUI's metrics flush, and `exec --list-tools`
+  never writes them, so there is no per-run per-server number yet.
+- `blockOnMcpLoad: false` skips the wait entirely, but a first turn without every MCP tool grows the
+  tools array later and busts the prompt cache, so it is not an option here.
+
 # Prompt cache findings
 
 Work on `TOKEN_OPTIMIZER.md` starts here. Measured on Droid 0.222.0, 2026-09-18.

@@ -24,14 +24,14 @@ import {
   ttl,
 } from './cache-report.ts';
 import { modules, trace } from './capture-report.ts';
-import type { ChurnKind } from './churn.ts';
-import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS } from './churn.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
 import { cachekey, DEFAULT_CACHEKEY_DIR, defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
-import { clear, highlight, menu, touches, watch } from './menu-report.ts';
+import type { ChurnKind } from './menu-report.ts';
+import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, extract, grep, names } from './release-report.ts';
+import { clear, FIRST_SEND_PROMPT, firstSend, highlight } from './session-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, effort, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
@@ -58,6 +58,10 @@ program
   .option('--modules', 'include the module timing patches')
   .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--timers', 'include the timer census patches')
+  .option(
+    '--without <names...>',
+    'leave out these shipped patches and their name- companions, to A/B what each one buys',
+  )
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
 
@@ -147,6 +151,20 @@ program
   .description('run /clear and type straight away: how fast is the new session, is the text kept?')
   .argument('<binary>')
   .action(guard(clear));
+
+program
+  .command('first-send')
+  .description('send the first message of a session: does it show at once, and does the turn run?')
+  .argument('<binary>')
+  .option('--cwd <dir>', 'directory to start Droid in, for its MCP servers', process.cwd())
+  .option('--text <msg>', 'the message to send', FIRST_SEND_PROMPT)
+  .option('--at-paint', 'paste as soon as the input box shows, not after the screen settles', false)
+  .option(
+    '--after-clear',
+    'run /clear first, then send the first message of the new session',
+    false,
+  )
+  .action(guard(firstSend));
 
 program
   .command('effort')

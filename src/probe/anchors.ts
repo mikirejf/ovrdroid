@@ -108,7 +108,7 @@ function isHole(text: string, start: number, word: string): boolean {
     return false;
   }
   const before = text[start - 1];
-  if (before === '.') {
+  if (before === '.' && text.slice(start - 3, start) !== '...') {
     return false;
   }
   return !((before === '{' || before === ',') && text[start + word.length] === ':');

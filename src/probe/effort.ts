@@ -1,10 +1,7 @@
 import type { Frame, Session } from './session.ts';
-import { openSession, openSettledSession } from './session.ts';
+import { ENTER, openClearMenu, openSession, openSettledSession } from './session.ts';
 
 const CYCLE_EFFORT = '\t';
-const CLEAR = '/clear';
-const ENTER = '\r';
-const MENU_SETTLE_MS = 300;
 const POLL_MS = 50;
 const LABEL_TIMEOUT_MS = 15_000;
 const QUIET_MS = 3000;
@@ -99,8 +96,7 @@ export async function cycleEffortAtStartup(binary: string): Promise<EffortReadin
 export async function cycleEffortAfterClear(binary: string): Promise<EffortReading> {
   const { session } = await openSettledSession(binary);
   try {
-    await session.type(CLEAR);
-    await Bun.sleep(MENU_SETTLE_MS);
+    await openClearMenu(session);
     return await cycleAndRead(session, await labelOnScreen(session), ENTER + CYCLE_EFFORT);
   } finally {
     await session.close();

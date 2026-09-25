@@ -20,7 +20,19 @@ export interface BuildOptions {
   modules?: boolean;
   watch?: boolean;
   timers?: boolean;
+  without?: readonly string[];
   out: string;
+}
+
+export function withoutNamed(list: readonly Patch[], names: readonly string[]): Patch[] {
+  const known = new Set(list.map((patch) => patch.name));
+  const unknown = names.filter((name) => !known.has(name));
+  if (unknown.length > 0) {
+    throw new Error(`no patch named ${unknown.join(', ')}`);
+  }
+  return list.filter(
+    (patch) => !names.some((name) => patch.name === name || patch.name.startsWith(`${name}-`)),
+  );
 }
 
 function isPatch(value: unknown): value is Patch {
@@ -69,7 +81,7 @@ function refuseOverwrite(options: BuildOptions): void {
 export async function buildProbe(options: BuildOptions): Promise<void> {
   refuseOverwrite(options);
   const stock = await Bun.file(options.target).bytes();
-  const list: Patch[] = [...patches];
+  const list: Patch[] = withoutNamed(patches, options.without ?? []);
 
   if (options.trace === true) {
     list.push(...tracePatches);

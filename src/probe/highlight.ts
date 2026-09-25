@@ -1,15 +1,14 @@
+import { MS_PER_SECOND } from '../cli.ts';
 import type { Frame } from './session.ts';
-import { openSettledSession } from './session.ts';
+import { openSettledSession, sendAndRead } from './session.ts';
 
 export const HIGHLIGHT_PROMPT =
   'Reply with one fenced javascript code block containing console.log(1). Do not use tools.';
 const REPLY_TEXT = 'console.log';
 const CRASH_TEXT = 'Cannot find module';
 const MISSING_MODULE = /Cannot find module '(?<name>[^']+)'/gu;
-const ENTER = '\r';
 const REPLY_TIMEOUT_MS = 120_000;
 const QUIET_MS = 2000;
-const POLL_MS = 250;
 
 export interface HighlightReading {
   replied: boolean;
@@ -42,26 +41,16 @@ export function describeHighlight(reading: HighlightReading): string {
   }
   return reading.replied
     ? 'rendered a highlighted code block without loading errors'
-    : `no reply within ${REPLY_TIMEOUT_MS / 1000}s`;
+    : `no reply within ${REPLY_TIMEOUT_MS / MS_PER_SECOND}s`;
 }
 
 export async function askForHighlight(binary: string): Promise<HighlightReading> {
   const { session } = await openSettledSession(binary);
-  try {
-    await session.type(HIGHLIGHT_PROMPT);
-    session.mark();
-    await session.type(ENTER);
-
-    const deadline = performance.now() + REPLY_TIMEOUT_MS;
-    let reading = readHighlight(session.frames());
-    while (!reading.replied && !reading.crashed && performance.now() < deadline) {
-      // oxlint-disable-next-line no-await-in-loop
-      await Bun.sleep(POLL_MS);
-      reading = readHighlight(session.frames());
-    }
-    await session.quiet(QUIET_MS, REPLY_TIMEOUT_MS);
-    return readHighlight(session.frames());
-  } finally {
-    await session.close();
-  }
+  return await sendAndRead(session, {
+    text: HIGHLIGHT_PROMPT,
+    read: readHighlight,
+    done: (reading) => reading.replied || reading.crashed,
+    timeoutMs: REPLY_TIMEOUT_MS,
+    quietMs: QUIET_MS,
+  });
 }

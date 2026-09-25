@@ -1,14 +1,10 @@
 import type { Frame } from './session.ts';
-import { openSettledSession } from './session.ts';
+import { ENTER, INPUT_PREFIX, msOrNever, openClearMenu, openSettledSession } from './session.ts';
 
 export const TYPED_AFTER_CLEAR = 'typed while the new session starts';
 const BUSY_TEXT = 'Starting new session';
 const READY_TEXT = 'New session created';
-const INPUT_PREFIX = '│ > ';
 const BOX_EDGE = '│';
-const COMMAND = '/clear';
-const ENTER = '\r';
-const MENU_SETTLE_MS = 300;
 const QUIET_MS = 2500;
 const TIMEOUT_MS = 30_000;
 
@@ -40,16 +36,12 @@ export function readClear(frames: readonly Frame[], typed: string): ClearReading
   };
 }
 
-function ms(value: number | undefined): string {
-  return value === undefined ? 'never' : `${Math.round(value)}ms`;
-}
-
 export function describeClear(reading: ClearReading): string {
   return [
-    `"New session created" showed after ${ms(reading.readyMs)}`,
+    `"New session created" showed after ${msOrNever(reading.readyMs)}`,
     reading.busyMs === undefined
       ? 'the "Starting new session" spinner never showed'
-      : `the "Starting new session" spinner was last seen at ${ms(reading.busyMs)}`,
+      : `the "Starting new session" spinner was last seen at ${msOrNever(reading.busyMs)}`,
     reading.kept
       ? 'text typed during the switch was kept in the input box'
       : `text typed during the switch was lost: the input box ended as "${reading.input ?? ''}"`,
@@ -59,8 +51,7 @@ export function describeClear(reading: ClearReading): string {
 export async function clearWhileTyping(binary: string): Promise<ClearReading> {
   const { session } = await openSettledSession(binary);
   try {
-    await session.type(COMMAND);
-    await Bun.sleep(MENU_SETTLE_MS);
+    await openClearMenu(session);
     session.mark();
     await session.type(ENTER);
     await session.type(TYPED_AFTER_CLEAR);

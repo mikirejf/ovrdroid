@@ -29,8 +29,9 @@ were written. Where they came from and what was done:
 What is in place:
 
 - `blockOnMcpLoad: true` at the **root** of `~/.factory/settings.json` (a `general` wrapper is
-  silently ignored). Patch `mcp-gate-timeout-15s` caps the wait (measured MCP loads: median 0.4s,
-  worst 12.2s). Patch `gate-first-turn-on-ide-connect` also waits for VS Code (up to 5s).
+  silently ignored). The turn gate keeps stock's 60s cap: logs show MCP loads up to 36s, and a
+  shorter cap lets a slow server join on turn two and bust the cache. Patch
+  `gate-first-turn-on-ide-connect` also waits for VS Code (up to 5s).
 - Patches `web-fetch-always-loaded` and `web-search-always-loaded`, so `ToolSearch` never grows the
   tools array mid-session. Cost 700 tokens per request against a median 15k bust.
 - `cache-usage-log` writes one line per request to `~/.factory/ovrdroid/cache-usage.jsonl`;
