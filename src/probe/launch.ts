@@ -1,4 +1,8 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+
+import { ovrdroidFile } from '../paths.ts';
 
 export const PAINT_MARKER = '╰';
 export const TERMINAL_SIZE = { cols: 120, rows: 40 } as const;
@@ -11,6 +15,9 @@ const INTERRUPTED_EXIT_CODE = 130;
 const DEFAULT_SETTLE_MS = 300;
 const INJECTED_PREFIXES = ['FACTORY_', 'DROID_', 'HERDR_'];
 const AUTO_UPDATE = 'FACTORY_DROID_AUTO_UPDATE_ENABLED';
+const RUNTIME_SETTINGS = 'FACTORY_RUNTIME_SETTINGS_PATH';
+export const SILENT_SETTINGS_FILE = ovrdroidFile('probe-settings.json');
+const SILENT_SETTINGS = { completionSound: 'off', awaitingInputSound: 'off' };
 const WINDOW = 64;
 
 export type LaunchEnv = Record<string, string>;
@@ -54,6 +61,12 @@ function isInjected(key: string): boolean {
   return key === 'FORCE_COLOR' || INJECTED_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
+function writeSilentSettings(): string {
+  mkdirSync(path.dirname(SILENT_SETTINGS_FILE), { recursive: true });
+  writeFileSync(SILENT_SETTINGS_FILE, JSON.stringify(SILENT_SETTINGS));
+  return SILENT_SETTINGS_FILE;
+}
+
 export function launchEnv(extra: LaunchEnv = {}) {
   const env: LaunchEnv = {};
   for (const [key, value] of Object.entries(Bun.env)) {
@@ -63,6 +76,7 @@ export function launchEnv(extra: LaunchEnv = {}) {
   }
   env['TERM'] = 'xterm-256color';
   env[AUTO_UPDATE] = 'false';
+  env[RUNTIME_SETTINGS] = writeSilentSettings();
   return Object.assign(env, extra);
 }
 

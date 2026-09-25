@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { launch, launchEnv } from '../launch.ts';
+import { launch, launchEnv, SILENT_SETTINGS_FILE } from '../launch.ts';
 import { PAINT_MARKER, rejection, script, scriptDir } from './scripts.ts';
 
 const LAUNCH_SRC = path.join(import.meta.dir, '..', 'launch.ts');
@@ -107,6 +107,15 @@ describe('launchEnv', () => {
         Reflect.deleteProperty(Bun.env, key);
       }
     }
+  });
+
+  test('points Droid at a runtime settings file that turns every sound off', async () => {
+    const file = launchEnv()['FACTORY_RUNTIME_SETTINGS_PATH'];
+    expect(file).toBe(SILENT_SETTINGS_FILE);
+    expect(await Bun.file(SILENT_SETTINGS_FILE).json()).toEqual({
+      completionSound: 'off',
+      awaitingInputSound: 'off',
+    });
   });
 
   test('lets caller entries win', () => {
