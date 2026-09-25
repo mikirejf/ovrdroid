@@ -126,3 +126,34 @@ describe('rm -rf /* only matches a bare root glob', () => {
     expect(denies('rm -rf /*', 'rm -rf build/*')).toBe(false);
   });
 });
+
+const COMMAND_WORD_END = replacementOf('denylist-command-word-whole-argument');
+
+function commandWordEnd(word: string): string {
+  // SAFETY: the payload is one declarator of the shipped pattern builder's `let`, reading its entry tokens from `e`.
+  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion
+  return (new Function('e', `let ${COMMAND_WORD_END}return a`) as (tokens: string[]) => string)([
+    word,
+  ]);
+}
+
+function deniesByWord(entry: string, command: string): boolean {
+  const [word = '', argument = ''] = entry.split(' ');
+  return new RegExp(
+    `^${word}${commandWordEnd(word)}[^;&|]{0,100}${argument}([\\s;&|)\`]+|$)`,
+    'iu',
+  ).test(command);
+}
+
+describe('a deny entry only matches its command as a whole word', () => {
+  test.each(['init 6', 'init  6', 'INIT 6', 'init 6;ls', 'init 6)'])('%s asks', (command) => {
+    expect(deniesByWord('init 6', command)).toBe(true);
+  });
+
+  test.each(['init.BS957yFf.js:276', 'init-6', 'init.sh 6', 'initial 6'])(
+    '%s passes',
+    (command) => {
+      expect(deniesByWord('init 6', command)).toBe(false);
+    },
+  );
+});

@@ -8,6 +8,16 @@ const ABSOLUTE_PATH = `else if(s?.startsWith("/"))c.push(\`[^;&|]{0,100}\\\\s\${
 
 export const denylistPatches: readonly Patch[] = [
   {
+    name: 'denylist-command-word-whole-argument',
+    find: 'a=/\\w$/.test(e[0])?"\\\\b":"";',
+    replace: 'a=/\\w$/.test(e[0])?"(?=[\\\\s;&|)`]|$)":"";',
+  },
+  {
+    name: 'denylist-quoted-heredoc-body-is-text',
+    find: 'i??=Rm(e).map(',
+    replace: 'i??=Rm(e,{respectHeredocs:!0}).map(',
+  },
+  {
     name: 'denylist-root-home-whole-argument',
     find: `if(s==="/")c.push(\`[^;&|.]{0,100}\${u}\`);else if(s==="~")c.push(\`[^;&|]{0,100}\${u}\`);`,
     replace: ROOT_OR_HOME,
