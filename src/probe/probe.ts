@@ -7,6 +7,9 @@ import {
   busts,
   DEFAULT_BUST_SOURCE,
   DEFAULT_CLIFF_MINUTES,
+  DEFAULT_EFFORT_MODEL,
+  DEFAULT_EFFORT_PROMPT_TOKENS,
+  DEFAULT_EFFORT_RUNS,
   DEFAULT_LOG_SOURCE,
   DEFAULT_LOG_STORE,
   DEFAULT_MODEL,
@@ -16,6 +19,7 @@ import {
   DEFAULT_QUOTA_RUNS,
   DEFAULT_QUOTA_STEPS,
   DEFAULT_TTL_RUNS,
+  effortCache,
   logs,
   minuteList,
   prices,
@@ -308,6 +312,22 @@ program
   )
   .option('--out <file>', 'where every send is appended', DEFAULT_TTL_RUNS)
   .action(guard(ttl));
+
+program
+  .command('effort-cache')
+  .description(
+    'switch reasoning effort mid-conversation through DroidProxy: does the prompt cache survive?',
+  )
+  .option('-m, --model <id>', 'customModels entry to send through', DEFAULT_EFFORT_MODEL)
+  .option('--prompt-tokens <n>', 'size of the cached prefix', count, DEFAULT_EFFORT_PROMPT_TOKENS)
+  .option('--yes', 'actually send, and spend the tokens', false)
+  .option(
+    '--direct',
+    'talk to Anthropic with the OAuth token instead of DroidProxy; --model then takes an API model id',
+    false,
+  )
+  .option('--out <file>', 'where every send is appended', DEFAULT_EFFORT_RUNS)
+  .action(guard(effortCache));
 
 program
   .command('quota')

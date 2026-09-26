@@ -1,4 +1,10 @@
 export { busts, DEFAULT_BUST_SOURCE } from './busts-report.ts';
+export {
+  DEFAULT_EFFORT_MODEL,
+  DEFAULT_EFFORT_PROMPT_TOKENS,
+  DEFAULT_EFFORT_RUNS,
+  effortCache,
+} from './effort-cache-report.ts';
 export { DEFAULT_LOG_SOURCE, DEFAULT_LOG_STORE, logs } from './logs-report.ts';
 export { prices } from './prices-report.ts';
 export {

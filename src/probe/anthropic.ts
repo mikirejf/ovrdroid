@@ -21,16 +21,35 @@ export interface SystemBlock {
   cache_control?: CacheControl;
 }
 
-export interface UserMessage {
-  role: 'user';
-  content: string;
+export interface OutputConfig {
+  effort: string;
 }
+
+interface UserMessage {
+  role: 'user';
+  content: string | SystemBlock[];
+}
+
+interface AssistantMessage {
+  role: 'assistant';
+  content: readonly unknown[];
+}
+
+interface SystemMessage {
+  role: 'system';
+  content: [];
+  output_config: OutputConfig;
+}
+
+export type Message = UserMessage | AssistantMessage | SystemMessage;
 
 export interface MessagesRequest {
   model: string;
   max_tokens: number;
   system: SystemBlock[];
-  messages: UserMessage[];
+  messages: Message[];
+  thinking?: { type: 'adaptive' };
+  output_config?: OutputConfig;
 }
 
 export interface Usage {

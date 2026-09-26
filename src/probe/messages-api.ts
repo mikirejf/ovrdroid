@@ -14,6 +14,7 @@ export interface MessagesCall {
 export interface MessagesReply {
   usage: Usage;
   headers: Headers;
+  content: unknown[];
 }
 
 const CLI_PROXY_API_DIR = path.join(homedir(), '.cli-proxy-api');
@@ -59,5 +60,9 @@ export async function postMessages(call: MessagesCall): Promise<MessagesReply> {
   if (usage === undefined) {
     throw new Error('the response carried no usage object');
   }
-  return { usage, headers: response.headers };
+  const content = fields.get('content');
+  if (!Array.isArray(content)) {
+    throw new TypeError('the response carried no content array');
+  }
+  return { usage, headers: response.headers, content };
 }

@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { NS_PER_SECOND } from '../cli.ts';
 import { withTempDir } from '../temp.ts';
 import { preambleFor, stageEmbeds } from './embeds.ts';
 import type { App } from './graph.ts';
@@ -79,7 +80,7 @@ export async function buildBinary({ bun, app, stock, out }: BuildRequest): Promi
       ],
       { cwd: dir, stdio: ['ignore', 'inherit', 'inherit'] },
     );
-    const seconds = (Bun.nanoseconds() - started) / 1e9;
+    const seconds = (Bun.nanoseconds() - started) / NS_PER_SECOND;
 
     if (build.exitCode !== 0) {
       throw new Error(`bun build failed with exit code ${build.exitCode}`);

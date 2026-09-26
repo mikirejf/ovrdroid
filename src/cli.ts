@@ -27,6 +27,7 @@ export function say(message: string): void {
 }
 
 export const MS_PER_SECOND = 1000;
+export const NS_PER_SECOND = 1_000_000_000;
 export const KIB = 1024;
 
 export function seconds(ms: number): string {

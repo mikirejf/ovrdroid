@@ -1,13 +1,11 @@
 import { InvalidArgumentError } from 'commander';
 
-import { MS_PER_SECOND, say } from '../cli.ts';
-import { FACTORY_SETTINGS, ovrdroidFile } from '../paths.ts';
-import { apiKeyHeaders, CLAUDE_CODE_SYSTEM, CLAUDE_ENDPOINT, oauthHeaders } from './anthropic.ts';
-import { entriesOf, worded } from './fields.ts';
+import { MS_PER_SECOND, NS_PER_SECOND, say } from '../cli.ts';
+import { ovrdroidFile } from '../paths.ts';
+import type { Credentials } from './credentials.ts';
+import { readCredentials } from './credentials.ts';
 import { jsonlAppender } from './jsonl.ts';
-import { postMessages, readAccessToken } from './messages-api.ts';
-import { ANTHROPIC } from './prices.ts';
-import { settingsFields } from './settings.ts';
+import { postMessages } from './messages-api.ts';
 import type { SendOutcome } from './ttl-verdict.ts';
 import { verdict } from './ttl-verdict.ts';
 import type { Price, ScheduleName, SendStep, Step } from './ttl.ts';
@@ -33,7 +31,6 @@ export const DEFAULT_CLIFF_MINUTES = DEFAULT_MINUTES;
 
 const SONNET_PRICE: Price = { input: 2, cacheRead: 0.2, cacheWrite5m: 2.5, cacheWrite1h: 4 };
 const DOLLAR_DIGITS = 4;
-const NS_PER_SECOND = 1_000_000_000;
 
 export interface TtlOptions {
   model: string;
@@ -44,68 +41,11 @@ export interface TtlOptions {
   out: string;
 }
 
-interface DirectCredentials {
-  route: 'direct';
-  model: string;
-  endpoint: string;
-  headers: Record<string, string>;
-  leadText: string;
-}
-
-interface ProxyCredentials {
-  route: 'proxy';
-  model: string;
-  endpoint: string;
-  headers: Record<string, string>;
-}
-
-type Credentials = DirectCredentials | ProxyCredentials;
-
 interface RunContext {
   schedule: ScheduleName;
   credentials: Credentials;
   options: TtlOptions;
   append: (entry: unknown) => Promise<void>;
-}
-
-function endpointOf(baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/u, '').replace(/\/v1$/u, '')}/v1/messages`;
-}
-
-async function readDirectCredentials(model: string): Promise<DirectCredentials> {
-  return {
-    route: 'direct',
-    model,
-    endpoint: CLAUDE_ENDPOINT,
-    headers: oauthHeaders(await readAccessToken()),
-    leadText: CLAUDE_CODE_SYSTEM,
-  };
-}
-
-async function readProxyCredentials(droidId: string): Promise<ProxyCredentials> {
-  const entries = entriesOf(await settingsFields(), 'customModels');
-  const entry = entries.find((fields) => worded(fields, 'id') === droidId);
-  if (entry === undefined) {
-    throw new Error(`${droidId} is not a customModels entry in ${FACTORY_SETTINGS}`);
-  }
-
-  const provider = worded(entry, 'provider');
-  if (provider !== ANTHROPIC) {
-    throw new Error(`${droidId} is a ${provider} model; probe ttl speaks the Anthropic API only`);
-  }
-
-  const model = worded(entry, 'model');
-  const apiKey = worded(entry, 'apiKey');
-  if (model === '' || apiKey === '') {
-    throw new Error(`${droidId} has no model or apiKey in ${FACTORY_SETTINGS}`);
-  }
-
-  return {
-    route: 'proxy',
-    model,
-    endpoint: endpointOf(worded(entry, 'baseUrl')),
-    headers: apiKeyHeaders(apiKey),
-  };
 }
 
 async function sendOne(context: RunContext, step: SendStep): Promise<SendOutcome> {
@@ -119,7 +59,7 @@ async function sendOne(context: RunContext, step: SendStep): Promise<SendOutcome
       promptTokens: options.promptTokens,
       step,
       maxTokens: maxTokensFor(step),
-      leadText: credentials.route === 'direct' ? credentials.leadText : undefined,
+      leadText: credentials.leadText,
     }),
   });
   const elapsedSeconds = (Bun.nanoseconds() - started) / NS_PER_SECOND;
@@ -198,9 +138,7 @@ export function minuteList(raw: string): number[] {
 }
 
 export async function ttl(schedule: ScheduleName, options: TtlOptions): Promise<void> {
-  const credentials = options.direct
-    ? await readDirectCredentials(options.model)
-    : await readProxyCredentials(options.model);
+  const credentials = await readCredentials(options.model, options.direct);
   const steps = SCHEDULES[schedule]({ minutes: options.minutes });
 
   sayPlan(schedule, steps, options);
