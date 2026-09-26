@@ -59,26 +59,26 @@ const TURN_CLOCK_STATE =
   '$ODc={session:null,sent:0,done:0,busy:!1},' +
   '$ODa=(T)=>{let R=Math.floor(T/6e4);if(R<1)return"<1m";if(R<60)return R+"m";' +
   'let H=Math.floor(R/60);if(H<24)return H+"h";return Math.floor(H/24)+"d"},' +
-  '$ODt=(S)=>{try{return J().getSessionStateManager().getSessionManager(S)' +
+  '$ODt=(S)=>{try{return L().getSessionStateManager().getSessionManager(S)' +
   '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
 
 const TURN_CLOCK_TICK =
-  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=p(0);' +
-  'x(()=>{if(!$last)return;' +
+  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=A(0);' +
+  'v(()=>{if(!$last)return;' +
   'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
   '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
   'return()=>clearTimeout($id)},[$last,$t]);';
 
 const TURN_CLOCK_TRACK =
-  'let $busy=_!=="idle";' +
-  'if($ODc.session!==U)$ODc.session=U,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
-  'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(U):$ODc.done=$ODt(U);';
+  'let $busy=B!=="idle";' +
+  'if($ODc.session!==F)$ODc.session=F,$ODc.sent=0,$ODc.done=0,$ODc.busy=$busy;' +
+  'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(F):$ODc.done=$ODt(F);';
 
 const TURN_CLOCK_PARTS =
   'if($last){let $ago=[];' +
-  'if($ODc.sent)$ago.push(nt("\\u2191"+$ODa($now-$ODc.sent),{color:o.text.muted}));' +
-  'if($ODc.done)$ago.push(nt(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:o.text.muted}));' +
-  'id(Ee,$ago)}';
+  'if($ODc.sent)$ago.push(rt("\\u2191"+$ODa($now-$ODc.sent),{color:o.text.muted}));' +
+  'if($ODc.done)$ago.push(rt(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:o.text.muted}));' +
+  'sd(Ie,$ago)}';
 
 const UPDATE_FILE_NAME = 'update.json';
 
@@ -99,34 +99,28 @@ const UPDATE_FILE_WRITER =
 const UPDATE_FILE_READER =
   `function ${UPDATE_FILE_READER_NAME}(){` +
   `try{let V=JSON.parse(require("fs").readFileSync(${UPDATE_FILE_PATH},"utf8")).version;` +
-  'return typeof V==="string"&&V!==ks()?V:null}catch{return null}}';
+  'return typeof V==="string"&&V!==Hs()?V:null}catch{return null}}';
 
 const UPDATE_HEADER_LINE =
   `if(${UPDATE_LOCAL}){` +
   `let $x="\\u2193 v"+${UPDATE_LOCAL}+" available \\xB7 run: ovrdroid update";` +
-  `b(m,T,M($x),$x,{color:o.warning,bold:!0}),T+=2}`;
+  `b(f,L,M($x),$x,{color:o.warning,bold:!0}),L+=2}`;
 
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
-    find: 'timeoutMs:n=150,platform:a="darwin"',
-    replace: 'timeoutMs:n=30,platform:a="darwin"',
+    find: 'timeoutMs:a=150}={}){if(p)return i;',
+    replace: 'timeoutMs:a=30}={}){if(p)return i;',
   },
   {
     name: 'certificate-count-skip',
-    find: 'async function mt(){let r=await L(),t=await M(r);',
+    find: 'async function mt(){let r=await B(),t=await M(r);',
     replace: 'async function mt(){let r=null,t=await M(r);',
   },
   {
     name: 'shutdown-flush-deadline',
-    find: 'M=1e4,A=1000,',
-    replace: 'M=1e4,A=10,',
-  },
-  {
-    name: 'session-search-warm-skip',
-    find: 'if(!t){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
-    replace:
-      'if(!1){let r=C.then(()=>i.startBackgroundStartupOperation(i.phases.SessionSearchWarm,',
+    find: 'M=1e4,R=1000,',
+    replace: 'M=1e4,R=10,',
   },
   {
     name: 'git-ai-archive-skip',
@@ -135,14 +129,14 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-index-atomic-save',
-    find: 'kn.writeFileSync(this.cachePath,JSON.stringify(this.state,null,2)),Xs(this.cachePath)',
+    find: 'ss.writeFileSync(this.cachePath,JSON.stringify(this.state,null,2)),tT(this.cachePath)',
     replace:
-      'let o=this.cachePath+"."+process.pid+".tmp";try{kn.writeFileSync(o,JSON.stringify(this.state,null,2)),Xs(o),kn.renameSync(o,this.cachePath)}finally{kn.rmSync(o,{force:!0})}',
+      'let o=this.cachePath+"."+process.pid+".tmp";try{ss.writeFileSync(o,JSON.stringify(this.state,null,2)),tT(o),ss.renameSync(o,this.cachePath)}finally{ss.rmSync(o,{force:!0})}',
   },
   {
     name: 'session-index-heal-unreadable',
-    find: 'this.state=xf(this.sessionsDir),this.loadFailed=!0}',
-    replace: 'this.state=xf(this.sessionsDir)}',
+    find: 'this.state=om(this.sessionsDir),this.loadFailed=!0}',
+    replace: 'this.state=om(this.sessionsDir)}',
   },
   {
     name: 'zod-v3-lazy-bound-methods',
@@ -153,103 +147,103 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(o in Fn)return o;if(Object.values(Fn).includes(o))return o;return}',
+    find: 'if(o in In)return o;if(Object.values(In).includes(o))return o;return}',
     replace:
-      'if(o in Fn)return o;if((ut.$o!==Fn&&(ut.$o=Fn,ut.$s=new Set(Object.values(Fn))),ut.$s).has(o))return o;return}',
+      'if(o in In)return o;if((gt.$o!==In&&(gt.$o=In,gt.$s=new Set(Object.values(In))),gt.$s).has(o))return o;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',
-    find: 'for(let{segment:y}of dD.segment(I)){if(GD(y))continue;if(yD.test(y)){m+=2;continue}let R=RD(y).codePointAt(0);m+=Pl(R,h),m+=vD(y,h)}if(B)Er(e,m);return m}',
+    find: 'for(let{segment:p}of QD.segment(C)){if(FD(p))continue;if(mD.test(p)){D+=2;continue}let N=yD(p).codePointAt(0);D+=v0(N,d),D+=SD(p,d)}if(B)ar(n,D);return D}',
     replace:
-      'let $m=a?Yn.$n:Yn.$w;for(let{segment:y}of dD.segment(I)){let $c=$m.get(y);if($c===void 0){if(GD(y))$c=0;else if(yD.test(y))$c=2;else{let R=RD(y).codePointAt(0);$c=Pl(R,h)+vD(y,h)}if($m.size<2e4)$m.set(y,$c)}m+=$c}if(B)Er(e,m);return m}',
+      'let $m=l?Jn.$n:Jn.$w;for(let{segment:p}of QD.segment(C)){let $c=$m.get(p);if($c===void 0){if(FD(p))$c=0;else if(mD.test(p))$c=2;else{let N=yD(p).codePointAt(0);$c=v0(N,d)+SD(p,d)}if($m.size<2e4)$m.set(p,$c)}D+=$c}if(B)ar(n,D);return D}',
   },
   {
     name: 'ink-string-width-grapheme-memo-init',
-    find: 'yD=/^\\p{RGI_Emoji}$/v;function gr(e){',
-    replace: 'yD=/^\\p{RGI_Emoji}$/v;Yn.$n=new Map;Yn.$w=new Map;function gr(e){',
+    find: 'mD=/^\\p{RGI_Emoji}$/v;function ir(n){',
+    replace: 'mD=/^\\p{RGI_Emoji}$/v;Jn.$n=new Map;Jn.$w=new Map;function ir(n){',
   },
   {
     name: 'app-display-width-grapheme-memo',
-    find: 'for(let{segment:u}of W.segment(o)){if(I(u))continue;if(x.test(u)){r+=2;continue}let f=D(u).codePointAt(0);r+=Pl(f,s),r+=P(u,s)}return r}',
+    find: 's={ambiguousAsWide:!e};for(let{segment:u}of W.segment(o)){if(I(u))continue;if(x.test(u)){r+=2;continue}let f=D(u).codePointAt(0);r+=v0(f,s),r+=P(u,s)}return r}',
     replace:
-      'let $m=e?Uk.$n:Uk.$w;for(let{segment:u}of W.segment(o)){let $c=$m.get(u);if($c===void 0){if(I(u))$c=0;else if(x.test(u))$c=2;else{let f=D(u).codePointAt(0);$c=Pl(f,s)+P(u,s)}if($m.size<2e4)$m.set(u,$c)}r+=$c}return r}',
+      's={ambiguousAsWide:!e},$m=e?HB.$n:HB.$w;for(let{segment:u}of W.segment(o)){let $c=$m.get(u);if($c===void 0){if(I(u))$c=0;else if(x.test(u))$c=2;else{let f=D(u).codePointAt(0);$c=v0(f,s)+P(u,s)}if($m.size<2e4)$m.set(u,$c)}r+=$c}return r}',
   },
   {
     name: 'app-display-width-grapheme-memo-init',
     find: 'x=/^\\p{RGI_Emoji}$/v;function D(n){',
-    replace: 'x=/^\\p{RGI_Emoji}$/v;Uk.$n=new Map;Uk.$w=new Map;function D(n){',
+    replace: 'x=/^\\p{RGI_Emoji}$/v;HB.$n=new Map;HB.$w=new Map;function D(n){',
   },
   {
     name: 'turn-clock-state',
-    find: 'var qme=new Set(["thinking","streaming","compressing","executing_tool"]),Gme="\\uF418",',
-    replace: `var ${TURN_CLOCK_STATE},qme=new Set(["thinking","streaming","compressing","executing_tool"]),Gme="\\uF418",`,
+    find: 'var Jce=new Set(["thinking","streaming","compressing","executing_tool"]),eue="\\uF418",',
+    replace: `var ${TURN_CLOCK_STATE},Jce=new Set(["thinking","streaming","compressing","executing_tool"]),eue="\\uF418",`,
   },
   {
     name: 'turn-clock-track',
-    find: 'isSessionArchived:ue,updateNoticeDisplay:de}){let me=Qme(',
-    replace: `isSessionArchived:ue,updateNoticeDisplay:de}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let me=Qme(`,
+    find: 'isSessionArchived:de,updateNoticeDisplay:me}){let fe=rue(',
+    replace: `isSessionArchived:de,updateNoticeDisplay:me}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let fe=rue(`,
   },
   {
     name: 'turn-clock-parts',
-    find: 'let be=OQ(K);if(be)id(Ee,[nt(be,{color:o.primary})]);let Me=[];',
-    replace: `let be=OQ(K);if(be)id(Ee,[nt(be,{color:o.primary})]);${TURN_CLOCK_PARTS}let Me=[];`,
+    find: 'let Ee=Lz(V);if(Ee)sd(Ie,[rt(Ee,{color:o.primary})]);let Me=[];',
+    replace: `let Ee=Lz(V);if(Ee)sd(Ie,[rt(Ee,{color:o.primary})]);${TURN_CLOCK_PARTS}let Me=[];`,
   },
   {
     name: 'auto-update-notice-only',
-    find: 'if(!g)return s(u,"no-update"),"no-update";if(g.isRollback){',
+    find: 'if(!f)return l(u,"no-update"),"no-update";if(f.isRollback){',
     replace:
-      `if(!g)return ${UPDATE_FILE_WRITER_NAME}(null),s(u,"no-update"),"no-update";` +
-      `return ${UPDATE_FILE_WRITER_NAME}(g.version.version),` +
-      'l("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:g.version.version}),' +
-      's(u,"skipped"),"skipped";if(g.isRollback){',
+      `if(!f)return ${UPDATE_FILE_WRITER_NAME}(null),l(u,"no-update"),"no-update";` +
+      `return ${UPDATE_FILE_WRITER_NAME}(f.version.version),` +
+      'T("Auto-update blocked by ovrdroid; run: ovrdroid update",{version:f.version.version}),' +
+      'l(u,"skipped"),"skipped";if(f.isRollback){',
   },
   {
     name: 'update-notice-writer',
-    find: 'function F(){return $8(uee)}',
-    replace: `${UPDATE_FILE_WRITER}function F(){return $8(uee)}`,
+    find: 'function F(){return V4(bne)}',
+    replace: `${UPDATE_FILE_WRITER}function F(){return V4(bne)}`,
   },
   {
     name: 'update-notice-reader',
-    find: 'function zI({width:t,height:e,t:n}){',
-    replace: `${UPDATE_FILE_READER}function zI({width:t,height:e,t:n}){`,
+    find: 'function $D({width:t,height:e,t:n}){',
+    replace: `${UPDATE_FILE_READER}function $D({width:t,height:e,t:n}){`,
   },
   {
     name: 'update-notice-header-room',
-    find: 'L=!Te().isProductionTier,E=ks(),C=!h&&!!E,R=x.length+2+(L?1:0)+(C?2:0)+5,',
+    find: 'y=!oe().isProductionTier,E=Hs(),C=!d&&!!E,T=g.length+2+(y?1:0)+(C?2:0)+5,',
     replace:
-      `L=!Te().isProductionTier,E=ks(),C=!h&&!!E,${UPDATE_LOCAL}=${UPDATE_FILE_READER_NAME}(),` +
-      `R=x.length+2+(L?1:0)+(C?2:0)+(${UPDATE_LOCAL}?2:0)+5,`,
+      `y=!oe().isProductionTier,E=Hs(),C=!d&&!!E,${UPDATE_LOCAL}=${UPDATE_FILE_READER_NAME}(),` +
+      `T=g.length+2+(y?1:0)+(C?2:0)+(${UPDATE_LOCAL}?2:0)+5,`,
   },
   {
     name: 'update-notice-header-line',
-    find: 'b(m,T,M(q),q,l),T+=2;',
-    replace: `${UPDATE_HEADER_LINE}b(m,T,M(q),q,l),T+=2;`,
+    find: 'b(f,L,M(q),q,l),L+=2;',
+    replace: `${UPDATE_HEADER_LINE}b(f,L,M(q),q,l),L+=2;`,
   },
   {
     name: 'command-menu-prefix-first',
-    find: 'if(ue&&de)return 1;if(ue)return 2;if(de)return 3;return 4}',
-    replace: 'if(de)return ue?1:2;if(ue)return 3;return 4}',
+    find: 'if(m&&d)return 1;if(m)return 2;if(d)return 3;return 4}',
+    replace: 'if(d)return m?1:2;if(m)return 3;return 4}',
   },
   {
     name: 'command-catalog-mark-scanned',
-    find: 'function f0(a){let t=o();if(t.snapshot.status===a.status',
+    find: 'function fT(a){let t=o();if(t.snapshot.status===a.status',
     replace:
-      'function f0(a){if(a.status==="ready")Ui.$done=!0;let t=o();if(t.snapshot.status===a.status',
+      'function fT(a){if(a.status==="ready")ei.$done=!0;let t=o();if(t.snapshot.status===a.status',
   },
   {
     name: 'command-menu-loading-first-scan-only',
-    find: 'isLoading:$o.status==="refreshing"}',
-    replace: 'isLoading:$o.status==="refreshing"&&!Ui.$done}',
+    find: 'isLoading:Uo.status==="refreshing"}',
+    replace: 'isLoading:Uo.status==="refreshing"&&!ei.$done}',
   },
   {
     name: 'command-menu-visibility-same-commit',
-    find: 'To=f((zn)=>{Nt({showCommands:zn}),po(zn)},[Nt])',
-    replace: 'To=f((zn)=>{Nt({showCommands:zn}),po(zn),Ge?.(zn)},[Nt,Ge])',
+    find: 'vo=f((_n)=>{Pt({showCommands:_n}),Do(_n)},[Pt])',
+    replace: 'vo=f((_n)=>{Pt({showCommands:_n}),Do(_n),Ke?.(_n)},[Pt,Ke])',
   },
   {
     name: 'command-menu-visibility-reset-on-unmount',
-    find: 'x(()=>{Ge?.(mo)},[mo,Ge]);',
-    replace: 'x(()=>()=>{Ge?.(!1)},[Ge]);',
+    find: 'v(()=>{Ke?.(mo)},[mo,Ke]);',
+    replace: 'v(()=>()=>{Ke?.(!1)},[Ke]);',
   },
   {
     name: 'settings-watch-after-paint',
@@ -259,14 +253,15 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'draft-dismiss-no-rerender',
-    find: 'let v=f(()=>{S({type:"draft-edited"})},[]);return{display:b,dismissAfterDraftEdit:v}',
+    find: 'let N=f(()=>{_({type:"draft-edited"})},[]);return{display:P,dismissAfterDraftEdit:N}',
     replace:
-      'let $r=O(b);$r.current=b;let v=f(()=>{let $s=$r.current;if($s.notice.kind==="hidden"||$s.dismissed)return;S({type:"draft-edited"})},[]);return{display:b,dismissAfterDraftEdit:v}',
+      'let $r=O(P);$r.current=P;let N=f(()=>{let $s=$r.current;if($s.notice.kind==="hidden"||$s.dismissed)return;_({type:"draft-edited"})},[]);return{display:P,dismissAfterDraftEdit:N}',
   },
   {
     name: 'web-fetch-always-loaded',
-    find: 'outputSchemas:{result:M},toolkit:"Web Search",deferred:!0,isToolEnabled:!0}',
-    replace: 'outputSchemas:{result:M},toolkit:"Web Search",deferred:!1,isToolEnabled:!0}',
+    find: 'Factory wiki URLs.`,executionLocation:"server",inputSchema:Z,isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!1,sideEffects:["network"],outputSchemas:{result:O},toolkit:"Web Search",deferred:!0',
+    replace:
+      'Factory wiki URLs.`,executionLocation:"server",inputSchema:Z,isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!1,sideEffects:["network"],outputSchemas:{result:O},toolkit:"Web Search",deferred:!1',
   },
   {
     name: 'web-search-always-loaded',
@@ -283,71 +278,71 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'slash-command-keeps-typed-input',
-    find: 'let Pn=No.slice(1),cr=await Dn.execute(Pn,Rs);if(cr.handled){if(typeof cr.insertText==="string")return Ti(cr.insertText),"accepted";Ti("");',
+    find: 'let Dn=Po.slice(1),Gn=await vn.execute(Dn,gi);if(Gn.handled){if(typeof Gn.insertText==="string")return wi(Gn.insertText),"accepted";wi("");',
     replace:
-      'let Pn=No.slice(1),$ODi=kr.current,cr=await Dn.execute(Pn,Rs);if(cr.handled){if(typeof cr.insertText==="string")return Ti(cr.insertText),"accepted";if(kr.current===$ODi)Ti("");',
+      'let Dn=Po.slice(1),$ODi=Is.current,Gn=await vn.execute(Dn,gi);if(Gn.handled){if(typeof Gn.insertText==="string")return wi(Gn.insertText),"accepted";if(Is.current===$ODi)wi("");',
   },
   {
     name: 'new-session-loads-in-background',
-    find: 'if(Pe?.missionV2)await mt().startPlanning(xt);return await Mc(xt),xt}',
+    find: 'if(De?.missionV2)await ft().startPlanning(gt);return await wc(gt),gt}',
     replace:
-      'if(Pe?.missionV2)return await mt().startPlanning(xt),await Mc(xt),xt;return Mc(xt),xt}',
+      'if(De?.missionV2)return await ft().startPlanning(gt),await wc(gt),gt;return wc(gt),gt}',
   },
   {
     name: 'session-load-keeps-pending-settings',
-    find: 'De.current=Ot;return await Et.loadSession({sessionId:qt}),xe.current=qt,Xe.current={},X.emit(',
+    find: 'Le.current=_t;return await wt.loadSession({sessionId:Bt}),be.current=Bt,je.current={},Y.emit(',
     replace:
-      'De.current=Ot;await Et.loadSession({sessionId:qt}),xe.current=qt;let $ODs=Xe.current;if(Xe.current={},ak($ODs))try{await Et.updateSessionSettings({sessionId:qt,...$ODs})}catch(mo){n("[useDaemonAgent] Failed to sync pending session settings",{cause:mo})}return X.emit(',
+      'Le.current=_t;await wt.loadSession({sessionId:Bt}),be.current=Bt;let $ODs=je.current;if(je.current={},wM($ODs))try{await wt.updateSessionSettings({sessionId:Bt,...$ODs})}catch($ODx){n("[useDaemonAgent] Failed to sync pending session settings",{cause:$ODx})}return Y.emit(',
   },
   {
     name: 'session-worker-starts-mcp-in-background',
-    find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnMcpLoad||Qi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+    find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnMcpLoad||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
     replace:
-      'if(!(e.listTools===!0||e.inputFormat==="stream-json"||(t.blockOnMcpLoad&&e.inputFormat!=="stream-jsonrpc")||Qi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+      'if(!(e.listTools===!0||e.inputFormat==="stream-json"||(t.blockOnMcpLoad&&e.inputFormat!=="stream-jsonrpc")||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
   },
   {
     name: 'first-message-shows-at-once',
     find:
-      'Vt=f(async(qt)=>{let _o=J(),Ot=(Me.current||be.current?null:xe.current)??await wt();if(!Ot)return"rejected_with_notice";' +
-      'let bo=qt.message,mo=qt.requestId??we(),po=qt.messageId??we(),Go=_o.getSessionStateManager().getSessionManager(Ot),' +
-      'fn=Go?.getDroidWorkingState()==="idle",Nt=ho(qt.queuePlacement),Bt=fn&&Nt==="end_of_turn";if(Bt){',
+      'Gt=f(async(Bt)=>{let Lo=L(),_t=(Me.current||Ee.current?null:be.current)??await Dt();if(!_t)return"rejected_with_notice";' +
+      'let To=Bt.message,mo=Bt.requestId??xe(),Do=Bt.messageId??xe(),Wo=Lo.getSessionStateManager().getSessionManager(_t),' +
+      'yn=Wo?.getDroidWorkingState()==="idle",Pt=ho(Bt.queuePlacement),Ot=yn&&Pt==="end_of_turn";if(Ot){',
     replace:
-      'Vt=f(async(qt)=>{let _o=J(),$ODn=Me.current||be.current?null:xe.current,bo=qt.message,mo=qt.requestId??we(),' +
-      'po=qt.messageId??we(),Nt=ho(qt.queuePlacement),$ODe=null;if(!$ODn&&Nt==="end_of_turn"){' +
-      'let $ODk=A().getCurrentSessionId(),$ODm=$ODk?_o.getSessionStateManager().getSessionManager($ODk):null;' +
+      'Gt=f(async(Bt)=>{let Lo=L(),$ODn=Me.current||Ee.current?null:be.current,To=Bt.message,mo=Bt.requestId??xe(),' +
+      'Do=Bt.messageId??xe(),Pt=ho(Bt.queuePlacement),$ODe=null;if(!$ODn&&Pt==="end_of_turn"){' +
+      'let $ODk=p().getCurrentSessionId(),$ODm=$ODk?Lo.getSessionStateManager().getSessionManager($ODk):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(mo,{id:po,role:qt.role??"user",content:Fc({text:bo,images:iG(qt.images)}),' +
-      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...qt.visibility&&{visibility:qt.visibility}}),' +
+      '$ODm.addOptimisticMessage(mo,{id:Do,role:Bt.role??"user",content:eR({text:To,images:Kz(Bt.images)}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...Bt.visibility&&{visibility:Bt.visibility}}),' +
       '$ODm.setThinking(),$ODm.$ODr=mo,$ODm.$ODc=!1,$ODe=$ODm}}' +
       'let $ODu=()=>{if(!$ODe)return;$ODe.$ODr=null;$ODe.removeOptimisticMessage(mo);' +
       'if($ODe.getDroidWorkingState()==="thinking")$ODe.stopStreaming();$ODe=null},' +
-      'Ot=$ODn??await wt();if($ODe){let $ODx=$ODe.$ODc;$ODe.$ODr=null,$ODe.$ODc=!1;if($ODx)return $ODe=null,"accepted"}' +
-      'if(!Ot)return $ODu(),"rejected_with_notice";' +
-      'let Go=_o.getSessionStateManager().getSessionManager(Ot);if($ODe!==Go)$ODu();' +
-      'let fn=Go?.getDroidWorkingState()==="idle",Bt=fn&&Nt==="end_of_turn";if(Bt){',
+      '_t=$ODn??await Dt();if($ODe){let $ODx=$ODe.$ODc;$ODe.$ODr=null,$ODe.$ODc=!1;if($ODx)return $ODe=null,"accepted"}' +
+      'if(!_t)return $ODu(),"rejected_with_notice";' +
+      'let Wo=Lo.getSessionStateManager().getSessionManager(_t);if($ODe!==Wo)$ODu();' +
+      'let yn=Wo?.getDroidWorkingState()==="idle",Ot=yn&&Pt==="end_of_turn";if(Ot){',
   },
   {
     name: 'first-message-shows-at-once-undo',
-    find: 'if(Bt&&Go)Go.removeOptimisticMessage(mo);return R(yt,"[useDaemonAgent] Failed to send message"),b(fz(yt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[b,wt])',
+    find: 'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return h(bt,"[useDaemonAgent] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
     replace:
-      'if(Bt&&Go)Go.removeOptimisticMessage(mo);return $ODu(),R(yt,"[useDaemonAgent] Failed to send message"),b(fz(yt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[b,wt])',
+      'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return $ODu(),h(bt,"[useDaemonAgent] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
   },
   {
     name: 'first-message-cancel-before-session',
-    find: 'eo=f(()=>{if(qe.current)return qe.current;let qt=xe.current;if(!qt)return Promise.resolve();',
+    find: 'eo=f(()=>{if(We.current)return We.current;let Bt=be.current;if(!Bt)return Promise.resolve();',
     replace:
-      'eo=f(()=>{if(qe.current)return qe.current;let qt=xe.current;if(!qt){' +
-      'let $ODk=A().getCurrentSessionId(),$ODm=$ODk?J().getSessionStateManager().getSessionManager($ODk):null;' +
+      'eo=f(()=>{if(We.current)return We.current;let Bt=be.current;if(!Bt){' +
+      'let $ODk=p().getCurrentSessionId(),$ODm=$ODk?L().getSessionStateManager().getSessionManager($ODk):null;' +
       'if($ODm?.$ODr){$ODm.removeOptimisticMessage($ODm.$ODr),$ODm.$ODr=null,$ODm.$ODc=!0;' +
       'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming();' +
-      'b(u().t("common:appMessages.requestCancelledByUser"),{messageType:"text",visibility:"user_only"})}' +
+      'P(R().t("common:appMessages.requestCancelledByUser"),{messageType:"text",visibility:"user_only"})}' +
       'return Promise.resolve()}',
   },
   {
     name: 'mcp-servers-start-together',
-    find: 'for(let[A,E]of b)try{await this.addServer(A,E),',
-    until: 'await Promise.all(T.map(async([A,E])=>{',
-    replace: 'await Promise.all([...b,...T].map(async([A,E])=>{',
+    find: 'for(let[v,b]of A)try{await this.addServer(v,b),',
+    until: 'await Promise.all(y.map(async([v,b])=>{',
+    replace: 'await Promise.all([...A,...y].map(async([v,b])=>{',
   },
   ...logoPatches,
   ...usagePatches,

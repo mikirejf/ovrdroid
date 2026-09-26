@@ -57,23 +57,23 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-ovrdroid',
-    find: 'var fV=`',
-    until: '`.trim().split(`\n`),',
-    replace: `var fV=${literal(WORDMARK_ROWS)},`,
+    find: 'MAX_PRINTABLE:126},D=`',
+    until: '`,vZ=D.trim().split(`\n`),',
+    replace: `MAX_PRINTABLE:126},vZ=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-ovrdroid',
-    find: ',gV=["\\u2554',
-    until: '];var Gq=',
-    replace: `,gV=${literal(COMPACT_ROWS)};var Gq=`,
+    find: ',xZ=["\\u2554',
+    until: '],a="Select Factory Router',
+    replace: `,xZ=${literal(COMPACT_ROWS)},a="Select Factory Router`,
   },
   {
     name: 'wordmark-over-accent-paint',
-    find: 'nt(m,0,H,x,i);',
+    find: 'nt(f,0,w,g,i);',
     replace:
-      `nt(m,0,H,x,i);let $over={color:o.highlight,bold:!0};` +
-      `if(x===fV)nt(m,0,H,x.map(($)=>$.slice(0,${OVER_COLUMNS})),$over);` +
-      `else b(m,${COMPACT_ACCENT_ROW},H+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},$over);`,
+      `nt(f,0,w,g,i);let $over={color:o.highlight,bold:!0};` +
+      `if(g===vZ)nt(f,0,w,g.map(($)=>$.slice(0,${OVER_COLUMNS})),$over);` +
+      `else b(f,${COMPACT_ACCENT_ROW},w+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},$over);`,
   },
   {
     name: 'wordmark-width-threshold',

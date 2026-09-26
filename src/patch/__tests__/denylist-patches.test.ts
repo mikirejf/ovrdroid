@@ -15,14 +15,14 @@ function replacementOf(name: string): string {
 const ROOT_OR_HOME = replacementOf('denylist-root-home-whole-argument');
 const ABSOLUTE_PATH = replacementOf('denylist-absolute-path-whole-argument');
 
-const STOCK_ARGUMENT_END = `let l=(c)=>c.includes("/")?"([\\\\s;&|)\`/]+|$)":"([\\\\s;&|)\`]+|$)";`;
+const STOCK_ARGUMENT_END = `let r=(c)=>c.includes("/")?"([\\\\s;&|)\`/]+|$)":"([\\\\s;&|)\`]+|$)";`;
 
 function buildTail(): Tail {
   // SAFETY: the body is both patch payloads in the if/else-if chain the shipped
-  // pattern builder puts them in, with `l` bound to the stock argument-end helper.
+  // pattern builder puts them in, with `r` bound to the stock argument-end helper.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
   return new Function(
-    `${STOCK_ARGUMENT_END}return function(s,u){let c=[];${ROOT_OR_HOME}else if(!1);${ABSOLUTE_PATH}return c.join("")}`,
+    `${STOCK_ARGUMENT_END}return function(l,u){let c=[];${ROOT_OR_HOME}else if(!1);${ABSOLUTE_PATH}return c.join("")}`,
   )() as Tail;
 }
 

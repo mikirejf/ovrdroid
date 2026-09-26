@@ -10,7 +10,7 @@ import { findMarker, patches } from '../patches.ts';
 
 type Commands = (command: string, options: { respectHeredocs: boolean }) => string[][];
 
-const PARSER_EXPORT = 'function Rm(';
+const PARSER_EXPORT = 'function Pm(e,n){return A8(e,n).map(';
 
 async function parserOf(target: string): Promise<Commands | undefined> {
   let app;
@@ -28,10 +28,10 @@ async function parserOf(target: string): Promise<Commands | undefined> {
   }
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'ovrdroid-heredoc-')), 'parser.js');
   writeFileSync(file, parser.text);
-  // SAFETY: the module is Droid's own command parser, and Rm is its exported splitter.
+  // SAFETY: the module is Droid's own command parser, and Pm is its exported splitter.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const loaded = (await import(file)) as { Rm: Commands };
-  return loaded.Rm;
+  const loaded = (await import(file)) as { Pm: Commands };
+  return loaded.Pm;
 }
 
 const parse = (await parserOf(INSTALLED_DROID)) ?? (await parserOf(backupPath(INSTALLED_DROID)));

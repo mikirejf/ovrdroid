@@ -94,7 +94,23 @@ one you have.
 
 With splitting, React hooks arrive through the import header and are used bare: `useState` is `g`,
 `useEffect` is `x`, `useRef` is `v`, `useCallback` is `A`, `useMemo` is `E`. Those letters are
-release-scoped; `names` re-derives them in one call, so never carry them across a release.
+release-scoped, so never carry them across a release. `names` only tells you which chunk a letter
+is imported from. To learn which hook it is, read that chunk's wrappers, which name the hook
+outright:
+
+```bash
+grep -oE '[A-Za-z0-9_$]+=function\([a-z,]*\)\{return [a-z]\.H\.use[A-Za-z]+' \
+  work/src/<version>/<react-chunk>.js | sed -E 's/=function.*H\./ /'
+```
+
+One line per hook (`A useState`, `v useEffect`, …). On 0.228.0, `p` went from useState to a
+session getter, and `A` went from the session getter to useState.
+
+**Apply a rename map in one pass, never as a chain of find/replace.** Releases swap names:
+on 0.228.0, `xe→be` and `be→Ee` both hit the same payload, so renaming them one after the other
+turns every `xe` into `Ee`. Tokenise each payload and look up every identifier in the map once.
+Skip only a name that follows a single `.` (a property access). A lookbehind that rejects any
+preceding `.` also skips spreads, so `...qt.visibility` kept its old name on 0.228.0.
 
 A patch that hangs a flag on a function (`X.$done`) must hang it on a name that both the writing
 site and the reading site can see. Across chunks that means an **exported** name the reader
@@ -128,7 +144,17 @@ in any chunk, which is why ovrdroid's own files live under `~/.factory/ovrdroid/
 
 Before re-anchoring, read what the old site did. When stock now does the same thing, delete the
 patch rather than re-anchoring it: 0.220.0 shipped production React, and 0.224.1 stopped blocking
-startup on the whoami call.
+startup on the whoami call. The same goes for a site Droid removed outright. A literal can outlive
+its code in an enum or phase registry. On 0.228.0, `SessionSearchWarm` still appeared once, in the
+phase enum, but nothing called it any more, so `session-search-warm-skip` was deleted. When the
+only remaining hit is a definition, check for a caller before re-anchoring.
+
+Do not trust `rebased` on a patch with an `until`. `anchors` turns the tail's names into wildcards
+and takes the first match anywhere after the `find`, even in a later module. On 0.228.0 the tail
+`];var Gq=` came back `rebased` as `];var ot=`, but that string does not occur in the logo's chunk
+at all: the array now ends `],a="Select…`. Check the rebased `until` with `probe grep` inside the
+`find`'s own chunk. Anchor it on the literal that follows the span (a string or a keyword), as
+`wordmark-compact-ovrdroid` does with `],a="Select Factory Router`.
 
 ### Rebase the shared payload constants, not just the patch entries
 
@@ -158,6 +184,14 @@ same schedule:
   `re.command.suggestionKind==="internal-menu"` from the bundle becomes `re.internalMenu` here.
 - `src/patch/__tests__/stock-source.test.ts` pins the zod base class (`SCHEMA_CLASS`, `tn` on
   0.222.0). Find the new one from the constructor the patch matches, then read back to `class`.
+- `src/patch/__tests__/denylist-patches.test.ts` rebuilds the pattern builder around the payloads:
+  `STOCK_ARGUMENT_END` names the argument-end helper, and the wrapper's parameters name the last
+  token. Both follow the builder (`r` and `l` on 0.228.0, `l` and `s` before).
+- `src/patch/__tests__/heredoc-shell.test.ts` loads the parser chunk on its own, found by
+  `PARSER_EXPORT`, and imports the splitter by its export name. The test takes the **first** module
+  that contains the anchor, so the anchor must be unique across all chunks. `function Pm(` matched
+  five chunks on 0.228.0, and the wrong one failed with `Cannot find module '/$bunfs/root/chunk-…'`.
+  Anchor on the splitter's body (`function Pm(e,n){return A8(e,n).map(`).
 
 A failure there is drift, not a bug. Fix the test's anchor the same way you fixed the patch's.
 

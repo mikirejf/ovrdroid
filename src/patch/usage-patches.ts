@@ -11,19 +11,19 @@ const OPEN =
 export const usagePatches: readonly Patch[] = [
   {
     name: 'custom-openai-shared-cache-key',
-    find: 'prompt_cache_key:ze??s,prompt_cache_retention:',
-    replace: 'prompt_cache_key:ze??(m?"ovrdroid":s),prompt_cache_retention:',
+    find: 'prompt_cache_key:We??s,prompt_cache_retention:',
+    replace: 'prompt_cache_key:We??(g?"ovrdroid":s),prompt_cache_retention:',
   },
   {
     name: 'cache-usage-log',
-    find: 'commitTurnTokenUsage(t,o){if(!this.currentSessionId)return;',
+    find: 'commitTurnTokenUsage(t,s){if(!this.currentSessionId)return;',
     replace:
-      'commitTurnTokenUsage(t,o){if(!this.currentSessionId)return;' +
-      `${OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:o,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens});`,
+      'commitTurnTokenUsage(t,s){if(!this.currentSessionId)return;' +
+      `${OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:s,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens});`,
   },
   {
     name: 'cache-usage-log-promote',
-    find: 'bf.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),',
-    replace: `bf.set(t,{capturedAt:o.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:o.modelId,promote:!0}),`,
+    find: 'Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),',
+    replace: `Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,promote:!0}),`,
   },
 ];
