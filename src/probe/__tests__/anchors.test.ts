@@ -76,7 +76,7 @@ describe('rebasePatch follows a patch through renamed identifiers', () => {
     find: 'let X=await ARu(A,H);if(X.resolved&&hO)',
     replace: 'let X=ARu(A,H);H("ARu",A.ARu)',
   };
-  const result = rebasePatch(patch, 'x;let q=await EMd(z,Y);if(q.resolved&&VE);y');
+  const result = rebasePatch(patch, ['x;let q=await EMd(z,Y);if(q.resolved&&VE);y']);
 
   test('the rename map names every moved identifier', () => {
     expect(result.status).toBe('rebased');
@@ -100,7 +100,7 @@ describe('rebasePatch carries the map from find into until', () => {
     until: 'jht=x0()',
     replace: 'var $S,PV,jht;',
   };
-  const result = rebasePatch(patch, 'var E5,nFi;E5=1;nFi=QQ();');
+  const result = rebasePatch(patch, ['var E5,nFi;E5=1;nFi=QQ();']);
 
   test('until is anchored with the names find already pinned down', () => {
     expect(result.status).toBe('rebased');
@@ -120,25 +120,41 @@ describe('rebasePatch says when it cannot decide', () => {
   const patch: Patch = { name: 'pick', find: 'let A=B(1)', replace: 'let A=B(2)' };
 
   test('two places of the same shape are ambiguous', () => {
-    const result = rebasePatch(patch, 'let x=y(1);let p=q(1);');
+    const result = rebasePatch(patch, ['let x=y(1);let p=q(1);']);
     expect(result.status).toBe('ambiguous');
     expect(result.matches).toBe(2);
     expect(result.find).toBe(patch.find);
   });
 
   test('no place of that shape is missing', () => {
-    const result = rebasePatch(patch, 'nothing of that shape here');
+    const result = rebasePatch(patch, ['nothing of that shape here']);
     expect(result.status).toBe('missing');
     expect(result.matches).toBe(0);
   });
 
   test('a found head whose tail never follows is called out separately', () => {
     const span: Patch = { name: 'span', find: 'let A=B(1)', until: 'C()', replace: 'x' };
-    expect(rebasePatch(span, 'let x=y(1);').status).toBe('no-tail');
+    expect(rebasePatch(span, ['let x=y(1);']).status).toBe('no-tail');
+  });
+
+  test('a tail that only exists in a later module does not end the span', () => {
+    const span: Patch = { name: 'span', find: ',gV=["a', until: '];var Gq=', replace: 'x' };
+    const modules = [',xZ=["a","b"],a="Select"', 'x=1];var ot=250;'];
+    expect(rebasePatch(span, modules).status).toBe('no-tail');
+  });
+
+  test('a literal tail that only exists in a later module is not unchanged', () => {
+    const span: Patch = { name: 'span', find: ',gV=["a', until: '];var Gq=', replace: 'x' };
+    const modules = [',gV=["a","b"],a="Select"', 'x=1];var Gq=250;'];
+    expect(rebasePatch(span, modules).status).toBe('no-tail');
+  });
+
+  test('the same shape in two modules is ambiguous', () => {
+    expect(rebasePatch(patch, ['let x=y(1);', 'let p=q(1);']).status).toBe('ambiguous');
   });
 
   test('a literal still present exactly once is unchanged', () => {
-    const result = rebasePatch(patch, 'zz;let A=B(1);zz');
+    const result = rebasePatch(patch, ['zz;let A=B(1);zz']);
     expect(result.status).toBe('unchanged');
     expect(result.renames).toEqual({});
   });
@@ -146,7 +162,7 @@ describe('rebasePatch says when it cannot decide', () => {
 
 describe('rebasePatch flags the names it could not rename', () => {
   const patch: Patch = { name: 'loose', find: 'A(B)', replace: 'A(B)+ZZ(EMd)' };
-  const result = rebasePatch(patch, 'EMd(VE)');
+  const result = rebasePatch(patch, ['EMd(VE)']);
 
   test('replacement names absent from find are unresolved', () => {
     expect(result.unresolved).toEqual(['ZZ', 'EMd']);

@@ -197,12 +197,17 @@ function holeNames(text: string): string[] {
   ];
 }
 
-function isLiteralAnchor(patch: Patch, source: string): boolean {
-  const at = source.indexOf(patch.find);
-  if (at === -1 || source.includes(patch.find, at + 1)) {
+function isLiteralAnchor(patch: Patch, modules: readonly string[]): boolean {
+  const holders = modules.filter((text) => text.includes(patch.find));
+  const [text] = holders;
+  if (text === undefined || holders.length > 1) {
     return false;
   }
-  return patch.until === undefined || source.includes(patch.until, at + patch.find.length);
+  const at = text.indexOf(patch.find);
+  if (text.includes(patch.find, at + 1)) {
+    return false;
+  }
+  return patch.until === undefined || text.includes(patch.until, at + patch.find.length);
 }
 
 function withUntil(rebase: Rebase, until: string | undefined): Rebase {
@@ -260,12 +265,15 @@ function takeGroups(
   }
 }
 
-export function rebasePatch(patch: Patch, source: string): Rebase {
-  if (isLiteralAnchor(patch, source)) {
+export function rebasePatch(patch: Patch, modules: readonly string[]): Rebase {
+  if (isLiteralAnchor(patch, modules)) {
     return plain(patch, 'unchanged', 1);
   }
   const anchor = holePattern(patch.find);
-  const found = [...source.matchAll(new RegExp(anchor.source, 'gu'))];
+  const pattern = new RegExp(anchor.source, 'gu');
+  const found = modules.flatMap((text) =>
+    [...text.matchAll(pattern)].map((match) => ({ text, match })),
+  );
   const [first] = found;
   if (first === undefined) {
     return plain(patch, 'missing', 0);
@@ -275,8 +283,8 @@ export function rebasePatch(patch: Patch, source: string): Rebase {
   }
 
   const map = new Map<string, string>();
-  takeGroups(anchor.names, first, map);
-  const [head] = first;
+  takeGroups(anchor.names, first.match, map);
+  const [head] = first.match;
 
   if (patch.until === undefined) {
     return settle(patch, map, [head]);
@@ -284,8 +292,8 @@ export function rebasePatch(patch: Patch, source: string): Rebase {
 
   const tail = holePattern(patch.until, map);
   const after = new RegExp(tail.source, 'gu');
-  after.lastIndex = first.index + head.length;
-  const end = after.exec(source);
+  after.lastIndex = first.match.index + head.length;
+  const end = after.exec(first.text);
   if (end === null) {
     return plain(patch, 'no-tail', 1);
   }
@@ -294,8 +302,8 @@ export function rebasePatch(patch: Patch, source: string): Rebase {
   return settle(patch, map, [head, tailText]);
 }
 
-export function rebaseAll(list: readonly Patch[], source: string): Rebase[] {
-  return list.map((patch) => rebasePatch(patch, source));
+export function rebaseAll(list: readonly Patch[], modules: readonly string[]): Rebase[] {
+  return list.map((patch) => rebasePatch(patch, modules));
 }
 
 const NAME_WIDTH = 34;

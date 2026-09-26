@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { appBytes, embedName, ENTRY_FILE, joinApp, readApp } from '../binary/graph.ts';
+import { appBytes, embedName, ENTRY_FILE, readApp } from '../binary/graph.ts';
 import { kilobytes, say } from '../cli.ts';
 import { patches } from '../patch/patches.ts';
 import { formatRebases, rebaseAll, stuckRebases, summariseRebases } from './anchors.ts';
@@ -69,7 +69,10 @@ export function names(binary: string, anchor: string, wanted: readonly string[])
 }
 
 export function anchors(binary: string, options: AnchorsOptions): void {
-  const results = rebaseAll(patches, joinApp(readApp(readFileSync(binary))));
+  const results = rebaseAll(
+    patches,
+    readApp(readFileSync(binary)).map((module) => module.text),
+  );
   if (options.json) {
     say(JSON.stringify(results, null, 2));
     return;

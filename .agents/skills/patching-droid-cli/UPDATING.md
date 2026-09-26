@@ -37,6 +37,7 @@ bun run probe anchors /tmp/droid-stock
   tip a short `find` over: `,Oz=[` was unique on 0.224.1, but its new name `,_z=[` matched 2194
   places on 0.225.2. Extend it into the value it assigns (`,_z=["\u2554`), which is literal and
   does not rename.
+- `no-tail`: the `find` matched but its `until` is gone from that module. Step 3.
 
 `unresolved: X Y` on a rebased line is the part `--json` cannot do for you: a free name in
 `replace` (a module-scope function, a React hook, a theme object) that the `find` never captured,
@@ -149,12 +150,12 @@ its code in an enum or phase registry. On 0.228.0, `SessionSearchWarm` still app
 phase enum, but nothing called it any more, so `session-search-warm-skip` was deleted. When the
 only remaining hit is a definition, check for a caller before re-anchoring.
 
-Do not trust `rebased` on a patch with an `until`. `anchors` turns the tail's names into wildcards
-and takes the first match anywhere after the `find`, even in a later module. On 0.228.0 the tail
-`];var Gq=` came back `rebased` as `];var ot=`, but that string does not occur in the logo's chunk
-at all: the array now ends `],a="Select…`. Check the rebased `until` with `probe grep` inside the
-`find`'s own chunk. Anchor it on the literal that follows the span (a string or a keyword), as
-`wordmark-compact-ovrdroid` does with `],a="Select Factory Router`.
+`no-tail` means the `find` still matches, but its `until` no longer follows it in the same
+module. `anchors` searches for the tail only in the `find`'s own module, just as `apply` does. It
+used to search the whole bundle, and on 0.228.0 it reported `wordmark-compact-ovrdroid` as
+`rebased` using a `];var ot=` from an unrelated chunk. Re-anchor the tail on the literal that now
+follows the span (a string or a keyword) rather than on names, as that patch does with
+`],a="Select Factory Router`.
 
 ### Rebase the shared payload constants, not just the patch entries
 
