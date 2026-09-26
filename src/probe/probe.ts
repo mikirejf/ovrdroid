@@ -31,7 +31,14 @@ import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, extract, grep, names } from './release-report.ts';
-import { clear, FIRST_SEND_PROMPT, firstSend, highlight } from './session-report.ts';
+import {
+  clear,
+  DEFAULT_NOTICE_TYPE,
+  FIRST_SEND_PROMPT,
+  firstSend,
+  highlight,
+  notice,
+} from './session-report.ts';
 import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, effort, keys } from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
@@ -145,6 +152,16 @@ program
   .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
   .argument('<binary>')
   .action(guard(highlight));
+
+program
+  .command('notice')
+  .description(
+    'run a background subagent whose first act is a tool call: does its completion notice carry the report? Needs a PreToolUse hook on Read to reproduce',
+  )
+  .argument('<binary>')
+  .option('--cwd <dir>', 'directory to start Droid in', process.cwd())
+  .option('--type <droid>', 'subagent type to launch', DEFAULT_NOTICE_TYPE)
+  .action(guard(notice));
 
 program
   .command('clear')

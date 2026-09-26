@@ -20,6 +20,8 @@ export const FACTORY_MCP = path.join(FACTORY, 'mcp.json');
 
 export const FACTORY_LOGS = path.join(FACTORY, 'logs');
 
+export const FACTORY_SESSIONS = path.join(FACTORY, 'sessions');
+
 export const OVRDROID_LOGS = path.join(OVRDROID, 'logs');
 
 export function ovrdroidFile(name: string): string {

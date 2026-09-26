@@ -344,6 +344,12 @@ export const patches: readonly Patch[] = [
     until: 'await Promise.all(y.map(async([v,b])=>{',
     replace: 'await Promise.all([...A,...y].map(async([v,b])=>{',
   },
+  {
+    name: 'subagent-turn-ignores-hook-records',
+    find: 'let s=e.slice(o+1),r=s.findIndex(Bb),u=r===-1?s:s.slice(0,r);return yb(u)}',
+    replace:
+      'let s=e.slice(o+1),r=s.findIndex((a)=>Bb(a)&&a.visibility!=="user_only"),u=r===-1?s:s.slice(0,r);return yb(u)}',
+  },
   ...logoPatches,
   ...usagePatches,
   ...denylistPatches,
