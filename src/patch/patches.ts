@@ -295,6 +295,11 @@ export const patches: readonly Patch[] = [
       'Le.current=_t;await wt.loadSession({sessionId:Bt}),be.current=Bt;let $ODs=je.current;if(je.current={},wM($ODs))try{await wt.updateSessionSettings({sessionId:Bt,...$ODs})}catch($ODx){n("[useDaemonAgent] Failed to sync pending session settings",{cause:$ODx})}return Y.emit(',
   },
   {
+    name: 'session-load-reads-loaded-settings',
+    find: 'A=await t.loadSession(e.sessionId,k),O=Number(',
+    replace: 'A=(we()&&await C().initialize(),await t.loadSession(e.sessionId,k)),O=Number(',
+  },
+  {
     name: 'session-worker-starts-mcp-in-background',
     find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnMcpLoad||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
     replace:

@@ -5,13 +5,17 @@ import {
   cycleEffortAfterClear,
   cycleEffortAtStartup,
   describeEffort,
+  describeKept,
+  effortAcrossClears,
   effortHeld,
+  effortKept,
 } from './effort.ts';
 import { formatKeys, measureKeys } from './keys.ts';
 import { launch } from './launch.ts';
 import { sayPaired } from './paired.ts';
 
 export { DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS } from './keys.ts';
+export { DEFAULT_CLEARS } from './effort.ts';
 
 export interface KeysOptions extends RunOptions {
   trials: number;
@@ -84,6 +88,14 @@ export async function effort(binary: string, options: { afterClear: boolean }): 
     : await cycleEffortAtStartup(binary);
   say(describeEffort(reading));
   if (!effortHeld(reading)) {
+    process.exitCode = 1;
+  }
+}
+
+export async function effortClear(binary: string, options: { clears: number }): Promise<void> {
+  const reading = await effortAcrossClears(binary, options.clears);
+  say(describeKept(reading));
+  if (!effortKept(reading)) {
     process.exitCode = 1;
   }
 }

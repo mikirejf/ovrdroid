@@ -93,6 +93,93 @@ export async function cycleEffortAtStartup(binary: string): Promise<EffortReadin
   }
 }
 
+const STATUS_MARK = '·';
+const TRAILING_EFFORT = /\((?<effort>[^()]+)\)\s*$/u;
+export const DEFAULT_CLEARS = 3;
+
+export type ShownEffort = string | null;
+
+export interface KeptReading {
+  startup: ShownEffort;
+  afterClears: ShownEffort[];
+}
+
+export function shownEffort(text: string): ShownEffort | undefined {
+  const line = text.split('\n').findLast((candidate) => candidate.includes(STATUS_MARK));
+  if (line === undefined) {
+    return undefined;
+  }
+  return TRAILING_EFFORT.exec(line)?.groups?.['effort'] ?? null;
+}
+
+export function lastShownEffort(frames: readonly Frame[]): ShownEffort | undefined {
+  return frames.map((frame) => shownEffort(frame.text)).findLast((found) => found !== undefined);
+}
+
+export function effortKept(reading: KeptReading): boolean {
+  return (
+    reading.startup !== null && reading.afterClears.every((effort) => effort === reading.startup)
+  );
+}
+
+function shown(effort: ShownEffort): string {
+  return effort === null ? 'no effort shown' : `"${effort}"`;
+}
+
+function verdictOf(effort: ShownEffort, startup: ShownEffort): string {
+  if (effort === startup) {
+    return '';
+  }
+  return effort === null
+    ? ': the new session dropped the effort'
+    : ': the new session changed the effort';
+}
+
+export function describeKept(reading: KeptReading): string {
+  const lines = [`at startup: ${shown(reading.startup)}`];
+  for (const [index, effort] of reading.afterClears.entries()) {
+    lines.push(`after /clear ${index + 1}: ${shown(effort)}${verdictOf(effort, reading.startup)}`);
+  }
+  return lines.join('\n');
+}
+
+async function settledEffort(session: Session): Promise<ShownEffort> {
+  const deadline = performance.now() + TIMEOUT_MS;
+  while (lastShownEffort(session.frames()) === undefined) {
+    if (performance.now() > deadline) {
+      throw new Error(`no status line on screen after ${TIMEOUT_MS}ms`);
+    }
+    // oxlint-disable-next-line no-await-in-loop
+    await Bun.sleep(POLL_MS);
+  }
+  await session.quiet(QUIET_MS, TIMEOUT_MS);
+  const effort = lastShownEffort(session.frames());
+  if (effort === undefined) {
+    throw new Error('the status line vanished while the screen settled');
+  }
+  return effort;
+}
+
+export async function effortAcrossClears(binary: string, clears: number): Promise<KeptReading> {
+  const session = await openSession(binary);
+  try {
+    const startup = await settledEffort(session);
+    const afterClears: ShownEffort[] = [];
+    for (let clear = 0; clear < clears; clear += 1) {
+      // oxlint-disable-next-line no-await-in-loop
+      await openClearMenu(session);
+      session.mark();
+      // oxlint-disable-next-line no-await-in-loop
+      await session.type(ENTER);
+      // oxlint-disable-next-line no-await-in-loop
+      afterClears.push(await settledEffort(session));
+    }
+    return { startup, afterClears };
+  } finally {
+    await session.close();
+  }
+}
+
 export async function cycleEffortAfterClear(binary: string): Promise<EffortReading> {
   const { session } = await openSettledSession(binary);
   try {

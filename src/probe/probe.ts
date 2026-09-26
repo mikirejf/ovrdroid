@@ -39,7 +39,16 @@ import {
   highlight,
   notice,
 } from './session-report.ts';
-import { ab, DEFAULT_CHARS, DEFAULT_GAP_MS, DEFAULT_TRIALS, effort, keys } from './speed-report.ts';
+import {
+  ab,
+  DEFAULT_CHARS,
+  DEFAULT_CLEARS,
+  DEFAULT_GAP_MS,
+  DEFAULT_TRIALS,
+  effort,
+  effortClear,
+  keys,
+} from './speed-report.ts';
 import { timers } from './timers-report.ts';
 
 const AB_RUNS = 30;
@@ -189,6 +198,13 @@ program
   .argument('<binary>')
   .option('--after-clear', 'cycle it straight after /clear instead of at startup', false)
   .action(guard(effort));
+
+program
+  .command('effort-clear')
+  .description('run /clear a few times: does each new session keep the effort startup showed?')
+  .argument('<binary>')
+  .option('-c, --clears <n>', 'how many times to run /clear', count, DEFAULT_CLEARS)
+  .action(guard(effortClear));
 
 program
   .command('touches')

@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
-import { describeEffort, effortHeld, labelOf, readEffort } from '../effort.ts';
+import {
+  describeEffort,
+  describeKept,
+  effortHeld,
+  effortKept,
+  labelOf,
+  lastShownEffort,
+  readEffort,
+  shownEffort,
+} from '../effort.ts';
 import type { Frame } from '../session.ts';
 
 function status(effort: string): string {
@@ -58,5 +67,59 @@ describe('readEffort', () => {
 
     expect(reading.changedMs).toBeUndefined();
     expect(describeEffort(reading)).toContain('ignored');
+  });
+});
+
+const BARE_STATUS =
+  '╰────╯\n? for help\nAuto (High) · allow all commands       DroidProxy: Opus 5.5\n';
+
+describe('shownEffort', () => {
+  test('reads the effort at the end of the status line', () => {
+    expect(shownEffort(status('Medium'))).toBe('Medium');
+  });
+
+  test('a status line without an effort is null, not the autonomy level', () => {
+    expect(shownEffort(BARE_STATUS)).toBeNull();
+  });
+
+  test('a frame without a status line tells nothing', () => {
+    expect(shownEffort('│ > hi │')).toBeUndefined();
+  });
+
+  test('the last frame with a status line wins', () => {
+    expect(
+      lastShownEffort([frame(10, status('Medium')), frame(90, BARE_STATUS), frame(95, 'spinner')]),
+    ).toBeNull();
+  });
+});
+
+describe('effortKept', () => {
+  test('every new session keeps the startup effort', () => {
+    const reading = { startup: 'Medium', afterClears: ['Medium', 'Medium'] };
+
+    expect(effortKept(reading)).toBe(true);
+    expect(describeKept(reading)).toBe(
+      'at startup: "Medium"\nafter /clear 1: "Medium"\nafter /clear 2: "Medium"',
+    );
+  });
+
+  test('stock 0.228.0: a new session drops the effort', () => {
+    const reading = { startup: 'Medium', afterClears: [null, null] };
+
+    expect(effortKept(reading)).toBe(false);
+    expect(describeKept(reading)).toContain(
+      'after /clear 1: no effort shown: the new session dropped the effort',
+    );
+  });
+
+  test('a new session on another effort is a change, not a drop', () => {
+    const reading = { startup: 'Medium', afterClears: ['High'] };
+
+    expect(effortKept(reading)).toBe(false);
+    expect(describeKept(reading)).toContain('the new session changed the effort');
+  });
+
+  test('no effort at startup cannot prove anything was kept', () => {
+    expect(effortKept({ startup: null, afterClears: [null] })).toBe(false);
   });
 });
