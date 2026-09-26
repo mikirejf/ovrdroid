@@ -1,24 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  utimesSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { makeTempDir } from '../../temp.ts';
 import type { McpConfig } from '../checks.ts';
 import { checkMcpConfig } from '../checks.ts';
-import type { CachedCopy } from '../fix.ts';
+import type { PackageCopy } from '../fix.ts';
 import {
   applyFix,
   parsePackageSpec,
-  resolveBinJs,
+  resolveBinPath,
   resolvePackageDir,
   splitWrapperArgs,
 } from '../fix.ts';
@@ -29,10 +20,6 @@ interface FakeManifest {
   name: string;
   version: string;
   bin: string | Record<string, string>;
-}
-
-function makeTemp(): string {
-  return realpathSync(mkdtempSync(path.join(tmpdir(), 'ovrdroid-doctor-')));
 }
 
 interface FakeCopy {
@@ -50,13 +37,8 @@ function addCopy(copy: FakeCopy): string {
   return dir;
 }
 
-function copyOf(dir: string): CachedCopy {
-  return {
-    dir,
-    version: '',
-    mtimeMs: 0,
-    manifest: readManifest(path.join(dir, 'package.json')),
-  };
+function copyOf(dir: string): PackageCopy {
+  return { dir, manifest: readManifest(path.join(dir, 'package.json')) };
 }
 
 function addBin(dir: string, relative: string): string {
@@ -152,11 +134,11 @@ describe('resolvePackageDir picks the cached copy', () => {
   });
 
   test('a missing package is refused', () => {
-    expect(() => resolvePackageDir(makeTemp(), { name: 'pkg', version: '' })).toThrow();
+    expect(() => resolvePackageDir(makeTempDir('doctor'), { name: 'pkg', version: '' })).toThrow();
   });
 
   test('the newest copy wins unless a version is pinned', () => {
-    const cache = makeTemp();
+    const cache = makeTempDir('doctor');
     const oldDir = addCopy({
       cache,
       hash: 'aaa',
@@ -178,9 +160,9 @@ describe('resolvePackageDir picks the cached copy', () => {
   });
 });
 
-describe('resolveBinJs follows the manifest bin', () => {
+describe('resolveBinPath follows the manifest bin', () => {
   test('a string bin resolves', () => {
-    const cache = makeTemp();
+    const cache = makeTempDir('doctor');
     const dir = addCopy({
       cache,
       hash: 'aaa',
@@ -188,11 +170,11 @@ describe('resolveBinJs follows the manifest bin', () => {
       manifest: { name: 'pkg', version: '1.0.0', bin: 'bin/run.js' },
     });
     const js = addBin(dir, 'bin/run.js');
-    expect(resolveBinJs(copyOf(dir), 'pkg')).toBe(js);
+    expect(resolveBinPath(copyOf(dir), 'pkg')).toBe(js);
   });
 
   test('a bin map prefers the package name, then a lone entry', () => {
-    const cache = makeTemp();
+    const cache = makeTempDir('doctor');
     const multi = addCopy({
       cache,
       hash: 'aaa',
@@ -204,7 +186,7 @@ describe('resolveBinJs follows the manifest bin', () => {
       },
     });
     const multiJs = addBin(multi, 'pkg.js');
-    expect(resolveBinJs(copyOf(multi), 'pkg')).toBe(multiJs);
+    expect(resolveBinPath(copyOf(multi), 'pkg')).toBe(multiJs);
     const lone = addCopy({
       cache,
       hash: 'bbb',
@@ -216,11 +198,11 @@ describe('resolveBinJs follows the manifest bin', () => {
       },
     });
     const loneJs = addBin(lone, 'run.js');
-    expect(resolveBinJs(copyOf(lone), 'solo')).toBe(loneJs);
+    expect(resolveBinPath(copyOf(lone), 'solo')).toBe(loneJs);
   });
 
   test('ambiguous or missing bins are refused', () => {
-    const cache = makeTemp();
+    const cache = makeTempDir('doctor');
     const ambiguous = addCopy({
       cache,
       hash: 'aaa',
@@ -231,7 +213,7 @@ describe('resolveBinJs follows the manifest bin', () => {
         bin: { a: 'a.js', b: 'b.js' },
       },
     });
-    expect(() => resolveBinJs(copyOf(ambiguous), 'pkg')).toThrow();
+    expect(() => resolveBinPath(copyOf(ambiguous), 'pkg')).toThrow();
     const missing = addCopy({
       cache,
       hash: 'bbb',
@@ -242,13 +224,13 @@ describe('resolveBinJs follows the manifest bin', () => {
         bin: 'run.js',
       },
     });
-    expect(() => resolveBinJs(copyOf(missing), 'bare')).toThrow();
+    expect(() => resolveBinPath(copyOf(missing), 'bare')).toThrow();
   });
 });
 
 describe('applyFix rewrites wrappers to pinned entry points', () => {
   test('a wrapper becomes node plus the resolved bin, with backup and mode kept', () => {
-    const dir = makeTemp();
+    const dir = makeTempDir('doctor');
     const cache = path.join(dir, 'cache');
     mkdirSync(cache, { recursive: true });
     const pkgDir = addCopy({
@@ -277,24 +259,25 @@ describe('applyFix rewrites wrappers to pinned entry points', () => {
 
     const outcome = applyFix(file, cache);
 
+    expect(outcome.backup).toBe(`${file}.bak`);
     expect(outcome.fixed.map((item) => item.server)).toEqual(['wrapped']);
     expect(outcome.fixed[0]?.toCommand).toBe('node');
     expect(outcome.fixed[0]?.toArgs[0]).toBe(js);
     expect(outcome.fixed[0]?.toArgs.slice(1)).toEqual(['--browserUrl', 'http://127.0.0.1:9333']);
-    expect(readFileSync(outcome.backup, 'utf-8')).toBe(before);
-    expect(statSync(file).mode).toBe(statSync(outcome.backup).mode);
+    expect(readFileSync(`${file}.bak`, 'utf-8')).toBe(before);
+    expect(statSync(file).mode).toBe(statSync(`${file}.bak`).mode);
 
     const rewritten: unknown = JSON.parse(readFileSync(file, 'utf-8'));
-    expect(checkMcpConfig(rewritten)).toHaveLength(0);
-    expect(scanMcpConfig(file)).toHaveLength(0);
+    expect(checkMcpConfig(rewritten, 'user')).toHaveLength(0);
+    expect(scanMcpConfig(file, 'user')).toHaveLength(0);
 
     const again = applyFix(file, cache);
     expect(again.fixed).toHaveLength(0);
-    expect(readFileSync(outcome.backup, 'utf-8')).toBe(before);
+    expect(readFileSync(`${file}.bak`, 'utf-8')).toBe(before);
   });
 
   test('an unresolvable package fails loud and leaves the file alone', () => {
-    const dir = makeTemp();
+    const dir = makeTempDir('doctor');
     const file = writeMcp(
       dir,
       configOf({ wrapped: { command: 'npx', args: ['-y', 'ghost-pkg@latest'] } }),
@@ -305,8 +288,15 @@ describe('applyFix rewrites wrappers to pinned entry points', () => {
     expect(() => statSync(`${file}.bak`)).toThrow();
   });
 
+  test('a missing file has nothing to fix, as a scan finds nothing in it', () => {
+    const dir = makeTempDir('doctor');
+    const file = path.join(dir, 'mcp.json');
+    expect(applyFix(file, path.join(dir, 'cache'))).toEqual({ fixed: [], backup: undefined });
+    expect(() => statSync(file)).toThrow();
+  });
+
   test('a broken file fails loud', () => {
-    const dir = makeTemp();
+    const dir = makeTempDir('doctor');
     const file = path.join(dir, 'mcp.json');
     writeFileSync(file, 'not json\n');
     expect(() => applyFix(file, path.join(dir, 'cache'))).toThrow();

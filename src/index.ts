@@ -11,10 +11,10 @@ import type { App } from './binary/graph.ts';
 import { appBytes, readApp } from './binary/graph.ts';
 import { rebuildInto } from './binary/rebuild.ts';
 import { guard, hasErrorCode, kilobytes, messageOf, quitOnBrokenPipe, say } from './cli.ts';
-import { applyFix, formatFixed, runDoctor } from './doctor/doctor.ts';
+import { doctorTargets, runDoctor, runDoctorFix } from './doctor/doctor.ts';
 import { installHooks } from './hooks/hooks.ts';
 import { patches } from './patch/patches.ts';
-import { backupPath, FACTORY_MCP, INSTALLED_DROID } from './paths.ts';
+import { backupPath, INSTALLED_DROID } from './paths.ts';
 
 interface Options {
   target: string;
@@ -22,6 +22,7 @@ interface Options {
 
 interface DoctorOptions {
   fix: boolean;
+  project: string;
 }
 
 function temporaryPath(target: string): string {
@@ -90,7 +91,7 @@ async function apply(options: Options): Promise<void> {
 
   if (stocked === undefined) {
     say('already applied');
-    runDoctor();
+    runDoctor(doctorTargets(process.cwd()));
     return;
   }
   const { bytes: stock, app, origin } = stocked;
@@ -113,7 +114,7 @@ async function apply(options: Options): Promise<void> {
 
     renameSync(temporary, target);
     say(`verified ${reported} and installed to ${target}`);
-    runDoctor();
+    runDoctor(doctorTargets(process.cwd()));
   } finally {
     await rm(temporary, { force: true });
   }
@@ -144,16 +145,12 @@ async function update(options: Options): Promise<void> {
 }
 
 function doctor(options: DoctorOptions): void {
-  if (!options.fix) {
-    runDoctor();
+  const targets = doctorTargets(options.project);
+  if (options.fix) {
+    runDoctorFix(targets);
     return;
   }
-  const outcome = applyFix();
-  if (outcome.fixed.length === 0) {
-    say(`doctor: clean (${FACTORY_MCP})`);
-    return;
-  }
-  say(formatFixed(outcome, FACTORY_MCP));
+  runDoctor(targets);
 }
 
 function restore(options: Options): void {
@@ -207,8 +204,13 @@ program
   .description('report MCP config footguns: problem, impact, fix')
   .option(
     '--fix',
-    'rewrite wrapper entries to pinned entry points (backs up mcp.json first)',
+    'rewrite wrapper entries in the user and project mcp.json (backs up a file unless git already holds it)',
     false,
+  )
+  .option(
+    '--project <dir>',
+    'directory whose git root holds the project .factory/mcp.json',
+    process.cwd(),
   )
   .action(guard(doctor));
 

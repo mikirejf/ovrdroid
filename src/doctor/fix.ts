@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-import { messageOf } from '../cli.ts';
+import { hasErrorCode, messageOf } from '../cli.ts';
 import { FACTORY_MCP, NPM_NPX_ROOT } from '../paths.ts';
 import type { McpConfig, McpServerEntry } from './checks.ts';
 import { checkMcpConfig, isWrapperCommand, wrapperBaseOf } from './checks.ts';
@@ -38,7 +38,7 @@ export interface FixedServer {
 
 export interface FixOutcome {
   fixed: readonly FixedServer[];
-  backup: string;
+  backup: string | undefined;
 }
 
 const VALUE_FLAGS = new Set(['-p', '--package']);
@@ -133,11 +133,30 @@ export function splitWrapperArgs(args: readonly unknown[]): WrapperInvocation {
   return { spec, passthrough: argv.slice(cut), argv };
 }
 
-export interface CachedCopy {
+export interface PackageCopy {
   dir: string;
-  version: string;
-  mtimeMs: number;
   manifest: PackageManifest;
+}
+
+interface CachedCopy extends PackageCopy {
+  mtimeMs: number;
+}
+
+export function wantsLatest(spec: PackageSpec): boolean {
+  return spec.version === '' || spec.version === 'latest';
+}
+
+export function pinnedCopy<Copy extends PackageCopy>(
+  copies: readonly Copy[],
+  spec: PackageSpec,
+  where: string,
+): Copy {
+  const pinned = copies.find((copy) => copy.manifest.version === spec.version);
+  if (pinned === undefined) {
+    const have = copies.map((copy) => String(copy.manifest.version)).join(', ');
+    throw new Error(`${spec.name}@${spec.version} is not installed in ${where} (have ${have})`);
+  }
+  return pinned;
 }
 
 function cachedCopies(cacheRoot: string, name: string): CachedCopy[] {
@@ -163,40 +182,23 @@ function cachedCopies(cacheRoot: string, name: string): CachedCopy[] {
     if (typeof manifest.version !== 'string') {
       continue;
     }
-    found.push({
-      dir: path.dirname(manifestPath),
-      version: manifest.version,
-      mtimeMs,
-      manifest,
-    });
+    found.push({ dir: path.dirname(manifestPath), mtimeMs, manifest });
   }
   return found;
 }
 
-export function resolvePackageDir(cacheRoot: string, spec: PackageSpec): CachedCopy {
+export function resolvePackageDir(cacheRoot: string, spec: PackageSpec): PackageCopy {
   const found = cachedCopies(cacheRoot, spec.name);
-  if (found.length === 0) {
+  const [newest] = found.toSorted((a, b) => b.mtimeMs - a.mtimeMs);
+  if (newest === undefined) {
     throw new Error(
       `${spec.name} is not in ${cacheRoot}; run it once via npx so the cache exists, then retry`,
     );
   }
-  if (spec.version !== '' && spec.version !== 'latest') {
-    const pinned = found.find((copy) => copy.version === spec.version);
-    if (pinned === undefined) {
-      throw new Error(
-        `${spec.name}@${spec.version} is not in ${cacheRoot} (have ${found.map((copy) => copy.version).join(', ')})`,
-      );
-    }
-    return pinned;
-  }
-  const [newest] = found.toSorted((a, b) => b.mtimeMs - a.mtimeMs);
-  if (newest === undefined) {
-    throw new Error(`${spec.name} is not in ${cacheRoot}`);
-  }
-  return newest;
+  return wantsLatest(spec) ? newest : pinnedCopy(found, spec, cacheRoot);
 }
 
-export function resolveBinJs(copy: CachedCopy, packageName: string): string {
+export function resolveBinPath(copy: PackageCopy, packageName: string): string {
   const { dir: pkgDir, manifest } = copy;
   const manifestPath = path.join(pkgDir, 'package.json');
   const bin: unknown = manifest.bin;
@@ -220,58 +222,71 @@ export function resolveBinJs(copy: CachedCopy, packageName: string): string {
     throw new Error(`${manifestPath} names no usable bin; pin this server by hand`);
   }
   const absolute = path.join(pkgDir, relative);
-  try {
-    const resolved = realpathSync(absolute);
-    if (!statSync(resolved).isFile()) {
-      throw new Error('not a file');
-    }
-    return resolved;
-  } catch {
+  if (statSync(absolute, { throwIfNoEntry: false })?.isFile() !== true) {
     throw new Error(`${absolute} does not resolve to a file; pin this server by hand`);
   }
+  return absolute;
 }
 
-interface PinnedEntry {
-  entry: McpServerEntry;
-  fixed: FixedServer;
-}
-
-interface PinRequest {
+interface WrapperRequest {
   server: string;
-  entry: McpServerEntry;
-  command: string;
-  cacheRoot: string;
+  invocation: WrapperInvocation;
+  spec: PackageSpec;
 }
 
-function pinEntry(request: PinRequest): PinnedEntry {
-  const base = wrapperBaseOf(request.command);
+interface Rewrite {
+  command: string;
+  args: readonly string[];
+}
+
+export type Rewriter = (request: WrapperRequest) => Rewrite;
+
+interface WrapperEntry {
+  server: string;
+  command: string;
+  args: readonly unknown[];
+}
+
+function rewriteEntry(wrapper: WrapperEntry, rewriter: Rewriter): FixedServer {
+  const { server, command } = wrapper;
+  const base = wrapperBaseOf(command);
   if (base !== 'npm' && base !== 'npx') {
-    throw new Error(`the ${base} cache layout is unknown; pin this server by hand`);
+    throw new Error(`${base} wrappers are not autofixed; pin this server by hand`);
   }
-  const invocation = splitWrapperArgs(request.entry.args ?? []);
+  const invocation = splitWrapperArgs(wrapper.args);
   const spec = parsePackageSpec(invocation.spec);
-  const js = resolveBinJs(resolvePackageDir(request.cacheRoot, spec), spec.name);
-  const toArgs = [js, ...invocation.passthrough];
+  const to = rewriter({ server, invocation, spec });
   return {
-    entry: { ...request.entry, command: 'node', args: toArgs },
-    fixed: {
-      server: request.server,
-      fromCommand: request.command,
-      fromArgs: invocation.argv,
-      toCommand: 'node',
-      toArgs,
-    },
+    server,
+    fromCommand: command,
+    fromArgs: invocation.argv,
+    toCommand: to.command,
+    toArgs: to.args,
   };
 }
 
-export function applyFix(
-  mcpPath: string = FACTORY_MCP,
-  cacheRoot: string = NPM_NPX_ROOT,
+function pinToCache(cacheRoot: string): Rewriter {
+  return ({ invocation, spec }) => ({
+    command: 'node',
+    args: [
+      realpathSync(resolveBinPath(resolvePackageDir(cacheRoot, spec), spec.name)),
+      ...invocation.passthrough,
+    ],
+  });
+}
+
+export function rewriteWrappers(
+  mcpPath: string,
+  rewriter: Rewriter,
+  needsBackup: (target: string) => boolean,
 ): FixOutcome {
   let raw: McpConfig;
   try {
     raw = readMcpConfig(mcpPath);
   } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) {
+      return { fixed: [], backup: undefined };
+    }
     throw new Error(`cannot fix ${mcpPath}: ${messageOf(error)}`, { cause: error });
   }
   const next: Record<string, McpServerEntry> = {};
@@ -284,9 +299,9 @@ export function applyFix(
       continue;
     }
     try {
-      const pinned = pinEntry({ server, entry, command, cacheRoot });
-      next[server] = pinned.entry;
-      fixed.push(pinned.fixed);
+      const item = rewriteEntry({ server, command, args: entry.args ?? [] }, rewriter);
+      next[server] = { ...entry, command: item.toCommand, args: item.toArgs };
+      fixed.push(item);
     } catch (error) {
       next[server] = entry;
       failures.push(`${server}: ${messageOf(error)}`);
@@ -296,22 +311,32 @@ export function applyFix(
     throw new Error(`cannot fix ${mcpPath}:\n${failures.join('\n')}`);
   }
   if (fixed.length === 0) {
-    return { fixed, backup: '' };
+    return { fixed, backup: undefined };
   }
   const rewritten = { ...raw, mcpServers: next };
-  if (checkMcpConfig(rewritten).length > 0) {
+  if (checkMcpConfig(rewritten, 'user').length > 0) {
     throw new Error(`cannot fix ${mcpPath}: the rewritten config still flags wrappers`);
   }
-  const backup = `${mcpPath}.bak`;
-  copyFileSync(mcpPath, backup);
-  const { mode } = statSync(mcpPath);
-  const temporary = `${mcpPath}.tmp`;
+  const target = realpathSync(mcpPath);
+  const backup = needsBackup(target) ? `${target}.bak` : undefined;
+  if (backup !== undefined) {
+    copyFileSync(target, backup);
+  }
+  const { mode } = statSync(target);
+  const temporary = `${target}.tmp`;
   try {
     writeFileSync(temporary, `${JSON.stringify(rewritten, null, 2)}\n`);
     chmodSync(temporary, mode);
-    renameSync(temporary, mcpPath);
+    renameSync(temporary, target);
   } finally {
     rmSync(temporary, { force: true });
   }
   return { fixed, backup };
+}
+
+export function applyFix(
+  mcpPath: string = FACTORY_MCP,
+  cacheRoot: string = NPM_NPX_ROOT,
+): FixOutcome {
+  return rewriteWrappers(mcpPath, pinToCache(cacheRoot), () => true);
 }

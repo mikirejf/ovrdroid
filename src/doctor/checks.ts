@@ -43,7 +43,15 @@ export function isMcpConfig(value: unknown): value is McpConfig {
   return Object.values(servers).every((entry) => typeof entry === 'object' && entry !== null);
 }
 
-export function checkMcpConfig(raw: unknown): readonly Footgun[] {
+export type McpScope = 'user' | 'project';
+
+const FIX_TEXT: Record<McpScope, string> = {
+  user: 'run the server file itself: {"command": "node", "args": ["<path to the server>.js", ...]}',
+  project:
+    "run the package from the project's own node_modules; if it is not a dependency of the project, add it as a devDependency first",
+};
+
+export function checkMcpConfig(raw: unknown, scope: McpScope): readonly Footgun[] {
   if (!isMcpConfig(raw)) {
     return [];
   }
@@ -61,8 +69,8 @@ export function checkMcpConfig(raw: unknown): readonly Footgun[] {
       id: 'npm-exec-wrapper',
       server,
       problem: `"${server}" starts through ${base} instead of running the server directly`,
-      impact: 'every session pays for an extra idle process, about 77MB, that only finds a file',
-      fix: 'run the server file itself: {"command": "node", "args": ["<path to the server>.js", ...]}',
+      impact: `every new session waits for ${base} to check the registry before the server starts, about 0.5 to 1.5s per server, and keeps an extra idle process of about 77MB`,
+      fix: FIX_TEXT[scope],
     };
     if (base === 'npm' || base === 'npx') {
       footgun.fixHint = 'ovrdroid doctor --fix';

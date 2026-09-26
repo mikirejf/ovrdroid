@@ -13,6 +13,7 @@ describe('checkMcpConfig flags the package wrapper', () => {
   test('npx with the server package is a footgun', () => {
     const found = checkMcpConfig(
       configOf({ command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] }),
+      'user',
     );
     expect(found).toHaveLength(1);
     expect(found[0]?.id).toBe('npm-exec-wrapper');
@@ -21,22 +22,24 @@ describe('checkMcpConfig flags the package wrapper', () => {
 
   test('npm exec and absolute wrapper paths count too', () => {
     expect(
-      checkMcpConfig(configOf({ command: 'npm', args: ['exec', 'chrome-devtools-mcp'] })),
+      checkMcpConfig(configOf({ command: 'npm', args: ['exec', 'chrome-devtools-mcp'] }), 'user'),
     ).toHaveLength(1);
     expect(
-      checkMcpConfig(configOf({ command: '/opt/homebrew/bin/npx', args: ['-y', 'x'] })),
+      checkMcpConfig(configOf({ command: '/opt/homebrew/bin/npx', args: ['-y', 'x'] }), 'user'),
     ).toHaveLength(1);
-    expect(checkMcpConfig(configOf({ command: 'npx.cmd', args: [] }))).toHaveLength(1);
+    expect(checkMcpConfig(configOf({ command: 'npx.cmd', args: [] }), 'user')).toHaveLength(1);
   });
 
   test('npm and npx wrappers point at the autofix, others do not', () => {
-    expect(checkMcpConfig(configOf({ command: 'npx', args: ['-y', 'x'] }))[0]?.fixHint).toBe(
-      'ovrdroid doctor --fix',
-    );
-    expect(checkMcpConfig(configOf({ command: 'npm', args: ['exec', 'x'] }))[0]?.fixHint).toBe(
-      'ovrdroid doctor --fix',
-    );
-    expect(checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }))[0]?.fixHint).toBeUndefined();
+    expect(
+      checkMcpConfig(configOf({ command: 'npx', args: ['-y', 'x'] }), 'user')[0]?.fixHint,
+    ).toBe('ovrdroid doctor --fix');
+    expect(
+      checkMcpConfig(configOf({ command: 'npm', args: ['exec', 'x'] }), 'user')[0]?.fixHint,
+    ).toBe('ovrdroid doctor --fix');
+    expect(
+      checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }), 'user')[0]?.fixHint,
+    ).toBeUndefined();
   });
 
   test('a pinned entry point is clean', () => {
@@ -46,32 +49,36 @@ describe('checkMcpConfig flags the package wrapper', () => {
           command: 'node',
           args: ['/Users/x/.npm/_npx/hash/node_modules/chrome-devtools-mcp/bin.js'],
         }),
+        'user',
       ),
     ).toHaveLength(0);
   });
 
   test('a disabled wrapper spawns nothing and is not a footgun', () => {
     expect(
-      checkMcpConfig(configOf({ command: 'npx', args: ['-y', 'x'], disabled: true })),
+      checkMcpConfig(configOf({ command: 'npx', args: ['-y', 'x'], disabled: true }), 'user'),
     ).toHaveLength(0);
   });
 
   test('missing shapes yield nothing rather than throwing', () => {
-    expect(checkMcpConfig('nope')).toHaveLength(0);
-    expect(checkMcpConfig(null)).toHaveLength(0);
-    expect(checkMcpConfig({})).toHaveLength(0);
-    expect(checkMcpConfig({ mcpServers: null })).toHaveLength(0);
-    expect(checkMcpConfig({ mcpServers: { broken: null } })).toHaveLength(0);
-    expect(checkMcpConfig(configOf({ command: 'node', args: [] }))).toHaveLength(0);
+    expect(checkMcpConfig('nope', 'user')).toHaveLength(0);
+    expect(checkMcpConfig(null, 'user')).toHaveLength(0);
+    expect(checkMcpConfig({}, 'user')).toHaveLength(0);
+    expect(checkMcpConfig({ mcpServers: null }, 'user')).toHaveLength(0);
+    expect(checkMcpConfig({ mcpServers: { broken: null } }, 'user')).toHaveLength(0);
+    expect(checkMcpConfig(configOf({ command: 'node', args: [] }), 'user')).toHaveLength(0);
   });
 
   test('one bad server among good ones reports only the bad one', () => {
-    const found = checkMcpConfig({
-      mcpServers: {
-        pinned: { command: 'node', args: ['/x/bin.js'] },
-        wrapped: { command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
+    const found = checkMcpConfig(
+      {
+        mcpServers: {
+          pinned: { command: 'node', args: ['/x/bin.js'] },
+          wrapped: { command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] },
+        },
       },
-    });
+      'user',
+    );
     expect(found.map((item) => item.server)).toEqual(['wrapped']);
   });
 });
@@ -80,6 +87,7 @@ describe('report states problem, impact and fix', () => {
   test('a footgun formats all three lines', () => {
     const found = checkMcpConfig(
       configOf({ command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] }),
+      'user',
     );
     expect(found).toHaveLength(1);
     const text = formatReport(found, '/tmp/mcp.json');
@@ -92,9 +100,10 @@ describe('report states problem, impact and fix', () => {
   test('an autofixable footgun names its run command', () => {
     const found = checkMcpConfig(
       configOf({ command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] }),
+      'user',
     );
     expect(formatReport(found, '/tmp/mcp.json')).toContain('run: ovrdroid doctor --fix');
-    const manual = checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }));
+    const manual = checkMcpConfig(configOf({ command: 'bunx', args: ['x'] }), 'user');
     expect(formatReport(manual, '/tmp/mcp.json')).not.toContain('run:');
   });
 
@@ -120,9 +129,16 @@ describe('report states problem, impact and fix', () => {
     expect(text).toContain('-> node /x/bin.js');
   });
 
+  test('a fix without a backup points at git instead', () => {
+    const text = formatFixed({ fixed: [], backup: undefined }, '/tmp/mcp.json');
+    expect(text).toContain('(previous version is in git)');
+    expect(text).not.toContain('backup at');
+  });
+
   test('the report names the file and counts findings', () => {
     const found = checkMcpConfig(
       configOf({ command: 'npx', args: ['-y', 'chrome-devtools-mcp@latest'] }),
+      'user',
     );
     expect(formatReport(found, '/tmp/mcp.json')).toContain('/tmp/mcp.json');
     expect(formatReport(found, '/tmp/mcp.json')).toContain('1 footgun');
@@ -131,16 +147,16 @@ describe('report states problem, impact and fix', () => {
 
 describe('scan tolerates a missing or broken file', () => {
   test('an unreadable path scans to nothing', () => {
-    expect(scanMcpConfig('/definitely/not/here/mcp.json')).toHaveLength(0);
+    expect(scanMcpConfig('/definitely/not/here/mcp.json', 'user')).toHaveLength(0);
   });
 
   test('a wrapper config on disk is found', () => {
     const path = `${import.meta.dir}/mcp-wrapper.fixture.json`;
-    expect(scanMcpConfig(path).map((item) => item.server)).toEqual(['chrome-devtools']);
+    expect(scanMcpConfig(path, 'user').map((item) => item.server)).toEqual(['chrome-devtools']);
   });
 
   test('a pinned config on disk is clean', () => {
     const path = `${import.meta.dir}/mcp-pinned.fixture.json`;
-    expect(scanMcpConfig(path)).toHaveLength(0);
+    expect(scanMcpConfig(path, 'user')).toHaveLength(0);
   });
 });

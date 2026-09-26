@@ -6,6 +6,7 @@ import { isMcpConfig } from './checks.ts';
 export interface PackageManifest {
   version?: unknown;
   bin?: unknown;
+  workspaces?: unknown;
 }
 
 function parse(file: string): object {
