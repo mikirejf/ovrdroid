@@ -1,4 +1,5 @@
 import { OVRDROID_UNDER_HOME } from '../paths.ts';
+import { CACHE_CLOCK_GLOBAL, CACHE_TTL_MS } from './cache-clock.ts';
 import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
 import { usagePatches } from './usage-patches.ts';
@@ -64,11 +65,14 @@ const TURN_CLOCK_STATE =
   '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
 
 const TURN_CLOCK_TICK =
-  'let $last=Math.max($ODc.sent,$ODc.done),$now=$last?Date.now():0,[$t,$re]=A(0);' +
-  'v(()=>{if(!$last)return;' +
-  'let $age=Date.now()-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5,' +
-  '$id=setTimeout(()=>$re((V)=>V+1),$step-$age%$step);' +
-  'return()=>clearTimeout($id)},[$last,$t]);';
+  `let $last=Math.max($ODc.sent,$ODc.done),$cat=${CACHE_CLOCK_GLOBAL}?.get(F)?.at??0,$exp=$cat&&$cat+${CACHE_TTL_MS},` +
+  '$now=$last||$cat?Date.now():0,[$t,$re]=A(0);' +
+  'v(()=>{let $n=Date.now(),$w=1/0;' +
+  'if($last){let $age=$n-$last,$step=$age<36e5?6e4:$age<864e5?36e5:864e5;$w=$step-$age%$step}' +
+  'if($cat&&$exp>$n)$w=Math.min($w,($exp-$n)%6e4+1);' +
+  'if($w===1/0)return;' +
+  'let $id=setTimeout(()=>$re((V)=>V+1),$w);' +
+  'return()=>clearTimeout($id)},[$last,$cat,$t]);';
 
 const TURN_CLOCK_TRACK =
   'let $busy=B!=="idle";' +
@@ -76,10 +80,14 @@ const TURN_CLOCK_TRACK =
   'else if($busy!==$ODc.busy)$ODc.busy=$busy,$busy?$ODc.sent=$ODt(F):$ODc.done=$ODt(F);';
 
 const TURN_CLOCK_PARTS =
-  'if($last){let $ago=[];' +
+  'let $ago=[];if($last||$cat){' +
   'if($ODc.sent)$ago.push(rt("\\u2191"+$ODa($now-$ODc.sent),{color:o.text.muted}));' +
   'if($ODc.done)$ago.push(rt(($ODc.sent?" ":"")+"\\u2193"+$ODa($now-$ODc.done),{color:o.text.muted}));' +
-  'sd(Ie,$ago)}';
+  'if($cat){let $rem=$exp-$now;if($ago.length)$ago.push(rt(", ",{color:o.text.muted}));' +
+  `$ago.push($rem>0?rt("cache "+$ODa(Math.min($rem,${CACHE_TTL_MS - 1})),{color:o.text.muted}):rt("cache cold",{color:o.warning}))}}` +
+  'if($ago.length){let $f=fe||"[]",$i=$f.indexOf(",");if($i<0)$i=$f.length-1;' +
+  'sd(Ie,[rt($f.slice(0,$i)+(fe?", ":""),{color:o.text.muted}),...$ago,rt($f.slice($i),{color:o.text.muted})]," ")}' +
+  'else if(fe)sd(Ie,[rt(fe,{color:o.text.muted})]," ");';
 
 const UPDATE_FILE_NAME = 'update.json';
 
@@ -186,8 +194,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'turn-clock-parts',
-    find: 'let Ee=Lz(V);if(Ee)sd(Ie,[rt(Ee,{color:o.primary})]);let Me=[];',
-    replace: `let Ee=Lz(V);if(Ee)sd(Ie,[rt(Ee,{color:o.primary})]);${TURN_CLOCK_PARTS}let Me=[];`,
+    find: 'if(fe)sd(Ie,[rt(fe,{color:o.text.muted})]," ");',
+    replace: TURN_CLOCK_PARTS,
   },
   {
     name: 'auto-update-notice-only',

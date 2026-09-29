@@ -33,7 +33,7 @@ Status: the harness applies the patch set below.
 | `app-display-width-grapheme-memo-init` | Adds the two grapheme maps `displayWidth` reads                              | Same as Ink's: the maps are created at module evaluation.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `turn-clock-state`                     | Adds the turn clock's state and its duration formatter                       | The footer needs somewhere to remember when the last turn started and ended.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `turn-clock-track`                     | Records the times as the session goes busy and idle                          | The footer already re-renders on every status change, so the two edges are free to observe.                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer                                         | Shows how long ago the last prompt went out and the last reply landed.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `turn-clock-parts`                     | Adds `↑sent ↓received` to the footer's timer bracket                         | Shows how long ago the last prompt went out and the last reply landed.                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `auto-update-notice-only`              | Stops the update at the check and records the version found                  | An auto-update silently replaces the patched binary with a stock one, so blocking it is what keeps every other patch applied.                                                                                                                                                                                                                                                                                                                                                                  |
 | `update-notice-writer`                 | Writes the version found to `~/.factory/ovrdroid-update.json`                | The check finishes long after the header is painted, so the answer has to outlive the session that found it.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `update-notice-reader`                 | Reads that file when the header paints                                       | One `readFileSync` of a tiny file, and it returns nothing once the installed version has caught up.                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -58,7 +58,9 @@ bun run ovrdroid restore
 ## The turn clock
 
 The footer gains `↑7m ↓5m`: how long ago the last prompt was sent, and how long ago the reply
-finished.
+finished. It sits inside the timer bracket, right after the duration:
+`[⏱ 21m 6s, ↑7m ↓5m, cache 53m, context: 35%] ? for help`. With no duration or context to share, it
+opens a bracket of its own.
 
 Nothing is added to startup. The clock watches the session status the footer already receives, and
 notices the two edges where it leaves and returns to `idle`, so a session that has sent nothing yet
@@ -86,6 +88,28 @@ then runs for the rest of the session even when the visible text has not changed
 One tradeoff comes with the single timer: it is aligned to whichever of the two times is newer, so
 the other can show its previous minute for up to 59s longer. A second timer would keep both exact
 and double the idle repaints, which is the wrong trade for a minute-resolution display.
+
+### The cache countdown
+
+The same bracket carries `cache 59m` after the turn clock, set off by a comma. It counts down to
+`cache <1m` and then `cache cold` (in the warning colour) once the hour is up. It answers "is my
+prompt cache still warm?" the way Claude Code's "Prompt cache warm, about 59 min left" does.
+
+The clock is written by `cache-warm-arm`, not the footer. The recording code lives in
+`src/patch/cache-clock.ts` and is spliced into that patch, because it already owns the `pY` rewrite.
+`pY` stamps `globalThis.__odCache` with the request's `capturedAt` for the session, because the
+cache lifetime runs from when a request is **sent** (see FINDINGS, "the clock starts at request
+start") and every request resets it. A successful cache warm resets it to the moment the warm was
+sent. Only Anthropic models get a clock: DroidProxy makes every Anthropic write last an hour, and no
+lifetime has been measured for the others, so a non-Anthropic request removes the entry and the
+footer shows nothing.
+
+The footer's one timer now wakes at the earlier of the turn clock's next step and the next minute
+boundary of the cache's remaining time, one millisecond past it so the digit has changed, and again
+at the exact expiry moment. Once the entry is cold and no turn clock is running, it sleeps.
+
+The footer only reads the entry when it renders, so a warm that resets the clock while the session
+sits idle shows up at the next wake-up, at most a minute later.
 
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example

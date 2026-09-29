@@ -1,3 +1,4 @@
+import { CACHE_CLOCK_RECORDERS } from './cache-clock.ts';
 import type { Patch } from './patches.ts';
 import { USAGE_LOG_OPEN } from './usage-patches.ts';
 
@@ -55,10 +56,11 @@ const CANCEL =
 const FIRE =
   'async function $ODWf(t,c){if($ODWt.get(t)!==c)return;let s=c.snap,q=Qh.get(t),k=!q||q===s?$ODWk(t):0;' +
   'if(!k||p().currentSessionId!==t){$ODWt.delete(t);return}' +
-  'let r=new AbortController,o;c.ac=r;' +
-  `try{let{createLLMStreamingCore:l}=${STREAMING_CORE_IMPORT},d=${CLIENT};` +
+  'let r=new AbortController,o,$w;c.ac=r;' +
+  `try{let{createLLMStreamingCore:l}=${STREAMING_CORE_IMPORT},d=${CLIENT};$w=Date.now();` +
   'try{o=await $ODWs(d,s,r.signal)}finally{d.dispose()}}' +
   'catch(e){if(!r.signal.aborted)n("[ovrdroid] cache warm failed",{sessionId:t,modelId:s.modelId,cause:e})}' +
+  'if(o&&!o.wasAborted)$ODCw(t,$w);' +
   `try{${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,warm:!0,kids:k,ok:!!o&&!o.wasAborted,` +
   'in:o?.usage?.inputTokens,cr:o?.usage?.cacheReadInputTokens,cw:o?.usage?.cacheCreationInputTokens,out:o?.usage?.outputTokens})}catch{}' +
   'if($ODWt.get(t)===c&&!r.signal.aborted)$ODWa(s)}';
@@ -67,7 +69,7 @@ export const warmerPatches: readonly Patch[] = [
   {
     name: 'cache-warm-arm',
     find: 'function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t)}',
-    replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${FIRE}function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t);try{$ODWa(t)}catch{}}`,
+    replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t);try{$ODCs(t),$ODWa(t)}catch{}}`,
   },
   {
     name: 'cache-warm-close',

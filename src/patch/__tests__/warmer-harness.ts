@@ -144,6 +144,20 @@ export function snapshot(capturedAt: number): Snapshot {
 
 function ignore(): void {}
 
+export function cacheClockAt(sessionId = SESSION): number | undefined {
+  const clock: unknown = Object.getOwnPropertyDescriptor(globalThis, '__odCache')?.value;
+  if (!(clock instanceof Map)) {
+    return undefined;
+  }
+  const entry: unknown = clock.get(sessionId);
+  return typeof entry === 'object' &&
+    entry !== null &&
+    'at' in entry &&
+    typeof entry.at === 'number'
+    ? entry.at
+    : undefined;
+}
+
 export class World {
   readonly harness: Harness;
   readonly timers: Timer[] = [];
@@ -157,6 +171,7 @@ export class World {
   disposed = 0;
   children = 0;
   current = SESSION;
+  provider = 'anthropic';
   reply = Promise.resolve<Reply>({ wasAborted: false, usage: USAGE });
 
   constructor() {
@@ -191,7 +206,7 @@ export class World {
       ignore,
       new Map(),
       new Map(),
-      () => ({ modelProvider: 'anthropic' }),
+      () => ({ modelProvider: this.provider }),
       ignore,
       () => this.sessionService(),
       () => ({}),
@@ -219,6 +234,7 @@ export class World {
   static close(): void {
     Reflect.deleteProperty(globalThis, '__odKids');
     Reflect.deleteProperty(globalThis, '__odUsage');
+    Reflect.deleteProperty(globalThis, '__odCache');
   }
 
   private sessionService(): SessionService {
