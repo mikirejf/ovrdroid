@@ -62,7 +62,7 @@ function tokens(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toFixed(0);
 }
 
-function percent(share: number): string {
+export function percent(share: number): string {
   return `${(share * 100).toFixed(0)}%`;
 }
 

@@ -9,16 +9,41 @@ export const SCHEDULE_NAMES = [
   'promote',
   'mixed',
   'price',
+  'unrelated',
+  'shared-head',
+  'hour-refresh',
+  'hour-cliff',
 ] as const;
 
 export type ScheduleName = (typeof SCHEDULE_NAMES)[number];
 
-export type SendTtl = '5m' | '1h' | 'mixed';
+export type SendTtl = '5m' | '1h' | 'mixed' | 'split';
+
+type BlockTtl = '5m' | '1h';
+
+interface BlockLayout {
+  share: number;
+  ttl: BlockTtl;
+}
+
+export const BLOCK_LAYOUTS: Record<SendTtl, readonly BlockLayout[]> = {
+  '5m': [{ share: 1, ttl: '5m' }],
+  '1h': [{ share: 1, ttl: '1h' }],
+  mixed: [
+    { share: 0.75, ttl: '1h' },
+    { share: 0.25, ttl: '5m' },
+  ],
+  split: [
+    { share: 0.25, ttl: '5m' },
+    { share: 0.75, ttl: '5m' },
+  ],
+};
 
 export interface SendStep {
   kind: 'send';
   ttl: SendTtl;
   slow: boolean;
+  other: boolean;
 }
 
 export interface WaitStep {
@@ -40,6 +65,7 @@ export interface RequestSpec {
   promptTokens: number;
   step: SendStep;
   maxTokens: number;
+  runId: string;
   leadText?: string | undefined;
 }
 
@@ -53,7 +79,6 @@ export const SHORT_TTL_SECONDS = 300;
 export const SECONDS_PER_MINUTE = 60;
 
 const MAX_TOKENS_FAST = 5;
-const HEAD_SHARE = 0.75;
 const PER_MILLION = 1_000_000;
 const FAST_PROMPT = 'Say ok.';
 const SLOW_PROMPT = 'Write a numbered list of 1500 different animals, one per line, no commentary.';
@@ -65,18 +90,34 @@ export function filler(promptTokens: number): string {
   );
 }
 
-function block(text: string, ttl: '5m' | '1h'): SystemBlock {
+export function otherFiller(promptTokens: number): string {
+  return fillerOf(
+    promptTokens,
+    (index) => `${index} another conversation entirely, turn ${index}, nothing shared\n`,
+  );
+}
+
+function block(text: string, ttl: BlockTtl): SystemBlock {
   const control: CacheControl = ttl === '1h' ? { type: 'ephemeral', ttl } : { type: 'ephemeral' };
   return { type: 'text', text, cache_control: control };
 }
 
-function systemOf(step: SendStep, promptTokens: number): SystemBlock[] {
-  const text = filler(promptTokens);
-  if (step.ttl !== 'mixed') {
-    return [block(text, step.ttl)];
-  }
-  const cut = Math.floor(text.length * HEAD_SHARE);
-  return [block(text.slice(0, cut), '1h'), block(text.slice(cut), '5m')];
+function systemOf(step: SendStep, promptTokens: number, runId: string): SystemBlock[] {
+  const run = `run ${runId}\n`;
+  const main = `${run}${filler(promptTokens)}`;
+  const body = step.other ? `${run}${otherFiller(promptTokens)}` : main;
+  const layout = BLOCK_LAYOUTS[step.ttl];
+  let covered = 0;
+  let start = 0;
+  return layout.map(({ share, ttl }, index) => {
+    covered += share;
+    const isLast = index === layout.length - 1;
+    const end = isLast ? undefined : Math.floor(main.length * covered);
+    const source = index === 0 && layout.length > 1 ? main : body;
+    const text = source.slice(start, end);
+    start = end ?? start;
+    return block(text, ttl);
+  });
 }
 
 export function maxTokensFor(step: SendStep): number {
@@ -84,7 +125,7 @@ export function maxTokensFor(step: SendStep): number {
 }
 
 export function buildRequest(spec: RequestSpec): MessagesRequest {
-  const cached = systemOf(spec.step, spec.promptTokens);
+  const cached = systemOf(spec.step, spec.promptTokens, spec.runId);
   const lead: SystemBlock[] =
     spec.leadText === undefined ? [] : [{ type: 'text', text: spec.leadText }];
   return {
@@ -96,7 +137,11 @@ export function buildRequest(spec: RequestSpec): MessagesRequest {
 }
 
 function send(ttl: SendTtl, slow = false): SendStep {
-  return { kind: 'send', ttl, slow };
+  return { kind: 'send', ttl, slow, other: false };
+}
+
+function sendOther(ttl: SendTtl): SendStep {
+  return { kind: 'send', ttl, slow: false, other: true };
 }
 
 function wait(minutes: number): WaitStep {
@@ -121,6 +166,10 @@ export const SCHEDULES: Record<ScheduleName, (args: ScheduleArgs) => Step[]> = {
   promote: () => [send('5m'), wait(3), send('1h'), wait(20), send('5m')],
   mixed: () => [send('mixed'), wait(20), send('mixed')],
   price: () => [send('5m'), send('5m'), send('1h'), send('1h')],
+  unrelated: () => [send('5m'), wait(4), sendOther('5m'), wait(2), send('5m')],
+  'shared-head': () => [send('split'), wait(4), sendOther('split'), wait(2), send('split')],
+  'hour-refresh': () => [send('1h'), wait(54), send('1h'), wait(54), send('1h')],
+  'hour-cliff': () => [send('1h'), wait(66), send('1h')],
 };
 
 export function sendSteps(steps: readonly Step[]): SendStep[] {
@@ -136,14 +185,11 @@ export function wallSeconds(steps: readonly Step[]): number {
 }
 
 function writePrice(step: SendStep, promptTokens: number, price: Price): number {
-  if (step.ttl === '1h') {
-    return promptTokens * price.cacheWrite1h;
-  }
-  if (step.ttl === '5m') {
-    return promptTokens * price.cacheWrite5m;
-  }
-  const head = promptTokens * HEAD_SHARE * price.cacheWrite1h;
-  return head + promptTokens * (1 - HEAD_SHARE) * price.cacheWrite5m;
+  return BLOCK_LAYOUTS[step.ttl].reduce(
+    (total, { share, ttl }) =>
+      total + promptTokens * share * (ttl === '1h' ? price.cacheWrite1h : price.cacheWrite5m),
+    0,
+  );
 }
 
 export function estimateCost(steps: readonly Step[], promptTokens: number, price: Price): number {

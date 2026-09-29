@@ -1794,3 +1794,112 @@ difference. The saving is uncached input, not speed.
 Not done, and not worth it on this plan: explicit `prompt_cache_breakpoint` markers (Droid has none;
 GPT-5.6+ implicit mode already breaks at the last developer message and each user turn), trimming
 the system prompt, and changing Read's line numbers (Droid's Read shows none).
+
+## Measured: what keeps a prefix warm, and the cache warmer that came out of it
+
+2026-09-29, Droid 0.228.0. The question: while a subagent runs for longer than the TTL, can the
+parent's prefix be kept warm, and by what? The answers shaped the `cache-warm-*` patches.
+
+### An unrelated request does not reset another prefix's clock
+
+`probe ttl unrelated --direct`, `claude-opus-5`, 5m TTL. Send the prefix, send an unrelated prompt 4
+minutes later, then the first prefix again 2 minutes after that.
+
+| send | at  | prompt    |                   result |
+| ---: | :-- | :-------- | -----------------------: |
+|    1 | 0m  | prefix    |             write 25,563 |
+|    2 | 4m  | unrelated |             write 24,842 |
+|    3 | 6m  | prefix    | **read 0**, write 25,563 |
+
+Activity on the account refreshes nothing. Only a read of the same prefix slides its clock.
+
+### A shared head only keeps the head warm
+
+`probe ttl shared-head --direct`, `claude-opus-5`, 5m TTL, same schedule, where the second prompt
+shares its first blocks with the first.
+
+| send | at  | prompt           |                       result |
+| ---: | :-- | :--------------- | ---------------------------: |
+|    1 | 0m  | prefix           |                 write 25,571 |
+|    2 | 4m  | same head, other |     read 6,437, write 18,602 |
+|    3 | 6m  | prefix           | read 6,437, **write 19,134** |
+
+The shared 6,437 tokens stayed warm. The 19,134-token tail behind them died on schedule. To keep a
+prefix warm, the warm request has to carry the whole prefix, not just its start.
+
+### The proxy's 1h entry is not a reliable hour
+
+Through DroidProxy, which forces every write to 1h, `claude-opus-5-5`.
+
+`probe ttl hour-refresh`: send, wait 54m, send, wait 54m, send.
+
+| send | gap |                         result |
+| ---: | :-- | -----------------------------: |
+|    1 | 0m  |                   write 25,676 |
+|    2 | 54m | **read 0**, write 25,676 again |
+|    3 | 54m |                    read 25,676 |
+
+The first entry died before 54 minutes; the second survived 54. `probe ttl hour-cliff` (send, wait
+66m, send) wrote 25,683 again at 66m with no read, so the entry is gone by then too. A series with
+gaps of 40, 45, 50 and 56 minutes is still running; until it lands, the lifetime is "usually past
+54m, not always".
+
+This is why the warmer fires at 45 minutes on Anthropic, not at 90% of an hour. A read costs next to
+nothing on this plan (see the quota section above), so firing early is cheap, and a warm that fires
+after the entry died is a full rewrite that keeps nothing.
+
+### A thinking change forks the cache in real sessions
+
+Every warm body was captured with a `--bodies` probe build and compared with `probe bodies <file>`,
+which reports where each request stops extending the one it replays. Scenario: parent on low effort,
+one foreground subagent running `sleep 170`, `OVRDROID_WARM_DELAY_MS=60000`.
+
+Claude, `custom:droidproxy:opus-5-5`, parent request 2 wrote its entry (read 14,180, write 10,130 in
+the first capture and 10,204 in the second):
+
+| capture                 | warm sends                                     | warm 1                        | warm 2               | parent request 3 |
+| :---------------------- | :--------------------------------------------- | :---------------------------- | :------------------- | :--------------- |
+| `bodies-claude-2.jsonl` | same prompt, no `thinking`, no `output_config` | read 14,180, **write 10,130** | read 24,310          | read 24,310      |
+| `bodies-claude-3.jsonl` | same prompt, same thinking and effort          | **read 24,384, write 0**      | read 24,384, write 0 | read 24,384      |
+
+In both captures `probe bodies` reports the warm prompt as byte-identical to request 2; only the
+settings after it differ. With thinking off the warm wrote its own 10,130-token entry, warm 2 read
+that entry, and the parent's own entry was never refreshed. With the same thinking and effort, the
+warm read the parent's entry and wrote nothing.
+
+GPT, `custom:droidproxy:gpt-6-sol`, same shape: with reasoning off the warm read 0 on its first try
+(and 7,936, the shared head, when the tools also differed); with the same `reasoning` and `include`
+as the real turn it read 13,952 of request 2's 14,076.
+
+The earlier `probe effort-cache` "thinking off" result (read 12,562, write 0) does not carry over to
+real sessions. The obvious suspect, that the probe's prefix has no assistant turn, is ruled out: the
+warm in `bodies-claude-2.jsonl` also replayed only two user messages and still missed. What else
+differs between the probe and a real Droid request is not yet pinned down. Until it is, the rule is
+the measured one: a warm must send the same thinking and effort as the turn it replays.
+
+### The GPT warm first failed on the tool list
+
+`probe bodies` on the first GPT capture: the warm diverged at `tools[11]`, 51% into the prompt. The
+one-shot client (`createOneShotSendMessageClient`) passes `getTools`, which skips the tool-search
+resolver, so it sent 17 plain function tools. The real turn sent 50 entries: a `tool_search` tool,
+`ApplyPatch` as a grammar tool, and 33 tools marked `defer_loading`. Building the warm with
+`createLLMStreamingCore`, the agent loop's own client, with no `getTools`, fixed it: every later
+warm reports "extends request 2".
+
+### On Claude, `maxTokensOverride` is overwritten
+
+The captures showed Claude warms going out with `max_tokens:128000` and adaptive thinking, and
+answering 175 to 180 tokens. The warm asked for 1. The thinking-config builder (`Gte`) overwrites it
+for any custom model with thinking enabled:
+`if(l?.maxOutputTokens!=null)f.max_tokens=l.maxOutputTokens`, and `opus-5-5` sets
+`maxOutputTokens:128000`. `cache-warm-max-tokens` passes `maxOutputTokens` to `Gte` only when the
+caller set no override, so the warm's 1 reaches the body. Anthropic accepts `max_tokens:1` with
+adaptive thinking. Live, `custom:droidproxy:sonnet-5-5`, one subagent running `sleep 170`,
+`OVRDROID_WARM_DELAY_MS=60000`: the parent's request wrote 20,798 tokens, both warms went out with
+`max_tokens:1` and the turn's adaptive thinking at effort low and read 20,798 with 0 written, and
+the parent's next request read 20,798.
+
+### How pi does it
+
+pi warms only direct Anthropic and never OpenAI (issue #9810, maintainer comment). It keys OpenAI's
+`prompt_cache_key` per session, so its forks miss (#8348).

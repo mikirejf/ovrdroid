@@ -4,6 +4,7 @@ import { patchSource } from '../binary/apply.ts';
 import { readApp } from '../binary/graph.ts';
 import { rebuildInto } from '../binary/rebuild.ts';
 import { say } from '../cli.ts';
+import { bodyPatches } from '../patch/body-patches.ts';
 import type { Patch } from '../patch/patches.ts';
 import { patches } from '../patch/patches.ts';
 import { timerPatches } from '../patch/timer-patches.ts';
@@ -20,6 +21,7 @@ export interface BuildOptions {
   modules?: boolean;
   watch?: boolean;
   timers?: boolean;
+  bodies?: boolean;
   without?: readonly string[];
   out: string;
 }
@@ -94,6 +96,9 @@ export async function buildProbe(options: BuildOptions): Promise<void> {
   }
   if (options.timers === true) {
     list.push(...timerPatches);
+  }
+  if (options.bodies === true) {
+    list.push(...bodyPatches);
   }
   if (options.extra !== undefined) {
     list.push(...(await readExtra(options.extra)));

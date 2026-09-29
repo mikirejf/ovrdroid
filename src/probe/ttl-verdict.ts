@@ -1,6 +1,7 @@
 import type { Usage } from './anthropic.ts';
+import { sumBy } from './logs.ts';
 import type { ScheduleName, Step } from './ttl.ts';
-import { gapLabel, SHORT_TTL_SECONDS, wallSeconds } from './ttl.ts';
+import { gapLabel, BLOCK_LAYOUTS, SHORT_TTL_SECONDS, wallSeconds } from './ttl.ts';
 
 export interface SendOutcome {
   usage: Usage;
@@ -200,7 +201,8 @@ function upgradedTo1h(sends: readonly Send[], steps: readonly Step[]): boolean {
     .filter((step) => step.kind === 'send')
     .flatMap((step, index) => {
       const usage = sends[index]?.usage;
-      return step.ttl === '5m' && usage !== undefined && usage.cacheWrite > 0 ? [usage] : [];
+      const only5m = BLOCK_LAYOUTS[step.ttl].every((part) => part.ttl === '5m');
+      return only5m && usage !== undefined && usage.cacheWrite > 0 ? [usage] : [];
     });
   return writes5m.length > 0 && writes5m.every((usage) => usage.write5m === 0);
 }
@@ -213,6 +215,80 @@ function priceVerdict(sends: readonly Send[]): string[] {
   ];
 }
 
+const WARM_SHARE = 0.9;
+
+function otherLine(other: Send): string {
+  return `the other request read ${other.usage.cacheRead} and wrote ${other.usage.cacheWrite}`;
+}
+
+function sinceFirst(sends: readonly Send[]): string {
+  return gapLabel(sumBy(sends.slice(1), (entry) => entry.gapSeconds));
+}
+
+function keptWarm(usage: Usage): boolean {
+  return usage.cacheRead >= WARM_SHARE * (usage.cacheRead + usage.cacheWrite);
+}
+
+function expired(sends: readonly Send[]): string {
+  return `the other request did not reset this cache's clock: it expired at ${sinceFirst(sends)}`;
+}
+
+function unrelatedVerdict(sends: readonly Send[]): string[] {
+  const [, other, last] = sends;
+  if (other === undefined || last === undefined) {
+    return ['the closing send did not land, so nothing can be said about the other request'];
+  }
+  if (keptWarm(last.usage)) {
+    return [otherLine(other), 'the other request kept this cache warm'];
+  }
+  if (last.usage.cacheRead > 0) {
+    return [otherLine(other), ...ambiguous('whether the other request reset the clock')];
+  }
+  return [otherLine(other), expired(sends)];
+}
+
+function sharedHeadVerdict(sends: readonly Send[]): string[] {
+  const [, other, last] = sends;
+  if (other === undefined || last === undefined) {
+    return ['the closing send did not land, so nothing can be said about the shared head'];
+  }
+  const { cacheRead, cacheWrite } = last.usage;
+  if (keptWarm(last.usage)) {
+    return [otherLine(other), 'the other request kept this cache warm'];
+  }
+  if (cacheRead > 0) {
+    return [
+      otherLine(other),
+      `head read ${cacheRead}, tail re-written ${cacheWrite}, so only the shared head stayed warm`,
+    ];
+  }
+  return [otherLine(other), expired(sends)];
+}
+
+function hourRefreshVerdict(sends: readonly Send[]): string[] {
+  const [, middle, last] = sends;
+  if (middle === undefined || last === undefined) {
+    return ['the closing send did not land, so nothing can be said about the 1h refresh'];
+  }
+  if (middle.usage.cacheRead === 0) {
+    return ['the entry did not survive 54m'];
+  }
+  if (keptWarm(last.usage)) {
+    return ['a read at 54m slid the 1h clock: the entry lived 108m'];
+  }
+  return ['the read at 54m did not slide the clock: the entry expired before 108m'];
+}
+
+function hourCliffVerdict(sends: readonly Send[]): string[] {
+  const last = sends.at(1);
+  if (last === undefined) {
+    return ['the closing send did not land, so nothing can be said about the 1h cliff'];
+  }
+  return last.usage.cacheRead > 0
+    ? ["the entry outlived 66m with no read: the proxy's lifetime is longer than 1h"]
+    : ['expired between 60m and 66m with no read'];
+}
+
 const VERDICTS: Record<ScheduleName, (sends: readonly Send[]) => string[]> = {
   cliff: cliffVerdict,
   refresh: refreshVerdict,
@@ -221,6 +297,10 @@ const VERDICTS: Record<ScheduleName, (sends: readonly Send[]) => string[]> = {
   promote: promoteVerdict,
   mixed: mixedVerdict,
   price: priceVerdict,
+  unrelated: unrelatedVerdict,
+  'shared-head': sharedHeadVerdict,
+  'hour-refresh': hourRefreshVerdict,
+  'hour-cliff': hourCliffVerdict,
 };
 
 function upgradeNote(steps: readonly Step[]): string {

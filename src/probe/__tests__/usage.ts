@@ -12,8 +12,8 @@ export interface Counts {
 
 const QUICK_SECONDS = 2;
 
-export function send(ttl: SendStep['ttl'], slow = false): SendStep {
-  return { kind: 'send', ttl, slow };
+export function send(ttl: SendStep['ttl'], slow = false, other = false): SendStep {
+  return { kind: 'send', ttl, slow, other };
 }
 
 export function usage(counts: Counts): Usage {

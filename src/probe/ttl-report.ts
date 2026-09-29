@@ -45,6 +45,7 @@ interface RunContext {
   schedule: ScheduleName;
   credentials: Credentials;
   options: TtlOptions;
+  runId: string;
   append: (entry: unknown) => Promise<void>;
 }
 
@@ -59,6 +60,7 @@ async function sendOne(context: RunContext, step: SendStep): Promise<SendOutcome
       promptTokens: options.promptTokens,
       step,
       maxTokens: maxTokensFor(step),
+      runId: context.runId,
       leadText: credentials.leadText,
     }),
   });
@@ -74,7 +76,8 @@ function planLine(step: Step): string {
   if (step.kind === 'wait') {
     return `  wait ${gapLabel(step.seconds)}`;
   }
-  return `  send ttl ${step.ttl}${step.slow ? ', long answer' : ''}`;
+  const extras = [step.slow && 'long answer', step.other && 'other conversation'].filter(Boolean);
+  return `  send ttl ${[step.ttl, ...extras].join(', ')}`;
 }
 
 function sayPlan(schedule: ScheduleName, steps: readonly Step[], options: TtlOptions): void {
@@ -117,6 +120,7 @@ async function run(context: RunContext, steps: readonly Step[]): Promise<SendOut
     await context.append({
       t: new Date().toISOString(),
       schedule,
+      run: context.runId,
       model: credentials.model,
       step,
       gapSeconds,
@@ -157,6 +161,7 @@ export async function ttl(schedule: ScheduleName, options: TtlOptions): Promise<
     schedule,
     credentials,
     options,
+    runId: crypto.randomUUID(),
     append: jsonlAppender(options.out),
   };
   const results = await run(context, steps);

@@ -2,6 +2,7 @@ import { OVRDROID_UNDER_HOME } from '../paths.ts';
 import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
 import { usagePatches } from './usage-patches.ts';
+import { warmerPatches } from './warmer-patches.ts';
 
 export interface Patch {
   name: string;
@@ -357,6 +358,7 @@ export const patches: readonly Patch[] = [
   },
   ...logoPatches,
   ...usagePatches,
+  ...warmerPatches,
   ...denylistPatches,
 ];
 

@@ -14,11 +14,18 @@ const QUESTION =
   '\nNow solve this without tools: find the least positive integer n such that 2^n ends in 000001 in base 10. Give n and one short verification.';
 const FOLLOW_UP = 'Check the result once more and reply with only the integer.';
 
-export type SendName = 'seed' | 'same effort' | 'top-level switch' | 'system-message switch';
+const THINKING_OFF_MAX_TOKENS = 1;
+
+export type SendName =
+  | 'seed'
+  | 'same effort'
+  | 'top-level switch'
+  | 'system-message switch'
+  | 'thinking off';
 
 export interface Send {
   name: SendName;
-  effort: string;
+  effort: string | undefined;
   messageEffort?: string;
 }
 
@@ -30,7 +37,14 @@ export const SYSTEM_MESSAGE_SWITCH: Send = {
   effort: SEED_EFFORT,
   messageEffort: SWITCHED_EFFORT,
 };
-export const SENDS: readonly Send[] = [SEED, SAME_EFFORT, TOP_LEVEL_SWITCH, SYSTEM_MESSAGE_SWITCH];
+export const THINKING_OFF_SWITCH: Send = { name: 'thinking off', effort: undefined };
+export const SENDS: readonly Send[] = [
+  SEED,
+  SAME_EFFORT,
+  TOP_LEVEL_SWITCH,
+  SYSTEM_MESSAGE_SWITCH,
+  THINKING_OFF_SWITCH,
+];
 
 export interface RequestSpec {
   model: string;
@@ -71,11 +85,17 @@ function withMessageEffort(messages: readonly Message[], effort: string | undefi
 export function buildRequest(spec: RequestSpec): MessagesRequest {
   const lead: SystemBlock[] =
     spec.leadText === undefined ? [] : [{ type: 'text', text: spec.leadText }];
-  return {
+  const request: MessagesRequest = {
     model: spec.model,
     max_tokens: MAX_TOKENS,
     system: [...lead, { type: 'text', text: SYSTEM_TEXT }],
     messages: withMessageEffort(spec.messages, spec.send.messageEffort),
+  };
+  if (spec.send.effort === undefined) {
+    return { ...request, max_tokens: THINKING_OFF_MAX_TOKENS };
+  }
+  return {
+    ...request,
     thinking: { type: 'adaptive' },
     output_config: { effort: spec.send.effort },
   };

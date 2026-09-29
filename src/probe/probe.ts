@@ -27,7 +27,7 @@ import {
   SCHEDULE_NAMES,
   ttl,
 } from './cache-report.ts';
-import { modules, trace } from './capture-report.ts';
+import { bodies, modules, trace } from './capture-report.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
 import { cachekey, DEFAULT_CACHEKEY_DIR, defaultModel, exec, STAGES } from './exec-report.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
@@ -78,12 +78,21 @@ program
   .option('--modules', 'include the module timing patches')
   .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--timers', 'include the timer census patches')
+  .option('--bodies', 'include the patches that write every LLM request body to $OD_BODIES')
   .option(
     '--without <names...>',
     'leave out these shipped patches and their name- companions, to A/B what each one buys',
   )
   .requiredOption('-o, --out <path>', 'where to write the built binary')
   .action(guard(buildProbe));
+
+program
+  .command('bodies')
+  .description(
+    'read request bodies from a --bodies build: where each request stops extending the one before, which is where the prompt cache breaks',
+  )
+  .argument('<file>')
+  .action(guard(bodies));
 
 program
   .command('trace')
@@ -316,7 +325,7 @@ program
 program
   .command('effort-cache')
   .description(
-    'switch reasoning effort mid-conversation through DroidProxy: does the prompt cache survive?',
+    'switch reasoning effort, or drop thinking, mid-conversation through DroidProxy: does the prompt cache survive?',
   )
   .option('-m, --model <id>', 'customModels entry to send through', DEFAULT_EFFORT_MODEL)
   .option('--prompt-tokens <n>', 'size of the cached prefix', count, DEFAULT_EFFORT_PROMPT_TOKENS)

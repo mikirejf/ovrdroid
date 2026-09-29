@@ -3,7 +3,7 @@ import type { Patch } from './patches.ts';
 
 const USAGE_LOG_FILE = 'cache-usage.jsonl';
 
-const OPEN =
+export const USAGE_LOG_OPEN =
   `globalThis.__odUsage??=((F,d)=>{let f=d+"/${USAGE_LOG_FILE}";try{F.mkdirSync(d,{recursive:!0})}catch{}` +
   `return(o)=>{F.appendFile(f,JSON.stringify(o)+"\\n",()=>{})}})` +
   `(require("fs"),require("os").homedir()+"/${OVRDROID_UNDER_HOME}");`;
@@ -19,11 +19,11 @@ export const usagePatches: readonly Patch[] = [
     find: 'commitTurnTokenUsage(t,s){if(!this.currentSessionId)return;',
     replace:
       'commitTurnTokenUsage(t,s){if(!this.currentSessionId)return;' +
-      `${OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:s,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens});`,
+      `if(!t.odWarm){${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:s,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens})}`,
   },
   {
     name: 'cache-usage-log-promote',
     find: 'Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),',
-    replace: `Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),${OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,promote:!0}),`,
+    replace: `Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,promote:!0}),`,
   },
 ];

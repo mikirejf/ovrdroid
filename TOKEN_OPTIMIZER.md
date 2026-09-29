@@ -14,7 +14,8 @@ API dollars. Measured on that meter, `probe quota`, ABAB over 700 sends on Opus 
   200 sends and 7.11M read tokens never moved the meter.
 - **DroidProxy forces every `ttl` to 1h.** A client-sent 5m is rewritten. Since 1h is free here,
   that is the right setting and there is nothing to optimise about TTL. Zero TTL expiries were seen
-  in a four day window.
+  in a four day window. A later probe saw one of the proxy's 1h entries die before 54m; see "The
+  proxy's 1h entry is not a reliable hour" in FINDINGS.md.
 
 So the only lever is **writes**. Over four days (2,539 Claude requests, 84 sessions) 17.3M tokens
 were written. Where they came from and what was done:
@@ -41,6 +42,18 @@ What is in place:
   wrote instead of sending it uncached. `probe cachekey` measures it; see FINDINGS.md.
 - `disabledSkills` in `settings.json` hides built-in skills the model never invokes; the skills list
   is rebuilt per session, so every name removed saves its description on every first turn.
+- The cache warmer (`cache-warm-*` patches): while a session has subagents running, it re-sends the
+  session's last prefix after 45 min on Anthropic (27 min otherwise), so the parent's cache survives
+  a long subagent. The warm sends the same tools, effort and thinking as the turn it replays, and
+  caps only the output: `max_tokens` 1 on Anthropic, `max_output_tokens` 16 on OpenAI. Any other
+  difference forks the cache instead of refreshing it. 45 min, not 54: one of the proxy's 1h entries
+  died before 54 min, and a read costs next to nothing on this plan, so firing early is cheap and
+  firing late wastes the warm. Each warm logs `{"warm":true,"cr","cw"}` to `cache-usage.jsonl`.
+  Droid keeps one session service and adds usage to whichever session is on screen, so a warm only
+  goes out while its own session is current, and its usage is dropped if you switch away while it is
+  in flight. `OVRDROID_WARM_DELAY_MS` overrides the delay for testing; values outside 1 to 60
+  minutes are ignored, because a warm sooner than a minute cannot help and one later than an hour
+  finds nothing left to read.
 
 What is not worth doing: TTL predictors, 5m-vs-1h policies, promotion timers. All rest on the API
 premium that the meter does not charge.
@@ -118,15 +131,19 @@ the `ephemeral_5m` and `ephemeral_1h` split, then the verdict the schedule was b
 
 Schedules it ships with, each answering one ledger row:
 
-| schedule      | steps                                                             | answers                                                     |
-| ------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
-| `cliff`       | send, wait N, send, for N in 3 to 12 minutes                      | where the 5 minute cache actually expires through the proxy |
-| `refresh`     | send, wait 4m, send, wait 4m, send, wait 4m, send                 | whether a read extends the TTL                              |
-| `clock-start` | send a prompt that takes minutes to answer, wait 4m, send         | whether the clock starts at request start                   |
-| `one-hour`    | send with 1h, wait 20m, send                                      | whether `ttl:"1h"` survives the proxy at all                |
-| `promote`     | send, wait 3m, re-send with 1h and no tools, wait 20m, send       | whether a 1h re-send of a cached prefix extends the TTL     |
-| `mixed`       | send with 1h on the head and 5m on the tail, wait 20m, send       | whether mixed TTLs work and how the write is split          |
-| `price`       | one send per kind, compare `usage` with the per-model price table | that the multiples are what the table says                  |
+| schedule       | steps                                                              | answers                                                     |
+| -------------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `cliff`        | send, wait N, send, for N in 3 to 12 minutes                       | where the 5 minute cache actually expires through the proxy |
+| `refresh`      | send, wait 4m, send, wait 4m, send, wait 4m, send                  | whether a read extends the TTL                              |
+| `clock-start`  | send a prompt that takes minutes to answer, wait 4m, send          | whether the clock starts at request start                   |
+| `one-hour`     | send with 1h, wait 20m, send                                       | whether `ttl:"1h"` survives the proxy at all                |
+| `promote`      | send, wait 3m, re-send with 1h and no tools, wait 20m, send        | whether a 1h re-send of a cached prefix extends the TTL     |
+| `mixed`        | send with 1h on the head and 5m on the tail, wait 20m, send        | whether mixed TTLs work and how the write is split          |
+| `price`        | one send per kind, compare `usage` with the per-model price table  | that the multiples are what the table says                  |
+| `unrelated`    | send, wait 4m, send another conversation, wait 2m, send            | whether a request with another prefix resets this TTL       |
+| `shared-head`  | send head+tail, wait 4m, same head and another tail, wait 2m, send | whether a shared head keeps only the head warm              |
+| `hour-refresh` | send with 1h, wait 54m, send, wait 54m, send                       | whether a read slides the proxy's 1h clock                  |
+| `hour-cliff`   | send with 1h, wait 66m, send                                       | whether the proxy's 1h entry expires at 1h with no read     |
 
 Each run costs real tokens. The command prints the cost estimate before it starts and takes `--yes`.
 Results go into `FINDINGS.md` with the model, endpoint, date and the exact command.

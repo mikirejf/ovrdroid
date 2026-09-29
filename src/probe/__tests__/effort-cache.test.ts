@@ -14,6 +14,7 @@ import {
   seedMessages,
   SWITCHED_EFFORT,
   SYSTEM_MESSAGE_SWITCH,
+  THINKING_OFF_SWITCH,
   TOP_LEVEL_SWITCH,
 } from '../effort-cache.ts';
 import { read, usage, wrote } from './usage.ts';
@@ -44,10 +45,11 @@ function requestFor(send: Send): MessagesRequest {
   return buildRequest({ model: 'm', messages: history(), send });
 }
 
-function switches(topLevel: number, perMessage: number) {
+function switches(topLevel: number, perMessage: number, thinkingOff = CACHED) {
   return [
     { name: TOP_LEVEL_SWITCH.name, usage: usage({ read: topLevel, write: CACHED - topLevel }) },
     { name: SYSTEM_MESSAGE_SWITCH.name, usage: usage({ read: perMessage, write: 0 }) },
+    { name: THINKING_OFF_SWITCH.name, usage: usage({ read: thinkingOff, write: 0 }) },
   ];
 }
 
@@ -62,8 +64,18 @@ describe('verdict rules on each switch against the seed write', () => {
       [
         'top-level switch re-wrote the cache: read 0, wrote 20,122',
         'system-message switch kept the cache: read 20,118 of 20,122 cached tokens',
+        'thinking off kept the cache: read 20,122 of 20,122 cached tokens',
       ].join('\n'),
     );
+  });
+
+  test('the thinking-off send gets its own line, judged like the switches', () => {
+    const text = verdict({
+      seed: wrote(CACHED),
+      control: read(CACHED),
+      switches: switches(CACHED, CACHED, 0),
+    });
+    expect(text.split('\n').at(-1)).toBe('thinking off re-wrote the cache: read 0, wrote 0');
   });
 
   test('a read between the two lines partly kept it and says both numbers', () => {
@@ -107,6 +119,18 @@ describe('buildRequest moves effort one way per arm', () => {
     expect(controlEffort).toEqual({ effort: SEED_EFFORT });
     expect(switchedEffort).toEqual({ effort: SWITCHED_EFFORT });
     expect(switched).toEqual(control);
+  });
+
+  test('the thinking-off arm drops thinking and output_config and asks for one token', () => {
+    const request = requestFor(THINKING_OFF_SWITCH);
+    expect(request).not.toHaveProperty('thinking');
+    expect(request).not.toHaveProperty('output_config');
+    expect(request.max_tokens).toBe(1);
+  });
+
+  test('the thinking-off arm keeps system and messages identical to the control', () => {
+    const { system, messages } = requestFor(SAME_EFFORT);
+    expect(requestFor(THINKING_OFF_SWITCH)).toMatchObject({ system, messages });
   });
 
   test('the seed reply goes into the history untouched, thinking signature included', () => {

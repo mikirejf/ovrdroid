@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { RunOptions } from '../cli.ts';
 import { say, seconds } from '../cli.ts';
 import { withTempDir } from '../temp.ts';
+import { describeBodies, parseBodies } from './bodies.ts';
 import type { LaunchResult } from './launch.ts';
 import { launch } from './launch.ts';
 import { formatModules, parseModules } from './modules.ts';
@@ -88,4 +89,16 @@ export async function modules(binary: string, options: ModulesOptions): Promise<
     `${report.totalMs.toFixed(1)}ms across ${report.moduleCount} modules (${report.unlabelledCount} unlabelled, ${report.unlabelledMs.toFixed(1)}ms)`,
   );
   say(formatModules(report.rows.slice(0, options.top), BODY_WIDTH));
+}
+
+export async function bodies(file: string): Promise<void> {
+  const rows = parseBodies(await Bun.file(file).text());
+  if (rows.length === 0) {
+    say('no request bodies: was the binary built with --bodies and run with OD_BODIES set?');
+    return;
+  }
+  say(`${rows.length} request bodies`);
+  for (const line of describeBodies(rows)) {
+    say(line);
+  }
 }

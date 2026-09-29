@@ -138,6 +138,88 @@ describe('the verdict states the answer the schedule was built for', () => {
     expect(report).toContain('the 5m TTL was never under test here');
   });
 
+  test('unrelated says the other request kept the cache warm when main still reads', () => {
+    const steps = SCHEDULES.unrelated({ minutes: [] });
+    const report = verdict('unrelated', outcomes([wrote(100), wrote(100), read(100)]), steps);
+    expect(report).toBe(
+      'the other request read 0 and wrote 100\nthe other request kept this cache warm',
+    );
+  });
+
+  test('unrelated says the clock was not reset when main missed at 6m', () => {
+    const steps = SCHEDULES.unrelated({ minutes: [] });
+    const report = verdict('unrelated', outcomes([wrote(100), wrote(100), wrote(100)]), steps);
+    expect(report).toContain(
+      "the other request did not reset this cache's clock: it expired at 6m",
+    );
+  });
+
+  test('shared-head reports the head read and the tail re-write separately', () => {
+    const steps = SCHEDULES['shared-head']({ minutes: [] });
+    const other = usage({ read: 25, write: 75, write5m: 75 });
+    const last = usage({ read: 25, write: 75, write5m: 75 });
+    const report = verdict('shared-head', outcomes([wrote(100), other, last]), steps);
+    expect(report).toContain('the other request read 25 and wrote 75');
+    expect(report).toContain(
+      'head read 25, tail re-written 75, so only the shared head stayed warm',
+    );
+  });
+
+  test('shared-head says the whole cache stayed warm when main reads it all', () => {
+    const steps = SCHEDULES['shared-head']({ minutes: [] });
+    const other = usage({ read: 25, write: 75, write5m: 75 });
+    const report = verdict('shared-head', outcomes([wrote(100), other, read(100)]), steps);
+    expect(report).toContain('the other request kept this cache warm');
+  });
+
+  test('shared-head says the clock was not reset when main read nothing', () => {
+    const steps = SCHEDULES['shared-head']({ minutes: [] });
+    const report = verdict('shared-head', outcomes([wrote(100), wrote(100), wrote(100)]), steps);
+    expect(report).toContain("did not reset this cache's clock: it expired at 6m");
+  });
+
+  test('hour-refresh says the read slid the clock when the 108m send still reads', () => {
+    const steps = SCHEDULES['hour-refresh']({ minutes: [] });
+    const results = [wrote(100), read(100), usage({ read: 95, write: 5, write1h: 5 })];
+    expect(verdict('hour-refresh', outcomes(results), steps)).toBe(
+      'a read at 54m slid the 1h clock: the entry lived 108m',
+    );
+  });
+
+  test('hour-refresh says the entry died before 54m when the middle send read nothing', () => {
+    const steps = SCHEDULES['hour-refresh']({ minutes: [] });
+    const results = [wrote(100), wrote(100), read(100)];
+    expect(verdict('hour-refresh', outcomes(results), steps)).toBe('the entry did not survive 54m');
+  });
+
+  test('hour-refresh says the clock did not slide when only the 108m send missed', () => {
+    const steps = SCHEDULES['hour-refresh']({ minutes: [] });
+    const results = [wrote(100), read(100), wrote(100)];
+    expect(verdict('hour-refresh', outcomes(results), steps)).toBe(
+      'the read at 54m did not slide the clock: the entry expired before 108m',
+    );
+  });
+
+  test('hour-refresh does not count a read under 90% of the prefix as a slide', () => {
+    const steps = SCHEDULES['hour-refresh']({ minutes: [] });
+    const results = [wrote(100), read(100), usage({ read: 50, write: 50, write1h: 50 })];
+    expect(verdict('hour-refresh', outcomes(results), steps)).toContain('did not slide the clock');
+  });
+
+  test('hour-cliff says the entry outlived 1h when the 66m send reads', () => {
+    const steps = SCHEDULES['hour-cliff']({ minutes: [] });
+    expect(verdict('hour-cliff', outcomes([wrote(100), read(100)]), steps)).toBe(
+      "the entry outlived 66m with no read: the proxy's lifetime is longer than 1h",
+    );
+  });
+
+  test('hour-cliff says the entry expired inside the last 6m when the 66m send misses', () => {
+    const steps = SCHEDULES['hour-cliff']({ minutes: [] });
+    expect(verdict('hour-cliff', outcomes([wrote(100), wrote(100)]), steps)).toBe(
+      'expired between 60m and 66m with no read',
+    );
+  });
+
   test('no results at all says so rather than throwing', () => {
     expect(verdict('price', [], SCHEDULES.price({ minutes: [] }))).toBe('no sends landed');
   });

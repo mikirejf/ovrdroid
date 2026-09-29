@@ -37,12 +37,12 @@ const MILLION = 1_000_000;
 const PRICE: Price = { input: 10, cacheRead: 0.25, cacheWrite5m: 12.5, cacheWrite1h: 20 };
 const NOTHING: unknown = undefined;
 
-function requestFor(step: SendStep, promptTokens = 2000): MessagesRequest {
-  return buildRequest({ model: 'm', promptTokens, step, maxTokens: maxTokensFor(step) });
+function requestFor(step: SendStep, promptTokens = 2000, runId = 'r1'): MessagesRequest {
+  return buildRequest({ model: 'm', promptTokens, step, maxTokens: maxTokensFor(step), runId });
 }
 
-function blocksFor(step: SendStep, promptTokens = 2000): SystemBlock[] {
-  return requestFor(step, promptTokens).system;
+function blocksFor(step: SendStep, promptTokens = 2000, runId = 'r1'): SystemBlock[] {
+  return requestFor(step, promptTokens, runId).system;
 }
 
 function textAt(blocks: readonly SystemBlock[], index: number): string {
@@ -109,6 +109,7 @@ describe('buildRequest places cache_control where the schedule needs it', () => 
       promptTokens: 2000,
       step,
       maxTokens: maxTokensFor(step),
+      runId: 'r1',
       leadText: 'You are Claude Code.',
     }).system;
     expect(lead).toHaveLength(2);
@@ -121,6 +122,42 @@ describe('buildRequest places cache_control where the schedule needs it', () => 
     expect(JSON.stringify(requestFor(send('5m'), 5000))).toBe(
       JSON.stringify(requestFor(send('5m'), 5000)),
     );
+  });
+
+  test('every run gets its own prefix, so an earlier run cannot warm it', () => {
+    expect(textAt(blocksFor(send('5m'), 2000, 'a'), 0)).not.toBe(
+      textAt(blocksFor(send('5m'), 2000, 'b'), 0),
+    );
+    expect(textAt(blocksFor(send('split'), 2000, 'a'), 0)).not.toBe(
+      textAt(blocksFor(send('split'), 2000, 'b'), 0),
+    );
+  });
+
+  test('an unrelated send has a different prefix of the same size and its own cache_control', () => {
+    const main = blocksFor(send('5m'));
+    const other = blocksFor(send('5m', false, true));
+    expect(other).toHaveLength(1);
+    expect(other[0]?.cache_control).toEqual({ type: 'ephemeral' });
+    expect(textAt(other, 0)).toHaveLength(textAt(main, 0).length);
+    expect(textAt(other, 0).slice(0, 200)).not.toBe(textAt(main, 0).slice(0, 200));
+  });
+
+  test('a split send caches a quarter head and the rest as a tail, both 5m', () => {
+    const blocks = blocksFor(send('split'));
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]?.cache_control).toEqual({ type: 'ephemeral' });
+    expect(blocks[1]?.cache_control).toEqual({ type: 'ephemeral' });
+    expect(textAt(blocks, 0).length * 3).toBeLessThanOrEqual(textAt(blocks, 1).length + 3);
+    expect(`${textAt(blocks, 0)}${textAt(blocks, 1)}`).toBe(textAt(blocksFor(send('5m')), 0));
+  });
+
+  test('the other split send keeps the head and swaps the tail for one of the same size', () => {
+    const main = blocksFor(send('split'));
+    const other = blocksFor(send('split', false, true));
+    expect(textAt(other, 0)).toBe(textAt(main, 0));
+    expect(textAt(other, 1)).not.toBe(textAt(main, 1));
+    expect(textAt(other, 1)).toHaveLength(textAt(main, 1).length);
+    expect(other[1]?.cache_control).toEqual({ type: 'ephemeral' });
   });
 
   test('the filler grows with the token count at about 3.5 chars a token', () => {
@@ -182,6 +219,26 @@ describe('each schedule yields the steps its question needs', () => {
     ]);
   });
 
+  test('hour-refresh sends 1h three times, 54m apart, the last past 60m from the first', () => {
+    const steps = SCHEDULES['hour-refresh']({ minutes: [] });
+    expect(steps).toEqual([
+      send('1h'),
+      { kind: 'wait', seconds: 54 * MINUTE },
+      send('1h'),
+      { kind: 'wait', seconds: 54 * MINUTE },
+      send('1h'),
+    ]);
+    expect(wallSeconds(steps)).toBeGreaterThan(60 * MINUTE);
+  });
+
+  test('hour-cliff is two 1h sends around a 66m gap', () => {
+    expect(SCHEDULES['hour-cliff']({ minutes: [] })).toEqual([
+      send('1h'),
+      { kind: 'wait', seconds: 66 * MINUTE },
+      send('1h'),
+    ]);
+  });
+
   test('promote writes 5m, re-sends 1h, then checks after 20m', () => {
     const steps = SCHEDULES.promote({ minutes: [] });
     expect(sendSteps(steps).map((step) => step.ttl)).toEqual(['5m', '1h', '5m']);
@@ -197,6 +254,28 @@ describe('each schedule yields the steps its question needs', () => {
     const steps = SCHEDULES.price({ minutes: [] });
     expect(sendSteps(steps).map((step) => step.ttl)).toEqual(['5m', '5m', '1h', '1h']);
     expect(wallSeconds(steps)).toBe(0);
+  });
+});
+
+describe('the other-request schedules', () => {
+  test('unrelated sends main, another conversation after 4m, then main after 2m', () => {
+    expect(SCHEDULES.unrelated({ minutes: [] })).toEqual([
+      send('5m'),
+      { kind: 'wait', seconds: 4 * MINUTE },
+      send('5m', false, true),
+      { kind: 'wait', seconds: 2 * MINUTE },
+      send('5m'),
+    ]);
+  });
+
+  test('shared-head sends main, the same head with another tail after 4m, then main after 2m', () => {
+    expect(SCHEDULES['shared-head']({ minutes: [] })).toEqual([
+      send('split'),
+      { kind: 'wait', seconds: 4 * MINUTE },
+      send('split', false, true),
+      { kind: 'wait', seconds: 2 * MINUTE },
+      send('split'),
+    ]);
   });
 });
 

@@ -16,6 +16,7 @@ import {
   SENDS,
   sendLine,
   SYSTEM_MESSAGE_SWITCH,
+  THINKING_OFF_SWITCH,
   TOP_LEVEL_SWITCH,
 } from './effort-cache.ts';
 import { jsonlAppender } from './jsonl.ts';
@@ -44,12 +45,18 @@ interface Sent {
   content: unknown[];
 }
 
+function planOf(send: Send): string {
+  if (send.effort === undefined) {
+    return 'no thinking, no effort, max_tokens 1';
+  }
+  if (send.messageEffort === undefined) {
+    return `top-level effort ${send.effort}`;
+  }
+  return `top-level effort ${send.effort}, system message effort ${send.messageEffort}`;
+}
+
 function planLine(send: Send): string {
-  const where =
-    send.messageEffort === undefined
-      ? `top-level effort ${send.effort}`
-      : `top-level effort ${send.effort}, system message effort ${send.messageEffort}`;
-  return `  ${send.name}: ${where}`;
+  return `  ${send.name}: ${planOf(send)}`;
 }
 
 async function sendOne(run: Run, send: Send, messages: readonly Message[]): Promise<Sent> {
@@ -105,6 +112,7 @@ export async function effortCache(options: EffortCacheOptions): Promise<void> {
   const control = await sendOne(run, SAME_EFFORT, history);
   const topLevel = await sendOne(run, TOP_LEVEL_SWITCH, history);
   const perMessage = await sendOne(run, SYSTEM_MESSAGE_SWITCH, history);
+  const thinkingOff = await sendOne(run, THINKING_OFF_SWITCH, history);
 
   say('');
   if (hasSignedThinking(seed.content)) {
@@ -121,6 +129,7 @@ export async function effortCache(options: EffortCacheOptions): Promise<void> {
       switches: [
         { name: TOP_LEVEL_SWITCH.name, usage: topLevel.usage },
         { name: SYSTEM_MESSAGE_SWITCH.name, usage: perMessage.usage },
+        { name: THINKING_OFF_SWITCH.name, usage: thinkingOff.usage },
       ],
     }),
   );
