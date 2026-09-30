@@ -22,6 +22,7 @@ function sign(target: string): void {
   if (result.exitCode !== 0) {
     throw new Error(`codesign failed: ${result.stderr.toString().trim()}`);
   }
+  say('signed');
 }
 
 export async function rebuildInto(
@@ -47,7 +48,6 @@ export async function rebuildInto(
 
   chmodSync(out, BINARY_MODE);
   sign(out);
-  say('signed');
 
   return { seconds };
 }
