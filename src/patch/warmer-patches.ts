@@ -1,9 +1,9 @@
-import { CACHE_CLOCK_RECORDERS } from './cache-clock.ts';
+import { CACHE_CLOCK_RECORDERS, CACHE_TRUSTED_MS } from './cache-clock.ts';
 import type { Patch } from './patches.ts';
 import { USAGE_LOG_OPEN } from './usage-patches.ts';
 
 const MINUTE_MS = 60_000;
-const ANTHROPIC_WARM_DELAY_MS = 45 * MINUTE_MS;
+const ANTHROPIC_WARM_DELAY_MS = CACHE_TRUSTED_MS;
 const OTHER_WARM_DELAY_MS = 27 * MINUTE_MS;
 const OPENAI_MIN_OUTPUT_TOKENS = 16;
 

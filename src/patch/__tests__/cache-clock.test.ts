@@ -4,7 +4,7 @@ import { FooterWorld, OTHER_SESSION, SESSION } from './footer-harness.ts';
 import { MINUTE_MS } from './warmer-harness.ts';
 
 const SENT_AT = Date.UTC(2026, 8, 29, 12, 0, 0);
-const TTL_MS = 60 * MINUTE_MS;
+const TRUSTED_MS = 45 * MINUTE_MS;
 const SECOND_MS = 1000;
 
 let footer: FooterWorld;
@@ -34,40 +34,40 @@ describe('what the footer says', () => {
     expect(footer.pending).toHaveLength(0);
   });
 
-  test('shows the whole hour minus the seconds already spent, right after a send', () => {
+  test('shows the trusted 45 minutes minus the seconds already spent, right after a send', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     FooterWorld.at(SENT_AT + SECOND_MS);
 
-    expect(footer.render()).toBe('[cache 59m] ? for help');
-    expect(footer.colorOf('cache 59m')).toBe('muted');
+    expect(footer.render()).toBe('[cache 44m] ? for help');
+    expect(footer.colorOf('cache 44m')).toBe('muted');
   });
 
   test('counts whole minutes down as the entry ages', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     FooterWorld.at(SENT_AT + 17 * MINUTE_MS + SECOND_MS);
 
-    expect(footer.render()).toBe('[cache 42m] ? for help');
+    expect(footer.render()).toBe('[cache 27m] ? for help');
   });
 
   test('shows <1m through the last minute', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
-    FooterWorld.at(SENT_AT + TTL_MS - 55 * SECOND_MS);
+    FooterWorld.at(SENT_AT + TRUSTED_MS - 55 * SECOND_MS);
 
     expect(footer.render()).toBe('[cache <1m] ? for help');
     expect(footer.colorOf('cache <1m')).toBe('muted');
   });
 
-  test('says cold in the warning colour the moment the hour is up', () => {
+  test('says cold in the warning colour the moment the trusted window is up', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
-    FooterWorld.at(SENT_AT + TTL_MS);
+    FooterWorld.at(SENT_AT + TRUSTED_MS);
 
     expect(footer.render()).toBe('[cache cold] ? for help');
     expect(footer.colorOf('cache cold')).toBe('warning');
   });
 
-  test('stays cold long after the hour', () => {
+  test('stays cold long after the trusted window', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
-    FooterWorld.at(SENT_AT + 5 * TTL_MS);
+    FooterWorld.at(SENT_AT + 5 * TRUSTED_MS);
 
     expect(footer.render()).toBe('[cache cold] ? for help');
   });
@@ -76,12 +76,12 @@ describe('what the footer says', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
 
-    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 59m] ? for help');
+    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 44m] ? for help');
   });
 
   test('keeps the comma muted when the countdown turns cold', () => {
     runTurn(SENT_AT, SENT_AT);
-    FooterWorld.cache({ [SESSION]: SENT_AT - TTL_MS });
+    FooterWorld.cache({ [SESSION]: SENT_AT - TRUSTED_MS });
 
     expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache cold] ? for help');
     expect(footer.colorOf(',')).toBe('muted');
@@ -92,7 +92,7 @@ describe('what the footer says', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     FooterWorld.at(SENT_AT + 20 * MINUTE_MS);
 
-    expect(footer.render()).toBe('[cache 40m] ? for help');
+    expect(footer.render()).toBe('[cache 25m] ? for help');
   });
 });
 
@@ -106,7 +106,7 @@ describe('where the clocks sit in the footer', () => {
     footer.bracket = DURATION_AND_CONTEXT;
 
     expect(footer.render()).toBe(
-      '[\u23F1 21m 6s, \u2191<1m \u2193<1m, cache 59m, context: 35%] ? for help',
+      '[\u23F1 21m 6s, \u2191<1m \u2193<1m, cache 44m, context: 35%] ? for help',
     );
   });
 
@@ -115,14 +115,14 @@ describe('where the clocks sit in the footer', () => {
     runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
     footer.bracket = DURATION_ONLY;
 
-    expect(footer.render()).toBe('[\u23F1 21m 6s, \u2191<1m \u2193<1m, cache 59m] ? for help');
+    expect(footer.render()).toBe('[\u23F1 21m 6s, \u2191<1m \u2193<1m, cache 44m] ? for help');
   });
 
   test('open a bracket of their own when the footer has none', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
 
-    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 59m] ? for help');
+    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 44m] ? for help');
   });
 
   test('carry the countdown alone before any turn', () => {
@@ -130,7 +130,7 @@ describe('where the clocks sit in the footer', () => {
     FooterWorld.at(SENT_AT + SECOND_MS);
     footer.bracket = DURATION_AND_CONTEXT;
 
-    expect(footer.render()).toBe('[\u23F1 21m 6s, cache 59m, context: 35%] ? for help');
+    expect(footer.render()).toBe('[\u23F1 21m 6s, cache 44m, context: 35%] ? for help');
   });
 
   test('carry the turn clock alone when the session has no cache entry', () => {
@@ -161,13 +161,13 @@ describe('when the footer wakes up', () => {
     footer.render();
 
     expect(footer.pending.map((timer) => timer.delay)).toEqual([50 * SECOND_MS + 1]);
-    expect(footer.fireOnlyTimer()).toBe('[cache 58m] ? for help');
+    expect(footer.fireOnlyTimer()).toBe('[cache 43m] ? for help');
     expect(footer.pending.map((timer) => timer.delay)).toEqual([MINUTE_MS]);
   });
 
   test('wakes at the exact expiry moment to say cold, then sleeps', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
-    FooterWorld.at(SENT_AT + TTL_MS - 55 * SECOND_MS);
+    FooterWorld.at(SENT_AT + TRUSTED_MS - 55 * SECOND_MS);
     footer.render();
 
     expect(footer.pending.map((timer) => timer.delay)).toEqual([55 * SECOND_MS + 1]);
@@ -177,7 +177,7 @@ describe('when the footer wakes up', () => {
 
   test('sleeps once the entry is cold and no turn clock is running', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
-    FooterWorld.at(SENT_AT + TTL_MS + SECOND_MS);
+    FooterWorld.at(SENT_AT + TRUSTED_MS + SECOND_MS);
     footer.render();
 
     expect(footer.pending).toHaveLength(0);
@@ -190,7 +190,7 @@ describe('when the footer wakes up', () => {
     footer.render();
 
     expect(footer.pending.map((timer) => timer.delay)).toEqual([30 * SECOND_MS + 1]);
-    expect(footer.fireOnlyTimer()).toBe('[\u2191<1m \u2193<1m, cache 58m] ? for help');
+    expect(footer.fireOnlyTimer()).toBe('[\u2191<1m \u2193<1m, cache 43m] ? for help');
   });
 
   test('wakes at the turn clock step when it comes before the cache boundary', () => {
@@ -200,12 +200,12 @@ describe('when the footer wakes up', () => {
     footer.render();
 
     expect(footer.pending.map((timer) => timer.delay)).toEqual([20 * SECOND_MS]);
-    expect(footer.fireOnlyTimer()).toBe('[\u21911m \u21931m, cache 59m] ? for help');
+    expect(footer.fireOnlyTimer()).toBe('[\u21911m \u21931m, cache 44m] ? for help');
   });
 
   test('keeps the turn clock running after the cache goes cold', () => {
     runTurn(SENT_AT, SENT_AT);
-    FooterWorld.cache({ [SESSION]: SENT_AT - 2 * TTL_MS });
+    FooterWorld.cache({ [SESSION]: SENT_AT - 2 * TRUSTED_MS });
     FooterWorld.at(SENT_AT + 5 * SECOND_MS);
     footer.render();
 
