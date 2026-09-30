@@ -8,9 +8,9 @@ description: >-
 
 # Patching the Droid CLI binary
 
-Droid ships as a Bun standalone executable: one Mach-O file carrying its whole application as
-plain JavaScript source plus a precompiled JSC **bytecode** blob, indexed by a **module graph**
-at the tail of the file. Everything patchable lives in that graph, and every mistake worth
+Droid ships as a Bun standalone executable: one native file carrying its whole
+application as plain JavaScript source plus a precompiled JSC **bytecode** blob, indexed by a
+**module graph** at the tail of the file. Everything patchable lives in that graph, and every mistake worth
 knowing about comes from the bytecode blob.
 
 Working reference implementation: `~/dev/ovrdroid` (TypeScript, Bun). Read it before writing a
@@ -36,9 +36,11 @@ So patches are ordinary text edits of any length on the extracted source, and th
    hundreds of split `chunk-*.js` records (loader 1) that import each other by `/$bunfs/root/`
    path. Offsets change every release, so always derive them from the trailer; never hardcode.
    See [`MODULE-GRAPH.md`](MODULE-GRAPH.md).
-2. **Patch the source text.** Literal find/replace pairs, each required to match exactly once
-   across all modules, so a Droid update that moves the code fails loudly instead of patching the
-   wrong site.
+2. **Patch the source text.** Find/replace pairs, each required to match exactly once across all
+   modules, so a Droid update that moves the code fails loudly instead of patching the wrong site.
+   The pairs are written against one build but matched by identifier **shape**: at apply time
+   `src/patch/rebase.ts` re-finds each `find` on the target, renames the `replace` to that build's
+   names, then patches. See [The patch contract](#the-patch-contract).
 3. **Stamp a marker.** Append `globalThis.__ovrdroid="<digest>";` where the digest covers your
    patch set. Minification renames the identifiers your find strings matched, so the patched
    binary is no longer searchable by those strings; the marker string literal survives and is how
@@ -48,7 +50,8 @@ So patches are ordinary text edits of any length on the extracted source, and th
    import preamble, and run
    `bun build --compile --bytecode --splitting --format=esm --minify --target=bun --asset-naming=[name].[ext]`.
    The Bun version is `BUILD_BUN_VERSION` in `src/binary/bun.ts`, newer than the one Droid ships,
-   because its bytecode format is smaller and faster to load. Budget ~6s.
+   because its bytecode format is smaller and faster to load. The harness downloads the Bun build
+   for the host (darwin-arm64 or linux-x64) once and caches it. Budget ~6s.
    Two chunks (highlight.js and one other big library) are not imported; the app loads them on
    demand with `import.meta.require("/$bunfs/root/chunk-X.js")`. Bun leaves that call alone and
    only rewrites the string, so the chunk is dropped from the graph and the first code block
@@ -59,8 +62,8 @@ So patches are ordinary text edits of any length on the extracted source, and th
    addresses them by string literal. Then **verify every path the app names resolves**
    (`assertRefsResolve`): no `import.meta.require("./…")` left behind, and every
    `/$bunfs/root/…` literal names a record the binary carries.
-6. **Re-sign** with `codesign --force --sign -`. Skip this and macOS kills the process with
-   SIGKILL at launch.
+6. **Re-sign** with `codesign --force --sign -` on macOS. Skip this and macOS kills the process with
+   SIGKILL at launch. Linux builds skip this step.
 7. **Prove it before installing.** `--version` must match stock, the copy must paint in a PTY
    (`probe ab`), and it must render a code block (`probe highlight`). A `--version` that passes
    says nothing about the chunks or the sidecars, and a paint says nothing about chunks loaded
@@ -69,6 +72,25 @@ So patches are ordinary text edits of any length on the extracted source, and th
 Transplanting rebuilt regions into the stock binary in place was the old path. It fails silently
 on a Bun version mismatch (the runtime rejects the cache and parses source, +326ms) and cannot
 carry split chunks; the harness rebuilds the whole file instead.
+
+## The patch contract
+
+A patch (`src/patch/patches.ts`, `Patch`) is `name`, `find`, optional `until`, optional `lookups`,
+`replace`. It is written against one build and must hold on every supported build, whose minified
+names differ.
+
+- Every name of 3 characters or fewer in `replace` must be captured by `find`, `until` or
+  `lookups`. `lookups` are snippets from the same module as `find`, each matching once, that
+  capture outer names the `replace` uses.
+- Payload-owned names (locals, parameters, helpers) start with `$OD`. `apply` refuses a source that
+  already contains `$OD`.
+- Never renamed: names longer than 3 characters, dotted properties, object keys, and the short
+  keywords in `SHORT_WORDS` (`src/patch/tokens.ts`). Chunk file names in strings are renamed.
+- Drift is reported as `markers not found (Droid version drift): <name> (<reason>)`, reason one of
+  unresolved, collides, ambiguous, missing, no-tail, no-lookup. [`UPDATING.md`](UPDATING.md) fixes
+  each.
+- `bun run probe builds` checks the whole set against the stock pinned release of every platform.
+  Run it before pushing a patch change.
 
 ## Finding a patch site
 
@@ -90,9 +112,10 @@ read a whole region rather than query it. Keep the previous release's extraction
 
 - Anchor on strings the minifier cannot rename: log messages, telemetry event names, URL paths,
   env var names. Then walk outward to the identifier you need.
-- Minified identifiers (`ARu`, `pIn`, `cQB`) are release-scoped, and a name is **reused across
-  releases for unrelated code**: `T6` was the wordmark on 0.220.0 and a markdown regex on 0.221.0.
-  Resolve every name against the new binary rather than carrying one across.
+- Minified identifiers (`ARu`, `pIn`, `cQB`) are release- and platform-scoped, and a name is
+  **reused across releases for unrelated code**: `T6` was the wordmark on 0.220.0 and a markdown
+  regex on 0.221.0. Capture a name from a `find`/`lookup` with the shape of its role, and resolve it
+  with `probe names` rather than writing one you saw in another build.
 - Check uniqueness before believing a find string. A one-occurrence check in the harness is the
   guardrail that turns the next Droid release into a clean `missing:` report.
 
@@ -108,10 +131,13 @@ read a whole region rather than query it. Keep the previous release's extraction
 
 ## After a Droid update
 
-`ovrdroid update` or `status` reports `missing:` with the patch names whose find strings no longer
-match once. The full procedure, from triage through the proof on a copy, is
-[`UPDATING.md`](UPDATING.md). Only the patch strings are release-scoped; the graph parser and the
-rebuild carry over, unless every patch goes missing at once, which means the module layout moved.
+`ovrdroid update` installs the pinned `DROID_VERSION` (`src/binary/droid-release.ts`) for the host,
+verifies its sha256, and applies. A release that only renames is absorbed by the rebase. Otherwise
+`update` reports `markers not found (Droid version drift): <name> (<reason>)`, and `status` lists
+`missing:` names. To take a newer release, run `probe builds --version <new>` first. The full
+procedure, from triage through the proof on a copy, is [`UPDATING.md`](UPDATING.md). The graph
+parser and the rebuild carry over, unless every patch goes missing at once, which means the module
+layout moved.
 
 ## Adding a feature, not just deleting work
 

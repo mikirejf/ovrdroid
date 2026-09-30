@@ -57,9 +57,8 @@ function literal(rows: readonly string[]): string {
 export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-ovrdroid',
-    find: 'MAX_PRINTABLE:126},D=`',
-    until: '`,vZ=D.trim().split(`\n`),',
-    replace: `MAX_PRINTABLE:126},vZ=${literal(WORDMARK_ROWS)},`,
+    find: ',vZ=D.trim().split(`\n`),',
+    replace: `,vZ=${literal(WORDMARK_ROWS)},`,
   },
   {
     name: 'wordmark-compact-ovrdroid',
@@ -70,10 +69,11 @@ export const logoPatches: readonly Patch[] = [
   {
     name: 'wordmark-over-accent-paint',
     find: 'nt(f,0,w,g,i);',
+    lookups: ['g=!m&&S>=Xe?vZ:xZ', '{color:o.headerLogo,bold:!0}', 'b(f,L,v(I),I,c),L++}'],
     replace:
-      `nt(f,0,w,g,i);let $over={color:o.highlight,bold:!0};` +
-      `if(g===vZ)nt(f,0,w,g.map(($)=>$.slice(0,${OVER_COLUMNS})),$over);` +
-      `else b(f,${COMPACT_ACCENT_ROW},w+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},$over);`,
+      `nt(f,0,w,g,i);let $ODstyle={color:o.highlight,bold:!0};` +
+      `if(g===vZ)nt(f,0,w,g.map(($ODrow)=>$ODrow.slice(0,${OVER_COLUMNS})),$ODstyle);` +
+      `else b(f,${COMPACT_ACCENT_ROW},w+${COMPACT_ACCENT_COLUMN},${JSON.stringify(COMPACT_ACCENT)},$ODstyle);`,
   },
   {
     name: 'wordmark-width-threshold',

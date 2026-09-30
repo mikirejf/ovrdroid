@@ -49,7 +49,8 @@ bun build --compile --bytecode --splitting --format=esm --minify --target=bun \
 - `--asset-naming=[name].[ext]` reproduces each sidecar's name byte for byte; the app addresses
   them by string literal, so a content hash in the name breaks them at runtime.
 - The pinned build Bun downloads from
-  `https://github.com/oven-sh/bun/releases/download/bun-v<ver>/bun-darwin-aarch64.zip`. Because
+  `https://github.com/oven-sh/bun/releases/download/bun-v<ver>/bun-<host>.zip`, where `<host>` is
+  `bun-darwin-aarch64` or `bun-linux-x64`. Because
   the whole binary is rebuilt, its runtime and its bytecode always agree; only a transplant into
   the stock file needed the versions to match.
 - Do not build with `BUN_BE_BUN=1 <droid binary> build ...`. `--compile` copies the running

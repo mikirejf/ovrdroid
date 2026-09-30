@@ -1,5 +1,7 @@
 import type { Patch } from '../patch/patches.ts';
 import { findMarker, markerDigest, markerStatement } from '../patch/patches.ts';
+import type { Rebase } from '../patch/rebase.ts';
+import { applies, rebaseAll } from '../patch/rebase.ts';
 import type { App, AppModule } from './graph.ts';
 
 export type Status =
@@ -70,6 +72,26 @@ function describeMiss(patch: Patch, miss: Miss): string {
     : `patch ${patch.name}: expected 1 occurrence, found ${miss.count}`;
 }
 
+function rebaseOnto(app: App, list: readonly Patch[]): Rebase[] {
+  return rebaseAll(
+    list,
+    app.map((module) => module.text),
+  );
+}
+
+export function describeDrift(rebase: Rebase): string {
+  if (rebase.status === 'unresolved') {
+    return `${rebase.name} (free names: ${rebase.unresolved.join(' ')})`;
+  }
+  if (rebase.status === 'collides') {
+    return `${rebase.name} (names renamed onto one: ${rebase.collisions.join(' ')})`;
+  }
+  if (rebase.status === 'ambiguous') {
+    return `${rebase.name} (${rebase.matches} places match)`;
+  }
+  return `${rebase.name} (${rebase.status})`;
+}
+
 export function statusOf(app: App, list: readonly Patch[]): Status {
   const found = findMarker(app[0].text);
   const current = markerDigest(list);
@@ -80,9 +102,9 @@ export function statusOf(app: App, list: readonly Patch[]): Status {
       : { kind: 'stale', digest: found, current };
   }
 
-  const names = list
-    .filter((patch) => soleHit(app, patch).kind === 'miss')
-    .map((patch) => patch.name);
+  const names = rebaseOnto(app, list)
+    .filter((rebase) => !applies(rebase))
+    .map((rebase) => rebase.name);
 
   return names.length > 0 ? { kind: 'missing', names } : { kind: 'pending' };
 }
@@ -105,7 +127,15 @@ export function patchSource(app: App, list: readonly Patch[]): App {
   const entry = copyOf(head);
   const out: App = [entry, ...rest.map((module) => copyOf(module))];
 
-  for (const patch of list) {
+  const rebased = rebaseOnto(app, list);
+  const drift = rebased.filter((rebase) => !applies(rebase));
+  if (drift.length > 0) {
+    throw new Error(
+      `markers not found (Droid version drift): ${drift.map((rebase) => describeDrift(rebase)).join(', ')}`,
+    );
+  }
+
+  for (const patch of rebased) {
     const hit = soleHit(out, patch);
     if (hit.kind === 'miss') {
       throw new Error(describeMiss(patch, hit));

@@ -4,14 +4,15 @@ import type { Patch } from './patches.ts';
 const USAGE_LOG_FILE = 'cache-usage.jsonl';
 
 export const USAGE_LOG_OPEN =
-  `globalThis.__odUsage??=((F,d)=>{let f=d+"/${USAGE_LOG_FILE}";try{F.mkdirSync(d,{recursive:!0})}catch{}` +
-  `return(o)=>{F.appendFile(f,JSON.stringify(o)+"\\n",()=>{})}})` +
+  `globalThis.__odUsage??=(($ODfs,$ODdir)=>{let $ODfile=$ODdir+"/${USAGE_LOG_FILE}";try{$ODfs.mkdirSync($ODdir,{recursive:!0})}catch{}` +
+  `return($ODrow)=>{$ODfs.appendFile($ODfile,JSON.stringify($ODrow)+"\\n",()=>{})}})` +
   `(require("fs"),require("os").homedir()+"/${OVRDROID_UNDER_HOME}");`;
 
 export const usagePatches: readonly Patch[] = [
   {
     name: 'custom-openai-shared-cache-key',
     find: 'prompt_cache_key:We??s,prompt_cache_retention:',
+    lookups: [',isCustomModel:g}='],
     replace: 'prompt_cache_key:We??(g?"ovrdroid":s),prompt_cache_retention:',
   },
   {

@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { countOccurrences } from '../../binary/apply.ts';
+import { countOccurrences, describeDrift } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
 import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { CONSTRUCTOR_BINDS, findMarker, patches } from '../patches.ts';
-import { STOCK_HUB_HEADER, STOCK_HUB_METHODS } from './mcp-hub-stock.ts';
+import { applies, rebaseAll } from '../rebase.ts';
+import { STOCK_HUB_HEADER, STOCK_HUB_METHODS, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
 
 async function stockModulesOf(target: string): Promise<App | undefined> {
   let app: App;
@@ -22,22 +23,31 @@ const modules =
 
 const source = modules === undefined ? undefined : joinApp(modules);
 
-const ZOD_ANCHOR = patches.find((patch) => patch.name === 'zod-v3-lazy-bound-methods')?.find;
+const rebases = rebaseAll(
+  patches,
+  (modules ?? []).map((module) => module.text),
+);
+
+const ZOD_ANCHOR = rebases.find((rebase) => rebase.name === 'zod-v3-lazy-bound-methods')?.find;
 
 const schemaChunk =
   ZOD_ANCHOR === undefined
     ? undefined
     : modules?.find((module) => module.text.includes(ZOD_ANCHOR))?.text;
 
-const cases = patches.map((patch) => [patch.name, patch.find] as const);
+const cases = rebases.map((rebase) => [rebase.name, rebase] as const);
 
-describe.skipIf(source === undefined)('every find string still matches the shipped bundle', () => {
-  test.each(cases)('%s occurs exactly once', (_name, find) => {
-    expect(countOccurrences(source ?? '', find)).toBe(1);
-  });
-});
+describe.skipIf(source === undefined)(
+  'every patch still finds its place in the shipped bundle',
+  () => {
+    test.each(cases)('%s applies', (_name, rebase) => {
+      expect(applies(rebase) ? [] : [describeDrift(rebase)]).toEqual([]);
+    });
+  },
+);
 
 const hubFixture = [
+  ['pid helpers', STOCK_PID_HELPERS],
   ['class header', STOCK_HUB_HEADER],
   ...Object.entries(STOCK_HUB_METHODS),
 ] as const;

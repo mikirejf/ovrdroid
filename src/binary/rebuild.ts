@@ -15,6 +15,9 @@ export interface RebuildResult {
 }
 
 function sign(target: string): void {
+  if (process.platform !== 'darwin') {
+    return;
+  }
   const result = Bun.spawnSync(['codesign', '--force', '--sign', '-', target]);
   if (result.exitCode !== 0) {
     throw new Error(`codesign failed: ${result.stderr.toString().trim()}`);

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { patchSource } from '../../binary/apply.ts';
 import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME, mcpIdlePatches } from '../mcp-idle-patches.ts';
 import { markerStatement } from '../patches.ts';
-import { STOCK_HUB_HEADER, STOCK_HUB_METHODS } from './mcp-hub-stock.ts';
+import { STOCK_HUB_MODULE, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
 import { payloadFunction } from './payload.ts';
 
 export const SERVER = 'chrome-devtools';
@@ -123,10 +123,9 @@ interface FakeClient {
   setNotificationHandler: () => void;
 }
 
-const PATCHED = patchSource(
-  [{ name: 'hub.js', text: `${STOCK_HUB_HEADER}${Object.values(STOCK_HUB_METHODS).join('')}}` }],
-  mcpIdlePatches,
-)[0].text.replace(markerStatement(mcpIdlePatches), '');
+const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdlePatches)[0]
+  .text.replace(markerStatement(mcpIdlePatches), '')
+  .replace(STOCK_PID_HELPERS, '');
 
 const BINDINGS =
   'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It require process setTimeout clearTimeout'.split(

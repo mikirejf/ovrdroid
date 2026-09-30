@@ -6,10 +6,12 @@ const ROOT_OR_HOME = `if(l==="/"||l==="~"||l==="$HOME")c.push(\`[^;&|]{0,100}\\\
 
 const ABSOLUTE_PATH = `else if(l?.startsWith("/"))c.push(\`[^;&|]{0,100}\\\\s\${u}\${r(l)}\`);`;
 
-const FEEDS_A_SHELL =
-  'let g=OT(d.trim()),o=Yc(g,!0);return o!==-1&&ne.has(_0(g[o]).toLowerCase())&&!le(g.slice(o+1))';
+const HEREDOCS = '$ODheredocs';
 
-const SHELL_HEREDOC_BODIES_RUN = `let g=OT(S);if(g.length>0)C(g,n,v,i,r)}if(D0.length>0&&E_(x,!1).some((d)=>{${FEEDS_A_SHELL}}))for(let d of D0)C(d,n+1,{...t,hasUnprovenArgs:!0},i,r);return}`;
+const FEEDS_A_SHELL =
+  'let g=OT($ODbody.trim()),$ODat=Yc(g,!0);return $ODat!==-1&&ne.has(_0(g[$ODat]).toLowerCase())&&!le(g.slice($ODat+1))';
+
+const SHELL_HEREDOC_BODIES_RUN = `let g=OT(S);if(g.length>0)C(g,n,v,i,r)}if(${HEREDOCS}.length>0&&E_(x,!1).some(($ODbody)=>{${FEEDS_A_SHELL}}))for(let $ODbody of ${HEREDOCS})C($ODbody,n+1,{...t,hasUnprovenArgs:!0},i,r);return}`;
 
 export const denylistPatches: readonly Patch[] = [
   {
@@ -25,22 +27,30 @@ export const denylistPatches: readonly Patch[] = [
   {
     name: 'heredoc-keep-body-lines',
     find: 'if(T||S.quoted){',
+    lookups: ['T=(S.stripTabs?I.replace(/^\\t+/,""):I)===S.delimiter;'],
     replace: 'if(!T)(S.lines??=[]).push(I);if(T||S.quoted){',
   },
   {
     name: 'heredoc-return-bodies',
     find: 'return{outer:f,bodies:i,complete:E&&!h&&!m}}',
+    lookups: ['S=x?r[s]:void 0;'],
     replace:
-      'return{outer:f,bodies:i,complete:E&&!h&&!m,heredocs:r.map((b)=>(b.lines??[]).join(`\n`))}}',
+      'return{outer:f,bodies:i,complete:E&&!h&&!m,heredocs:r.map(($ODdoc)=>($ODdoc.lines??[]).join(`\n`))}}',
   },
   {
     name: 'heredoc-read-bodies',
     find: 'let{outer:x,bodies:u,complete:E}=re(',
-    replace: 'let{outer:x,bodies:u,complete:E,heredocs:D0}=re(',
+    replace: `let{outer:x,bodies:u,complete:E,heredocs:${HEREDOCS}}=re(`,
   },
   {
     name: 'heredoc-fed-to-shell-runs',
     find: 'let g=OT(S);if(g.length>0)C(g,n,v,i,r)}return}',
+    lookups: [
+      'for(let d of E_(x,!t.respectHeredocs',
+      'function Yc(e,n=!1){return N(e,n).commandWordIndex}',
+      'if(!t.runtimeOnly&&ne.has(c.toLowerCase())){let x=le(p);',
+      'function _0(e){let n=Uq(e);if(n.includes("/"))',
+    ],
     replace: SHELL_HEREDOC_BODIES_RUN,
   },
   {

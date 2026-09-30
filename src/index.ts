@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
-import { copyFileSync, readFileSync, renameSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { copyFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
 
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
 import { describeStatus, patchSource, statusOf } from './binary/apply.ts';
 import { embeddedBunVersion, reportedVersion } from './binary/bun.ts';
+import { DROID_VERSION, installStockDroid } from './binary/droid-release.ts';
 import type { App } from './binary/graph.ts';
 import { appBytes, readApp } from './binary/graph.ts';
 import { rebuildInto } from './binary/rebuild.ts';
@@ -116,7 +116,7 @@ async function apply(options: Options): Promise<void> {
     say(`verified ${reported} and installed to ${target}`);
     runDoctor(doctorTargets(process.cwd()));
   } finally {
-    await rm(temporary, { force: true });
+    rmSync(temporary, { force: true });
   }
 }
 
@@ -127,21 +127,13 @@ async function hooks(): Promise<void> {
 }
 
 async function update(options: Options): Promise<void> {
-  const { FACTORY_DROID_AUTO_UPDATE_ENABLED: _, ...env } = Bun.env;
-  const before = reportedVersion(options.target);
-  const result = Bun.spawnSync([options.target, 'update'], {
-    env,
-    stdout: 'inherit',
-    stderr: 'inherit',
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(`droid update exited with ${result.exitCode}`);
+  if (reportedVersion(options.target) === DROID_VERSION) {
+    say(`already on ${DROID_VERSION}`);
+  } else {
+    await installStockDroid(options.target);
+    say(`installed stock ${DROID_VERSION}`);
   }
-
-  const after = reportedVersion(options.target);
-  say(after === before ? `still ${after}` : `updated ${before} -> ${after}`);
   await apply(options);
-  await hooks();
 }
 
 function doctor(options: DoctorOptions): void {
@@ -184,7 +176,7 @@ program
 
 program
   .command('update')
-  .description('run droid update, then apply the patch set if the binary is stock')
+  .description('install the pinned Droid release, then apply the patch set')
   .option(...targetOption)
   .action(guard(update));
 

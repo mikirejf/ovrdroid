@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { cacheStock, DROID_VERSION, RELEASE_HOSTS } from '../binary/droid-release.ts';
 import { appBytes, embedName, ENTRY_FILE, readApp } from '../binary/graph.ts';
 import { kilobytes, say } from '../cli.ts';
 import { patches } from '../patch/patches.ts';
-import { formatRebases, rebaseAll, stuckRebases, summariseRebases } from './anchors.ts';
+import { rebaseAll } from '../patch/rebase.ts';
+import { cacheDir } from '../paths.ts';
+import { formatRebases, stuckRebases, summariseRebases } from './anchors.ts';
+import { judgeBuild } from './builds.ts';
 import {
   describeOrigin,
   describeSearch,
@@ -28,6 +32,39 @@ export interface GrepOptions {
 }
 
 const NAME_CONTEXT_SPAN = 120;
+
+export interface BuildsOptions {
+  version: string;
+}
+
+export const DEFAULT_BUILDS_VERSION = DROID_VERSION;
+
+export async function builds(options: BuildsOptions): Promise<void> {
+  const fetched = await Promise.all(
+    RELEASE_HOSTS.map(async (host) => {
+      const binary = cacheDir(`droid-${options.version}`, host, 'droid');
+      return { host, binary, outcome: await cacheStock(options.version, host, binary) };
+    }),
+  );
+
+  const drifting: string[] = [];
+  for (const { host, binary, outcome } of fetched) {
+    process.stderr.write(`${host}  ${options.version}  ${outcome}: ${binary}\n`);
+    const rebases = rebaseAll(
+      patches,
+      readApp(readFileSync(binary)).map((module) => module.text),
+    );
+    const verdict = judgeBuild(host, options.version, rebases);
+    say(verdict.line);
+    if (verdict.drifts) {
+      drifting.push(host);
+    }
+  }
+
+  if (drifting.length > 0) {
+    throw new Error(`the patch set drifts on: ${drifting.join(', ')}`);
+  }
+}
 
 export async function extract(binary: string, options: ExtractOptions): Promise<void> {
   const [entry, ...chunks] = readApp(readFileSync(binary));

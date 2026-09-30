@@ -1,4 +1,7 @@
 // oxlint-disable no-template-curly-in-string
+export const STOCK_PID_HELPERS =
+  'var ri=(t)=>{try{return process.kill(t,0),!0}catch(r){return(typeof r==="object"&&r!==null&&"code"in r?String(r.code):void 0)==="EPERM"}},ii=(t)=>{if(!("pid"in t))return null;let r=t.pid;if(typeof r!=="number"||r<=0)return null;return r};';
+
 export const STOCK_HUB_HEADER =
   'class Ft{logger;clientInfo;getOAuthDriver;onAuthFlowCompleted;onToolsListChanged;onToolCallAuthFailure;systemMcpConfigs=G();userMcpConfigs=G();servers=G();availableResources=G();invalidToolsFingerprints=new Map;toolsListCache=new Map;toolsListChangeRefreshes=new Map;toolsListChangePendingRefreshes=new Set;cwd;clientNotifiers={};clientResourceSubscriptions=G();constructor({systemMcpConfigs:t={},userMcpConfigs:r={},logger:s,clientInfo:o,getOAuthDriver:l,onAuthFlowCompleted:u,onToolsListChanged:p,onToolCallAuthFailure:f,cwd:m}){this.systemMcpConfigs=ur(t),this.userMcpConfigs=ur(r),this.logger=s,this.clientInfo=o,this.getOAuthDriver=l,this.onAuthFlowCompleted=u,this.onToolsListChanged=p,this.onToolCallAuthFailure=f,this.cwd=m}';
 
@@ -30,3 +33,5 @@ export const STOCK_HUB_METHODS = {
   unsubscribeFromServerResource:
     'async unsubscribeFromServerResource(t,r){let s=this.servers[t];if(!s){this.logger?.warn(`Cannot unsubscribe: Server ${t} does not exist`);return}await s.client.unsubscribeResource({uri:r}),this.logger?.info(`Unsubscribed from resource ${r} on server ${t}`)}',
 };
+
+export const STOCK_HUB_MODULE = `${STOCK_PID_HELPERS}${STOCK_HUB_HEADER}${Object.values(STOCK_HUB_METHODS).join('')}}`;

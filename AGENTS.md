@@ -37,8 +37,15 @@ at runtime rather than at build time.
 Patches are ordinary text edits on the extracted source, any length. Nothing has to fit a fixed slot
 any more.
 
-After the rebuild the binary must be signed with `codesign --force --sign -`, otherwise macOS sends
-SIGKILL on launch.
+**Patches are name-proof.** They are written against one build and re-found by identifier shape on
+the target at apply time (`src/patch/rebase.ts`, tokenizer `src/patch/tokens.ts`), so one set fits
+macOS arm64 and Linux x64, whose minified names differ. The contract for a `replace`: every name of
+3 characters or fewer is captured by `find`, `until` or `lookups` (snippets in `find`'s module, each
+matching once); payload-owned names start with `$OD`. The full rules are in the `patching-droid-cli`
+skill.
+
+After the rebuild a macOS binary must be signed with `codesign --force --sign -`, otherwise macOS
+sends SIGKILL on launch. Linux builds skip the signing.
 
 **Never `Bun.mmap` a signed binary.** Bun maps the file writable even with `{ shared: false }`, and
 on macOS a writable mapping invalidates the signature permanently: from then on the file is killed
@@ -122,14 +129,25 @@ So when a scratch script earns its keep, generalise it before you stop:
   `touched but byte-identical` beats `ctime changed`.
 
 The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modules`, `cpu`, `menu`,
-`watch`, `touches`, `extract`, `anchors`, `grep`, `names`.
+`watch`, `touches`, `extract`, `anchors`, `builds`, `grep`, `names`.
 
 ## After a Droid update
 
-`ovrdroid update` printing `markers not found (Droid version drift)` is the patch set falling behind
-a release. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it runs `probe anchors`
-to rebase what it can, `probe grep` and `probe names` to settle the rest, re-anchors the tests that
+`ovrdroid update` installs the Droid release pinned as `DROID_VERSION` in
+`src/binary/droid-release.ts` for the host (darwin-arm64 or linux-x64), verifies its sha256, and
+applies the patch set. It never follows Factory's newest release by itself. To take a new one, run
+`bun run probe builds --version <new>` first, then raise `DROID_VERSION`. Drift prints
+`markers not found (Droid version drift): <name> (<reason>)`: the rebase could not settle that
+patch. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it fixes the stuck patches
+with `lookups`, `$OD` names and wider finds (`probe grep`, `probe names`), re-anchors the tests that
 carry their own release-scoped names, and proves the result on a copy.
+
+**The Mac is the master.** Edit ovrdroid on the Mac (or a separate full clone on the Linux box) and
+push to main. Each Linux box's dotfiles timer pulls ovrdroid into `~/dev/ovrdroid` and runs
+`ovrdroid update` every 15 minutes; the Mac pulls by hand. Before pushing a patch change, run
+`bun run probe builds`: it checks the patch set against the stock pinned release of every supported
+platform (downloading and caching them) and exits non-zero on drift. A patch that fits only one
+platform breaks the other machine's next update.
 
 Searching the bundle with shell `grep` does not work: a chunk is one 1.2MB line, so `grep -c` says
 `1` for a string occurring four times. Use `probe grep`.

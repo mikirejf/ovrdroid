@@ -53,8 +53,9 @@ const lazyPrototype = Lazy.prototype;
 
 describe('the constructor the patch matches', () => {
   test('the replacement performs no bind inside the constructor', () => {
-    const body = replace.slice(replace.indexOf('constructor(T){'));
-    expect(body).not.toContain('.bind(this)');
+    const start = replace.indexOf('constructor(t){');
+    expect(start).toBeGreaterThan(0);
+    expect(replace.slice(start)).not.toContain('.bind(this)');
   });
 });
 

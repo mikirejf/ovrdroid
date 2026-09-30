@@ -15,14 +15,14 @@ export const WARM_MESSAGE_ID_PREFIX = 'ovrdroid-cache-warm-';
 export const STREAMING_CORE_IMPORT = 'await import("/$bunfs/root/chunk-v45yswh1.js")';
 
 const SEND =
-  'async function $ODWs(t,s,r){' +
-  'let f=()=>t.abortStreaming();if(r.aborted)f();r.addEventListener("abort",f,{once:!0});' +
-  'try{return await t.sendMessage({sessionId:s.sessionId,modelId:s.modelId,isSpecMode:s.isSpecMode,' +
-  'conversationHistory:s.preparedHistory,systemMessage:s.systemMessage,reasoningEffort:s.effort,persistProviderLock:!1,' +
-  `maxTokensOverride:ee(s.modelId).modelProvider==="anthropic"?1:${OPENAI_MIN_OUTPUT_TOKENS},` +
+  'async function $ODWs($ODcore,$ODsnap,$ODsig){' +
+  'let $ODstop=()=>$ODcore.abortStreaming();if($ODsig.aborted)$ODstop();$ODsig.addEventListener("abort",$ODstop,{once:!0});' +
+  'try{return await $ODcore.sendMessage({sessionId:$ODsnap.sessionId,modelId:$ODsnap.modelId,isSpecMode:$ODsnap.isSpecMode,' +
+  'conversationHistory:$ODsnap.preparedHistory,systemMessage:$ODsnap.systemMessage,reasoningEffort:$ODsnap.effort,persistProviderLock:!1,' +
+  `maxTokensOverride:ee($ODsnap.modelId).modelProvider==="anthropic"?1:${OPENAI_MIN_OUTPUT_TOKENS},` +
   `expectsText:!1,expectsProgress:!1,assistantMessageId:"${WARM_MESSAGE_ID_PREFIX}"+Date.now(),` +
   'callbacks:{onRequestStream:()=>{},onStreamingComplete:()=>{},onStreamingError:()=>{}}})}' +
-  'finally{r.removeEventListener("abort",f)}}';
+  'finally{$ODsig.removeEventListener("abort",$ODstop)}}';
 
 const WARM_SESSION_WRITES = [
   'commitTurnTokenUsage',
@@ -32,43 +32,49 @@ const WARM_SESSION_WRITES = [
 
 const WARM_SESSION =
   `var $ODWw=new Set(${JSON.stringify(WARM_SESSION_WRITES)});` +
-  'function $ODWm(s,i){return new Proxy(s,{get(o,k){let v=Reflect.get(o,k,o);' +
-  'if(typeof v!=="function")return v;if(!$ODWw.has(k))return v.bind(o);' +
-  'return(...a)=>{if(o.currentSessionId!==i)return;' +
-  'return k==="commitTurnTokenUsage"?v.call(o,{...a[0],odWarm:!0},a[1]):v.apply(o,a)}}})}';
+  'function $ODWm($ODsess,$ODsid){return new Proxy($ODsess,{get($ODtgt,$ODkey){let $ODval=Reflect.get($ODtgt,$ODkey,$ODtgt);' +
+  'if(typeof $ODval!=="function")return $ODval;if(!$ODWw.has($ODkey))return $ODval.bind($ODtgt);' +
+  'return(...$ODargs)=>{if($ODtgt.currentSessionId!==$ODsid)return;' +
+  'return $ODkey==="commitTurnTokenUsage"?$ODval.call($ODtgt,{...$ODargs[0],odWarm:!0},$ODargs[1]):$ODval.apply($ODtgt,$ODargs)}}})}';
 
 const CLIENT =
-  'l({llmClientsRef:{current:{anthropic:null,openai:null,bedrock:null,bedrockConverse:null,bedrockOpenAI:null,openaiResponsesWs:null}},abortControllerRef:{current:null},ideToolsRef:{current:null},' +
+  '$ODmake({llmClientsRef:{current:{anthropic:null,openai:null,bedrock:null,bedrockConverse:null,bedrockOpenAI:null,openaiResponsesWs:null}},abortControllerRef:{current:null},ideToolsRef:{current:null},' +
   'getSystemPromptOverride:()=>{},getOutputStylePrompt:()=>{},isS3LoggingEnabled:()=>!1,' +
-  'session:$ODWm(p(),t),settings:C(),ide:{getIdeClient:()=>{}},getRetryStrategy:()=>"no_retry"},' +
+  'session:$ODWm(p(),$ODsid),settings:C(),ide:{getIdeClient:()=>{}},getRetryStrategy:()=>"no_retry"},' +
   '{emitLlmRetryStatus:!1,platformOverrides:{useOpenAIResponsesWebSocket:()=>!1}})';
 
-const KIDS = 'function $ODWk(t){try{return globalThis.__odKids?.(t)??0}catch{return 0}}';
+const KIDS = 'function $ODWk($ODsid){try{return globalThis.__odKids?.($ODsid)??0}catch{return 0}}';
 
 const ARM =
-  `function $ODWd(s){let v=Number(process.env.${WARM_DELAY_ENV});` +
-  `return v>=${MIN_WARM_DELAY_MS}&&v<=${MAX_WARM_DELAY_MS}?v:ee(s.modelId).modelProvider==="anthropic"?${ANTHROPIC_WARM_DELAY_MS}:${OTHER_WARM_DELAY_MS}}` +
-  'function $ODWa(s){$ODWc(s.sessionId);let c={snap:s};c.timer=setTimeout(()=>{$ODWf(s.sessionId,c)},$ODWd(s)),c.timer.unref?.(),$ODWt.set(s.sessionId,c)}';
+  `function $ODWd($ODsnap){let $ODenv=Number(process.env.${WARM_DELAY_ENV});` +
+  `return $ODenv>=${MIN_WARM_DELAY_MS}&&$ODenv<=${MAX_WARM_DELAY_MS}?$ODenv:ee($ODsnap.modelId).modelProvider==="anthropic"?${ANTHROPIC_WARM_DELAY_MS}:${OTHER_WARM_DELAY_MS}}` +
+  'function $ODWa($ODsnap){$ODWc($ODsnap.sessionId);let $ODcell={snap:$ODsnap};$ODcell.timer=setTimeout(()=>{$ODWf($ODsnap.sessionId,$ODcell)},$ODWd($ODsnap)),$ODcell.timer.unref?.(),$ODWt.set($ODsnap.sessionId,$ODcell)}';
 
 const CANCEL =
-  'function $ODWc(t){let c=$ODWt.get(t);if(!c)return;clearTimeout(c.timer),c.ac?.abort(),$ODWt.delete(t)}';
+  'function $ODWc($ODsid){let $ODcell=$ODWt.get($ODsid);if(!$ODcell)return;clearTimeout($ODcell.timer),$ODcell.ac?.abort(),$ODWt.delete($ODsid)}';
 
 const FIRE =
-  'async function $ODWf(t,c){if($ODWt.get(t)!==c)return;let s=c.snap,q=Qh.get(t),k=!q||q===s?$ODWk(t):0;' +
-  'if(!k||p().currentSessionId!==t){$ODWt.delete(t);return}' +
-  'let r=new AbortController,o,$w;c.ac=r;' +
-  `try{let{createLLMStreamingCore:l}=${STREAMING_CORE_IMPORT},d=${CLIENT};$w=Date.now();` +
-  'try{o=await $ODWs(d,s,r.signal)}finally{d.dispose()}}' +
-  'catch(e){if(!r.signal.aborted)n("[ovrdroid] cache warm failed",{sessionId:t,modelId:s.modelId,cause:e})}' +
-  'if(o&&!o.wasAborted)$ODCw(t,$w);' +
-  `try{${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,warm:!0,kids:k,ok:!!o&&!o.wasAborted,` +
-  'in:o?.usage?.inputTokens,cr:o?.usage?.cacheReadInputTokens,cw:o?.usage?.cacheCreationInputTokens,out:o?.usage?.outputTokens})}catch{}' +
-  'if($ODWt.get(t)===c&&!r.signal.aborted)$ODWa(s)}';
+  'async function $ODWf($ODsid,$ODcell){if($ODWt.get($ODsid)!==$ODcell)return;let $ODsnap=$ODcell.snap,$ODlast=Qh.get($ODsid),$ODkids=!$ODlast||$ODlast===$ODsnap?$ODWk($ODsid):0;' +
+  'if(!$ODkids||p().currentSessionId!==$ODsid){$ODWt.delete($ODsid);return}' +
+  'let $ODac=new AbortController,$ODres,$ODsent;$ODcell.ac=$ODac;' +
+  `try{let{createLLMStreamingCore:$ODmake}=${STREAMING_CORE_IMPORT},$ODcore=${CLIENT};$ODsent=Date.now();` +
+  'try{$ODres=await $ODWs($ODcore,$ODsnap,$ODac.signal)}finally{$ODcore.dispose()}}' +
+  'catch($ODerr){if(!$ODac.signal.aborted)n("[ovrdroid] cache warm failed",{sessionId:$ODsid,modelId:$ODsnap.modelId,cause:$ODerr})}' +
+  'if($ODres&&!$ODres.wasAborted)$ODCw($ODsid,$ODsent);' +
+  `try{${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:$ODsid,m:$ODsnap.modelId,warm:!0,kids:$ODkids,ok:!!$ODres&&!$ODres.wasAborted,` +
+  'in:$ODres?.usage?.inputTokens,cr:$ODres?.usage?.cacheReadInputTokens,cw:$ODres?.usage?.cacheCreationInputTokens,out:$ODres?.usage?.outputTokens})}catch{}' +
+  'if($ODWt.get($ODsid)===$ODcell&&!$ODac.signal.aborted)$ODWa($ODsnap)}';
 
 export const warmerPatches: readonly Patch[] = [
   {
     name: 'cache-warm-arm',
     find: 'function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t)}',
+    lookups: [
+      'function ee(t){return sw(t,{getCustomModels:()=>C().getCustomModels()',
+      'function p(){let t=Te(IX);if(t)return t;if(!kv)kv=new Oi,',
+      'n("[Prompt-Caching] Failed to promote cached prefix",{sessionId:',
+      `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
+    ],
     replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t);try{$ODCs(t),$ODWa(t)}catch{}}`,
   },
   {
@@ -78,25 +84,33 @@ export const warmerPatches: readonly Patch[] = [
   },
   {
     name: 'cache-warm-forget',
-    find: 'function mY(t){Qh.delete(t)}',
-    replace: 'function mY(t){$ODWc(t),Qh.delete(t)}',
+    find: 'function mY(t){Qh.delete(t)}var V5=',
+    replace: 'function mY(t){$ODWc(t),Qh.delete(t)}var V5=',
   },
   {
     name: 'cache-warm-max-tokens',
     find: 'maxOutputTokens:fe.maxOutputTokens}:void 0,conversationHistory:ae,baseParams:Hs',
+    lookups: [
+      'hasProviderRotation:!1})},on=async({conversationHistory:ae,systemMessage:ye,callbacks:pe,sessionId:Se,assistantMessageId:De,recordProviderAttempt:Ge,recordUpstreamRequestId:dt,allowContextLimitS3Logging:mt,maxTokensOverride:Mt,',
+    ],
     replace:
       'maxOutputTokens:Mt===void 0?fe.maxOutputTokens:void 0}:void 0,conversationHistory:ae,baseParams:Hs',
   },
   {
     name: 'cache-warm-effort',
     find: 'vu(b),pY({sessionId:b,modelId:rt,isSpecMode:ho,',
+    lookups: ['rt=O,Ci=K,ho=_,On=m.getDisplayActiveModel(),$o=tt(On)?On:void 0,Yt=B,'],
     replace: 'vu(b),pY({effort:Yt,sessionId:b,modelId:rt,isSpecMode:ho,',
   },
   {
     name: 'cache-warm-child-count',
     find: 'function xz({sessionStateManager:e,taskId:t,afterMessageId:o}){',
+    lookups: [
+      'o.status==="running")}function vz(e,t){let o=new Set,i=0;',
+      'async queueParentMessage(e){return await Ht({client:L(),',
+    ],
     replace:
-      'globalThis.__odKids=(s)=>vz(L().getSessionStateManager(),s);' +
+      'globalThis.__odKids=($ODsid)=>vz(L().getSessionStateManager(),$ODsid);' +
       'function xz({sessionStateManager:e,taskId:t,afterMessageId:o}){',
   },
 ];

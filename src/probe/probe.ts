@@ -34,7 +34,7 @@ import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
-import { anchors, extract, grep, names } from './release-report.ts';
+import { anchors, builds, DEFAULT_BUILDS_VERSION, extract, grep, names } from './release-report.ts';
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
@@ -252,6 +252,18 @@ program
   .argument('<binary>')
   .option('--json', 'print the rebased patches as JSON', false)
   .action(guard(anchors));
+
+program
+  .command('builds')
+  .description(
+    'does the patch set apply to the pinned Droid release on every platform we support? Run it before pushing a patch change',
+  )
+  .option(
+    '--version <v>',
+    'release to check, to try a candidate before raising DROID_VERSION',
+    DEFAULT_BUILDS_VERSION,
+  )
+  .action(guard(builds));
 
 program
   .command('grep')

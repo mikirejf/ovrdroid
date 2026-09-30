@@ -38,7 +38,7 @@ Status: the harness applies the patch set below.
 | `update-notice-writer`                 | Writes the version found to `~/.factory/ovrdroid-update.json`                | The check finishes long after the header is painted, so the answer has to outlive the session that found it.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `update-notice-reader`                 | Reads that file when the header paints                                       | One `readFileSync` of a tiny file, and it returns nothing once the installed version has caught up.                                                                                                                                                                                                                                                                                                                                                                                            |
 | `update-notice-header-room`            | Reserves a header row for the notice                                         | The header sizes its canvas up front, so the extra line has to be counted before anything is drawn.                                                                                                                                                                                                                                                                                                                                                                                            |
-| `update-notice-header-line`            | Draws `↓ vX available · run: ovrdroid update` in the header                  | The notice belongs where a session starts, not in the status bar where it competes with live state for the rest of the session.                                                                                                                                                                                                                                                                                                                                                                |
+| `update-notice-header-line`            | Draws `↓ vX available · raise the ovrdroid pin` in the header                | The notice belongs where a session starts, not in the status bar where it competes with live state for the rest of the session.                                                                                                                                                                                                                                                                                                                                                                |
 | `settings-watch-after-paint`           | Starts the settings file watchers 400ms later                                | Registering them crawls the settings trees before the input box paints, and nothing needs a file-change event that early.                                                                                                                                                                                                                                                                                                                                                                      |
 | `draft-dismiss-no-rerender`            | Skips the no-op `draft-edited` dispatch                                      | The reducer returned the same state, but React still re-ran the root component for every keystroke.                                                                                                                                                                                                                                                                                                                                                                                            |
 | `cache-warm-arm`                       | Arms a warm timer after every LLM request: 45m on Anthropic, 27m otherwise   | While subagents run, one cheap request re-reads the session's prefix so the parent's cache is still warm when they return. It resolves tools the way the agent loop does, so tool search matches byte for byte. Its usage is tagged `odWarm`, so `cache-usage-log` skips it and the warm's own `warm:true` line is its only record. 45m, not 54m: one proxy 1h entry died before 54m, and a read costs next to nothing on this plan, so firing early is cheap and firing late wastes the warm. |
@@ -125,8 +125,8 @@ Droid updates and need no rebuild.
 | `ovrdroid-execute.js` | `PreToolUse`   | Approves a delete inside a temp dir or the current repo silently |
 | `ovrdroid-notify.js`  | `Notification` | Plays `awaitingInputSound` when an approval prompt appears       |
 
-`bun run ovrdroid hooks` bundles both into `~/.factory/hooks/`, and `ovrdroid update` re-runs it so
-the installed copies never drift from the source. Wire them up once in `~/.factory/settings.json`:
+`bun run ovrdroid hooks` bundles both into `~/.factory/hooks/`. `ovrdroid update` does not run it,
+so re-run it after a hook changes. Wire them up once in `~/.factory/settings.json`:
 
 ```json
 {
@@ -134,11 +134,23 @@ the installed copies never drift from the source. Wire them up once in `~/.facto
     "PreToolUse": [
       {
         "matcher": "Execute|mcp__.*_Execute",
-        "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/ovrdroid-execute.js" }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.factory/hooks/ovrdroid-execute.js"
+          }
+        ]
       }
     ],
     "Notification": [
-      { "hooks": [{ "type": "command", "command": "bun ~/.factory/hooks/ovrdroid-notify.js" }] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun ~/.factory/hooks/ovrdroid-notify.js"
+          }
+        ]
+      }
     ]
   }
 }
@@ -290,9 +302,24 @@ Read the numbers with care. This machine's load swings paint between 0.6s and 2.
 confidence interval `probe ab` prints, not the gap between the medians: if the interval contains
 zero, the difference was not resolved.
 
-`update` is the one you want day to day: it runs `droid update`, then applies the patch set if the
-binary is stock. Each command takes `--target <path>` and defaults to `~/.local/bin/droid`. `apply`
-backs the stock binary up to `<target>.orig` before patching.
+`update` is the one you want day to day: it installs the Droid release pinned as `DROID_VERSION` in
+`src/binary/droid-release.ts` for this host (darwin-arm64 or linux-x64, sha256-verified, skipped
+when the target already runs it), then applies the patch set. Every machine ends on the same Droid,
+the newest one the patches support. To move to a newer release, run
+`bun run probe builds --version <new>` to check the patch set against it, raise the pin, and run
+`update`; it stops with the drift list and `.agents/skills/patching-droid-cli/UPDATING.md` takes
+over. Each command takes `--target <path>` and defaults to `~/.local/bin/droid`. `apply` backs the
+stock binary up to `<target>.orig` before patching.
+
+Supported hosts are macOS arm64 and Linux x64. Patches are matched by identifier shape, so one patch
+set fits both builds. `bun run probe builds` checks it against the stock pinned release of every
+platform (downloading and caching them); `--version <v>` checks a candidate release before you raise
+the pin, and it exits non-zero on drift.
+
+The Mac is the master: edit and push from there. Each Linux box's dotfiles timer pulls this repo
+into `~/dev/ovrdroid` and runs `ovrdroid update` every 15 minutes; the Mac pulls by hand. Run
+`probe builds` before pushing a patch change, because a patch that fits only one platform breaks the
+other machine's next update.
 
 To run it from anywhere, link the entry point onto your `PATH`:
 
@@ -373,12 +400,15 @@ token spend sits. Its opening section is the settled summary.
    the entry module plus its hundreds of split JS chunks, alongside the 65 sidecars (ripgrep,
    agent-browser, keytar, the Rust PTY libraries, skill assets, sounds). Offsets move every release,
    so they are always derived.
-2. **Patch.** Literal find/replace pairs on the source text, any length, plus a marker statement on
-   the entry module that records which patch set is applied. Each find must match exactly once
-   across the whole app, whichever chunk it lands in. A patch may also carry `until`, which extends
-   the replaced range through the first match of that string after `find`.
-3. **Rebuild.** Download the pinned Bun release (`BUILD_BUN_VERSION` in `src/binary/bun.ts`) once,
-   cache it under `~/.cache/ovrdroid/`, and run
+2. **Patch.** Find/replace pairs on the source text, any length, plus a marker statement on the
+   entry module that records which patch set is applied. Each find must match exactly once across
+   the whole app, whichever chunk it lands in. Patches are matched by identifier shape and renamed
+   onto the target build first, so the same set fits macOS arm64 and Linux x64 even though their
+   minified names differ. A patch may also carry `until`, which extends the replaced range through
+   the first match of that string after `find`, and `lookups`, which capture outer names its
+   replacement uses.
+3. **Rebuild.** Download the pinned Bun release for this host (`BUILD_BUN_VERSION` in
+   `src/binary/bun.ts`) once, cache it under `~/.cache/ovrdroid/`, and run
    `bun build --compile --bytecode --splitting --format=esm --minify --asset-naming=[name].[ext]`
    over the patched modules with an import preamble that re-embeds every sidecar. Chunk imports are
    rewritten from `/$bunfs/root/` paths to relative ones so the rebuild resolves them. The build
@@ -387,8 +417,9 @@ token spend sits. Its opening section is the settled summary.
    it on launch. Rebuilding is what keeps the bytecode cache valid: editing bytes in place
    invalidates it and Droid falls back to parsing 20MB of JavaScript, which costs more than the
    patches save.
-4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then
-   `codesign --force --sign -`. Without the signature macOS kills the process on launch.
+4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then, on
+   macOS, `codesign --force --sign -`. Without the signature macOS kills the process on launch.
+   Linux builds are not signed.
 
 The app finds its sidecars through hardcoded `/$bunfs/root/...` literals, one per file. Those are
 never patched: `--asset-naming=[name].[ext]` makes Bun reproduce each name exactly, so the original
@@ -417,7 +448,8 @@ bun run verify
 ## Safety
 
 - A patched binary blocks its own auto-update, so an update can no longer replace it silently. The
-  header of the next session says `↓ v0.219.0 available · run: ovrdroid update` instead, and
-  `ovrdroid update` installs it and re-applies the patch set.
+  header of the next session says `↓ v0.219.0 available · raise the ovrdroid pin` instead.
+  `ovrdroid update` installs the pinned `DROID_VERSION`, not that release, so it only reaches the
+  newer one once the pin is raised and the patch set carried across.
 - Never patch `~/.local/bin/droid` in place without a backup.
 - Test on a copy first.
