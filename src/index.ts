@@ -1,16 +1,16 @@
 #!/usr/bin/env bun
-import { copyFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, renameSync, rmSync } from 'node:fs';
 
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
-import { describeStatus, patchSource, statusOf } from './binary/apply.ts';
-import { embeddedBunVersion, reportedVersion } from './binary/bun.ts';
-import { DROID_VERSION, installStockDroid } from './binary/droid-release.ts';
-import type { App } from './binary/graph.ts';
-import { appBytes, readApp } from './binary/graph.ts';
+import { patchSource } from './binary/apply.ts';
+import { reportedVersion } from './binary/bun.ts';
+import { DROID_VERSION, withStockDroid } from './binary/droid-release.ts';
 import { rebuildInto } from './binary/rebuild.ts';
-import { guard, hasErrorCode, kilobytes, messageOf, quitOnBrokenPipe, say } from './cli.ts';
+import type { Stock } from './binary/stock.ts';
+import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
+import { guard, kilobytes, quitOnBrokenPipe, say } from './cli.ts';
 import { doctorTargets, runDoctor, runDoctorFix } from './doctor/doctor.ts';
 import { installHooks } from './hooks/hooks.ts';
 import { patches } from './patch/patches.ts';
@@ -29,71 +29,13 @@ function temporaryPath(target: string): string {
   return `${target}.tmp`;
 }
 
-function readBinary(target: string): Uint8Array {
-  try {
-    return readFileSync(target);
-  } catch {
-    throw new Error(`cannot read target: ${target}`);
-  }
-}
-
 function status(options: Options): void {
-  const bytes = readBinary(options.target);
-  const app = readApp(bytes);
-
-  say(describeStatus(statusOf(app, patches)));
-  say(`bun ${embeddedBunVersion(bytes)}`);
-  say(`source ${kilobytes(appBytes(app))} across ${app.length} modules`);
+  for (const line of describeTarget(options.target, patches)) {
+    say(line);
+  }
 }
 
-interface Stock {
-  bytes: Uint8Array;
-  app: App;
-  origin: string;
-}
-
-function stockFrom(target: string): Stock | undefined {
-  const backup = backupPath(target);
-  const installed = readBinary(target);
-  const app = readApp(installed);
-  const current = statusOf(app, patches);
-
-  if (current.kind === 'applied') {
-    return undefined;
-  }
-  if (current.kind === 'missing') {
-    throw new Error(`markers not found (Droid version drift): ${current.names.join(', ')}`);
-  }
-  if (current.kind === 'stale') {
-    let restored: Uint8Array;
-    try {
-      restored = readFileSync(backup);
-    } catch (error) {
-      throw new Error(
-        hasErrorCode(error, 'ENOENT')
-          ? `target is patched with an older patch set and no backup exists at ${backup}`
-          : `target is patched with an older patch set and its backup is unreadable: ${backup} (${messageOf(error)})`,
-        { cause: error },
-      );
-    }
-    say(`starting from stock backup ${backup}`);
-    return { bytes: restored, app: readApp(restored), origin: backup };
-  }
-
-  copyFileSync(target, backup);
-  say(`backed up stock binary to ${backup}`);
-  return { bytes: installed, app, origin: target };
-}
-
-async function apply(options: Options): Promise<void> {
-  const { target } = options;
-  const stocked = stockFrom(target);
-
-  if (stocked === undefined) {
-    say('already applied');
-    runDoctor(doctorTargets(process.cwd()));
-    return;
-  }
+async function installPatched(target: string, stocked: Stock): Promise<void> {
   const { bytes: stock, app, origin } = stocked;
 
   const expected = reportedVersion(origin);
@@ -120,6 +62,18 @@ async function apply(options: Options): Promise<void> {
   }
 }
 
+async function apply(options: Options): Promise<void> {
+  const { target } = options;
+  const stocked = stockFrom(target, patches);
+
+  if (stocked === undefined) {
+    say('already applied');
+    runDoctor(doctorTargets(process.cwd()));
+    return;
+  }
+  await installPatched(target, stocked);
+}
+
 async function hooks(): Promise<void> {
   for (const installed of await installHooks()) {
     say(`installed ${installed.name} (${kilobytes(installed.bytes)})`);
@@ -127,13 +81,18 @@ async function hooks(): Promise<void> {
 }
 
 async function update(options: Options): Promise<void> {
-  if (reportedVersion(options.target) === DROID_VERSION) {
+  const { target } = options;
+  if (reportedVersion(target) === DROID_VERSION) {
     say(`already on ${DROID_VERSION}`);
-  } else {
-    await installStockDroid(options.target);
-    say(`installed stock ${DROID_VERSION}`);
+    await apply(options);
+    return;
   }
-  await apply(options);
+  await withStockDroid(target, async (download) => {
+    const stocked = readStock(download);
+    copyFileSync(download, backupPath(target));
+    await installPatched(target, stocked);
+    say(`updated to ${DROID_VERSION}, stock saved to ${backupPath(target)}`);
+  });
 }
 
 function doctor(options: DoctorOptions): void {

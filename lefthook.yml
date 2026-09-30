@@ -4,3 +4,8 @@ templates:
 
 extends:
   - node_modules/@arx1/devkit/lefthook.base.yml
+
+pre-push:
+  jobs:
+    - name: builds
+      run: '{run} probe builds'

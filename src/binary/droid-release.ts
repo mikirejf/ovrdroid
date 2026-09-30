@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, readFileSync, renameSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 
 import { reportedVersion } from './bun.ts';
@@ -95,7 +95,10 @@ export async function cacheStock(
   return 'downloaded';
 }
 
-export async function installStockDroid(target: string): Promise<void> {
+export async function withStockDroid(
+  target: string,
+  use: (download: string) => Promise<void>,
+): Promise<void> {
   const download = `${target}.download`;
   try {
     await downloadStock(DROID_VERSION, `${process.platform}-${process.arch}`, download);
@@ -106,7 +109,7 @@ export async function installStockDroid(target: string): Promise<void> {
         `downloaded Droid reports ${reported || 'nothing'}, expected ${DROID_VERSION}`,
       );
     }
-    renameSync(download, target);
+    await use(download);
   } finally {
     await rm(download, { force: true });
   }

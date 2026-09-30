@@ -15,8 +15,11 @@ const LOADER_FILE = 5;
 const LOADER_TEXT = 13;
 const ENCODING_LATIN1 = 1;
 
-export function build(modules: readonly Parts[], entryPointId = 0): Uint8Array {
-  const prefix = Buffer.alloc(64, 0x41);
+export function build(
+  modules: readonly Parts[],
+  entryPointId = 0,
+  prefix: Uint8Array = Buffer.alloc(64, 0x41),
+): Uint8Array {
   const blobs: Buffer[] = [];
   const records: Buffer[] = [];
   let cursor = 0;
