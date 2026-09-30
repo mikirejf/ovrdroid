@@ -38,9 +38,12 @@ import { anchors, extract, grep, names } from './release-report.ts';
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
+  DEFAULT_SETTLE_S,
+  envPair,
   FIRST_SEND_PROMPT,
   firstSend,
   highlight,
+  mcpChildren,
   notice,
 } from './session-report.ts';
 import {
@@ -174,6 +177,17 @@ program
   .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
   .argument('<binary>')
   .action(guard(highlight));
+
+program
+  .command('mcp-children')
+  .description(
+    'open a session and list which stdio MCP servers it keeps running: is each one a live process or dormant until first use?',
+  )
+  .argument('[binary]', 'Droid binary to launch (default: the installed one)')
+  .option('--settle <seconds>', 'how long to wait after the input box', count, DEFAULT_SETTLE_S)
+  .option('--env <KEY=VALUE>', 'extra environment for Droid, repeatable', envPair, {})
+  .option('--mcp <file>', 'mcp.json whose stdio servers are counted (default: ~/.factory/mcp.json)')
+  .action(guard(mcpChildren));
 
 program
   .command('notice')

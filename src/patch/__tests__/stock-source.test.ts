@@ -5,6 +5,7 @@ import type { App } from '../../binary/graph.ts';
 import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { CONSTRUCTOR_BINDS, findMarker, patches } from '../patches.ts';
+import { STOCK_HUB_HEADER, STOCK_HUB_METHODS } from './mcp-hub-stock.ts';
 
 async function stockModulesOf(target: string): Promise<App | undefined> {
   let app: App;
@@ -35,6 +36,20 @@ describe.skipIf(source === undefined)('every find string still matches the shipp
     expect(countOccurrences(source ?? '', find)).toBe(1);
   });
 });
+
+const hubFixture = [
+  ['class header', STOCK_HUB_HEADER],
+  ...Object.entries(STOCK_HUB_METHODS),
+] as const;
+
+describe.skipIf(source === undefined)(
+  'the MCP hub fixture is copied verbatim from the bundle',
+  () => {
+    test.each(hubFixture)('%s occurs exactly once', (_name, text) => {
+      expect(countOccurrences(source ?? '', text)).toBe(1);
+    });
+  },
+);
 
 const SCHEMA_CLASS = 'b';
 const SCHEMA_REGION_BYTES = 200_000;

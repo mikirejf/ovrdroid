@@ -2,6 +2,7 @@ import { OVRDROID_UNDER_HOME } from '../paths.ts';
 import { CACHE_CLOCK_GLOBAL, CACHE_TTL_MS } from './cache-clock.ts';
 import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
+import { mcpIdlePatches } from './mcp-idle-patches.ts';
 import { usagePatches } from './usage-patches.ts';
 import { warmerPatches } from './warmer-patches.ts';
 
@@ -368,6 +369,7 @@ export const patches: readonly Patch[] = [
   ...usagePatches,
   ...warmerPatches,
   ...denylistPatches,
+  ...mcpIdlePatches,
 ];
 
 export function markerDigest(list: readonly Patch[]): string {

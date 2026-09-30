@@ -23,6 +23,7 @@ export function isWrapperCommand(command: unknown): command is string {
 }
 
 export interface McpServerEntry {
+  type?: unknown;
   command?: unknown;
   args?: readonly unknown[];
   disabled?: unknown;
