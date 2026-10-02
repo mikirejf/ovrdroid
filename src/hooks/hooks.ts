@@ -1,7 +1,7 @@
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { FACTORY_HOOKS } from '../paths.ts';
+import { FACTORY_HOOKS, FACTORY_SOUNDS, SUBAGENT_SOUND_FILE } from '../paths.ts';
 
 export interface InstalledHook {
   name: string;
@@ -13,6 +13,13 @@ const ENTRIES = [
   { entry: 'hook-execute.ts', name: 'ovrdroid-execute.js' },
   { entry: 'hook-notify.ts', name: 'ovrdroid-notify.js' },
 ] as const;
+
+export function installSubagentSound(): string {
+  const destination = path.join(FACTORY_SOUNDS, SUBAGENT_SOUND_FILE);
+  mkdirSync(FACTORY_SOUNDS, { recursive: true });
+  copyFileSync(path.join(import.meta.dir, '..', 'sounds', SUBAGENT_SOUND_FILE), destination);
+  return destination;
+}
 
 function bundledName(entry: string): string {
   return entry.replace(/\.ts$/u, '.js');

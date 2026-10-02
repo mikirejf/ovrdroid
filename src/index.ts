@@ -12,7 +12,7 @@ import type { Stock } from './binary/stock.ts';
 import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
 import { guard, kilobytes, quitOnBrokenPipe, say } from './cli.ts';
 import { doctorTargets, runDoctor, runDoctorFix } from './doctor/doctor.ts';
-import { installHooks } from './hooks/hooks.ts';
+import { installHooks, installSubagentSound } from './hooks/hooks.ts';
 import { patches } from './patch/patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
 
@@ -56,6 +56,7 @@ async function installPatched(target: string, stocked: Stock): Promise<void> {
 
     renameSync(temporary, target);
     say(`verified ${reported} and installed to ${target}`);
+    say(`installed sound ${installSubagentSound()}`);
     runDoctor(doctorTargets(process.cwd()));
   } finally {
     rmSync(temporary, { force: true });

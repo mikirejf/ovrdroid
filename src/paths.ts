@@ -14,6 +14,8 @@ export const FACTORY_HOOKS = path.join(FACTORY, 'hooks');
 
 export const FACTORY_SOUNDS = path.join(FACTORY, 'sounds');
 
+export const SUBAGENT_SOUND_FILE = 'fx-wait01.wav';
+
 export const FACTORY_SETTINGS = path.join(FACTORY, 'settings.json');
 
 export const FACTORY_MCP = path.join(FACTORY, 'mcp.json');
