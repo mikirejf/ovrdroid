@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   assertChecksum,
   parseChecksum,
+  parseVersion,
   RELEASE_HOSTS,
   releaseUrl,
   sha256Of,
@@ -35,6 +36,21 @@ describe('RELEASE_HOSTS', () => {
     for (const host of RELEASE_HOSTS) {
       expect(() => releaseUrl('0.228.0', host)).not.toThrow();
     }
+  });
+});
+
+describe('parseVersion', () => {
+  test('reads the release LATEST names, dropping its trailing newline', () => {
+    expect(parseVersion('0.232.0\n')).toBe('0.232.0');
+  });
+
+  test('refuses a body that is not a release version, such as an error page', () => {
+    expect(() => parseVersion('<Error>AccessDenied</Error>')).toThrow(
+      'LATEST is not a Droid version',
+    );
+    expect(() => parseVersion('')).toThrow('LATEST is not a Droid version');
+    expect(() => parseVersion('0.232')).toThrow('LATEST is not a Droid version');
+    expect(() => parseVersion('../0.232.0')).toThrow('LATEST is not a Droid version');
   });
 });
 

@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { countOccurrences, describeDrift } from '../../binary/apply.ts';
+import { describeDrift } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
 import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { CONSTRUCTOR_BINDS, findMarker, patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
+import { holePattern, literalParts } from '../tokens.ts';
 import { STOCK_HUB_HEADER, STOCK_HUB_METHODS, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
 
 async function stockModulesOf(target: string): Promise<App | undefined> {
@@ -22,6 +23,14 @@ const modules =
   (await stockModulesOf(INSTALLED_DROID)) ?? (await stockModulesOf(backupPath(INSTALLED_DROID)));
 
 const source = modules === undefined ? undefined : joinApp(modules);
+
+function hubCopiesInBundle(text: string): number {
+  const parts = literalParts(text);
+  const pattern = new RegExp(holePattern(text).source, 'gu');
+  return (modules ?? [])
+    .filter((module) => parts.every((part) => module.text.includes(part)))
+    .reduce((total, module) => total + [...module.text.matchAll(pattern)].length, 0);
+}
 
 const rebases = rebaseAll(
   patches,
@@ -53,15 +62,27 @@ const hubFixture = [
 ] as const;
 
 describe.skipIf(source === undefined)(
-  'the MCP hub fixture is copied verbatim from the bundle',
+  'the MCP hub fixture is copied from the bundle, up to minified names',
   () => {
     test.each(hubFixture)('%s occurs exactly once', (_name, text) => {
-      expect(countOccurrences(source ?? '', text)).toBe(1);
+      expect(hubCopiesInBundle(text)).toBe(1);
     });
   },
 );
 
-const SCHEMA_CLASS = 'b';
+function enclosingClass(text: string, anchor: string): string {
+  const before = text.slice(0, text.indexOf(anchor));
+  const name = [...before.matchAll(/class (?<name>[\w$]+)\{/gu)].at(-1)?.groups?.['name'];
+  if (name === undefined) {
+    throw new Error('the zod constructor sits in no class');
+  }
+  return name;
+}
+
+const SCHEMA_CLASS =
+  schemaChunk === undefined || ZOD_ANCHOR === undefined
+    ? ''
+    : enclosingClass(schemaChunk, ZOD_ANCHOR);
 const SCHEMA_REGION_BYTES = 200_000;
 
 function classBodyAt(text: string, start: number): string {

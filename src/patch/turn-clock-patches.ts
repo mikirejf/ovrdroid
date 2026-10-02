@@ -42,13 +42,13 @@ export const turnClockPatches: readonly Patch[] = [
   },
   {
     name: 'turn-clock-track',
-    find: 'isSessionArchived:de,updateNoticeDisplay:me}){let fe=rue(',
+    find: 'droidsHint:me,remoteDroidLocation:pe}){let fe=rue(',
     lookups: [
       'let fe=rue({statusState:B,sessionId:F,',
       'K]=A(()=>{if(z.sessionId!==null&&',
       'v(()=>()=>{let ',
     ],
-    replace: `isSessionArchived:de,updateNoticeDisplay:me}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let fe=rue(`,
+    replace: `droidsHint:me,remoteDroidLocation:pe}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let fe=rue(`,
   },
   {
     name: 'turn-clock-parts',

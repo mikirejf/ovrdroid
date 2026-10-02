@@ -34,7 +34,7 @@ import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
-import { anchors, builds, DEFAULT_BUILDS_VERSION, extract, grep, names } from './release-report.ts';
+import { anchors, builds, extract, grep, hub, names } from './release-report.ts';
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
@@ -256,13 +256,9 @@ program
 program
   .command('builds')
   .description(
-    'does the patch set apply to the pinned Droid release on every platform we support? Run it before pushing a patch change',
+    'does the patch set apply to the newest Droid release on every platform we support? Run it before pushing a patch change',
   )
-  .option(
-    '--version <v>',
-    'release to check, to try a candidate before raising DROID_VERSION',
-    DEFAULT_BUILDS_VERSION,
-  )
+  .option('--version <v>', 'release to check instead of the newest one')
   .action(guard(builds));
 
 program
@@ -273,6 +269,14 @@ program
   .option('-s, --span <chars>', 'characters of surrounding code to print', count, CONTEXT_SPAN)
   .option('-q, --quiet', 'print only the verdict, not the surrounding code', false)
   .action(guard(grep));
+
+program
+  .command('hub')
+  .description(
+    'is the MCP hub test fixture still stock code, names aside? For each method upstream changed, show the change and the new method in fixture names',
+  )
+  .argument('<binary>', 'a stock build: a .orig backup or a probe builds download')
+  .action(guard(hub));
 
 program
   .command('names')

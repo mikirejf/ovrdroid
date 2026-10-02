@@ -208,6 +208,14 @@ export function tokenize(text: string): Token[] {
   return scanner.tokens;
 }
 
+export function blockEnd(text: string, open: number): number {
+  const end = new Scanner(text).code(open + 1, true);
+  if (end >= text.length) {
+    throw new Error(`the block opened at ${open} never closes`);
+  }
+  return end;
+}
+
 export function holePattern(text: string, known: ReadonlyMap<string, string> = new Map()) {
   const names: string[] = [];
   let source = '';

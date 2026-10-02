@@ -2,7 +2,7 @@ import { STREAMING_CORE_IMPORT, warmerPatches } from '../warmer-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
 export interface Snapshot {
-  effort: string;
+  reasoningEffort: string;
   sessionId: string;
   modelId: string;
   capturedAt: number;
@@ -132,7 +132,7 @@ type HarnessBindings = [
 
 export function snapshot(capturedAt: number): Snapshot {
   return {
-    effort: 'low',
+    reasoningEffort: 'low',
     sessionId: SESSION,
     modelId: MODEL,
     capturedAt,

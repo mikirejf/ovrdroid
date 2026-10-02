@@ -131,10 +131,12 @@ read a whole region rather than query it. Keep the previous release's extraction
 
 ## After a Droid update
 
-`ovrdroid update` installs the pinned `DROID_VERSION` (`src/binary/droid-release.ts`) for the host,
+`ovrdroid update` installs Factory's newest release (`factory-cli/LATEST`) for the host,
 verifies its sha256, and applies. A release that only renames is absorbed by the rebase. Otherwise
-`update` reports `markers not found (Droid version drift): <name> (<reason>)`, and `status` lists
-`missing:` names. To take a newer release, run `probe builds --version <new>` first. The full
+`update` reports `markers not found (Droid version drift): <name> (<reason>)` and leaves the
+installed Droid as it was, so `status` still says `applied` for the old release. `probe builds`
+shows the drift for every platform from cached stock downloads. Before fixing a stuck patch, check whether the new
+release fixed or removed what it patched; then delete it instead. The full
 procedure, from triage through the proof on a copy, is [`UPDATING.md`](UPDATING.md). The graph
 parser and the rebuild carry over, unless every patch goes missing at once, which means the module
 layout moved.

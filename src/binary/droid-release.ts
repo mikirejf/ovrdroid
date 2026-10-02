@@ -1,12 +1,12 @@
 import { chmodSync, existsSync, readFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
 
-import { reportedVersion } from './bun.ts';
+import { cacheDir } from '../paths.ts';
 
-export const DROID_VERSION = '0.228.0';
-
-const RELEASES_URL = 'https://downloads.factory.ai/factory-cli/releases';
+const DOWNLOADS_URL = 'https://downloads.factory.ai/factory-cli';
+const RELEASES_URL = `${DOWNLOADS_URL}/releases`;
+const LATEST_URL = `${DOWNLOADS_URL}/LATEST`;
 const CHECKSUM_PATTERN = /^[0-9a-f]{64}$/u;
+const VERSION_PATTERN = /^\d+\.\d+\.\d+$/u;
 
 const PLATFORMS = new Map([
   ['darwin-arm64', 'darwin/arm64'],
@@ -21,6 +21,14 @@ export function releaseUrl(version: string, host: string): string {
     throw new Error(`no Droid build for ${host}`);
   }
   return `${RELEASES_URL}/${version}/${platform}/droid`;
+}
+
+export function parseVersion(body: string): string {
+  const version = body.trim();
+  if (!VERSION_PATTERN.test(version)) {
+    throw new Error(`LATEST is not a Droid version: ${JSON.stringify(version)}`);
+  }
+  return version;
 }
 
 export function sha256Of(bytes: Uint8Array | ArrayBuffer): string {
@@ -60,6 +68,10 @@ async function fetchText(url: string): Promise<string> {
   return await response.text();
 }
 
+export async function latestVersion(): Promise<string> {
+  return parseVersion(await fetchText(LATEST_URL));
+}
+
 async function saveVerified(
   url: string,
   destination: string,
@@ -71,46 +83,19 @@ async function saveVerified(
   chmodSync(destination, 0o755);
 }
 
-export async function downloadStock(
-  version: string,
-  host: string,
-  destination: string,
-): Promise<void> {
-  const url = releaseUrl(version, host);
-  await saveVerified(url, destination, fetchText(`${url}.sha256`));
+export interface CachedStock {
+  binary: string;
+  outcome: 'cached' | 'downloaded';
 }
 
-export async function cacheStock(
-  version: string,
-  host: string,
-  destination: string,
-): Promise<'cached' | 'downloaded'> {
+export async function cacheStock(version: string, host: string): Promise<CachedStock> {
+  const binary = cacheDir(`droid-${version}`, host, 'droid');
   const url = releaseUrl(version, host);
   const checksumBody = fetchText(`${url}.sha256`);
   const published = parseChecksum(await checksumBody);
-  if (existsSync(destination) && sha256Of(readFileSync(destination)) === published) {
-    return 'cached';
+  if (existsSync(binary) && sha256Of(readFileSync(binary)) === published) {
+    return { binary, outcome: 'cached' };
   }
-  await saveVerified(url, destination, checksumBody);
-  return 'downloaded';
-}
-
-export async function withStockDroid(
-  target: string,
-  use: (download: string) => Promise<void>,
-): Promise<void> {
-  const download = `${target}.download`;
-  try {
-    await downloadStock(DROID_VERSION, `${process.platform}-${process.arch}`, download);
-
-    const reported = reportedVersion(download);
-    if (reported !== DROID_VERSION) {
-      throw new Error(
-        `downloaded Droid reports ${reported || 'nothing'}, expected ${DROID_VERSION}`,
-      );
-    }
-    await use(download);
-  } finally {
-    await rm(download, { force: true });
-  }
+  await saveVerified(url, binary, checksumBody);
+  return { binary, outcome: 'downloaded' };
 }

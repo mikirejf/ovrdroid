@@ -1,12 +1,19 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { cacheStock, DROID_VERSION, RELEASE_HOSTS } from '../binary/droid-release.ts';
+import { cacheStock, latestVersion, RELEASE_HOSTS } from '../binary/droid-release.ts';
 import { appBytes, embedName, ENTRY_FILE, readApp } from '../binary/graph.ts';
 import { kilobytes, say } from '../cli.ts';
-import { patches } from '../patch/patches.ts';
+import {
+  STOCK_HUB_HEADER,
+  STOCK_HUB_METHODS,
+  STOCK_PID_HELPERS,
+} from '../patch/__tests__/mcp-hub-stock.ts';
+import { findMarker, patches } from '../patch/patches.ts';
 import { rebaseAll } from '../patch/rebase.ts';
-import { cacheDir } from '../paths.ts';
+import { holePattern } from '../patch/tokens.ts';
+import type { PieceReading } from './align.ts';
+import { classHeaderIn, describePiece, methodIn, readPiece } from './align.ts';
 import { formatRebases, stuckRebases, summariseRebases } from './anchors.ts';
 import { judgeBuild } from './builds.ts';
 import {
@@ -34,27 +41,26 @@ export interface GrepOptions {
 const NAME_CONTEXT_SPAN = 120;
 
 export interface BuildsOptions {
-  version: string;
+  version?: string;
 }
 
-export const DEFAULT_BUILDS_VERSION = DROID_VERSION;
-
 export async function builds(options: BuildsOptions): Promise<void> {
+  const version = options.version ?? (await latestVersion());
   const fetched = await Promise.all(
-    RELEASE_HOSTS.map(async (host) => {
-      const binary = cacheDir(`droid-${options.version}`, host, 'droid');
-      return { host, binary, outcome: await cacheStock(options.version, host, binary) };
-    }),
+    RELEASE_HOSTS.map(async (host) => ({ host, stock: await cacheStock(version, host) })),
   );
 
   const drifting: string[] = [];
-  for (const { host, binary, outcome } of fetched) {
-    process.stderr.write(`${host}  ${options.version}  ${outcome}: ${binary}\n`);
+  for (const {
+    host,
+    stock: { binary, outcome },
+  } of fetched) {
+    process.stderr.write(`${host}  ${version}  ${outcome}: ${binary}\n`);
     const rebases = rebaseAll(
       patches,
       readApp(readFileSync(binary)).map((module) => module.text),
     );
-    const verdict = judgeBuild(host, options.version, rebases);
+    const verdict = judgeBuild(host, version, rebases);
     say(verdict.line);
     if (verdict.drifts) {
       drifting.push(host);
@@ -123,5 +129,48 @@ export function anchors(binary: string, options: AnchorsOptions): void {
   if (stuck.length > 0) {
     const stuckNames = stuck.map((result) => result.name).join(', ');
     throw new Error(`${stuck.length} anchors need hand work: ${stuckNames}`);
+  }
+}
+
+const HUB_MEMBER = 'async retryServer(';
+
+export function hub(binary: string): void {
+  const app = readApp(readFileSync(binary));
+  if (findMarker(app[0].text) !== undefined) {
+    throw new Error(
+      `${binary} is patched, and the hub fixture is stock code: point this at a stock build (a .orig backup or a probe builds download)`,
+    );
+  }
+  const module = app.find((candidate) => candidate.text.includes(HUB_MEMBER))?.text;
+  if (module === undefined) {
+    throw new Error(`no module defines the MCP hub (${HUB_MEMBER}); the hub moved or was renamed`);
+  }
+
+  const pidHelpers = new RegExp(holePattern(STOCK_PID_HELPERS).source, 'u');
+  const readings: [string, PieceReading][] = [
+    [
+      'pid helpers',
+      app.some((candidate) => pidHelpers.test(candidate.text))
+        ? { kind: 'same' }
+        : { kind: 'missing' },
+    ],
+    ['class header', readPiece(STOCK_HUB_HEADER, classHeaderIn(module, HUB_MEMBER))],
+    ...Object.entries(STOCK_HUB_METHODS).map(([name, text]): [string, PieceReading] => [
+      name,
+      readPiece(text, methodIn(module, name)),
+    ]),
+  ];
+
+  for (const [name, reading] of readings) {
+    for (const line of describePiece(name, reading)) {
+      say(line);
+    }
+  }
+
+  const moved = readings.filter(([, reading]) => reading.kind !== 'same').map(([name]) => name);
+  if (moved.length > 0) {
+    throw new Error(
+      `${moved.length} hub fixture pieces moved: ${moved.join(', ')}. Update src/patch/__tests__/mcp-hub-stock.ts from the text above`,
+    );
   }
 }

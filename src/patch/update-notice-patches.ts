@@ -24,7 +24,7 @@ const UPDATE_FILE_READER =
 
 const UPDATE_HEADER_LINE =
   `if(${UPDATE_LOCAL}){` +
-  `let $ODline="\\u2193 v"+${UPDATE_LOCAL}+" available \\xB7 raise the ovrdroid pin";` +
+  `let $ODline="\\u2193 v"+${UPDATE_LOCAL}+" available \\xB7 run ovrdroid update";` +
   `b(f,L,M($ODline),$ODline,{color:o.warning,bold:!0}),L+=2}`;
 
 export const updateNoticePatches: readonly Patch[] = [
@@ -35,7 +35,7 @@ export const updateNoticePatches: readonly Patch[] = [
     replace:
       `if(!f)return ${UPDATE_FILE_WRITER_NAME}(null),l(u,"no-update"),"no-update";` +
       `return ${UPDATE_FILE_WRITER_NAME}(f.version.version),` +
-      'T("Auto-update blocked by ovrdroid; raise the ovrdroid pin",{version:f.version.version}),' +
+      'T("Auto-update blocked by ovrdroid; run ovrdroid update",{version:f.version.version}),' +
       'l(u,"skipped"),"skipped";if(f.isRollback){',
   },
   {

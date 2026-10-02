@@ -8,6 +8,13 @@ one patch set fits both supported builds (darwin-arm64 and linux-x64), whose min
 The hand work is the patches the rebase cannot settle. They surface as
 `markers not found (Droid version drift): <name> (<reason>)`.
 
+A new release reaches you on its own. `ovrdroid update` follows Factory's `factory-cli/LATEST`, so
+the next run after Factory ships tries it, and the session header says `↓ vX available · run
+ovrdroid update`. When the patch set does not fit, `update` stops with the drift list and leaves the
+installed Droid and its `.orig` untouched; every Linux box keeps retrying from its download cache
+until the fix is pushed. The pre-push hook runs `probe builds` against the same newest release, so
+it blocks every push until the drift is fixed. Start here.
+
 Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints and renders a code
 block, `probe ab` against the stock copy shows it is **never slower**, and `probe builds` is clean
 for every platform. Faster is not the bar: as Droid moves its own waits after paint, the paint gap
@@ -47,17 +54,25 @@ The drift reason says which rule broke:
 ## 1. Triage the drift
 
 ```bash
-bun run probe builds --version <new>          # every platform, stock release, cached downloads
-cp ~/.local/bin/droid /tmp/droid-stock
-bun run ovrdroid status                       # the missing list on the installed build
-bun run probe anchors /tmp/droid-stock        # one line per patch, for one binary
+bun run probe builds                          # every platform, newest release, cached downloads
+STOCK=~/.cache/ovrdroid/droid-<new>/darwin-arm64/droid   # builds left the stock binaries here
+bun run probe anchors $STOCK                  # one line per patch, for one binary
 ```
 
-`probe builds` checks the patch set against the stock pinned release for every supported platform,
-downloading and caching each one. `--version <v>` checks a candidate release before you raise the
-pin. It exits non-zero on drift. `probe anchors <binary>` prints the same per-patch report for one
-binary: `unchanged` / `rebased` with `old->new` renames are done, and `--json` prints the rebased
-`find`, `until`, `lookups` and `replace` if you want to see exactly what `apply` will splice in.
+`probe builds` checks the patch set against the stock newest release for every supported platform,
+downloading and caching each one under `~/.cache/ovrdroid/droid-<v>/<host>/droid`. Work from those
+cached files: the installed Droid is still the old release. `--version <v>` checks another release
+instead. It exits non-zero on drift. `probe anchors <binary>` prints the same per-patch report for
+one binary: `unchanged` / `rebased` with `old->new` renames are done, and `--json` prints the
+rebased `find`, `until`, `lookups` and `replace` if you want to see exactly what `apply` will splice
+in.
+
+A patch is written against whichever build its author had open, Mac or Linux, so `unchanged` on one
+host and `rebased` on the other is normal. On 0.232.0 `shutdown-flush-deadline` was written in Linux
+names (`H=2000,M=1e4,R=1000,A=250;`) and lands on the Mac as `M=2000,R=1e4,A=1000,v=250`.
+
+The drift list is usually shared by both platforms. When it is, fix it against one build and let
+`probe builds` prove the other.
 
 Fix by reason:
 
@@ -71,6 +86,10 @@ Fix by reason:
 patches on a neighbouring keyword or literal (`var Hz=\``) so they carry some shape of their own.
 Renaming alone can tip a short `find`over:`,Oz=[`was unique on 0.224.1, but its new name`,_z=[` matched 2194 places on 0.225.2. Extend it into the value it assigns (`,_z=["\u2554`),
   which is literal and does not rename.
+  A new feature can copy your constants. On 0.232.0 `M=1e4,R=1000,` went from 1 place to 2
+  because a new attention outbox declared the same timeouts. Widen into the whole declaration
+  (`H=2000,M=1e4,R=1000,A=250;`), then read the module it lands in (`probe grep`) to confirm it is
+  still the shutdown code, not the newcomer.
 - `no-tail`: re-anchor the `until` on the literal that now follows the span (a string or a
   keyword) rather than on names, as `wordmark-compact-ovrdroid` does with
   `],a="Select Factory Router`. The tail is searched only in the `find`'s own module, just as
@@ -93,11 +112,15 @@ reading the wrong module. Fix `src/binary/` first, patches second.
 ## 2. Extract the source
 
 ```bash
-bun run probe extract /tmp/droid-stock -o work/src/<version>
+bun run probe extract $STOCK -o work/src/<version>
 ```
 
 One file per module, `entry.js` plus `chunk-*.js`, ASCII, one line each. Keep the previous
 release's extraction beside it: the diff between two releases is where the renames are.
+
+On the extracted files, `rg -o '.{0,200}<needle>.{0,300}' work/src/<version>` prints each hit with
+bounded context and copes with the long lines. Use it to read code or to search by a regex shape
+(`[\w$]{1,3}\(e,n\)\.map\(`) when the names changed. Counting still belongs to `probe grep`.
 
 ## 3. Fix each stuck patch
 
@@ -111,8 +134,8 @@ over 502 chunks times out. Two probe commands answer those questions instead, st
 binary, no extraction needed.
 
 ```bash
-bun run probe grep /tmp/droid-stock 'gZ=58,hZ=24'          # can this literal anchor a patch?
-bun run probe grep /tmp/droid-stock 'status:"ready"' -q    # verdict only, no surrounding code
+bun run probe grep $STOCK 'gZ=58,hZ=24'          # can this literal anchor a patch?
+bun run probe grep $STOCK 'status:"ready"' -q    # verdict only, no surrounding code
 ```
 
 `grep` prints the verdict first (`1 place … unique, so it can anchor a patch`, or `3 places across
@@ -120,7 +143,7 @@ bun run probe grep /tmp/droid-stock 'status:"ready"' -q    # verdict only, no su
 whose `find` is not unique fails later, so settle it here.
 
 ```bash
-bun run probe names /tmp/droid-stock '<the find string>' g x P je pc
+bun run probe names $STOCK '<the find string>' g x P je pc
 ```
 
 `names` takes the patch's anchor, finds the chunk it sits in, and resolves each name **as that
@@ -182,6 +205,25 @@ its code in an enum or phase registry. On 0.228.0, `SessionSearchWarm` still app
 phase enum, but nothing called it any more, so `session-search-warm-skip` was deleted. When the
 only remaining hit is a definition, check for a caller before re-anchoring.
 
+Ask this for every `missing` patch **before** hunting for its new site. On 0.232.0 three of ten
+were upstream fixes, not drift:
+
+- `git-ai-archive-skip`: `archiveRetiredGitAiSessions` was gone. Deleted.
+- `certificate-count-skip`: the cache check no longer awaited a certificate count; it now calls a
+  sync fingerprint of file sizes and mtimes. Read the new function before deciding it is cheap.
+  Deleted.
+- `cache-warm-effort`: stock's warm snapshot started carrying `reasoningEffort` itself. The patch
+  that added `effort` was deleted, and the warmer payload switched to reading stock's field.
+
+When stock half-adopts a payload's idea like that, use stock's version and drop yours. Record the
+evidence (the absent literal, the new code) in the commit, because a deleted patch leaves no other
+trace.
+
+Upstream also adds behaviour around code a payload replaces. On 0.232.0 `addServer` gained a
+`shuttingDown` guard, so `mcp-idle-add-server` had to carry it into the dormant path. Diff the old
+and new stock text of every method a payload **replaces** (not just the `find`), and port each new
+guard.
+
 ### Shared payload constants
 
 A `replace` assembled from module-scope constants (`TURN_CLOCK_TRACK`, `UPDATE_HEADER_LINE`,
@@ -206,34 +248,51 @@ those drift on the same schedule. The rebase does not touch them:
   bundle rather than renaming the letters: on 0.222.0 the query variable and the entry variable
   both moved, and the preamble also has to keep the test's own shape, so
   `re.command.suggestionKind==="internal-menu"` from the bundle becomes `re.internalMenu` here.
-- `src/patch/__tests__/stock-source.test.ts` pins the zod base class (`SCHEMA_CLASS`). Find the new
-  one from the constructor the patch matches, then read back to `class`.
 - `src/patch/__tests__/denylist-patches.test.ts` rebuilds the pattern builder around the payloads:
   `STOCK_ARGUMENT_END` names the argument-end helper, and the wrapper's parameters name the last
   token. Both follow the builder.
-- `src/patch/__tests__/heredoc-shell.test.ts` loads the parser chunk on its own, found by
-  `PARSER_EXPORT`, and imports the splitter by its export name. The test takes the **first** module
-  that contains the anchor, so the anchor must be unique across all chunks. `function Pm(` matched
-  five chunks on 0.228.0, and the wrong one failed with `Cannot find module '/$bunfs/root/chunk-…'`.
-  Anchor on the splitter's body (`function Pm(e,n){return A8(e,n).map(`).
+- `src/patch/__tests__/mcp-hub-stock.ts` is a copy of stock's MCP hub class, in its own fixed
+  names, that `mcp-idle-harness.ts` patches and runs. `stock-source.test.ts` checks each piece occurs
+  once in the bundle **up to minified names** (`holePattern`), so a rename passes and only a real
+  code change fails. When a piece fails, upstream changed that method. Run
+  `bun run probe hub $STOCK`: it diffs every piece against the stock build, works out the renames
+  by majority vote, lists each change on its own in the fixture's names, and prints the new method
+  already translated, ready to paste over the old one. Give every name it reports as new and
+  outside (not a local) a stand-in in the harness's `BINDINGS` and argument list, and check every
+  name it says it left unmapped. A name it cannot settle (a tie) stays in the bundle's spelling;
+  read the code and pick by role. Read each change: on 0.232.0 `addServer` gained two
+  `shuttingDown` checks, and a hand copy that took only the first still passed the harness tests.
+  `probe hub` refuses a patched binary, because the patches rewrite these methods.
 
-A failure there is drift, not a bug. Fix the test's anchor the same way you fixed the patch's.
-`stock-source.test.ts` reads the host's installed build (or its `.orig` backup), so a test that pins
-one platform's names fails on the other host; prefer an anchor that survives both.
+Some tests used to carry release names and now find their code by shape. Keep it that way, and
+write any new stock-reading test the same way:
 
-## 5. Bump the pin
+- `heredoc-shell.test.ts` finds the shell splitter by a regex of its body
+  (`function X(e,n){return Y(e,n).map(({argv:t})=>t)}`) and reads its export name from the
+  module's `export{…}`.
+- `stock-source.test.ts` takes the zod base class from the class that encloses the constructor
+  `zod-v3-lazy-bound-methods` matches.
+
+A failure there is drift, not a bug. Fix the test's anchor the same way you fixed the patch's, and
+prefer one that survives both platforms and the next rename: a regex of the code's shape, a name
+derived from a patch's rebased `find`, or a `holePattern` comparison.
+
+These tests read the **host's installed** build (or its `.orig`). Until the host runs the new
+release they test the old one, so before the real install they fail for patches you already fixed,
+and they cannot see the new release at all. Expect that. The order is: copy passes step 6's probes,
+`ovrdroid update` for real, then `bun test` must be fully green.
+
+## 5. Install the new release on a copy
 
 ```bash
-bun run probe builds --version <new>     # every platform, before touching the pin
-# fix drift (steps 1-4), rerun until clean
-# raise DROID_VERSION in src/binary/droid-release.ts
+bun run probe builds                     # every platform, newest release; rerun until clean
 rm -f /tmp/droid-test /tmp/droid-test.orig
-bun run ovrdroid update --target /tmp/droid-test   # installs the pin for this host, sha256-verified, applies
+bun run ovrdroid update --target /tmp/droid-test   # installs the newest release for this host, sha256-verified, applies
 ```
 
-`ovrdroid update` installs the pinned `DROID_VERSION` for the host (darwin-arm64 or linux-x64) and
-checks its sha256 before applying. A target that does not exist yet counts as not on the pin, so a
-fresh `/tmp` path runs the same install-then-apply path every machine runs.
+`ovrdroid update` installs Factory's newest release for the host (darwin-arm64 or linux-x64) and
+checks its sha256 before applying. A target that does not exist yet counts as not on that release,
+so a fresh `/tmp` path runs the same install-then-apply path every machine runs.
 Then prove it, below, and push. Each Linux box's dotfiles timer pulls ovrdroid and runs
 `ovrdroid update` every 15 minutes, so a patch set that fits only one platform breaks that
 machine's next update. `probe builds` is the gate that catches it.
@@ -241,12 +300,19 @@ machine's next update. `probe builds` is the gate that catches it.
 ## 6. Prove it
 
 ```bash
-bun test && bun run verify
+bun run verify
 bun run ovrdroid status --target /tmp/droid-test     # applied <digest>
 bun run probe ab -r 24 /tmp/droid-test.orig /tmp/droid-test   # .orig is the stock the update installed
 bun run probe highlight /tmp/droid-test              # rendered a highlighted code block
-bun run probe builds                                 # the pinned release, every platform
+bun run probe mcp-children /tmp/droid-test           # stdio servers dormant, when an mcp-idle patch moved
+bun run probe builds                                 # the newest release, every platform
+bun run ovrdroid update                              # only now, the real install
+bun test                                             # green against the installed new release
 ```
+
+Pick extra probes by what moved: `mcp-children` for the MCP patches, `effort` for the effort
+label, `clear` and `first-send` for the session patches, and `ttl` and `effort-cache` for the
+cache warmer (those two send real requests through DroidProxy). `probe --help` lists them.
 
 Stock paint has outliers several times the median, so `-r 8` rarely resolves anything; start at 24.
 
@@ -263,7 +329,7 @@ app. `probe ab` launches the binary in a PTY and waits for the input box, so a r
 and then dies shows up as a timeout there.
 `probe highlight` asks the model for a code block, which is the first thing that loads a chunk
 by name at runtime; a chunk that fell out of the graph crashes there and nowhere earlier. Only
-after the copy passes both: `bun run ovrdroid apply`, then push to main.
+after the copy passes both: `bun run ovrdroid update`, then push to main.
 
 `src/patch/__tests__/stock-source.test.ts` reruns the rebase of every patch against the host's
 stock binary, so it goes red the moment Droid updates underneath.

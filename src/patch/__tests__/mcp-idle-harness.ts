@@ -128,7 +128,7 @@ const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdl
   .replace(STOCK_PID_HELPERS, '');
 
 const BINDINGS =
-  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It require process setTimeout clearTimeout'.split(
+  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout'.split(
     ' ',
   );
 
@@ -212,6 +212,8 @@ export class HubWorld {
       { safeParse: (data: ToolResult) => ({ success: true, data }) },
       MINUTE,
       () => false,
+      ignore,
+      Error,
       (name: string) => this.module(name),
       { env: this.env, pid: 1 },
       (callback: () => void, delay: number) => this.schedule(callback, delay),

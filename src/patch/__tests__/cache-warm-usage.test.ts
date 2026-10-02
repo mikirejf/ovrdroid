@@ -40,7 +40,6 @@ type ThinkingConfigOf = (
 ) => ThinkingConfig | undefined;
 
 const MAX_TOKENS = patchNamed(warmerPatches, 'cache-warm-max-tokens').replace;
-const EFFORT = patchNamed(warmerPatches, 'cache-warm-effort').replace;
 const LOG = patchNamed(usagePatches, 'cache-usage-log').replace;
 
 const COUNTED = {
@@ -107,11 +106,5 @@ describe('cache-warm-max-tokens', () => {
 
   test('without a cap the model maximum still applies', () => {
     expect(buildThinkingConfig()(undefined, CUSTOM_MODEL)?.maxOutputTokens).toBe(128_000);
-  });
-});
-
-describe('cache-warm-effort', () => {
-  test('the snapshot carries the effort the turn is sent with', () => {
-    expect(EFFORT).toContain('pY({effort:Yt,');
   });
 });

@@ -22,7 +22,7 @@ const HELPERS =
 
 const ADD =
   'async addServer(t,r){if($ODMh(r))return await this.$ODMspawn(t,r);' +
-  'let $ODold=this.servers[t],$ODtools=!$ODold||$ODold.$ODMz?$ODMr(t,r):void 0;' +
+  'let $ODold=this.servers[t],$ODtools=!this.shuttingDown&&(!$ODold||$ODold.$ODMz)?$ODMr(t,r):void 0;' +
   'if($ODtools){this.servers[t]=$ODMd(t,r),this.availableResources[t]=G(),this.toolsListCache.set(t,{state:"ready",tools:$ODtools}),' +
   'this.logger?.info("[ovrdroid] MCP server dormant until first use",{name:t});return}' +
   'await this.$ODMspawn(t,r),this.$ODMa(t)}';
@@ -60,7 +60,7 @@ const FETCH =
   'if($ODsrv&&!$ODMh($ODsrv.config)&&($ODcache?.state!=="ready"||JSON.stringify($ODcache.tools)!==JSON.stringify($ODtools)))$ODMW(t,$ODsrv.config,$ODtools);return $ODtools})}';
 
 const ADD_SERVER_HEAD =
-  'let s=performance.now(),o=r.type==="http"||r.type==="sse"?"remote":"stdio",l="success",u;try{let p=this.servers[t];if(p';
+  'let s=performance.now(),o=r.type==="http"||r.type==="sse"?"remote":"stdio";if(this.shuttingDown)throw new a("MCP hub is shut down",{name:t});let l="success",u;try{let p=this.servers[t];if(p';
 
 export const mcpIdlePatches: readonly Patch[] = [
   {

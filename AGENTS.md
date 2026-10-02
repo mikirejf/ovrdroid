@@ -129,23 +129,23 @@ So when a scratch script earns its keep, generalise it before you stop:
   `touched but byte-identical` beats `ctime changed`.
 
 The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modules`, `cpu`, `menu`,
-`watch`, `touches`, `extract`, `anchors`, `builds`, `grep`, `names`.
+`watch`, `touches`, `extract`, `anchors`, `builds`, `grep`, `names`, `hub`.
 
 ## After a Droid update
 
-`ovrdroid update` installs the Droid release pinned as `DROID_VERSION` in
-`src/binary/droid-release.ts` for the host (darwin-arm64 or linux-x64), verifies its sha256, and
-applies the patch set. It never follows Factory's newest release by itself. To take a new one, run
-`bun run probe builds --version <new>` first, then raise `DROID_VERSION`. Drift prints
-`markers not found (Droid version drift): <name> (<reason>)`: the rebase could not settle that
-patch. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it fixes the stuck patches
-with `lookups`, `$OD` names and wider finds (`probe grep`, `probe names`), re-anchors the tests that
-carry their own release-scoped names, and proves the result on a copy.
+`ovrdroid update` reads Factory's newest release from `downloads.factory.ai/factory-cli/LATEST`,
+downloads it for the host (darwin-arm64 or linux-x64) into `~/.cache/ovrdroid/`, verifies its
+sha256, and applies the patch set. The installed Droid is replaced only once the patched build
+passes, so a release the patches do not fit yet leaves the current Droid in place and `update` exits
+non-zero. Drift prints `markers not found (Droid version drift): <name> (<reason>)`: the rebase
+could not settle that patch. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it
+fixes the stuck patches with `lookups`, `$OD` names and wider finds (`probe grep`, `probe names`),
+re-anchors the tests that carry their own release-scoped names, and proves the result on a copy.
 
 **The Mac is the master.** Edit ovrdroid on the Mac (or a separate full clone on the Linux box) and
 push to main. Each Linux box's dotfiles timer pulls ovrdroid into `~/dev/ovrdroid` and runs
 `ovrdroid update` every 15 minutes; the Mac pulls by hand. Before pushing a patch change, run
-`bun run probe builds`: it checks the patch set against the stock pinned release of every supported
+`bun run probe builds`: it checks the patch set against the stock newest release of every supported
 platform (downloading and caching them) and exits non-zero on drift. A patch that fits only one
 platform breaks the other machine's next update.
 

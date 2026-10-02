@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { patchSource } from './binary/apply.ts';
 import { reportedVersion } from './binary/bun.ts';
-import { DROID_VERSION, withStockDroid } from './binary/droid-release.ts';
+import { cacheStock, latestVersion } from './binary/droid-release.ts';
 import { rebuildInto } from './binary/rebuild.ts';
 import type { Stock } from './binary/stock.ts';
 import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
@@ -82,17 +82,20 @@ async function hooks(): Promise<void> {
 
 async function update(options: Options): Promise<void> {
   const { target } = options;
-  if (reportedVersion(target) === DROID_VERSION) {
-    say(`already on ${DROID_VERSION}`);
+  const version = await latestVersion();
+  if (reportedVersion(target) === version) {
+    say(`already on ${version}`);
     await apply(options);
     return;
   }
-  await withStockDroid(target, async (download) => {
-    const stocked = readStock(download);
-    copyFileSync(download, backupPath(target));
-    await installPatched(target, stocked);
-    say(`updated to ${DROID_VERSION}, stock saved to ${backupPath(target)}`);
-  });
+  const { binary } = await cacheStock(version, `${process.platform}-${process.arch}`);
+  const reported = reportedVersion(binary);
+  if (reported !== version) {
+    throw new Error(`downloaded Droid reports ${reported || 'nothing'}, expected ${version}`);
+  }
+  await installPatched(target, readStock(binary));
+  copyFileSync(binary, backupPath(target));
+  say(`updated to ${version}, stock saved to ${backupPath(target)}`);
 }
 
 function doctor(options: DoctorOptions): void {
@@ -135,7 +138,7 @@ program
 
 program
   .command('update')
-  .description('install the pinned Droid release, then apply the patch set')
+  .description('install the newest Droid release, then apply the patch set')
   .option(...targetOption)
   .action(guard(update));
 

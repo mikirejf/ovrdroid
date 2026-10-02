@@ -68,19 +68,9 @@ export const patches: readonly Patch[] = [
     replace: 'timeoutMs:a=30}={}){if(p)return i;',
   },
   {
-    name: 'certificate-count-skip',
-    find: 'async function mt(){let r=await B(),t=await M(r);',
-    replace: 'async function mt(){let r=null,t=await M(r);',
-  },
-  {
     name: 'shutdown-flush-deadline',
-    find: 'M=1e4,R=1000,',
-    replace: 'M=1e4,R=10,',
-  },
-  {
-    name: 'git-ai-archive-skip',
-    find: 'async archiveRetiredGitAiSessions(){try{',
-    replace: 'async archiveRetiredGitAiSessions(){return;try{',
+    find: 'H=2000,M=1e4,R=1000,A=250;',
+    replace: 'H=2000,M=1e4,R=10,A=250;',
   },
   {
     name: 'session-index-atomic-save',
@@ -102,10 +92,10 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(o in In)return o;if(Object.values(In).includes(o))return o;return}',
-    lookups: ['function gt(o){let t=yt[o];if(t)return t;if(o in'],
+    find: 'if(o in Mn)return o;if(Object.values(Mn).includes(o))return o;return}',
+    lookups: ['function yt(o,t,i){if(ti(o))return oi(ke[o],t,i);let s=Kt[o];if(s)return s;if(o in'],
     replace:
-      'if(o in In)return o;if((gt.$o!==In&&(gt.$o=In,gt.$s=new Set(Object.values(In))),gt.$s).has(o))return o;return}',
+      'if(o in Mn)return o;if((yt.$o!==Mn&&(yt.$o=Mn,yt.$s=new Set(Object.values(Mn))),yt.$s).has(o))return o;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',
@@ -171,9 +161,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'web-fetch-always-loaded',
-    find: 'toolkit:"Web Search",deferred:!0,isToolEnabled:!0});var ee="store_agent_readiness_report"',
+    find: 'toolkit:"Web Search",deferred:!0,isToolEnabled:!0});var de=/^(\\d{4})-(\\d{2})-(\\d{2})$/;',
     replace:
-      'toolkit:"Web Search",deferred:!1,isToolEnabled:!0});var ee="store_agent_readiness_report"',
+      'toolkit:"Web Search",deferred:!1,isToolEnabled:!0});var de=/^(\\d{4})-(\\d{2})-(\\d{2})$/;',
   },
   {
     name: 'web-search-always-loaded',
@@ -197,9 +187,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'new-session-loads-in-background',
-    find: 'if(De?.missionV2)await ft().startPlanning(gt);return await wc(gt),gt}',
-    replace:
-      'if(De?.missionV2)return await ft().startPlanning(gt),await wc(gt),gt;return wc(gt),gt}',
+    find: 'if(De?.missionV2)await lb(gt);return await wc(gt),gt}',
+    replace: 'if(De?.missionV2)return await lb(gt),await wc(gt),gt;return wc(gt),gt}',
   },
   {
     name: 'session-load-keeps-pending-settings',
@@ -270,9 +259,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'mcp-servers-start-together',
-    find: 'for(let[v,b]of A)try{await this.addServer(v,b),',
-    until: 'await Promise.all(y.map(async([v,b])=>{',
-    replace: 'await Promise.all([...A,...y].map(async([v,b])=>{',
+    find: 'for(let[K,oe]of N)await te(K,oe);await Promise.all(z.map(([K,oe])=>te(K,oe)));',
+    replace: 'await Promise.all([...N,...z].map(([K,oe])=>te(K,oe)));',
   },
   {
     name: 'subagent-turn-ignores-hook-records',

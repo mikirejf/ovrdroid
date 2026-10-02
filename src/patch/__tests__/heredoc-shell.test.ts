@@ -10,7 +10,19 @@ import { findMarker, patches } from '../patches.ts';
 
 type Commands = (command: string, options: { respectHeredocs: boolean }) => string[][];
 
-const PARSER_EXPORT = 'function Pm(e,n){return A8(e,n).map(';
+const SPLITTER =
+  /function (?<name>[\w$]+)\(e,n\)\{return [\w$]+\(e,n\)\.map\(\(\{argv:t\}\)=>t\)\}/u;
+
+function exportedName(text: string, local: string): string {
+  const exports = /export\{(?<list>[^}]*)\}/u.exec(text)?.groups?.['list'] ?? '';
+  for (const entry of exports.split(',')) {
+    const [name, alias] = entry.split(' as ');
+    if (name === local) {
+      return alias ?? name;
+    }
+  }
+  throw new Error(`the command parser module does not export its splitter ${local}`);
+}
 
 async function parserOf(target: string): Promise<Commands | undefined> {
   let app;
@@ -22,16 +34,17 @@ async function parserOf(target: string): Promise<Commands | undefined> {
   if (findMarker(app[0].text) !== undefined) {
     return undefined;
   }
-  const parser = patchSource(app, patches).find((module) => module.text.includes(PARSER_EXPORT));
-  if (parser === undefined) {
-    throw new Error(`no module defines ${PARSER_EXPORT}`);
+  const parser = patchSource(app, patches).find((module) => SPLITTER.test(module.text));
+  const local = parser === undefined ? undefined : SPLITTER.exec(parser.text)?.groups?.['name'];
+  if (parser === undefined || local === undefined) {
+    throw new Error(`no module defines a splitter shaped like ${SPLITTER.source}`);
   }
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'ovrdroid-heredoc-')), 'parser.js');
   writeFileSync(file, parser.text);
-  // SAFETY: the module is Droid's own command parser, and Pm is its exported splitter.
+  // SAFETY: the module is Droid's own command parser, and the name is its exported splitter.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const loaded = (await import(file)) as { Pm: Commands };
-  return loaded.Pm;
+  const loaded = (await import(file)) as Record<string, Commands>;
+  return loaded[exportedName(parser.text, local)];
 }
 
 const parse = (await parserOf(INSTALLED_DROID)) ?? (await parserOf(backupPath(INSTALLED_DROID)));

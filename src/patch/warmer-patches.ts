@@ -18,7 +18,7 @@ const SEND =
   'async function $ODWs($ODcore,$ODsnap,$ODsig){' +
   'let $ODstop=()=>$ODcore.abortStreaming();if($ODsig.aborted)$ODstop();$ODsig.addEventListener("abort",$ODstop,{once:!0});' +
   'try{return await $ODcore.sendMessage({sessionId:$ODsnap.sessionId,modelId:$ODsnap.modelId,isSpecMode:$ODsnap.isSpecMode,' +
-  'conversationHistory:$ODsnap.preparedHistory,systemMessage:$ODsnap.systemMessage,reasoningEffort:$ODsnap.effort,persistProviderLock:!1,' +
+  'conversationHistory:$ODsnap.preparedHistory,systemMessage:$ODsnap.systemMessage,reasoningEffort:$ODsnap.reasoningEffort,persistProviderLock:!1,' +
   `maxTokensOverride:ee($ODsnap.modelId).modelProvider==="anthropic"?1:${OPENAI_MIN_OUTPUT_TOKENS},` +
   `expectsText:!1,expectsProgress:!1,assistantMessageId:"${WARM_MESSAGE_ID_PREFIX}"+Date.now(),` +
   'callbacks:{onRequestStream:()=>{},onStreamingComplete:()=>{},onStreamingError:()=>{}}})}' +
@@ -95,12 +95,6 @@ export const warmerPatches: readonly Patch[] = [
     ],
     replace:
       'maxOutputTokens:Mt===void 0?fe.maxOutputTokens:void 0}:void 0,conversationHistory:ae,baseParams:Hs',
-  },
-  {
-    name: 'cache-warm-effort',
-    find: 'vu(b),pY({sessionId:b,modelId:rt,isSpecMode:ho,',
-    lookups: ['rt=O,Ci=K,ho=_,On=m.getDisplayActiveModel(),$o=tt(On)?On:void 0,Yt=B,'],
-    replace: 'vu(b),pY({effort:Yt,sessionId:b,modelId:rt,isSpecMode:ho,',
   },
   {
     name: 'cache-warm-child-count',
