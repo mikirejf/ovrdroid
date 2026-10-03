@@ -1,3 +1,4 @@
+import { compactionPatches } from './compaction-patches.ts';
 import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
 import { mcpIdlePatches } from './mcp-idle-patches.ts';
@@ -273,6 +274,7 @@ export const patches: readonly Patch[] = [
   ...logoPatches,
   ...usagePatches,
   ...warmerPatches,
+  ...compactionPatches,
   ...denylistPatches,
   ...mcpIdlePatches,
 ];

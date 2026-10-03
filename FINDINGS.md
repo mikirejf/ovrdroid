@@ -1903,3 +1903,76 @@ the parent's next request read 20,798.
 
 pi warms only direct Anthropic and never OpenAI (issue #9810, maintainer comment). It keys OpenAI's
 `prompt_cache_key` per session, so its forks miss (#8348).
+
+## Shipped: `compaction-reuse-exports` and `compaction-reuse-prefix`, compaction reads the cache
+
+Stock 0.233.0 summarises with a request that shares nothing with the conversation. `xV()` builds it
+through `as()`: the summarizer system prompt, no tools, and one user message holding the whole
+transcript flattened to text. Different system, zero tools, one message, so it read 0 from the cache
+and wrote the entire transcript at the 1h rate on every compaction. At 178k tokens on Opus that is
+about $0.89 each time.
+
+The bundle already keeps what is needed to avoid it. Every main-agent request stores a snapshot
+(`sessionId`, `modelId`, `reasoningEffort`, `systemMessage`, `preparedHistory`, `tools`,
+`citableMessageIds`) and `h4` returns it for four minutes. The local-signals classifier sends over
+it with `Jte`, which appends one user message to `preparedHistory`. `compaction-reuse-exports`
+publishes `h4` and `Jte` as `globalThis.__odReuse` (the summarizer chunk imports neither).
+`compaction-reuse-prefix` makes the first summarizer attempt:
+
+- take `snapshot(sessionId)`, and use it only when its `modelId` is the compaction model and every
+  message about to be summarised is in the snapshot's `citableMessageIds` (see the restriction
+  below);
+- build a client with the snapshot's tools and send the snapshot's system, history, model and effort
+  through `Jte`, with the summarizer prompt (plus any `/compress` instructions) and one line telling
+  the model to summarise the entire conversation above and call no tools as the appended message,
+  and the output cap the stock path uses;
+- check cancellation first: once `Jte` returns, an aborted signal throws `AbortError` before the
+  content is looked at. `Jte` drops the `wasAborted` flag, and an aborted Responses-API stream can
+  return partial text, which would otherwise be saved as the summary;
+- then accept the reply only when it has text and no tool call. A missing snapshot, another model,
+  unseen messages, an empty reply, a tool call or a thrown error each fall back to the stock `as()`
+  request once, and the reuse path is never retried. An abort is never swallowed into a fallback.
+
+`tool_choice` is not set, because it would change the request head and break the cache. Each outcome
+writes one extra `cache-usage.jsonl` line with `compact` set to `reuse`, `no-snapshot`,
+`other-model`, `unseen-messages`, `tool-call`, `empty` or `error`.
+
+### The restriction: only when the reply the snapshot misses is kept
+
+The snapshot is the last request's body, so it misses that request's reply and tool results. The
+first version reused it for a manual `/compress` too, and the summary came out wrong: after three
+trivia turns it listed the third question as "pending, answer not given yet" although the reply
+existed (sessions `5f24a940` and `b21e5550`). Manual `/compress` (`compactCurrentSession` in
+`chunk-zytfh7ht.js`, which calls `XX` in `chunk-j1ga2f9w.js`) summarises every message and keeps no
+tail, so the missing reply is lost. Context-limit compaction (`VX`) summarises
+`messages.slice(0, k)` and keeps `slice(k)`, so the reply survives in the tail and the summary only
+needs to be right about the prefix.
+
+`xV()` is the shared callee and only receives the messages to summarise, never the conversation, so
+"is there a kept tail" is not visible to it, and testing the caller would take a patch in both
+`chunk-j1ga2f9w.js` callers. What it can check exactly is the property that matters: every message
+about to be summarised was in the snapshot's prompt (`citableMessageIds`). A reply the snapshot
+missed is, by construction, not in that set. Manual `/compress` after an answered turn always fails
+the check and logs `unseen-messages`. A compaction whose prefix stops before the unseen messages
+passes. A manual `/compress` with nothing unseen (the snapshot already holds every message, for
+example after an interrupted turn) also passes, and loses nothing.
+
+### Measured
+
+Live on `custom:droidproxy:sonnet-5-5` at low effort, the 0.233.0 patched copy:
+
+- Manual `/compress` after three turns (session `27cbeb0b`): `compact:"unseen-messages"`, then the
+  stock request, read 0, wrote 1,170.
+- Automatic compaction, forced with `compactionTokenLimitPerModel` set to 26,000 and three turns
+  that each read a 17KB file (session `0e8430b2`). It fired twice. The request before the first one
+  had read 30,001 and written 46 (30,047 tokens); the summary request read 30,047, wrote 780 (the
+  appended summarizer prompt) and logged `compact:"reuse"`. The second: prior request 38,177 read
+  and 87 written, summary read 38,264, wrote 809, `reuse`. Both summaries listed only the file the
+  user had just asked for as pending, and not the files already answered.
+- A `/compress` after waiting past four minutes (session `b21e5550`, first version) logged
+  `no-snapshot` and ran stock: read 0, wrote 1,497, full summary.
+
+One limit remains. The summary covers the whole conversation, including the messages compaction
+keeps, where stock summarises only the part it drops. And because the instruction is appended to the
+final user turn, a summary can carry a stray line such as "the summary request came in the same
+message"; telling the model it is a system request reduced the leak but did not remove it.
