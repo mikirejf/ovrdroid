@@ -8,13 +8,19 @@ import {
 } from '../compaction-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
+interface Message {
+  id: string;
+  role: string;
+  content: { type: string; text: string }[];
+}
+
 interface Snapshot {
   citableMessageIds: Set<string>;
   modelId: string;
   isSpecMode: boolean;
   reasoningEffort: string;
   systemMessage: string[];
-  preparedHistory: string[];
+  preparedHistory: Message[];
   tools: { tools: string[] };
 }
 
@@ -36,7 +42,7 @@ interface SendArguments {
   isSpecMode: boolean;
   reasoningEffort: string;
   systemMessage: string[];
-  preparedHistory: string[];
+  preparedHistory: Message[];
   instruction: string;
   maxTokensOverride: number;
   sessionId: string;
@@ -64,36 +70,39 @@ interface UsageLine {
   compact: string;
 }
 
-interface Message {
-  id: string;
-}
-
 type Summarize = (attempt: Attempt) => Promise<Summary>;
 
 const SESSION = 'parent';
 const MODEL = 'custom:droidproxy:sonnet-5-5';
 const SUMMARIZER_PROMPT = 'You are the summarizer.';
+const INSTRUCTION = `${SUMMARIZER_PROMPT}\n\n${SUMMARIZE_LINE}`;
 const FALLBACK_SUMMARY = 'fallback summary';
 const REUSED_SUMMARY = '<summary>reused</summary>';
 const MAX_TOKENS = 4000;
 
-const SEEN = ['turn-1', 'turn-2'];
+function textMessage(id: string, role = 'user'): Message {
+  return { id, role, content: [{ type: 'text', text: id }] };
+}
+
+const SEEN = [textMessage('turn-1'), textMessage('turn-2', 'assistant')];
+const LAST_REPLY = textMessage('last-reply', 'assistant');
+const EXTENDED = [...SEEN, LAST_REPLY];
 const SNAPSHOT: Snapshot = {
-  citableMessageIds: new Set(SEEN),
+  citableMessageIds: new Set(SEEN.map((message) => message.id)),
   modelId: MODEL,
   isSpecMode: false,
   reasoningEffort: 'low',
   systemMessage: ['main system'],
-  preparedHistory: ['turn 1', 'turn 2'],
+  preparedHistory: SEEN,
   tools: { tools: ['Read'] },
 };
 
-const EXPORTS = patchNamed(compactionPatches, 'compaction-reuse-exports').replace;
 const PREFIX = patchNamed(compactionPatches, 'compaction-reuse-prefix').replace;
 
 interface Script {
   reply: () => Promise<Reply>;
   snapshot: Snapshot | undefined;
+  extend: () => Message[] | string;
 }
 
 function replyWith(content: string, toolUses?: string[]): () => Promise<Reply> {
@@ -116,9 +125,14 @@ async function failureOf(run: Promise<Summary>): Promise<Error | undefined> {
   return undefined;
 }
 
-const script: Script = { reply: replyWith(REUSED_SUMMARY), snapshot: SNAPSHOT };
+const script: Script = {
+  reply: replyWith(REUSED_SUMMARY),
+  snapshot: SNAPSHOT,
+  extend: () => EXTENDED,
+};
 
 let snapshotCalls: string[] = [];
+let extendCalls: [string[], string][] = [];
 let sendCalls: SendArguments[] = [];
 let coreOptions: CoreOptions[] = [];
 let fallbackCalls = 0;
@@ -133,6 +147,14 @@ function installGlobals(): void {
       snapshot: (sessionId: string): Snapshot | undefined => {
         snapshotCalls.push(sessionId);
         return script.snapshot;
+      },
+      extend: (
+        _snapshot: Snapshot,
+        unseen: readonly Message[],
+        text: string,
+      ): Message[] | string => {
+        extendCalls.push([unseen.map((message) => message.id), text]);
+        return script.extend();
       },
       send: async (core: Core, request: SendArguments): Promise<Summary> => {
         const sent = await core.sendMessage(request);
@@ -174,7 +196,7 @@ function freshSignal(): Signal {
 function buildSummarize(
   customInstructions: string | undefined,
   signal: Signal,
-  messages: readonly Message[] = SEEN.map((id) => ({ id })),
+  messages: readonly Message[] = SEEN,
 ): Summarize {
   return payloadFunction<unknown[], Summarize>(
     ['Zi', 'as', 'J', 'y', 'ie', 'u', 'r', 'b', '_', 'O', 'i'],
@@ -196,35 +218,20 @@ function buildSummarize(
 
 beforeEach(() => {
   snapshotCalls = [];
+  extendCalls = [];
   sendCalls = [];
   coreOptions = [];
   fallbackCalls = 0;
   logged = [];
   script.snapshot = SNAPSHOT;
   script.reply = replyWith(REUSED_SUMMARY);
+  script.extend = () => EXTENDED;
   installGlobals();
 });
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, '__odUsage');
   Reflect.deleteProperty(globalThis, REUSE_GLOBAL);
-});
-
-interface Published {
-  snapshot: (sessionId: string) => Snapshot | undefined;
-  send: () => string;
-}
-
-describe('compaction-reuse-exports', () => {
-  test('publishes the snapshot reader and the one-shot sender', () => {
-    Reflect.deleteProperty(globalThis, REUSE_GLOBAL);
-    const published = payloadFunction<[], Published>(
-      [],
-      `var zh=new Map,eN=240000;function Jte(){return"sender"}${EXPORTS}return globalThis.${REUSE_GLOBAL}`,
-    )();
-    expect(published.snapshot('none')).toBeUndefined();
-    expect(published.send()).toBe('sender');
-  });
 });
 
 describe('compaction-reuse-prefix', () => {
@@ -234,6 +241,7 @@ describe('compaction-reuse-prefix', () => {
 
     expect(fallbackCalls).toBe(0);
     expect(snapshotCalls).toEqual([SESSION]);
+    expect(extendCalls).toEqual([]);
     expect(coreOptions).toEqual([{ emitLlmRetryStatus: true, tools: SNAPSHOT.tools }]);
     expect(sendCalls).toEqual([
       {
@@ -242,7 +250,7 @@ describe('compaction-reuse-prefix', () => {
         reasoningEffort: 'low',
         systemMessage: SNAPSHOT.systemMessage,
         preparedHistory: SNAPSHOT.preparedHistory,
-        instruction: `${SUMMARIZER_PROMPT}\n\n${SUMMARIZE_LINE}`,
+        instruction: INSTRUCTION,
         maxTokensOverride: MAX_TOKENS,
         sessionId: SESSION,
       },
@@ -254,7 +262,7 @@ describe('compaction-reuse-prefix', () => {
     const summarize = buildSummarize('focus on the tests', freshSignal());
     await summarize({ modelId: MODEL });
     expect(sendCalls[0]?.instruction).toBe(
-      `${SUMMARIZER_PROMPT}\n\n${SUMMARIZE_LINE}\n\n${CUSTOM_INSTRUCTIONS_LEAD}\nfocus on the tests`,
+      `${INSTRUCTION}\n\n${CUSTOM_INSTRUCTIONS_LEAD}\nfocus on the tests`,
     );
   });
 
@@ -276,19 +284,50 @@ describe('compaction-reuse-prefix', () => {
   });
 
   test('reuses the prefix when the messages to summarise stop before the end of the snapshot', async () => {
-    const summarize = buildSummarize(undefined, freshSignal(), [{ id: 'turn-1' }]);
+    const summarize = buildSummarize(undefined, freshSignal(), SEEN.slice(0, 1));
     expect(await summarize({ modelId: MODEL })).toEqual({ content: REUSED_SUMMARY });
     expect(logged.map((line) => line.compact)).toEqual(['reuse']);
   });
 
-  test('falls back when a message to summarise is missing from the snapshot', async () => {
-    const summarize = buildSummarize(undefined, freshSignal(), [
-      ...SEEN.map((id) => ({ id })),
-      { id: 'last-reply' },
-    ]);
+  test('extends the prefix with the messages the snapshot missed', async () => {
+    const summarize = buildSummarize(undefined, freshSignal(), [...SEEN, LAST_REPLY]);
+    expect(await summarize({ modelId: MODEL })).toEqual({ content: REUSED_SUMMARY });
+    expect(extendCalls).toEqual([[['last-reply'], INSTRUCTION]]);
+    expect(sendCalls[0]?.preparedHistory).toEqual(EXTENDED);
+    expect(sendCalls[0]?.instruction).toBe(INSTRUCTION);
+    expect(fallbackCalls).toBe(0);
+    expect(logged.map((line) => line.compact)).toEqual(['reuse-extended']);
+  });
+
+  test('ignores unseen messages that carry no content', async () => {
+    const hookNotice = { id: 'session-start-hook', role: 'user', content: [] };
+    const summarize = buildSummarize(undefined, freshSignal(), [hookNotice, ...SEEN]);
+    expect(await summarize({ modelId: MODEL })).toEqual({ content: REUSED_SUMMARY });
+    expect(extendCalls).toEqual([]);
+    expect(sendCalls[0]?.preparedHistory).toEqual(SNAPSHOT.preparedHistory);
+    expect(logged.map((line) => line.compact)).toEqual(['reuse']);
+  });
+
+  test.each(['prefix-mismatch', 'unseen-messages'])(
+    'falls back when the extension is refused with %s',
+    async (refusal) => {
+      script.extend = () => refusal;
+      const summarize = buildSummarize(undefined, freshSignal(), [...SEEN, LAST_REPLY]);
+      expect(await summarize({ modelId: MODEL })).toEqual({ content: FALLBACK_SUMMARY });
+      expect(sendCalls).toHaveLength(0);
+      expect(fallbackCalls).toBe(1);
+      expect(logged.map((line) => line.compact)).toEqual([refusal]);
+    },
+  );
+
+  test('falls back when building the extension throws', async () => {
+    script.extend = () => {
+      throw new Error('conversion failed');
+    };
+    const summarize = buildSummarize(undefined, freshSignal(), [...SEEN, LAST_REPLY]);
     expect(await summarize({ modelId: MODEL })).toEqual({ content: FALLBACK_SUMMARY });
     expect(sendCalls).toHaveLength(0);
-    expect(logged.map((line) => line.compact)).toEqual(['unseen-messages']);
+    expect(logged.map((line) => line.compact)).toEqual(['error']);
   });
 
   test('falls back when the snapshot belongs to another model', async () => {

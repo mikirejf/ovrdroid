@@ -1904,7 +1904,7 @@ the parent's next request read 20,798.
 pi warms only direct Anthropic and never OpenAI (issue #9810, maintainer comment). It keys OpenAI's
 `prompt_cache_key` per session, so its forks miss (#8348).
 
-## Shipped: `compaction-reuse-exports` and `compaction-reuse-prefix`, compaction reads the cache
+## Shipped: `compaction-reuse-exports`, `compaction-reuse-extender` and `compaction-reuse-prefix`, compaction reads the cache
 
 Stock 0.233.0 summarises with a request that shares nothing with the conversation. `xV()` builds it
 through `as()`: the summarizer system prompt, no tools, and one user message holding the whole
@@ -1916,63 +1916,86 @@ The bundle already keeps what is needed to avoid it. Every main-agent request st
 (`sessionId`, `modelId`, `reasoningEffort`, `systemMessage`, `preparedHistory`, `tools`,
 `citableMessageIds`) and `h4` returns it for four minutes. The local-signals classifier sends over
 it with `Jte`, which appends one user message to `preparedHistory`. `compaction-reuse-exports`
-publishes `h4` and `Jte` as `globalThis.__odReuse` (the summarizer chunk imports neither).
-`compaction-reuse-prefix` makes the first summarizer attempt:
+publishes `h4` and `Jte` as `globalThis.__odReuse` (the summarizer chunk imports neither), plus the
+`extend` helper described below. `compaction-reuse-prefix` makes the first summarizer attempt:
 
-- take `snapshot(sessionId)`, and use it only when its `modelId` is the compaction model and every
-  message about to be summarised is in the snapshot's `citableMessageIds` (see the restriction
-  below);
-- build a client with the snapshot's tools and send the snapshot's system, history, model and effort
-  through `Jte`, with the summarizer prompt (plus any `/compress` instructions) and one line telling
-  the model to summarise the entire conversation above and call no tools as the appended message,
-  and the output cap the stock path uses;
+- take `snapshot(sessionId)`, and use it only when its `modelId` is the compaction model;
+- send the snapshot's system, history, model and effort through `Jte` with a client built on the
+  snapshot's tools, with the summarizer prompt (plus any `/compress` instructions) and a short
+  system-request paragraph as the appended message, and the output cap the stock path uses. When
+  some message to summarise is not in the snapshot, the history is first extended (next section);
 - check cancellation first: once `Jte` returns, an aborted signal throws `AbortError` before the
   content is looked at. `Jte` drops the `wasAborted` flag, and an aborted Responses-API stream can
   return partial text, which would otherwise be saved as the summary;
-- then accept the reply only when it has text and no tool call. A missing snapshot, another model,
-  unseen messages, an empty reply, a tool call or a thrown error each fall back to the stock `as()`
-  request once, and the reuse path is never retried. An abort is never swallowed into a fallback.
+- then accept the reply only when it has text and no tool call. A missing snapshot, another model, a
+  refused extension, an empty reply, a tool call or a thrown error each fall back to the stock
+  `as()` request once, and the reuse path is never retried. An abort is never swallowed into a
+  fallback.
 
 `tool_choice` is not set, because it would change the request head and break the cache. Each outcome
-writes one extra `cache-usage.jsonl` line with `compact` set to `reuse`, `no-snapshot`,
-`other-model`, `unseen-messages`, `tool-call`, `empty` or `error`.
+writes one extra `cache-usage.jsonl` line with `compact` set to `reuse` (snapshot as is),
+`reuse-extended` (snapshot plus the messages it missed), `no-snapshot`, `other-model`,
+`prefix-mismatch`, `unseen-messages`, `tool-call`, `empty` or `error`.
 
-### The restriction: only when the reply the snapshot misses is kept
+### Messages the snapshot missed: rebuild the next request
 
-The snapshot is the last request's body, so it misses that request's reply and tool results. The
-first version reused it for a manual `/compress` too, and the summary came out wrong: after three
-trivia turns it listed the third question as "pending, answer not given yet" although the reply
-existed (sessions `5f24a940` and `b21e5550`). Manual `/compress` (`compactCurrentSession` in
-`chunk-zytfh7ht.js`, which calls `XX` in `chunk-j1ga2f9w.js`) summarises every message and keeps no
-tail, so the missing reply is lost. Context-limit compaction (`VX`) summarises
-`messages.slice(0, k)` and keeps `slice(k)`, so the reply survives in the tail and the summary only
-needs to be right about the prefix.
+The snapshot is the last request's body, so it misses that request's reply and tool results. Manual
+`/compress` (JSON-RPC `compact_session` in `chunk-dqdnss81.js` → `compactCurrentSession` in
+`chunk-zytfh7ht.js` → `XX` in `chunk-j1ga2f9w.js`) summarises every stored message and keeps no
+tail, so sending the snapshot alone loses the last reply. The first version did that and listed an
+answered question as "pending" (sessions `5f24a940` and `b21e5550`). The previous fix fell back to
+stock whenever a message was missing, so manual `/compress` never reused the cache.
 
-`xV()` is the shared callee and only receives the messages to summarise, never the conversation, so
-"is there a kept tail" is not visible to it, and testing the caller would take a patch in both
-`chunk-j1ga2f9w.js` callers. What it can check exactly is the property that matters: every message
-about to be summarised was in the snapshot's prompt (`citableMessageIds`). A reply the snapshot
-missed is, by construction, not in that set. Manual `/compress` after an answered turn always fails
-the check and logs `unseen-messages`. A compaction whose prefix stops before the unseen messages
-passes. A manual `/compress` with nothing unseen (the snapshot already holds every message, for
-example after an interrupted turn) also passes, and loses nothing.
+Now the summarizer sends the request Droid itself would send next. The agent loop builds each
+request as `prepareMessagesWithCaching(un({rawHistory, lastSummary, reminders:[Rt,qo,bt]}))`.
+`compaction-reuse-extender` stores one more field on the snapshot, `odExtend(ask)`. It reruns that
+exact conversion on the live `getConversationHistory()` plus one extra user message, using the
+reminders and summary captured when the snapshot was taken. The summarizer passes its instruction as
+that extra message. This matters: `un` strips trailing assistant messages (`br`, "avoid Anthropic
+prefill rejection"), so a rebuild of the history alone would drop the very reply that is missing.
+
+`extend` accepts the rebuild only when it can prove both properties, and otherwise logs why and runs
+stock:
+
+1. Every message up to the snapshot's length has the same role and content as the snapshot's
+   message, ignoring `cache_control` (`prefix-mismatch` otherwise). The conversion is not a pure
+   append in general: `cO` drops orphaned tool uses and old images or PDFs across the whole list,
+   and reminders sit at the head. A real mismatch is therefore possible, and the check catches it.
+2. Every missed message with content is in the rebuilt tail (`unseen-messages` otherwise). Messages
+   with empty content are skipped. Manual `/compress` passes `user_only` hook rows such as
+   `SessionStart` with `content: []`. The loop never sends them, and the stock transcript renders
+   them as a bare `USER:` label, so nothing is lost.
+
+The request then carries the snapshot's own message objects, so the cached prefix is the same byte
+for byte, including its breakpoints, followed by the rebuilt tail and the instruction. Only the
+agent loop stores snapshots (`DJ(jn)` and `DJ({...jn,reasoningEffort})`), so every snapshot has the
+extender.
 
 ### Measured
 
-Live on `custom:droidproxy:sonnet-5-5` at low effort, the 0.233.0 patched copy:
+Live on the 0.233.0 patched copy, low effort, three one-sentence trivia turns then `/compress`:
 
-- Manual `/compress` after three turns (session `27cbeb0b`): `compact:"unseen-messages"`, then the
-  stock request, read 0, wrote 1,170.
-- Automatic compaction, forced with `compactionTokenLimitPerModel` set to 26,000 and three turns
-  that each read a 17KB file (session `0e8430b2`). It fired twice. The request before the first one
-  had read 30,001 and written 46 (30,047 tokens); the summary request read 30,047, wrote 780 (the
-  appended summarizer prompt) and logged `compact:"reuse"`. The second: prior request 38,177 read
-  and 87 written, summary read 38,264, wrote 809, `reuse`. Both summaries listed only the file the
-  user had just asked for as pending, and not the files already answered.
-- A `/compress` after waiting past four minutes (session `b21e5550`, first version) logged
-  `no-snapshot` and ran stock: read 0, wrote 1,497, full summary.
+- `custom:droidproxy:sonnet-5-5`: the prior request read 25,974 and wrote 52 (26,030 in total). The
+  summary request read 26,026, wrote 821, and logged `reuse-extended`. The summary lists the third
+  question (tungsten, "W") as answered. An earlier run with the same code gave the same result (read
+  26,024).
+- `custom:droidproxy:gpt-6-luna`: the prior request read 14,848. Four of five summary requests read
+  14,848 of about 15,720 and logged `reuse-extended`. One read only 7,680 of 15,721, and the very
+  next identical run read 14,848 again, so this looks like OpenAI cache routing, not the request.
+  Every summary listed the tungsten answer.
+- Automatic compaction on Sonnet, `compactionTokenLimitPerModel` 26,000, three turns reading a 17KB
+  file each: it fired twice. Prior request 30,065 → summary read 30,063; prior 38,323 → summary read
+  38,319. Both logged `reuse`, because the snapshot held every message to summarise.
+
+### The instruction leak
+
+The stock prompt asks for "Current Work … include the user's latest message". In the reuse path the
+latest user message is the summary request itself. So Luna wrote "the latest user message asks for a
+conversation summary". `SUMMARIZE_LINE` now adds "Where the format asks for the user's latest
+message, use the last user message before this request." In all four runs measured after the change
+(two Luna before the final build, one Sonnet and one Luna on it), "Current Work" names the tungsten
+question. Sometimes it still adds the phrase "before this summary request", so the request is
+mentioned but no longer replaces the content.
 
 One limit remains. The summary covers the whole conversation, including the messages compaction
-keeps, where stock summarises only the part it drops. And because the instruction is appended to the
-final user turn, a summary can carry a stray line such as "the summary request came in the same
-message"; telling the model it is a system request reduced the leak but did not remove it.
+keeps, where stock summarises only the part it drops.
