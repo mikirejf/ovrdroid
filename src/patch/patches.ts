@@ -267,12 +267,6 @@ export const patches: readonly Patch[] = [
     find: 'for(let[K,oe]of N)await te(K,oe);await Promise.all(z.map(([K,oe])=>te(K,oe)));',
     replace: 'await Promise.all([...N,...z].map(([K,oe])=>te(K,oe)));',
   },
-  {
-    name: 'subagent-turn-ignores-hook-records',
-    find: 'let s=e.slice(o+1),r=s.findIndex(Bb),u=r===-1?s:s.slice(0,r);return yb(u)}',
-    replace:
-      'let s=e.slice(o+1),r=s.findIndex(($ODrec)=>Bb($ODrec)&&$ODrec.visibility!=="user_only"),u=r===-1?s:s.slice(0,r);return yb(u)}',
-  },
   ...logoPatches,
   ...usagePatches,
   ...warmerPatches,

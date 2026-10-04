@@ -149,6 +149,13 @@ push to main. Each Linux box's dotfiles timer pulls ovrdroid into `~/dev/ovrdroi
 platform (downloading and caching them) and exits non-zero on drift. A patch that fits only one
 platform breaks the other machine's next update.
 
+**Delete a patch when upstream makes it obsolete.** A patch that still applies is not proof that it
+is still needed: Droid may have fixed the bug in code next to the patched line, so the patch now
+repeats a check stock already has. After every update, read the stock code around each bug-fix patch
+(extract it with `probe extract`, compare it with the previous release). If stock now behaves
+correctly, remove the patch from `src/patch/` together with its tests. Do not keep it as a safety
+net. Dead patches cost build time, hide real drift, and make the next update harder to read.
+
 Searching the bundle with shell `grep` does not work: a chunk is one 1.2MB line, so `grep -c` says
 `1` for a string occurring four times. Use `probe grep`.
 
