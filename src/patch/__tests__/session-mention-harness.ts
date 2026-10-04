@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import fs, { existsSync, readFileSync } from 'node:fs';
 
 import { patchSource } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
@@ -9,10 +9,12 @@ import type { Rebase } from '../rebase.ts';
 import { rebaseAll } from '../rebase.ts';
 import {
   SESSION_COMPLETE,
+  SESSION_HEAD,
   SESSION_ITEMS,
   SESSION_MATCHES,
   SESSION_POOL,
   SESSION_QUERY,
+  SESSION_TEXT,
   sessionMentionPatches,
 } from '../session-mention-patches.ts';
 import { blockEnd } from '../tokens.ts';
@@ -23,6 +25,7 @@ export interface Session {
   title: string;
   messageCount: number;
   modifiedTime: Date;
+  cwd: string;
   isSubagent?: boolean;
 }
 
@@ -47,10 +50,20 @@ export interface Picker {
   $ODsessionPool: (all: readonly Session[], self: string | null) => Session[];
   $ODsessionMatches: (pool: readonly Session[], query: string, max: number) => Session[];
   $ODsessionComplete: (text: string, cursor: number, id: string) => Completion;
-  $ODsessionItems: (rows: readonly Session[], width: number) => Item[];
+  $ODsessionItems: (
+    rows: readonly Session[],
+    width: number,
+    first: (row: Session) => string | null,
+  ) => Item[];
+  $ODsessionText: (raw: string) => string | null;
+  $ODsessionHead: (path: string) => string | null;
 }
 
 export const AGO = '3h ago';
+
+export function endCut(text: string, width: number): string {
+  return text.length <= width ? text : `${text.slice(0, width - 1)}\u2026`;
+}
 
 export const picker = payloadFunction<
   [
@@ -58,16 +71,20 @@ export const picker = payloadFunction<
     (title: string) => string,
     (text: string, width: number) => string,
     () => { t: (key: string) => string },
+    (text: string, width: number) => string,
+    (name: 'fs') => typeof fs,
   ],
   Picker
 >(
-  ['Mm', 'ZT', 'DB', 'R'],
-  `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_COMPLETE}${SESSION_ITEMS}}`,
+  ['Mm', 'ZT', 'DB', 'R', 'Li', 'require'],
+  `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}}`,
 )(
   () => AGO,
   (title) => title,
   (text, width) => (text.length <= width ? text : `${text.slice(0, width - 3)}...`),
   () => ({ t: () => 'Untitled' }),
+  endCut,
+  () => fs,
 );
 
 export function session(id: string, title: string, minutesAgo: number): Session {
@@ -76,6 +93,7 @@ export function session(id: string, title: string, minutesAgo: number): Session 
     title,
     messageCount: 4,
     modifiedTime: new Date(Date.UTC(2026, 0, 1) - minutesAgo * 60_000),
+    cwd: '/work',
   };
 }
 
@@ -91,6 +109,7 @@ export interface Suggestions {
 
 export interface Driver {
   readonly suggestions: Suggestions;
+  readonly transcriptsRead: string[];
   update: (text: string, cursor: number) => Promise<void>;
   close: () => void;
   finishLoad: (sessions: readonly Session[]) => Promise<void>;
@@ -187,8 +206,13 @@ export function sessionDriver(app: App): Driver {
   const setter = setterArrow(rebasedNamed(rebased, 'session-mention-close-cancels').replace);
 
   const suggestions: Suggestions = { shown: false, items: [] };
+  const transcriptsRead: string[] = [];
   const loads: ((sessions: readonly Session[]) => void)[] = [];
   const fileSearch = {
+    $ODsessionHead: (path: string) => {
+      transcriptsRead.push(path);
+      return `typed into ${path}`;
+    },
     isInPathContext: ({ text, cursorPosition }: { text: string; cursorPosition: number }) =>
       PATH_QUERY.test(text.slice(0, cursorPosition)),
     extractPathQuery: ({ text, cursorPosition }: { text: string; cursorPosition: number }) => ({
@@ -233,6 +257,7 @@ export function sessionDriver(app: App): Driver {
           return await load.promise;
         },
         getCurrentSessionId: () => null,
+        getSessionMessagesPath: (id: string, cwd: string) => `${cwd}/${id}.jsonl`,
       }),
     ],
   ]);
@@ -268,6 +293,7 @@ export function sessionDriver(app: App): Driver {
 
   return {
     suggestions,
+    transcriptsRead,
     update: async (text, cursor) => {
       await update(text, cursor);
       await settle();

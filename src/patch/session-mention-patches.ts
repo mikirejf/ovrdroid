@@ -21,13 +21,27 @@ export const SESSION_COMPLETE =
   'return{newText:$ODt.slice(0,$ODm.start)+$ODtag+$ODt.slice($ODc),newCursorPosition:$ODm.start+$ODtag.length}}';
 
 export const SESSION_ITEMS =
-  'static $ODsessionItems($ODrows,$ODwidth){return $ODrows.map(($ODs)=>{let $ODn=$ODs.messageCount,' +
+  'static $ODsessionItems($ODrows,$ODwidth,$ODfirst){return $ODrows.map(($ODs)=>{let $ODn=$ODs.messageCount,' +
   `$ODmeta=\`\${Mm($ODs.modifiedTime)} \\u00B7 \${$ODn} \${$ODn===1?"message":"messages"}\`,` +
-  '$ODtitle=($ODs.title?ZT($ODs.title):R().t("common:sessions.untitled")).replace(/\\s+/g," ").trim();' +
-  `return{label:\`\${DB($ODtitle,Math.max(8,$ODwidth-10-$ODmeta.length))}  \${$ODmeta}\`,value:\`#session-\${$ODs.id}\`,$ODsession:$ODs.id}})}`;
+  '$ODtitle=($ODs.title?ZT($ODs.title):R().t("common:sessions.untitled")).replace(/\\s+/g," ").trim(),' +
+  `$ODlabel=\`\${DB($ODtitle,Math.max(8,$ODwidth-10-$ODmeta.length))}  \${$ODmeta}\`,$ODtext=$ODfirst($ODs);` +
+  `if($ODtext&&!$ODtext.toLowerCase().startsWith($ODtitle.toLowerCase()))$ODlabel+=\`\\n  \${Li($ODtext,Math.max(8,$ODwidth-6))}\`;` +
+  `return{label:$ODlabel,value:\`#session-\${$ODs.id}\`,$ODsession:$ODs.id}})}`;
+
+export const TRANSCRIPT_HEAD_BYTES = 131_072;
+
+export const SESSION_TEXT = String.raw`static $ODsessionText($ODraw){let $ODlines=$ODraw.split("\n");$ODlines.pop();for(let $ODline of $ODlines){let $ODr;try{$ODr=JSON.parse($ODline)}catch{continue}let $ODm=$ODr?.message;if($ODr?.type!=="message"||$ODm?.role!=="user"||String($ODr.id).startsWith("context-"))continue;let $ODc=$ODm.content,$ODt=typeof $ODc==="string"?$ODc:Array.isArray($ODc)?$ODc.filter(($ODb)=>$ODb?.type==="text"&&typeof $ODb.text==="string").map(($ODb)=>$ODb.text).join("\n"):"";if($ODm.visibility!==void 0){let $ODk=/^\s*Skill "([^"]+)" activated(?::([\s\S]*))?$/.exec($ODt);if(!$ODk)continue;$ODt="/"+$ODk[1]+" "+($ODk[2]??"")}$ODt=$ODt.replace(/<(system-reminder|system-notification)>[\s\S]*?<\/\1>/g,"").replace(/\s+/g," ").trim();if($ODt)return $ODt}return null}`;
+
+export const SESSION_HEAD = `static $ODsessionHead($ODpath){let $ODfs=require("fs"),$ODbuf=Buffer.allocUnsafe(${TRANSCRIPT_HEAD_BYTES}),$ODfd;try{$ODfd=$ODfs.openSync($ODpath,"r");let $ODn=$ODfs.readSync($ODfd,$ODbuf,0,$ODbuf.length,0);return this.$ODsessionText($ODbuf.toString("utf8",0,$ODn)+($ODn<$ODbuf.length?"\\n":""))}catch{return null}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}`;
 
 const SESSION_STATICS =
-  SESSION_QUERY + SESSION_POOL + SESSION_MATCHES + SESSION_COMPLETE + SESSION_ITEMS;
+  SESSION_QUERY +
+  SESSION_POOL +
+  SESSION_MATCHES +
+  SESSION_COMPLETE +
+  SESSION_ITEMS +
+  SESSION_TEXT +
+  SESSION_HEAD;
 
 export const SESSION_PROMPT_LINE =
   '- A `#session-<uuid>` tag in a user message names another Droid session. Run `dsx show <uuid>` for its summary and `dsx export <uuid> --no-thinking` for its transcript; without dsx, the transcript is `~/.factory/sessions/*/<uuid>.jsonl` and can be very large, so read it in parts.';
@@ -54,6 +68,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       'G=DB(q,F),j=z===""?G:fs(G,F)',
       'children:Mm(bt.modifiedTime)})}),t(T,{width:Wo,marginRight:Rd,children:t(i,{bold:Jo,color:Go,children:Mm(bt.createdTime)})',
       'children:bt.title?ZT(bt.title):oe("sessions.untitled")',
+      'Pe=be?Li(be,Math.max(0,Le-_e)):void 0',
     ],
     replace: `static isInPathContext({text:y,cursorPosition:E}){return uu.extractPathQuery({text:y,cursorPosition:E})!==null}${SESSION_STATICS}}`,
   },
@@ -63,7 +78,7 @@ export const sessionMentionPatches: readonly Patch[] = [
     lookups: [UU_LOOKUP, PO_LOOKUP, 'Ba=k(()=>new uu(q,co),[q,co])'],
     replace:
       'let vr=wn??zi,Di=$n??Ma,$ODseq=++Po.current;' +
-      'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=void 0;if(!_e){',
+      'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=void 0;if(!_e){',
   },
   {
     name: 'session-mention-close-cancels',
@@ -86,7 +101,9 @@ export const sessionMentionPatches: readonly Patch[] = [
     replace:
       `${SUGGESTIONS_CLOSED};let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);` +
       'if(!$ODhash){En([]),Qt(!1);return}' +
-      'let $ODshow=($ODpool)=>{let $ODrows=uu.$ODsessionItems(uu.$ODsessionMatches($ODpool,$ODhash.query,r5),Math.min(U,process.stdout.columns||U));' +
+      'let $ODfirst=($ODs)=>{let $ODseen=Ba.$ODfirst??=new Map;' +
+      'if(!$ODseen.has($ODs.id))$ODseen.set($ODs.id,uu.$ODsessionHead(p().getSessionMessagesPath($ODs.id,$ODs.cwd)));return $ODseen.get($ODs.id)},' +
+      '$ODshow=($ODpool)=>{let $ODrows=uu.$ODsessionItems(uu.$ODsessionMatches($ODpool,$ODhash.query,r5),Math.min(U,process.stdout.columns||U),$ODfirst);' +
       'En($ODrows),Ro(0),Qt($ODrows.length>0)};' +
       'if(Ba.$ODpool){$ODshow(Ba.$ODpool);return}' +
       'let $ODload=Ba.$ODload??=p().getSessionsForSelector(Ba.workingDirectory)' +

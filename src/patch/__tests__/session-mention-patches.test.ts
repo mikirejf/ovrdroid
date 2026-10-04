@@ -1,12 +1,19 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import { patchSource } from '../../binary/apply.ts';
 import { joinApp } from '../../binary/graph.ts';
 import { sessionIndexPatches } from '../session-index-patches.ts';
-import { SESSION_PROMPT_LINE, sessionMentionPatches } from '../session-mention-patches.ts';
+import {
+  SESSION_PROMPT_LINE,
+  sessionMentionPatches,
+  TRANSCRIPT_HEAD_BYTES,
+} from '../session-mention-patches.ts';
 import { freeNames } from '../tokens.ts';
 import { payloadFunction } from './payload.ts';
-import type { Hash } from './session-mention-harness.ts';
+import type { Hash, Session } from './session-mention-harness.ts';
 import { AGO, picker, session, stock } from './session-mention-harness.ts';
 
 const contracted = [...sessionIndexPatches, ...sessionMentionPatches];
@@ -118,8 +125,12 @@ describe('selecting a session writes the tag in place of the query', () => {
   });
 });
 
+function rowLabel(row: Session, first: string | null, width = 120): string | undefined {
+  return picker.$ODsessionItems([row], width, () => first)[0]?.label;
+}
+
 describe('each row reads like a compact /sessions row', () => {
-  const [row] = picker.$ODsessionItems([session('abc', 'Fix  the\nlag', 1)], 120);
+  const [row] = picker.$ODsessionItems([session('abc', 'Fix  the\nlag', 1)], 120, () => null);
 
   test('shows the title, then the time ago and message count after two spaces', () => {
     expect(row?.label).toBe(`Fix the lag  ${AGO} \u00B7 4 messages`);
@@ -131,19 +142,215 @@ describe('each row reads like a compact /sessions row', () => {
   });
 
   test('a session with one message says message', () => {
-    const [single] = picker.$ODsessionItems([{ ...session('a', 'T', 1), messageCount: 1 }], 120);
-    expect(single?.label).toEndWith('1 message');
+    expect(rowLabel({ ...session('a', 'T', 1), messageCount: 1 }, null)).toEndWith('1 message');
   });
 
   test('an untitled session uses the /sessions wording', () => {
-    const [untitled] = picker.$ODsessionItems([session('a', '', 1)], 120);
-    expect(untitled?.label).toStartWith('Untitled  ');
+    expect(rowLabel(session('a', '', 1), null)).toStartWith('Untitled  ');
   });
 
   test('a long title is cut so the row fits the dropdown', () => {
     const width = 40;
-    const [long] = picker.$ODsessionItems([session('a', 'x'.repeat(200), 1)], width);
-    expect(long?.label.length).toBeLessThanOrEqual(width - 8);
+    expect(rowLabel(session('a', 'x'.repeat(200), 1), null, width)?.length).toBeLessThanOrEqual(
+      width - 8,
+    );
+  });
+});
+
+describe('a second line shows the first message the user typed', () => {
+  const row = session('a', 'Fix the lag', 1);
+
+  test('sits under the title, indented past the selection marker', () => {
+    expect(rowLabel(row, 'the herdr panel stutters')).toBe(
+      `Fix the lag  ${AGO} \u00B7 4 messages\n  the herdr panel stutters`,
+    );
+  });
+
+  test('is cut at the end so it fits the dropdown on one line', () => {
+    const width = 40;
+    const second = rowLabel(row, 'y'.repeat(200), width)?.split('\n')[1];
+    expect(second).toBe(`  ${'y'.repeat(width - 7)}\u2026`);
+  });
+
+  test.each([
+    ['no first message was found', null],
+    ['it repeats the title in another case', 'FIX THE LAG'],
+    ['the title is how it starts', 'fix the lag in the herdr panel'],
+  ])('is left out when %s', (_case, first) => {
+    expect(rowLabel(row, first)).not.toContain('\n');
+  });
+});
+
+interface MessageExtra {
+  visibility?: string;
+  pad?: string;
+}
+
+function userLine(text: string, extra: MessageExtra = {}): string {
+  return JSON.stringify({
+    type: 'message',
+    id: 'm1',
+    message: { role: 'user', content: [{ type: 'text', text }], ...extra },
+  });
+}
+
+const START = JSON.stringify({ type: 'session_start', id: 's', title: 'T' });
+const HOOK = JSON.stringify({
+  type: 'message',
+  id: 'h1',
+  message: { role: 'user', content: [], visibility: 'user_only', hookEventName: 'SessionStart' },
+});
+const CONTEXT = JSON.stringify({
+  type: 'message',
+  id: 'context-m1',
+  message: {
+    role: 'user',
+    content: [{ type: 'text', text: 'tool list\n</system-reminder>' }],
+    visibility: 'llm_only',
+  },
+});
+const SKILL_BODY =
+  '<system-notification>\nThe user has selected the following skill.\n<skill>do things</skill>\n</system-notification>';
+
+function transcript(...lines: string[]): string {
+  return `${[START, HOOK, CONTEXT, ...lines].join('\n')}\n`;
+}
+
+describe('the first message is what the user typed, read from the transcript', () => {
+  test.each([
+    ['a plain message', transcript(userLine('Say ok')), 'Say ok'],
+    [
+      'reminders around the typed text',
+      transcript(
+        userLine('<system-reminder>\nopened a file\n</system-reminder>\n\nfix  the\n\nlag'),
+      ),
+      'fix the lag',
+    ],
+    [
+      'a skill run with what was typed after it',
+      transcript(
+        userLine('Skill "delegate" activated: check the\nlogs', { visibility: 'user_only' }),
+        userLine(`${SKILL_BODY}check the\nlogs`),
+      ),
+      '/delegate check the logs',
+    ],
+    [
+      'a skill run with nothing typed after it',
+      transcript(
+        userLine('Skill "simplify" activated', { visibility: 'user_only' }),
+        userLine(SKILL_BODY),
+      ),
+      '/simplify',
+    ],
+    [
+      'a slash command whose skill text follows the typed text',
+      transcript(userLine(`/delegate copy the files\n${SKILL_BODY}`)),
+      '/delegate copy the files',
+    ],
+    [
+      'a status notice the user never typed',
+      transcript(
+        userLine('MCP status: some server tools are unavailable.', { visibility: 'user_only' }),
+        userLine('real ask'),
+      ),
+      'real ask',
+    ],
+    [
+      'quotes, unicode and emoji escapes',
+      transcript(userLine('say "caf\u00E9" \uD83D\uDE00 \\ done')),
+      'say "caf\u00E9" \uD83D\uDE00 \\ done',
+    ],
+    ['a transcript with no message yet', transcript(), null],
+  ])('%s', (_case, raw, first) => {
+    expect(picker.$ODsessionText(raw)).toBe(first);
+  });
+
+  test('ascii-escaped unicode decodes too', () => {
+    const line = userLine('caf\u00E9').replace('\u00E9', String.raw`\u00e9`);
+    expect(picker.$ODsessionText(transcript(line))).toBe('caf\u00E9');
+  });
+
+  test('a string content counts as typed text', () => {
+    const line = JSON.stringify({
+      type: 'message',
+      id: 'm1',
+      message: { role: 'user', content: 'hi' },
+    });
+    expect(picker.$ODsessionText(transcript(line))).toBe('hi');
+  });
+
+  test('a tool result is not a typed message, even with text inside it', () => {
+    const image = JSON.stringify({
+      type: 'message',
+      id: 'm0',
+      message: {
+        role: 'user',
+        content: [{ type: 'image', source: { type: 'base64', data: 'AA' } }],
+      },
+    });
+    const toolResult = JSON.stringify({
+      type: 'message',
+      id: 'm1',
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 't1',
+            content: [{ type: 'text', text: 'Tool-produced result' }],
+          },
+        ],
+      },
+    });
+    expect(
+      picker.$ODsessionText(transcript(image, toolResult, userLine('Actual typed request'))),
+    ).toBe('Actual typed request');
+  });
+
+  test('a hidden record cut by the read limit is not shown as typed', () => {
+    const hidden = userLine(`Hidden runtime context ${'x'.repeat(150_000)}`, {
+      visibility: 'llm_only',
+    });
+    const raw = transcript(hidden).slice(0, TRANSCRIPT_HEAD_BYTES);
+    expect(picker.$ODsessionText(raw)).toBeNull();
+  });
+
+  test('a typed message cut by the read limit shows one line', () => {
+    const raw = transcript(userLine(`long ask ${'word '.repeat(50)}`));
+    expect(picker.$ODsessionText(raw.slice(0, raw.lastIndexOf('word')))).toBeNull();
+  });
+});
+
+describe('the transcript read stays bounded', () => {
+  const folder = mkdtempSync(path.join(tmpdir(), 'od-head-'));
+  afterAll(() => {
+    rmSync(folder, { recursive: true });
+  });
+
+  test('reads the first message from a file', () => {
+    const file = path.join(folder, 'one.jsonl');
+    writeFileSync(file, transcript(userLine('hello there')));
+    expect(picker.$ODsessionHead(file)).toBe('hello there');
+  });
+
+  test('a message past the read limit is not shown', () => {
+    const file = path.join(folder, 'late.jsonl');
+    const padding = userLine('', {
+      visibility: 'user_only',
+      pad: 'x'.repeat(TRANSCRIPT_HEAD_BYTES),
+    });
+    writeFileSync(file, transcript(padding, userLine('too late')));
+    expect(picker.$ODsessionHead(file)).toBeNull();
+  });
+
+  test('a file shorter than the read limit counts its last line without a newline', () => {
+    const file = path.join(folder, 'bare.jsonl');
+    writeFileSync(file, transcript(userLine('no newline at the end')).trimEnd());
+    expect(picker.$ODsessionHead(file)).toBe('no newline at the end');
+  });
+
+  test('a missing transcript shows one line', () => {
+    expect(picker.$ODsessionHead(path.join(folder, 'gone.jsonl'))).toBeNull();
   });
 });
 

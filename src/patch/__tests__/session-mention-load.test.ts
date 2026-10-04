@@ -52,6 +52,25 @@ describe.skipIf(stock === undefined)('a session load that finishes late', () => 
     expect(sessionRows(input.suggestions)).toBe(0);
   });
 
+  test('each shown row reads its transcript once while the query stays open', async () => {
+    const input = driver();
+    await input.update('#', 1);
+    await input.finishLoad(SESSIONS);
+    await input.update('#pl', 3);
+    expect(input.transcriptsRead).toEqual(['/work/aaaa1111.jsonl', '/work/bbbb2222.jsonl']);
+    expect(input.suggestions.items[0]?.label).toEndWith('\n  typed into /work/bbbb2222.jsonl');
+  });
+
+  test('leaving the query drops the transcripts read with the pool', async () => {
+    const input = driver();
+    await input.update('#', 1);
+    await input.finishLoad(SESSIONS);
+    await input.update('x', 1);
+    await input.update('#', 1);
+    await input.finishLoad(SESSIONS);
+    expect(input.transcriptsRead).toHaveLength(4);
+  });
+
   test('a later keystroke in the same # query reuses the load', async () => {
     const input = driver();
     await input.update('#', 1);
