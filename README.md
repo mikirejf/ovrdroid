@@ -165,7 +165,10 @@ Droid's own awaiting-input sound is unreachable code on this path. `requestConfi
 takes the delegated branch whenever `context.requestPermissionFn` is set, which the TUI always sets,
 and returns from there; the only call passing `playAwaitingSound:!0` sits after that return.
 `AskUser` dings because it takes a different path. The `Notification` hook fires on the branch that
-does run, so it plays the same sound the setting already names.
+does run, so it plays the same sound the setting already names. Inside herdr (`HERDR_ENV` set) it
+runs `herdr notification show --sound request` instead, so a remote box reaches your Mac; the
+turn-end sounds from the patch set do the same with `done` and `wait`, and a custom sound name is
+ignored there.
 
 ### What the execute hook approves
 

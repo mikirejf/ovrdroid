@@ -3,6 +3,11 @@ import type { Patch } from './patches.ts';
 
 const SUBAGENT_SOUND_PATH = `process.env.HOME+"/.factory/sounds/${SUBAGENT_SOUND_FILE}"`;
 
+const HERDR_SOUND =
+  'if(process.env.HERDR_ENV){try{globalThis.Bun.spawn([process.env.HERDR_BIN_PATH||"herdr","notification","show",' +
+  '$ODbusy?"Subagents still running":"Droid finished","--sound",$ODbusy?"wait":"done"],' +
+  '{stdio:["ignore","ignore","ignore"],detached:!0}).unref()}catch{}return}';
+
 export const subagentSoundPatches: readonly Patch[] = [
   {
     name: 'turn-end-sound-takes-subagent-flag',
@@ -19,6 +24,6 @@ export const subagentSoundPatches: readonly Patch[] = [
   {
     name: 'turn-end-sound-waits-for-subagents',
     find: 'aee(()=>{let o=f(),r=o.getCompletionSound();if(r==="off")return;let i=o.getSoundFocusMode();M9(r,{},i).catch(()=>{})});',
-    replace: `aee(($ODbusy)=>{let o=f(),r=o.getCompletionSound();if(r==="off")return;let i=o.getSoundFocusMode();M9($ODbusy?${SUBAGENT_SOUND_PATH}:r,{},i).catch(()=>{})});`,
+    replace: `aee(($ODbusy)=>{let o=f(),r=o.getCompletionSound();if(r==="off")return;let i=o.getSoundFocusMode();${HERDR_SOUND}M9($ODbusy?${SUBAGENT_SOUND_PATH}:r,{},i).catch(()=>{})});`,
   },
 ];

@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test';
-import path from 'node:path';
 
-import { FACTORY_SOUNDS, SUBAGENT_SOUND_FILE } from '../../paths.ts';
 import { patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
-
-const REGISTRY_STOCK =
-  'var l=null,o=null;function iee(n){l=n}function aee(n){o=n}function dw(){l?.()}function oee(){o?.()}';
-
-const CALLBACK_STOCK =
-  'aee(()=>{let o=f(),r=o.getCompletionSound();if(r==="off")return;let i=o.getSoundFocusMode();M9(r,{},i).catch(()=>{})});';
+import { payloadFunction } from './payload.ts';
+import {
+  CALLBACK_STOCK,
+  completionHarness,
+  patched,
+  REGISTRY_STOCK,
+  registry,
+  WAIT_SOUND,
+} from './sound-harness.ts';
 
 const TRIGGER_STOCK =
   'v(()=>{if(!Bn)return;return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee()})},[Bn]);';
@@ -18,58 +18,7 @@ const TRIGGER_STOCK =
 const RUNNING_COUNT_STOCK =
   'function Q0e(y){let E=P().getSessionStateManager(),A=()=>y?IZ(E,y):0,D=A();return D}';
 
-const WAIT_SOUND = path.join(FACTORY_SOUNDS, SUBAGENT_SOUND_FILE);
-
-function patched(stock: string, name: string): string {
-  const { find, replace } = patchNamed(patches, name);
-  expect(stock).toContain(find);
-  return stock.replace(find, () => replace);
-}
-
-const registry = patched(REGISTRY_STOCK, 'turn-end-sound-takes-subagent-flag');
-const callback = patched(CALLBACK_STOCK, 'turn-end-sound-waits-for-subagents');
 const trigger = patched(TRIGGER_STOCK, 'turn-end-reports-running-subagents');
-
-interface Played {
-  sound: string;
-  focus: string;
-}
-
-interface Settings {
-  getCompletionSound: () => string;
-  getSoundFocusMode: () => string;
-}
-
-interface PlayOptions {
-  volume?: number;
-}
-
-type Play = (sound: string, options: PlayOptions, focus: string) => Promise<null>;
-
-interface Registry {
-  finish: (subagentsRunning?: boolean) => null;
-}
-
-interface CompletionHarness extends Registry {
-  played: Played[];
-}
-
-function completionHarness(completionSound: string): CompletionHarness {
-  const played: Played[] = [];
-  const settings: Settings = {
-    getCompletionSound: () => completionSound,
-    getSoundFocusMode: () => 'always',
-  };
-  const play: Play = async (sound, _options, focus) => {
-    played.push({ sound, focus });
-    return await Promise.resolve(null);
-  };
-  const { finish } = payloadFunction<[() => Settings, Play], Registry>(
-    ['f', 'M9'],
-    `${registry};${callback}return{finish:oee}`,
-  )(() => settings, play);
-  return { finish, played };
-}
 
 interface Notification {
   type: string;
@@ -138,31 +87,31 @@ function triggerHarness(running: number): TriggerHarness {
 
 describe('the completion callback chooses the sound', () => {
   test('without a running subagent it plays the completion sound', () => {
-    const { finish, played } = completionHarness('fx-ok01');
+    const { finish, played } = completionHarness({ completionSound: 'fx-ok01' });
     finish(false);
     expect(played).toEqual([{ sound: 'fx-ok01', focus: 'always' }]);
   });
 
   test('a call with no argument still plays the completion sound', () => {
-    const { finish, played } = completionHarness('fx-ok01');
+    const { finish, played } = completionHarness({ completionSound: 'fx-ok01' });
     finish();
     expect(played).toEqual([{ sound: 'fx-ok01', focus: 'always' }]);
   });
 
   test('with a running subagent it plays the wait sound from the sounds folder', () => {
-    const { finish, played } = completionHarness('fx-ok01');
+    const { finish, played } = completionHarness({ completionSound: 'fx-ok01' });
     finish(true);
     expect(played).toEqual([{ sound: WAIT_SOUND, focus: 'always' }]);
   });
 
   test('the bell setting gives way to the wait sound too', () => {
-    const { finish, played } = completionHarness('bell');
+    const { finish, played } = completionHarness({ completionSound: 'bell' });
     finish(true);
     expect(played).toEqual([{ sound: WAIT_SOUND, focus: 'always' }]);
   });
 
   test('a muted user stays muted either way', () => {
-    const { finish, played } = completionHarness('off');
+    const { finish, played } = completionHarness({ completionSound: 'off' });
     finish(true);
     finish(false);
     expect(played).toEqual([]);
