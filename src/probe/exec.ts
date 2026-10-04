@@ -1,5 +1,6 @@
 import { summarise } from './ab.ts';
 import { launchEnv, race } from './launch.ts';
+import { Ledger } from './owned-sessions.ts';
 
 export const DEFAULT_TIMEOUT_MS = 180_000;
 const CLIP = 120;
@@ -41,8 +42,12 @@ export interface Expectation {
   contains: string;
 }
 
-export interface Workload {
+export interface ExecCall {
   argv: readonly string[];
+  createsSession: boolean;
+}
+
+export interface Workload extends ExecCall {
   expect: Expectation;
   what: string;
   firstMeans: string;
@@ -51,6 +56,7 @@ export interface Workload {
 export function turnWorkload(model: string, prompt: string, expect: string): Workload {
   return {
     argv: ['exec', '-m', model, prompt],
+    createsSession: true,
     expect: { exitCode: 0, contains: expect },
     what: `a real one-shot turn on ${model}`,
     firstMeans: 'the first byte of the answer, so it carries the model\u2019s own thinking time',
@@ -60,6 +66,7 @@ export function turnWorkload(model: string, prompt: string, expect: string): Wor
 export function helpWorkload(): Workload {
   return {
     argv: ['exec', '--help'],
+    createsSession: false,
     expect: { exitCode: 0, contains: 'Usage: droid exec' },
     what: 'exec startup and shutdown only, with no session, no login and no model',
     firstMeans: 'the first byte of the help text, so it is startup alone',
@@ -100,20 +107,17 @@ export function checkRun(run: ExecRun, expect: Expectation): string | undefined 
   return undefined;
 }
 
-export async function measureExec(
-  binary: string,
-  argv: readonly string[],
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+interface ExecClock {
+  binary: string;
+  startedAt: number;
+  timeoutMs: number;
+}
+
+async function timeRun(
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  { binary, startedAt, timeoutMs }: ExecClock,
 ): Promise<ExecRun> {
   const decoder = new TextDecoder();
-  const startedAt = performance.now();
-  const child = Bun.spawn([binary, ...argv], {
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: launchEnv(),
-  });
-
   let firstMs = Number.NaN;
   let stdout = '';
 
@@ -128,16 +132,11 @@ export async function measureExec(
   })();
   const readErr = new Response(child.stderr).text();
 
-  try {
-    await race(
-      Promise.all([readOut, readErr, child.exited]),
-      timeoutMs,
-      `${binary} was still running ${timeoutMs}ms in`,
-    );
-  } catch (error) {
-    child.kill('SIGKILL');
-    throw error;
-  }
+  await race(
+    Promise.all([readOut, readErr, child.exited]),
+    timeoutMs,
+    `${binary} was still running ${timeoutMs}ms in`,
+  );
 
   const totalMs = performance.now() - startedAt;
   return {
@@ -149,6 +148,30 @@ export async function measureExec(
     stdout,
     stderr: await readErr,
   };
+}
+
+export async function measureExec(
+  binary: string,
+  { argv, createsSession }: ExecCall,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<ExecRun> {
+  const ledger = new Ledger();
+  try {
+    const startedAt = performance.now();
+    const child = Bun.spawn([binary, ...argv], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: launchEnv(ledger.env),
+    });
+    ledger.adopt(child);
+    if (createsSession) {
+      ledger.expectSession();
+    }
+    return await timeRun(child, { binary, startedAt, timeoutMs });
+  } finally {
+    await ledger.release();
+  }
 }
 
 export function formatExec(runs: readonly ExecRun[]): string {

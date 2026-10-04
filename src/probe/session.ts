@@ -11,6 +11,7 @@ import {
   race,
   TERMINAL_SIZE,
 } from './launch.ts';
+import { Ledger } from './owned-sessions.ts';
 
 const FRAME_END = '\u001B[?2026l';
 const PASTE_START = '\u001B[200~';
@@ -110,34 +111,45 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     },
   });
 
-  const startedAt = performance.now();
-  const child = Bun.spawn([binary], {
-    terminal,
-    env: launchEnv(options.env),
-    ...(options.cwd !== undefined && { cwd: options.cwd }),
-  });
-
+  const ledger = new Ledger(options.cwd);
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) {
       return;
     }
     closed = true;
-    child.kill(options.signal ?? 'SIGKILL');
-    await child.exited;
-    await terminal[Symbol.asyncDispose]();
+    try {
+      await ledger.release(options.signal);
+    } finally {
+      await terminal[Symbol.asyncDispose]();
+    }
   };
 
-  try {
+  const start = async () => {
+    const spawnedAt = performance.now();
+    const spawned = Bun.spawn([binary], {
+      terminal,
+      env: launchEnv({ ...options.env, ...ledger.env }),
+      ...(options.cwd !== undefined && { cwd: options.cwd }),
+    });
+    ledger.adopt(spawned);
     await race(
-      Promise.race([painted.promise, dies(child)]),
+      Promise.race([painted.promise, dies(spawned)]),
       PAINT_TIMEOUT_MS,
       `${binary}: no input box after ${PAINT_TIMEOUT_MS}ms`,
     );
-  } catch (error) {
-    await close();
-    throw error;
-  }
+    ledger.expectSession();
+    return { child: spawned, startedAt: spawnedAt };
+  };
+  const startOrClose = async () => {
+    try {
+      return await start();
+    } catch (error) {
+      await close();
+      throw error;
+    }
+  };
+  const { child, startedAt } = await startOrClose();
 
   return {
     async type(text: string): Promise<void> {

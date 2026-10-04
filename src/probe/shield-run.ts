@@ -66,7 +66,11 @@ export async function runShield(
 ): Promise<ShieldReading> {
   return await withTempDir('shield', async (dir) => {
     await stageCases(dir, cases);
-    const run = await measureExec(binary, shieldArgv(dir, model), SHIELD_TIMEOUT_MS);
+    const run = await measureExec(
+      binary,
+      { argv: shieldArgv(dir, model), createsSession: true },
+      SHIELD_TIMEOUT_MS,
+    );
     if (run.signal !== null || run.exitCode !== 0) {
       throw new Error(
         `${binary} exec ended with ${run.signal ?? `exit ${run.exitCode}`}: ${run.stderr.trim()}`,

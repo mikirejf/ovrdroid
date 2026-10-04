@@ -6,10 +6,12 @@ import {
   defaultModel,
   formatExec,
   helpWorkload,
+  measureExec,
   MODEL_VARIABLE,
   turnWorkload,
   workloadFor,
 } from '../exec.ts';
+import { rejection } from './scripts.ts';
 
 function run(over: Partial<ExecRun> = {}): ExecRun {
   return {
@@ -143,5 +145,28 @@ describe('the report separates startup from shutdown', () => {
     const text = formatExec([run({ tailMs: 10 }), run({ tailMs: 990 })]);
     expect(text).toContain('min 10');
     expect(text).toContain('p75 745');
+  });
+});
+
+describe('measureExec asks for a session only when the workload starts one', () => {
+  const HELP_TEXT = ['-c', 'printf "Usage: droid exec\\n"'];
+
+  test('the help workload starts no session, and help never does', () => {
+    expect(helpWorkload().createsSession).toBe(false);
+    expect(turnWorkload('m', 'p', 'e').createsSession).toBe(true);
+  });
+
+  test('a help run that writes no session record succeeds', async () => {
+    const result = await measureExec('/bin/sh', { argv: HELP_TEXT, createsSession: false });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('Usage: droid exec\n');
+  });
+
+  test('a turn run that writes no session record fails loudly', async () => {
+    const message = await rejection(
+      measureExec('/bin/sh', { argv: HELP_TEXT, createsSession: true }),
+    );
+    expect(message).toContain("ran neither the probe's SessionStart nor its SessionEnd hook");
+    expect(message).toContain('Droid had already exited with code 0');
   });
 });

@@ -1,9 +1,12 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
-import { launch, launchEnv, SILENT_SETTINGS_FILE } from '../launch.ts';
-import { PAINT_MARKER, rejection, script, scriptDir } from './scripts.ts';
+import { launch, launchEnv, PROBE_SETTINGS, PROBE_SETTINGS_FILE } from '../launch.ts';
+import { LEDGER_VARIABLE } from '../ledger.ts';
+import { START_HOOK_BOUND_MS } from '../owned-sessions.ts';
+import { PAINT_MARKER, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
 
 const LAUNCH_SRC = path.join(import.meta.dir, '..', 'launch.ts');
 const dir = scriptDir('launch');
@@ -15,16 +18,37 @@ afterAll(async () => {
 const healthy = await script(dir, 'healthy.sh', [
   'stty raw -echo',
   `printf '${PAINT_MARKER}'`,
+  START_HOOK,
   'dd bs=1 count=1 >/dev/null 2>&1',
   'exit 0',
 ]);
 const interrupted = await script(dir, 'interrupted.sh', [
   'stty raw -echo',
   `printf '${PAINT_MARKER}'`,
+  START_HOOK,
   'dd bs=1 count=1 >/dev/null 2>&1',
   'exit 130',
 ]);
-const crashing = await script(dir, 'crashing.sh', [`printf '${PAINT_MARKER}'`, 'exit 42']);
+const hookless = await script(dir, 'hookless.sh', [
+  'stty raw -echo',
+  `printf '${PAINT_MARKER}'`,
+  'trap "exit 0" INT',
+  'while :; do sleep 0.05; done',
+]);
+const slowRecord = await script(dir, 'slow-record.sh', [
+  'stty raw -echo',
+  `printf '${PAINT_MARKER}'`,
+  `( sleep 0.5; ${START_HOOK} ) &`,
+  'dd bs=1 count=1 >/dev/null 2>&1',
+  `[ -f "$${LEDGER_VARIABLE}/start" ] || exit 9`,
+  'exit 0',
+]);
+const crashing = await script(dir, 'crashing.sh', [
+  `printf '${PAINT_MARKER}'`,
+  START_HOOK,
+  'sleep 0.05',
+  'exit 42',
+]);
 const silent = await script(dir, 'silent.sh', ['sleep 30']);
 const stillborn = await script(dir, 'stillborn.sh', ['exit 3']);
 
@@ -59,6 +83,21 @@ describe('launch', () => {
     expect(await rejection(launch(silent, { paintTimeoutMs: 300 }))).toContain(
       'no input box after 300ms',
     );
+  }, 30_000);
+
+  test('presses Ctrl-C only after the session reported in, so an early exit cannot hide it', async () => {
+    const result = await launch(slowRecord, { settleMs: 50 });
+    expect(result.paintMs).toBeLessThan(400);
+  }, 30_000);
+
+  test('stops a target whose session never reported in, and says why', async () => {
+    const listeners = process.listenerCount('SIGINT');
+    const started = performance.now();
+    const message = await rejection(launch(hookless, { settleMs: 50 }));
+    expect(message).toContain("ran neither the probe's SessionStart nor its SessionEnd hook");
+    expect(message).toContain(`may remain in ${homedir()}/.factory/sessions/-`);
+    expect(performance.now() - started).toBeGreaterThanOrEqual(START_HOOK_BOUND_MS);
+    expect(process.listenerCount('SIGINT')).toBe(listeners);
   }, 30_000);
 
   test('leaves no pending timer behind', async () => {
@@ -109,13 +148,13 @@ describe('launchEnv', () => {
     }
   });
 
-  test('points Droid at a runtime settings file that turns every sound off', async () => {
+  test('points Droid at a runtime settings file that turns every sound off and logs its sessions', async () => {
     const file = launchEnv()['FACTORY_RUNTIME_SETTINGS_PATH'];
-    expect(file).toBe(SILENT_SETTINGS_FILE);
-    expect(await Bun.file(SILENT_SETTINGS_FILE).json()).toEqual({
-      completionSound: 'off',
-      awaitingInputSound: 'off',
-    });
+    expect(file).toBe(PROBE_SETTINGS_FILE);
+    const written: unknown = await Bun.file(PROBE_SETTINGS_FILE).json();
+    expect(written).toEqual(PROBE_SETTINGS);
+    expect(PROBE_SETTINGS).toMatchObject({ completionSound: 'off', awaitingInputSound: 'off' });
+    expect(Object.keys(PROBE_SETTINGS.hooks)).toEqual(['SessionStart', 'SessionEnd']);
   });
 
   test('lets caller entries win', () => {

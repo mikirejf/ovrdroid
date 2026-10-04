@@ -1,8 +1,10 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { ovrdroidFile } from '../paths.ts';
+import { ledgerHooks } from './ledger.ts';
+import { Ledger } from './owned-sessions.ts';
 
 export const PAINT_MARKER = '╰';
 export const TERMINAL_SIZE = { cols: 120, rows: 40 } as const;
@@ -16,8 +18,12 @@ const DEFAULT_SETTLE_MS = 300;
 const INJECTED_PREFIXES = ['FACTORY_', 'DROID_', 'HERDR_'];
 const AUTO_UPDATE = 'FACTORY_DROID_AUTO_UPDATE_ENABLED';
 const RUNTIME_SETTINGS = 'FACTORY_RUNTIME_SETTINGS_PATH';
-export const SILENT_SETTINGS_FILE = ovrdroidFile('probe-settings.json');
-const SILENT_SETTINGS = { completionSound: 'off', awaitingInputSound: 'off' };
+export const PROBE_SETTINGS_FILE = ovrdroidFile('probe-settings.json');
+export const PROBE_SETTINGS = {
+  completionSound: 'off',
+  awaitingInputSound: 'off',
+  hooks: ledgerHooks(),
+};
 const WINDOW = 64;
 
 export type LaunchEnv = Record<string, string>;
@@ -61,10 +67,12 @@ function isInjected(key: string): boolean {
   return key === 'FORCE_COLOR' || INJECTED_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
-function writeSilentSettings(): string {
-  mkdirSync(path.dirname(SILENT_SETTINGS_FILE), { recursive: true });
-  writeFileSync(SILENT_SETTINGS_FILE, JSON.stringify(SILENT_SETTINGS));
-  return SILENT_SETTINGS_FILE;
+function writeProbeSettings(): string {
+  mkdirSync(path.dirname(PROBE_SETTINGS_FILE), { recursive: true });
+  const staged = `${PROBE_SETTINGS_FILE}.${process.pid}`;
+  writeFileSync(staged, JSON.stringify(PROBE_SETTINGS));
+  renameSync(staged, PROBE_SETTINGS_FILE);
+  return PROBE_SETTINGS_FILE;
 }
 
 export function launchEnv(extra: LaunchEnv = {}) {
@@ -76,7 +84,7 @@ export function launchEnv(extra: LaunchEnv = {}) {
   }
   env['TERM'] = 'xterm-256color';
   env[AUTO_UPDATE] = 'false';
-  env[RUNTIME_SETTINGS] = writeSilentSettings();
+  env[RUNTIME_SETTINGS] = writeProbeSettings();
   return Object.assign(env, extra);
 }
 
@@ -143,10 +151,13 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
     },
   });
 
-  const spawnedAt = performance.now();
-  const child = Bun.spawn([target], { terminal, env: launchEnv(options.env) });
-
+  const ledger = new Ledger();
   try {
+    const spawnedAt = performance.now();
+    const env = launchEnv({ ...options.env, ...ledger.env });
+    const child = Bun.spawn([target], { terminal, env });
+    ledger.adopt(child);
+
     const paintTimeoutMs = options.paintTimeoutMs ?? PAINT_TIMEOUT_MS;
     const paintedAt = await race(
       Promise.race([paint.promise, dies(child)]),
@@ -154,6 +165,7 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
       `no input box after ${paintTimeoutMs}ms`,
     );
     const paintMs = paintedAt - spawnedAt;
+    await ledger.confirmSession();
 
     await Bun.sleep(options.settleMs ?? DEFAULT_SETTLE_MS);
     assertRunning(child);
@@ -167,8 +179,7 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
     const exitMs = performance.now() - exitStarted;
     assertCleanExit(child);
     return { paintMs, exitMs, pid: child.pid };
-  } catch (error) {
-    child.kill('SIGKILL');
-    throw error;
+  } finally {
+    await ledger.release();
   }
 }

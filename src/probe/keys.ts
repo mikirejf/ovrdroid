@@ -10,6 +10,7 @@ import {
   race,
   TERMINAL_SIZE,
 } from './launch.ts';
+import { Ledger } from './owned-sessions.ts';
 
 const BACKSPACE = '\u007F';
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
@@ -67,8 +68,10 @@ class Session implements AsyncDisposable {
     await this.terminal[Symbol.asyncDispose]();
   }
 
-  spawn(target: string): Bun.Subprocess {
-    return Bun.spawn([target], { terminal: this.terminal, env: launchEnv() });
+  spawn(target: string, ledger: Ledger): Bun.Subprocess {
+    const child = Bun.spawn([target], { terminal: this.terminal, env: launchEnv(ledger.env) });
+    ledger.adopt(child);
+    return child;
   }
 
   async waitForPaint(child: Bun.Subprocess): Promise<void> {
@@ -141,10 +144,11 @@ async function echoTrials(session: Session, trials: number): Promise<number[]> {
 
 export async function measureKeys(target: string, options: KeysOptions): Promise<KeysResult> {
   await using session = new Session();
-  const child = session.spawn(target);
-
+  const ledger = new Ledger();
   try {
+    const child = session.spawn(target, ledger);
     await session.waitForPaint(child);
+    ledger.expectSession();
     await session.quiet();
 
     const echoMs = await echoTrials(session, options.trials);
@@ -154,8 +158,7 @@ export async function measureKeys(target: string, options: KeysOptions): Promise
 
     return { echoMs, lagMs: session.lagSince(lastKeyAt), chunks: session.chunks };
   } finally {
-    child.kill('SIGKILL');
-    await child.exited;
+    await ledger.release();
   }
 }
 

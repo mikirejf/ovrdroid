@@ -18,7 +18,7 @@ export interface CachekeyOptions extends RunOptions {
 }
 
 async function session(binary: string, argv: readonly string[]): Promise<SessionUsage> {
-  const run = await measureExec(binary, argv).catch((error: unknown) => {
+  const run = await measureExec(binary, { argv, createsSession: true }).catch((error: unknown) => {
     throw new Error(`${binary}: ${messageOf(error)}`);
   });
   const problem = checkRun(run, { exitCode: 0, contains: '"type":"result"' });

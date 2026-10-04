@@ -21,7 +21,7 @@ export async function exec(binaries: string[], options: ExecOptions): Promise<vo
   const results = await interleave(
     binaries,
     async (binary) => {
-      const run = await measureExec(binary, workload.argv).catch((error: unknown) => {
+      const run = await measureExec(binary, workload).catch((error: unknown) => {
         throw new Error(`${binary}: ${messageOf(error)}`);
       });
       const problem = checkRun(run, workload.expect);
