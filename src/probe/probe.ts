@@ -45,6 +45,7 @@ import {
   highlight,
   mcpChildren,
   notice,
+  shield,
 } from './session-report.ts';
 import {
   ab,
@@ -149,6 +150,13 @@ program
   .option('-r, --runs <n>', 'number of runs', count, CACHEKEY_RUNS)
   .option('--cwd <dir>', 'directory both sessions run in', DEFAULT_CACHEKEY_DIR)
   .action(guard(cachekey));
+
+program
+  .command('shield')
+  .description('which staged files does Droid-Shield block on commit, and does it miss a secret?')
+  .argument('<binaries...>')
+  .option('-m, --model <id>', 'model that runs the commit', defaultModel())
+  .action(guard(shield));
 
 function churnOptions(command: Command): Command {
   return command

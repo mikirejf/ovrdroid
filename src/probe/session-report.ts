@@ -12,6 +12,7 @@ import { describeNotice, noticeLostReport, runNotice } from './notice.ts';
 
 export { FIRST_SEND_PROMPT } from './first-send.ts';
 export { DEFAULT_NOTICE_TYPE } from './notice.ts';
+export { shield } from './shield-report.ts';
 export { DEFAULT_SETTLE_S, envPair } from './mcp-children.ts';
 
 export async function highlight(binary: string): Promise<void> {
