@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { Driver } from './session-mention-harness.ts';
+import type { Driver, FirstMessages, Session } from './session-mention-harness.ts';
 import { session, sessionDriver, stock } from './session-mention-harness.ts';
 
 const SESSIONS = [session('aaaa1111', 'Fix herdr lag', 5), session('bbbb2222', 'Plan the week', 9)];
@@ -79,3 +79,185 @@ describe.skipIf(stock === undefined)('a session load that finishes late', () => 
     expect(input.suggestions.items.map((item) => item.$ODsession)).toEqual(['bbbb2222']);
   });
 });
+
+function shownIds(input: Driver): (string | undefined)[] {
+  return input.suggestions.items.map((item) => item.$ODsession);
+}
+
+function withFirst(first: FirstMessages): Driver {
+  if (stock === undefined) {
+    throw new Error('no stock Droid to read');
+  }
+  return sessionDriver(stock, first);
+}
+
+function many(count: number): Session[] {
+  return Array.from({ length: count }, (_, index) => session(`s${index}`, `Chat ${index}`, index));
+}
+
+describe.skipIf(stock === undefined)(
+  'first messages are read in the background after the load',
+  () => {
+    test('a query that only a first message answers opens the list once it is read', async () => {
+      const input = withFirst({ aaaa1111: 'the vpisem field is empty' });
+      await input.update('#vpisem', 7);
+      await input.finishLoad(SESSIONS);
+      expect(input.suggestions.shown).toBe(false);
+      await input.runAllBatches();
+      expect(input.suggestions.shown).toBe(true);
+      expect(shownIds(input)).toEqual(['aaaa1111']);
+    });
+
+    test('title matches show at once and first-message matches follow below them', async () => {
+      const input = withFirst({ aaaa1111: 'plan to fix herdr' });
+      await input.update('#plan', 5);
+      await input.finishLoad(SESSIONS);
+      expect(shownIds(input)).toEqual(['bbbb2222']);
+      await input.runAllBatches();
+      expect(shownIds(input)).toEqual(['bbbb2222', 'aaaa1111']);
+    });
+
+    test('reads the pool in batches of fifty, one batch per timer', async () => {
+      const input = withFirst({});
+      await input.update('#zzz', 4);
+      await input.finishLoad(many(120));
+      expect(input.transcriptsRead).toHaveLength(0);
+      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(50);
+      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(100);
+      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(120);
+      expect(input.background.pending()).toBe(0);
+    });
+
+    test('two keystrokes waiting on one load start one background read', async () => {
+      const input = withFirst({});
+      await input.update('#zzz', 4);
+      await input.update('#zzzz', 5);
+      await input.finishLoad(many(3));
+      expect(input.background.pending()).toBe(1);
+      await input.runAllBatches();
+      expect(input.transcriptsRead).toHaveLength(3);
+    });
+
+    test('a refresh keeps the selected row', async () => {
+      const input = withFirst({ s60: 'herdr here', s100: 'herdr there' });
+      await input.update('#herdr', 6);
+      await input.finishLoad(many(120));
+      await input.runBatch();
+      expect(shownIds(input)).toEqual([]);
+      await input.runBatch();
+      expect(shownIds(input)).toEqual(['s60']);
+      await input.runBatch();
+      expect(shownIds(input)).toEqual(['s60', 's100']);
+      expect(input.selected()).toBe(0);
+    });
+
+    test('a new query still starts on the first row', async () => {
+      const input = withFirst({});
+      await input.update('#Chat', 5);
+      await input.finishLoad(many(3));
+      input.pressDown();
+      input.pressDown();
+      expect(input.selected()).toBe(2);
+      await input.update('#Chat 1', 7);
+      expect(input.selected()).toBe(0);
+    });
+
+    test('a refresh after Esc shows nothing', async () => {
+      const input = withFirst({ aaaa1111: 'vpisem' });
+      await input.update('#vpisem', 7);
+      await input.finishLoad(SESSIONS);
+      input.close();
+      await input.runAllBatches();
+      expect(input.suggestions.shown).toBe(false);
+      expect(shownIds(input)).toEqual([]);
+    });
+
+    test('Esc on a list with no rows stops later refreshes from opening it', async () => {
+      const input = withFirst({ oooo1111: 'a needle in the first message' });
+      await input.update('#needle', 7);
+      await input.finishLoad([session('oooo1111', 'Other', 5)]);
+      expect(input.suggestions.shown).toBe(false);
+      input.pressEscape();
+      await input.runAllBatches();
+      expect(input.suggestions.shown).toBe(false);
+      expect(shownIds(input)).toEqual([]);
+    });
+
+    test('Esc keeps doing what stock Esc does', async () => {
+      const input = withFirst({});
+      await input.update('#needle', 7);
+      await input.finishLoad([session('oooo1111', 'Other', 5)]);
+      expect(input.pressEscape()).toBe('stock escape');
+      expect(input.stockEscapes).toEqual(['escape']);
+    });
+
+    test('typing again after Esc brings the first-message match back', async () => {
+      const input = withFirst({ oooo1111: 'a needle in the first message' });
+      await input.update('#needle', 7);
+      await input.finishLoad([session('oooo1111', 'Other', 5)]);
+      input.pressEscape();
+      await input.runAllBatches();
+      await input.update('#needles', 8);
+      await input.update('#needle', 7);
+      expect(shownIds(input)).toEqual(['oooo1111']);
+    });
+
+    test('the read stops when the input unmounts', async () => {
+      const input = withFirst({ s100: 'needle' });
+      await input.update('#needle', 7);
+      await input.finishLoad(many(120));
+      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(50);
+      input.unmount();
+      await input.runAllBatches();
+      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.suggestions.shown).toBe(false);
+    });
+
+    test('a refresh follows the query as it is now, not the one that started the read', async () => {
+      const input = withFirst({ aaaa1111: 'vpisem', bbbb2222: 'zellij' });
+      await input.update('#vpisem', 7);
+      await input.finishLoad(SESSIONS);
+      await input.update('#zellij', 7);
+      expect(shownIds(input)).toEqual([]);
+      await input.runAllBatches();
+      expect(shownIds(input)).toEqual(['bbbb2222']);
+    });
+
+    test('a refresh after the input left the # query shows nothing', async () => {
+      const input = withFirst({ aaaa1111: 'vpisem' });
+      await input.update('#vpisem', 7);
+      await input.finishLoad(SESSIONS);
+      await input.update('plain', 5);
+      await input.runAllBatches();
+      expect(input.suggestions.shown).toBe(false);
+      expect(shownIds(input)).toEqual([]);
+    });
+
+    test('the read stops when the pool is dropped', async () => {
+      const input = withFirst({});
+      await input.update('#zzz', 4);
+      await input.finishLoad(many(120));
+      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(50);
+      await input.update('plain', 5);
+      await input.runAllBatches();
+      expect(input.transcriptsRead).toHaveLength(50);
+    });
+
+    test('a new pool is read from the start', async () => {
+      const input = withFirst({});
+      await input.update('#zzz', 4);
+      await input.finishLoad(many(60));
+      await input.runBatch();
+      await input.update('plain', 5);
+      await input.update('#zzz', 4);
+      await input.finishLoad(many(60));
+      await input.runAllBatches();
+      expect(input.transcriptsRead).toHaveLength(50 + 60);
+    });
+  },
+);

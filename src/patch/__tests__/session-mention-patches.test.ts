@@ -106,6 +106,75 @@ describe('matching narrows the pool without re-sorting it', () => {
   });
 });
 
+describe('matching also reads the first message the user typed', () => {
+  const pool = picker.$ODsessionPool(SESSIONS, 'dddd4444');
+  const heads = new Map<string, string | null>([
+    ['aaaa1111', 'the vpisem field is empty'],
+    ['bbbb2222', 'Compare Zellij panes'],
+    ['eeee5555', null],
+  ]);
+  const ids = (query: string, max = 100) =>
+    picker.$ODsessionMatches(pool, query, max, heads).map((row) => row.id);
+
+  test('a word in the first message matches, in any case', () => {
+    expect(ids('VPISEM')).toEqual(['aaaa1111']);
+  });
+
+  test('a word in the title still matches', () => {
+    expect(ids('stock')).toEqual(['eeee5555']);
+  });
+
+  test('words may be split between the title and the first message', () => {
+    expect(ids('lag vpisem')).toEqual(['aaaa1111']);
+    expect(ids('zellij evaluate')).toEqual(['bbbb2222']);
+  });
+
+  test('a word that is in neither the title nor the first message leaves the session out', () => {
+    expect(ids('lag zellij')).toEqual([]);
+  });
+
+  test('a prefix of the session id matches without a first message', () => {
+    expect(ids('eeee55')).toEqual(['eeee5555']);
+  });
+
+  test('a session whose first message is unknown matches by title only', () => {
+    expect(ids('bugs')).toEqual(['eeee5555']);
+    expect(ids('vpisem bugs')).toEqual([]);
+  });
+
+  test('title matches come first, then sessions that match only by first message, newest first', () => {
+    const mixed = [
+      session('m1', 'Other', 1),
+      session('m2', 'About herdr', 2),
+      session('m3', 'Other', 3),
+      session('m4', 'Herdr again', 4),
+    ];
+    const text = new Map<string, string | null>([
+      ['m1', 'herdr in the first message'],
+      ['m3', 'herdr in the first message'],
+    ]);
+    expect(picker.$ODsessionMatches(mixed, 'herdr', 100, text).map((row) => row.id)).toEqual([
+      'm2',
+      'm4',
+      'm1',
+      'm3',
+    ]);
+  });
+
+  test('the row cap counts both kinds, title matches first', () => {
+    const mixed = [
+      session('m1', 'Other', 1),
+      session('m2', 'About herdr', 2),
+      session('m3', 'Herdr again', 3),
+    ];
+    const text = new Map<string, string | null>([['m1', 'herdr']]);
+    const cut = (max: number) =>
+      picker.$ODsessionMatches(mixed, 'herdr', max, text).map((row) => row.id);
+    expect(cut(2)).toEqual(['m2', 'm3']);
+    expect(cut(3)).toEqual(['m2', 'm3', 'm1']);
+  });
+});
+
 describe('selecting a session writes the tag in place of the query', () => {
   test('at the end of the input', () => {
     expect(picker.$ODsessionComplete('see #herdr', 10, 'abc-123')).toEqual({
@@ -122,12 +191,16 @@ describe('selecting a session writes the tag in place of the query', () => {
   });
 });
 
+function plain(id: string, title: string, minutesAgo: number): Session {
+  return { ...session(id, title, minutesAgo), cwd: undefined };
+}
+
 function rowLabel(row: Session, first: string | null, width = 120): string | undefined {
   return picker.$ODsessionItems([row], width, () => first)[0]?.label;
 }
 
 describe('each row reads like a compact /sessions row', () => {
-  const [row] = picker.$ODsessionItems([session('abc', 'Fix  the\nlag', 1)], 120, () => null);
+  const [row] = picker.$ODsessionItems([plain('abc', 'Fix  the\nlag', 1)], 120, () => null);
 
   test('shows the title, then the time ago and message count after two spaces', () => {
     expect(row?.label).toBe(`Fix the lag  ${AGO} \u00B7 4 messages`);
@@ -139,23 +212,23 @@ describe('each row reads like a compact /sessions row', () => {
   });
 
   test('a session with one message says message', () => {
-    expect(rowLabel({ ...session('a', 'T', 1), messageCount: 1 }, null)).toEndWith('1 message');
+    expect(rowLabel({ ...plain('a', 'T', 1), messageCount: 1 }, null)).toEndWith('1 message');
   });
 
   test('an untitled session uses the /sessions wording', () => {
-    expect(rowLabel(session('a', '', 1), null)).toStartWith('Untitled  ');
+    expect(rowLabel(plain('a', '', 1), null)).toStartWith('Untitled  ');
   });
 
-  test('a long title is cut so the row fits the dropdown', () => {
+  test('a long title is cut so the row fits inside the dropdown border and padding', () => {
     const width = 40;
-    expect(rowLabel(session('a', 'x'.repeat(200), 1), null, width)?.length).toBeLessThanOrEqual(
-      width - 8,
-    );
+    const inside = width - 4;
+    const first = rowLabel(plain('a', 'x'.repeat(200), 1), null, width)?.length ?? 0;
+    expect(2 + first).toBeLessThanOrEqual(inside);
   });
 });
 
 describe('a second line shows the first message the user typed', () => {
-  const row = session('a', 'Fix the lag', 1);
+  const row = plain('a', 'Fix the lag', 1);
 
   test('sits under the title, indented past the selection marker', () => {
     expect(rowLabel(row, 'the herdr panel stutters')).toBe(

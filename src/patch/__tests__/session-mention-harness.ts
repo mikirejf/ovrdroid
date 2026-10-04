@@ -1,109 +1,30 @@
-import fs, { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { patchSource } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
 import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { findMarker } from '../patches.ts';
-import type { Rebase } from '../rebase.ts';
 import { rebaseAll } from '../rebase.ts';
-import {
-  SESSION_COMPLETE,
-  SESSION_HEAD,
-  SESSION_ITEMS,
-  SESSION_MATCHES,
-  SESSION_POOL,
-  SESSION_QUERY,
-  SESSION_TEXT,
-  sessionMentionPatches,
-} from '../session-mention-patches.ts';
-import { blockEnd } from '../tokens.ts';
+import { sessionMentionPatches } from '../session-mention-patches.ts';
 import { payloadFunction } from './payload.ts';
+import {
+  callbackAround,
+  calleeAfter,
+  escaped,
+  rebasedNamed,
+  setterArrow,
+} from './session-mention-callback.ts';
+import type { EscapePath, KeyResult } from './session-mention-keys.ts';
+import { enterKey, escapeKeys, serviceEffect } from './session-mention-keys.ts';
+import type { Hash, Item, Session } from './session-mention-picker.ts';
+import { AGO, picker, pickerReading } from './session-mention-picker.ts';
+import type { Stand } from './session-mention-scope.ts';
+import { scoped, scopeOver } from './session-mention-scope.ts';
 
-export interface Session {
-  id: string;
-  title: string;
-  messageCount: number;
-  modifiedTime: Date;
-  cwd: string;
-  isSubagent?: boolean;
-}
-
-export interface Hash {
-  query: string;
-  start: number;
-}
-
-interface Completion {
-  newText: string;
-  newCursorPosition: number;
-}
-
-export interface Item {
-  label: string;
-  value: string;
-  $ODsession?: string;
-}
-
-export interface Picker {
-  $ODsessionQuery: (text: string, cursor: number) => Hash | null;
-  $ODsessionPool: (all: readonly Session[], self: string | null) => Session[];
-  $ODsessionMatches: (pool: readonly Session[], query: string, max: number) => Session[];
-  $ODsessionComplete: (text: string, cursor: number, id: string) => Completion;
-  $ODsessionItems: (
-    rows: readonly Session[],
-    width: number,
-    first: (row: Session) => string | null,
-  ) => Item[];
-  $ODsessionText: (raw: string) => string | null;
-  $ODsessionHead: (path: string) => string | null;
-}
-
-export const AGO = '3h ago';
-
-export function endCut(text: string, width: number): string {
-  return text.length <= width ? text : `${text.slice(0, width - 1)}\u2026`;
-}
-
-export type ReadArgs = [
-  fd: number,
-  buffer: Uint8Array,
-  offset: number,
-  length: number,
-  position: number,
-];
-
-export interface Files {
-  openSync: (path: string, flags: string) => number;
-  readSync: (...args: ReadArgs) => number;
-  closeSync: (fd: number) => void;
-}
-
-export function pickerReading(files: Files): Picker {
-  return payloadFunction<
-    [
-      (date: Date) => string,
-      (title: string) => string,
-      (text: string, width: number) => string,
-      () => { t: (key: string) => string },
-      (text: string, width: number) => string,
-      (name: 'fs') => Files,
-    ],
-    Picker
-  >(
-    ['Mm', 'ZT', 'DB', 'R', 'Li', 'require'],
-    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}}`,
-  )(
-    () => AGO,
-    (title) => title,
-    (text, width) => (text.length <= width ? text : `${text.slice(0, width - 3)}...`),
-    () => ({ t: () => 'Untitled' }),
-    endCut,
-    () => files,
-  );
-}
-
-export const picker = pickerReading(fs);
+export { AGO, picker, pickerReading, scoped, scopeOver };
+export type { Hash, Item, Session, Stand };
+export type { Files, Picker, ReadArgs, Tree } from './session-mention-picker.ts';
 
 export function session(id: string, title: string, minutesAgo: number): Session {
   return {
@@ -160,84 +81,43 @@ export interface Suggestions {
 export interface Driver {
   readonly suggestions: Suggestions;
   readonly transcriptsRead: string[];
+  readonly background: { pending: () => number };
+  readonly selected: () => number;
+  readonly stockEscapes: string[];
+  readonly bash: { active: boolean };
   update: (text: string, cursor: number) => Promise<void>;
   close: () => void;
+  pressEscape: (path?: EscapePath) => KeyResult;
+  pressDown: () => void;
+  pressEnter: () => string | undefined;
+  replaceService: () => void;
+  unmount: () => void;
   finishLoad: (sessions: readonly Session[]) => Promise<void>;
+  runBatch: () => Promise<void>;
+  runBatchUnrendered: () => void;
+  runAllBatches: () => Promise<void>;
+  render: () => void;
 }
+
+export type FirstMessages = Readonly<Record<string, string>>;
 
 const PATH_QUERY = /@(?<query>\S*)$/u;
 
-function rebasedNamed(rebased: readonly Rebase[], name: string): Rebase {
-  const rebase = rebased.find((entry) => entry.name === name);
-  if (rebase === undefined) {
-    throw new TypeError(`${name} is missing from the session mention patches`);
-  }
-  return rebase;
-}
-
-function callbackAround(text: string, anchor: string): string {
-  const at = text.indexOf(anchor);
-  if (at === -1) {
-    throw new Error('the patched suggestions callback is missing');
-  }
-  const start = text.lastIndexOf('async(', at);
-  const open = text.indexOf('=>{', start) + 2;
-  return text.slice(start, blockEnd(text, open) + 1);
-}
-
-function setterArrow(replace: string): string {
-  const arrow = /^[\w$]+=[\w$]+\((?<arrow>.*),\[[\w$,]*\]\)$/su.exec(replace)?.groups?.['arrow'];
-  if (arrow === undefined) {
-    throw new Error('the patched setShowSuggestions has an unexpected shape');
-  }
-  return arrow;
-}
-
-function calleeAfter(source: string, pattern: RegExp): string {
-  const name = pattern.exec(source)?.groups?.['name'];
-  if (name === undefined) {
-    throw new Error(`the suggestions callback no longer matches ${pattern.source}`);
-  }
-  return name;
-}
-
-function escaped(name: string): string {
-  return name.replaceAll('$', String.raw`\$`);
-}
-
-export type Stand = object | number | boolean | null | undefined;
-
-interface Scope {
-  readonly stubs: Map<string, Stand>;
-}
-
-export function scopeOver(stubs: Map<string, Stand>) {
-  return new Proxy<Scope>(
-    { stubs },
-    {
-      has: (_target, key) => typeof key === 'string' && (stubs.has(key) || !(key in globalThis)),
-      get: (_target, key) => {
-        if (typeof key !== 'string') {
-          return null;
-        }
-        if (!stubs.has(key)) {
-          stubs.set(key, () => null);
-        }
-        return stubs.get(key);
-      },
+function newService() {
+  return {
+    workingDirectory: '/work',
+    getSuggestions: async () => {
+      await Promise.resolve();
+      return [];
     },
-  );
-}
-
-export function scoped(source: string): string {
-  return `with($ODscope){return ${source}}`;
+  };
 }
 
 async function settle(): Promise<void> {
   await Bun.sleep(5);
 }
 
-export function sessionDriver(app: App): Driver {
+export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driver {
   const rebased = rebaseAll(
     sessionMentionPatches,
     app.map((module) => module.text),
@@ -258,10 +138,16 @@ export function sessionDriver(app: App): Driver {
   const suggestions: Suggestions = { shown: false, items: [] };
   const transcriptsRead: string[] = [];
   const loads: ((sessions: readonly Session[]) => void)[] = [];
+  const queued: (() => void)[] = [];
+  const entry = { selected: 0, keyIndex: 0, text: '', cursor: 0 };
+  const render = () => {
+    entry.keyIndex = entry.selected;
+  };
   const fileSearch = {
     $ODsessionHead: (path: string) => {
       transcriptsRead.push(path);
-      return `typed into ${path}`;
+      const id = path.slice(path.lastIndexOf('/') + 1, -'.jsonl'.length);
+      return firstMessages[id] ?? `typed into ${path}`;
     },
     isInPathContext: ({ text, cursorPosition }: { text: string; cursorPosition: number }) =>
       PATH_QUERY.test(text.slice(0, cursorPosition)),
@@ -271,21 +157,28 @@ export function sessionDriver(app: App): Driver {
   };
   const stubs = new Map<string, Stand>([
     [named('Po'), { current: 0 }],
-    [
-      named('Ba'),
-      {
-        workingDirectory: '/work',
-        getSuggestions: async () => {
-          await Promise.resolve();
-          return [];
-        },
-      },
-    ],
+    [named('Ba'), newService()],
     [named('uu'), Object.assign(Object.create(picker), fileSearch)],
     [named('Pe'), false],
     [named('_e'), false],
     [named('U'), 120],
     [named('r5'), 100],
+    [
+      named('Ro'),
+      (choice: number | ((at: number) => number)) => {
+        entry.selected = typeof choice === 'number' ? choice : choice(entry.selected);
+      },
+    ],
+    [
+      'setTimeout',
+      (run: () => void, delay?: number) => {
+        if (delay === undefined || delay === 0) {
+          queued.push(run);
+          return 0;
+        }
+        return setTimeout(run, delay);
+      },
+    ],
     [
       named('En'),
       (items: readonly Item[]) => {
@@ -336,17 +229,77 @@ export function sessionDriver(app: App): Driver {
     scoped(setter),
   )(scope);
   stubs.set(named('Qt'), close);
-  const update = payloadFunction<[typeof scope], (text: string, cursor: number) => Promise<void>>(
-    ['$ODscope'],
-    scoped(callback),
-  )(scope);
+  const hooks = {
+    close,
+    isShown: () => suggestions.shown,
+    rows: () => suggestions.items,
+    entry,
+    picker,
+  };
+  const escape = escapeKeys(patched, rebased, hooks);
+  const enter = enterKey(patched, rebased, hooks);
+  const mount = serviceEffect(rebased, stubs.get(named('Po')));
+  let unmount = mount(stubs.get(named('Ba')));
+  const callbackFor = (service: Stand) =>
+    payloadFunction<[typeof scope], (text: string, cursor: number) => Promise<void>>(
+      ['$ODscope'],
+      scoped(callback),
+    )(scopeOver(new Map(stubs).set(named('Ba'), service)));
+  let update = callbackFor(stubs.get(named('Ba')));
 
   return {
     suggestions,
     transcriptsRead,
+    background: { pending: () => queued.length },
+    selected: () => entry.selected,
+    stockEscapes: escape.escapes,
+    bash: escape.bash,
+    pressEscape: (path = 'key') => escape.press(path),
+    pressDown: () => {
+      enter.down();
+    },
+    pressEnter: () => {
+      enter.press();
+      return enter.written.at(-1);
+    },
+    replaceService: () => {
+      unmount();
+      const next = newService();
+      stubs.set(named('Ba'), next);
+      update = callbackFor(next);
+      unmount = mount(next);
+    },
+    unmount: () => {
+      unmount();
+    },
+    runBatch: async () => {
+      for (const run of queued.splice(0)) {
+        run();
+      }
+      await settle();
+      render();
+    },
+    runBatchUnrendered: () => {
+      for (const run of queued.splice(0)) {
+        run();
+      }
+    },
+    render,
+    runAllBatches: async () => {
+      while (queued.length > 0) {
+        for (const run of queued.splice(0)) {
+          run();
+        }
+      }
+      await settle();
+      render();
+    },
     update: async (text, cursor) => {
+      entry.text = text;
+      entry.cursor = cursor;
       await update(text, cursor);
       await settle();
+      render();
     },
     close: () => {
       close(false);
@@ -356,6 +309,7 @@ export function sessionDriver(app: App): Driver {
         load(sessions);
       }
       await settle();
+      render();
     },
   };
 }
