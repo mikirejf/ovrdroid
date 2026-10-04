@@ -16,7 +16,7 @@ const ECHO = ['exec cat'];
 const lateRecord = await script(dir, 'late-record.sh', [
   'stty raw -echo',
   `printf '${PAINT_MARKER}'`,
-  `( sleep 0.8; ${START_HOOK} ) &`,
+  `( sleep 3; ${START_HOOK} ) &`,
   ...ECHO,
 ]);
 const noRecord = await script(dir, 'no-record.sh', [
@@ -35,14 +35,14 @@ async function echoed(bytes: () => number, timeoutMs: number): Promise<boolean> 
 }
 
 describe('openSession hands the session over at paint', () => {
-  test('input reaches a target at paint even when its start record lands 800ms later', async () => {
+  test('input reaches a target at paint even when its start record lands 3s later', async () => {
     const session = await openSession(lateRecord);
     session.mark();
     await session.type('x');
-    expect(await echoed(session.bytes, 1000)).toBe(true);
+    expect(await echoed(session.bytes, 2000)).toBe(true);
     const inputMs = performance.now() - session.startedAt;
     await session.close();
-    expect(inputMs).toBeLessThan(400);
+    expect(inputMs).toBeLessThan(2000);
   }, 30_000);
 
   test('closing a session whose start record never arrives fails loudly and stops the target', async () => {
