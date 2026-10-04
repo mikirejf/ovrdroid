@@ -29,24 +29,13 @@ import {
 } from './cache-report.ts';
 import { bodies, modules, trace } from './capture-report.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
-import { cachekey, DEFAULT_CACHEKEY_DIR, defaultModel, exec, STAGES } from './exec-report.ts';
+import { registerExecCommands } from './exec-commands.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
 import { anchors, builds, extract, grep, hub, names } from './release-report.ts';
-import {
-  clear,
-  DEFAULT_NOTICE_TYPE,
-  DEFAULT_SETTLE_S,
-  envPair,
-  FIRST_SEND_PROMPT,
-  firstSend,
-  highlight,
-  mcpChildren,
-  notice,
-  shield,
-} from './session-report.ts';
+import { registerSessionCommands } from './session-commands.ts';
 import {
   ab,
   DEFAULT_CHARS,
@@ -62,10 +51,6 @@ import { timers } from './timers-report.ts';
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const IDLE_RUNS = 5;
-const EXEC_RUNS = 30;
-const CACHEKEY_RUNS = 5;
-const EXEC_PROMPT = 'Reply with exactly: ok';
-const EXEC_EXPECT = 'ok';
 const TOP_MODULES = 20;
 const CONTEXT_SPAN = 200;
 const DEFAULT_CHURN: ChurnKind = 'startup';
@@ -129,34 +114,7 @@ program
   .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
   .action(guard(keys));
 
-program
-  .command('exec')
-  .description('interleaved A/B of non-interactive exec: startup, answer and shutdown')
-  .argument('<binaries...>')
-  .option('-r, --runs <n>', 'number of runs', count, EXEC_RUNS)
-  .option('--stage <kind>', `what to time: ${STAGES.join(', ')}`, choice(STAGES), 'turn')
-  .option('-m, --model <id>', 'model for the turn stage', defaultModel())
-  .option('-p, --prompt <text>', 'prompt for the turn stage', EXEC_PROMPT)
-  .option('-e, --expect <text>', 'text every run must print, or the probe stops', EXEC_EXPECT)
-  .action(guard(exec));
-
-program
-  .command('cachekey')
-  .description(
-    'start two fresh sessions on a custom OpenAI model: does the second reuse the prompt cache the first wrote?',
-  )
-  .argument('<binaries...>')
-  .option('-m, --model <id>', 'custom OpenAI model to run both sessions on', defaultModel())
-  .option('-r, --runs <n>', 'number of runs', count, CACHEKEY_RUNS)
-  .option('--cwd <dir>', 'directory both sessions run in', DEFAULT_CACHEKEY_DIR)
-  .action(guard(cachekey));
-
-program
-  .command('shield')
-  .description('which staged files does Droid-Shield block on commit, and does it miss a secret?')
-  .argument('<binaries...>')
-  .option('-m, --model <id>', 'model that runs the commit', defaultModel())
-  .action(guard(shield));
+registerExecCommands(program);
 
 function churnOptions(command: Command): Command {
   return command
@@ -180,52 +138,7 @@ churnOptions(
     .argument('<binary>'),
 ).action(guard(watch));
 
-program
-  .command('highlight')
-  .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
-  .argument('<binary>')
-  .action(guard(highlight));
-
-program
-  .command('mcp-children')
-  .description(
-    'open a session and list which stdio MCP servers it keeps running: is each one a live process or dormant until first use?',
-  )
-  .argument('[binary]', 'Droid binary to launch (default: the installed one)')
-  .option('--settle <seconds>', 'how long to wait after the input box', count, DEFAULT_SETTLE_S)
-  .option('--env <KEY=VALUE>', 'extra environment for Droid, repeatable', envPair, {})
-  .option('--mcp <file>', 'mcp.json whose stdio servers are counted (default: ~/.factory/mcp.json)')
-  .action(guard(mcpChildren));
-
-program
-  .command('notice')
-  .description(
-    'run a background subagent whose first act is a tool call: does its completion notice carry the report? Needs a PreToolUse hook on Read to reproduce',
-  )
-  .argument('<binary>')
-  .option('--cwd <dir>', 'directory to start Droid in', process.cwd())
-  .option('--type <droid>', 'subagent type to launch', DEFAULT_NOTICE_TYPE)
-  .action(guard(notice));
-
-program
-  .command('clear')
-  .description('run /clear and type straight away: how fast is the new session, is the text kept?')
-  .argument('<binary>')
-  .action(guard(clear));
-
-program
-  .command('first-send')
-  .description('send the first message of a session: does it show at once, and does the turn run?')
-  .argument('<binary>')
-  .option('--cwd <dir>', 'directory to start Droid in, for its MCP servers', process.cwd())
-  .option('--text <msg>', 'the message to send', FIRST_SEND_PROMPT)
-  .option('--at-paint', 'paste as soon as the input box shows, not after the screen settles', false)
-  .option(
-    '--after-clear',
-    'run /clear first, then send the first message of the new session',
-    false,
-  )
-  .action(guard(firstSend));
+registerSessionCommands(program);
 
 program
   .command('effort')
