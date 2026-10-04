@@ -3,6 +3,8 @@ import { compactionPatches } from './compaction-patches.ts';
 import { denylistPatches } from './denylist-patches.ts';
 import { logoPatches } from './logo.ts';
 import { mcpIdlePatches } from './mcp-idle-patches.ts';
+import { sessionIndexPatches } from './session-index-patches.ts';
+import { sessionMentionPatches } from './session-mention-patches.ts';
 import { shieldPatches } from './shield-patches.ts';
 import { subagentSoundPatches } from './subagent-sound-patches.ts';
 import { turnClockPatches } from './turn-clock-patches.ts';
@@ -275,6 +277,8 @@ export const patches: readonly Patch[] = [
   ...mcpIdlePatches,
   ...shieldPatches,
   ...askUserPatches,
+  ...sessionIndexPatches,
+  ...sessionMentionPatches,
 ];
 
 export function markerDigest(list: readonly Patch[]): string {
