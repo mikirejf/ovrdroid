@@ -1,7 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
 import { joinApp } from '../../binary/graph.ts';
@@ -14,7 +11,7 @@ import {
 import { freeNames } from '../tokens.ts';
 import { payloadFunction } from './payload.ts';
 import type { Hash, Session } from './session-mention-harness.ts';
-import { AGO, picker, session, stock } from './session-mention-harness.ts';
+import { AGO, picker, session, stock, transcript, userLine } from './session-mention-harness.ts';
 
 const contracted = [...sessionIndexPatches, ...sessionMentionPatches];
 
@@ -181,40 +178,8 @@ describe('a second line shows the first message the user typed', () => {
   });
 });
 
-interface MessageExtra {
-  visibility?: string;
-  pad?: string;
-}
-
-function userLine(text: string, extra: MessageExtra = {}): string {
-  return JSON.stringify({
-    type: 'message',
-    id: 'm1',
-    message: { role: 'user', content: [{ type: 'text', text }], ...extra },
-  });
-}
-
-const START = JSON.stringify({ type: 'session_start', id: 's', title: 'T' });
-const HOOK = JSON.stringify({
-  type: 'message',
-  id: 'h1',
-  message: { role: 'user', content: [], visibility: 'user_only', hookEventName: 'SessionStart' },
-});
-const CONTEXT = JSON.stringify({
-  type: 'message',
-  id: 'context-m1',
-  message: {
-    role: 'user',
-    content: [{ type: 'text', text: 'tool list\n</system-reminder>' }],
-    visibility: 'llm_only',
-  },
-});
 const SKILL_BODY =
   '<system-notification>\nThe user has selected the following skill.\n<skill>do things</skill>\n</system-notification>';
-
-function transcript(...lines: string[]): string {
-  return `${[START, HOOK, CONTEXT, ...lines].join('\n')}\n`;
-}
 
 describe('the first message is what the user typed, read from the transcript', () => {
   test.each([
@@ -318,39 +283,6 @@ describe('the first message is what the user typed, read from the transcript', (
   test('a typed message cut by the read limit shows one line', () => {
     const raw = transcript(userLine(`long ask ${'word '.repeat(50)}`));
     expect(picker.$ODsessionText(raw.slice(0, raw.lastIndexOf('word')))).toBeNull();
-  });
-});
-
-describe('the transcript read stays bounded', () => {
-  const folder = mkdtempSync(path.join(tmpdir(), 'od-head-'));
-  afterAll(() => {
-    rmSync(folder, { recursive: true });
-  });
-
-  test('reads the first message from a file', () => {
-    const file = path.join(folder, 'one.jsonl');
-    writeFileSync(file, transcript(userLine('hello there')));
-    expect(picker.$ODsessionHead(file)).toBe('hello there');
-  });
-
-  test('a message past the read limit is not shown', () => {
-    const file = path.join(folder, 'late.jsonl');
-    const padding = userLine('', {
-      visibility: 'user_only',
-      pad: 'x'.repeat(TRANSCRIPT_HEAD_BYTES),
-    });
-    writeFileSync(file, transcript(padding, userLine('too late')));
-    expect(picker.$ODsessionHead(file)).toBeNull();
-  });
-
-  test('a file shorter than the read limit counts its last line without a newline', () => {
-    const file = path.join(folder, 'bare.jsonl');
-    writeFileSync(file, transcript(userLine('no newline at the end')).trimEnd());
-    expect(picker.$ODsessionHead(file)).toBe('no newline at the end');
-  });
-
-  test('a missing transcript shows one line', () => {
-    expect(picker.$ODsessionHead(path.join(folder, 'gone.jsonl'))).toBeNull();
   });
 });
 

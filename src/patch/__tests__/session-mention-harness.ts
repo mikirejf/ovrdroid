@@ -65,27 +65,45 @@ export function endCut(text: string, width: number): string {
   return text.length <= width ? text : `${text.slice(0, width - 1)}\u2026`;
 }
 
-export const picker = payloadFunction<
-  [
-    (date: Date) => string,
-    (title: string) => string,
-    (text: string, width: number) => string,
-    () => { t: (key: string) => string },
-    (text: string, width: number) => string,
-    (name: 'fs') => typeof fs,
-  ],
-  Picker
->(
-  ['Mm', 'ZT', 'DB', 'R', 'Li', 'require'],
-  `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}}`,
-)(
-  () => AGO,
-  (title) => title,
-  (text, width) => (text.length <= width ? text : `${text.slice(0, width - 3)}...`),
-  () => ({ t: () => 'Untitled' }),
-  endCut,
-  () => fs,
-);
+export type ReadArgs = [
+  fd: number,
+  buffer: Uint8Array,
+  offset: number,
+  length: number,
+  position: number,
+];
+
+export interface Files {
+  openSync: (path: string, flags: string) => number;
+  readSync: (...args: ReadArgs) => number;
+  closeSync: (fd: number) => void;
+}
+
+export function pickerReading(files: Files): Picker {
+  return payloadFunction<
+    [
+      (date: Date) => string,
+      (title: string) => string,
+      (text: string, width: number) => string,
+      () => { t: (key: string) => string },
+      (text: string, width: number) => string,
+      (name: 'fs') => Files,
+    ],
+    Picker
+  >(
+    ['Mm', 'ZT', 'DB', 'R', 'Li', 'require'],
+    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}}`,
+  )(
+    () => AGO,
+    (title) => title,
+    (text, width) => (text.length <= width ? text : `${text.slice(0, width - 3)}...`),
+    () => ({ t: () => 'Untitled' }),
+    endCut,
+    () => files,
+  );
+}
+
+export const picker = pickerReading(fs);
 
 export function session(id: string, title: string, minutesAgo: number): Session {
   return {
@@ -95,6 +113,38 @@ export function session(id: string, title: string, minutesAgo: number): Session 
     modifiedTime: new Date(Date.UTC(2026, 0, 1) - minutesAgo * 60_000),
     cwd: '/work',
   };
+}
+
+interface MessageExtra {
+  visibility?: string;
+  pad?: string;
+}
+
+export function userLine(text: string, extra: MessageExtra = {}): string {
+  return JSON.stringify({
+    type: 'message',
+    id: 'm1',
+    message: { role: 'user', content: [{ type: 'text', text }], ...extra },
+  });
+}
+
+const START = JSON.stringify({ type: 'session_start', id: 's', title: 'T' });
+const HOOK = JSON.stringify({
+  type: 'message',
+  id: 'h1',
+  message: { role: 'user', content: [], visibility: 'user_only', hookEventName: 'SessionStart' },
+});
+const CONTEXT = JSON.stringify({
+  type: 'message',
+  id: 'context-m1',
+  message: {
+    role: 'user',
+    content: [{ type: 'text', text: 'tool list\n</system-reminder>' }],
+    visibility: 'llm_only',
+  },
+});
+export function transcript(...lines: string[]): string {
+  return `${[START, HOOK, CONTEXT, ...lines].join('\n')}\n`;
 }
 
 export const stock: App | undefined = [INSTALLED_DROID, backupPath(INSTALLED_DROID)]
@@ -155,13 +205,13 @@ function escaped(name: string): string {
   return name.replaceAll('$', String.raw`\$`);
 }
 
-type Stand = object | number | boolean | null | undefined;
+export type Stand = object | number | boolean | null | undefined;
 
 interface Scope {
   readonly stubs: Map<string, Stand>;
 }
 
-function scopeOver(stubs: Map<string, Stand>) {
+export function scopeOver(stubs: Map<string, Stand>) {
   return new Proxy<Scope>(
     { stubs },
     {
@@ -179,7 +229,7 @@ function scopeOver(stubs: Map<string, Stand>) {
   );
 }
 
-function scoped(source: string): string {
+export function scoped(source: string): string {
   return `with($ODscope){return ${source}}`;
 }
 

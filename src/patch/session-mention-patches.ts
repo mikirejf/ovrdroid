@@ -32,7 +32,18 @@ export const TRANSCRIPT_HEAD_BYTES = 131_072;
 
 export const SESSION_TEXT = String.raw`static $ODsessionText($ODraw){let $ODlines=$ODraw.split("\n");$ODlines.pop();for(let $ODline of $ODlines){let $ODr;try{$ODr=JSON.parse($ODline)}catch{continue}let $ODm=$ODr?.message;if($ODr?.type!=="message"||$ODm?.role!=="user"||String($ODr.id).startsWith("context-"))continue;let $ODc=$ODm.content,$ODt=typeof $ODc==="string"?$ODc:Array.isArray($ODc)?$ODc.filter(($ODb)=>$ODb?.type==="text"&&typeof $ODb.text==="string").map(($ODb)=>$ODb.text).join("\n"):"";if($ODm.visibility!==void 0){let $ODk=/^\s*Skill "([^"]+)" activated(?::([\s\S]*))?$/.exec($ODt);if(!$ODk)continue;$ODt="/"+$ODk[1]+" "+($ODk[2]??"")}$ODt=$ODt.replace(/<(system-reminder|system-notification)>[\s\S]*?<\/\1>/g,"").replace(/\s+/g," ").trim();if($ODt)return $ODt}return null}`;
 
-export const SESSION_HEAD = `static $ODsessionHead($ODpath){let $ODfs=require("fs"),$ODbuf=Buffer.allocUnsafe(${TRANSCRIPT_HEAD_BYTES}),$ODfd;try{$ODfd=$ODfs.openSync($ODpath,"r");let $ODn=$ODfs.readSync($ODfd,$ODbuf,0,$ODbuf.length,0);return this.$ODsessionText($ODbuf.toString("utf8",0,$ODn)+($ODn<$ODbuf.length?"\\n":""))}catch{return null}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}`;
+export const TRANSCRIPT_MAX_BYTES = 4_194_304;
+
+export const SESSION_HEAD =
+  `static $ODsessionHead($ODpath){let $ODfs=require("fs"),$ODfd;try{$ODfd=$ODfs.openSync($ODpath,"r");` +
+  `let $ODbuf=Buffer.allocUnsafe(${TRANSCRIPT_HEAD_BYTES}),$ODend=0,$ODpos=0;for(;;){` +
+  'if($ODend===$ODbuf.length){let $ODnext=Buffer.allocUnsafe($ODbuf.length*2);$ODbuf.copy($ODnext,0,0,$ODend);$ODbuf=$ODnext}' +
+  `let $ODn=$ODfs.readSync($ODfd,$ODbuf,$ODend,Math.min($ODbuf.length-$ODend,${TRANSCRIPT_MAX_BYTES}-$ODpos),$ODpos);$ODpos+=$ODn;$ODend+=$ODn;` +
+  'let $ODcut=$ODn===0?$ODend:$ODbuf.lastIndexOf(10,$ODend-1)+1,' +
+  '$ODtext=$ODcut>0?this.$ODsessionText($ODbuf.toString("utf8",0,$ODcut)+"\\n"):null;' +
+  `if($ODtext||$ODn===0||$ODpos>=${TRANSCRIPT_MAX_BYTES})return $ODtext;` +
+  '$ODend-=$ODcut;$ODbuf.copyWithin(0,$ODcut,$ODcut+$ODend)}' +
+  '}catch{return null}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}';
 
 const SESSION_STATICS =
   SESSION_QUERY +
