@@ -17,13 +17,13 @@ import {
 } from './session-mention-callback.ts';
 import type { EscapePath, KeyResult } from './session-mention-keys.ts';
 import { enterKey, escapeKeys, serviceEffect } from './session-mention-keys.ts';
-import type { Hash, Item, Session } from './session-mention-picker.ts';
-import { AGO, picker, pickerReading } from './session-mention-picker.ts';
+import type { Hash, Head, Item, Session } from './session-mention-picker.ts';
+import { picker, pickerReading } from './session-mention-picker.ts';
 import type { Stand } from './session-mention-scope.ts';
 import { scoped, scopeOver } from './session-mention-scope.ts';
 
-export { AGO, picker, pickerReading, scoped, scopeOver };
-export type { Hash, Item, Session, Stand };
+export { picker, pickerReading, scoped, scopeOver };
+export type { Hash, Head, Item, Session, Stand };
 export type { Files, Picker, ReadArgs, Tree } from './session-mention-picker.ts';
 
 export function session(id: string, title: string, minutesAgo: number): Session {
@@ -55,17 +55,20 @@ const HOOK = JSON.stringify({
   id: 'h1',
   message: { role: 'user', content: [], visibility: 'user_only', hookEventName: 'SessionStart' },
 });
-const CONTEXT = JSON.stringify({
-  type: 'message',
-  id: 'context-m1',
-  message: {
-    role: 'user',
-    content: [{ type: 'text', text: 'tool list\n</system-reminder>' }],
-    visibility: 'llm_only',
-  },
-});
+export function contextLine(text: string, id = 'context-m1'): string {
+  return JSON.stringify({
+    type: 'message',
+    id,
+    message: { role: 'user', content: [{ type: 'text', text }], visibility: 'llm_only' },
+  });
+}
+
+export function transcriptWith(context: string, ...lines: string[]): string {
+  return `${[START, HOOK, context, ...lines].join('\n')}\n`;
+}
+
 export function transcript(...lines: string[]): string {
-  return `${[START, HOOK, CONTEXT, ...lines].join('\n')}\n`;
+  return transcriptWith(contextLine('tool list\n</system-reminder>'), ...lines);
 }
 
 export const stock: App | undefined = [INSTALLED_DROID, backupPath(INSTALLED_DROID)]
@@ -144,10 +147,10 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     entry.keyIndex = entry.selected;
   };
   const fileSearch = {
-    $ODsessionHead: (path: string) => {
+    $ODsessionHead: (path: string): Head => {
       transcriptsRead.push(path);
       const id = path.slice(path.lastIndexOf('/') + 1, -'.jsonl'.length);
-      return firstMessages[id] ?? `typed into ${path}`;
+      return { text: firstMessages[id] ?? `typed into ${path}`, branch: null };
     },
     isInPathContext: ({ text, cursorPosition }: { text: string; cursorPosition: number }) =>
       PATH_QUERY.test(text.slice(0, cursorPosition)),

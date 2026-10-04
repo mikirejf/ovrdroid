@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
+import { SESSION_LIST_STATICS } from '../session-list-patches.ts';
 import {
   SESSION_COMPLETE,
   SESSION_HEAD,
@@ -14,12 +15,14 @@ import {
   SESSION_TEXT,
 } from '../session-mention-patches.ts';
 import { payloadFunction } from './payload.ts';
+import { endCut, prefixWithin } from './session-list-stock.ts';
 
 export interface Session {
   id: string;
   title: string;
   messageCount: number;
   modifiedTime: Date;
+  createdTime?: Date;
   cwd?: string | undefined;
   isSubagent?: boolean;
 }
@@ -34,10 +37,23 @@ interface Completion {
   newCursorPosition: number;
 }
 
+export interface Head {
+  text: string | null;
+  branch: string | null;
+}
+
+export interface Place {
+  label: string;
+  root: boolean;
+}
+
 export interface Item {
   label: string;
   value: string;
   $ODsession?: string;
+  $ODrow?: Session;
+  $ODhead?: Head | null;
+  $ODplace?: Place;
 }
 
 type KeepArgs = [
@@ -51,71 +67,65 @@ type MatchArgs = [
   pool: readonly Session[],
   query: string,
   max: number,
-  heads?: ReadonlyMap<string, string | null>,
+  heads?: ReadonlyMap<string, Head | null>,
 ];
 
-export interface Picker {
+export type Seg = readonly [text: string, style: string];
+
+export interface Line {
+  bg: string;
+  segs: readonly Seg[];
+}
+
+export interface View {
+  top: number;
+  lines: readonly Line[];
+  left: string;
+  right: string;
+}
+
+type ViewArgs = [
+  items: readonly Item[],
+  selected: number,
+  inner: number,
+  rows: number,
+  top: number,
+  now: number,
+];
+
+type BlockArgs = [
+  item: Item,
+  selected: boolean,
+  bg: string,
+  inner: number,
+  now: number,
+  room: number,
+];
+
+interface ListPicker {
+  $ODsessionView: (...args: ViewArgs) => View;
+  $ODsessionBlock: (...args: BlockArgs) => Line[];
+  $ODgutter: (inner: number) => number;
+  $ODwrap: (text: string, room: number, max: number) => string[];
+  $ODfitStart: (text: string, room: number) => string;
+  $ODage: (at: Date | number, now: number) => string;
+  $ODstatusBranch: (context: string) => string | null;
+  $ODshown: (text: string) => string;
+  $ODblend: (from: string, to: string, share: number) => string | undefined;
+}
+
+export interface Picker extends ListPicker {
   $ODsessionQuery: (text: string, cursor: number) => Hash | null;
   $ODsessionPool: (all: readonly Session[], self: string | null) => Session[];
   $ODsessionMatches: (...args: MatchArgs) => Session[];
   $ODsessionKeep: (...args: KeepArgs) => Session[];
   $ODsessionComplete: (text: string, cursor: number, id: string) => Completion;
-  $ODsessionItems: (
-    rows: readonly Session[],
-    width: number,
-    first: (row: Session) => string | null,
-  ) => Item[];
-  $ODsessionText: (raw: string) => string | null;
-  $ODsessionHead: (path: string) => string | null;
-  $ODsessionRepo: (cwd: string | undefined) => string;
+  $ODsessionItems: (rows: readonly Session[], first: (row: Session) => Head | null) => Item[];
+  $ODsessionText: (raw: string) => Head;
+  $ODsessionHead: (path: string) => Head;
+  $ODsessionPlace: (cwd: string | undefined) => Place;
   $ODshortPath: (cwd: string) => string;
-}
-
-export const AGO = '3h ago';
-
-function cells(text: string): number {
-  return Bun.stringWidth(text);
-}
-
-function headWithin(text: string, room: number): string {
-  let head = '';
-  for (const char of text) {
-    if (cells(head + char) > room) {
-      break;
-    }
-    head += char;
-  }
-  return head;
-}
-
-function tailWithin(text: string, room: number): string {
-  let tail = '';
-  for (const char of Array.from(text).toReversed()) {
-    if (cells(char + tail) > room) {
-      break;
-    }
-    tail = char + tail;
-  }
-  return tail;
-}
-
-export function endCut(text: string, width: number): string {
-  if (width <= 0) {
-    return '';
-  }
-  return cells(text) <= width ? text : `${headWithin(text, width - 1)}\u2026`;
-}
-
-export function middleCut(text: string, width: number): string {
-  if (cells(text) <= width) {
-    return text;
-  }
-  if (width < 4) {
-    return '...';
-  }
-  const room = width - 3;
-  const head = Math.floor(room * 0.45);
-  return `${headWithin(text, head)}...${tailWithin(text, room - head)}`;
+  $ODhomePath: (cwd: string) => string;
 }
 
 export type ReadArgs = [
@@ -151,24 +161,22 @@ type Loaded = (Files & Tree) | Home | typeof path;
 export function pickerReading(files: Files, tree: Tree = fs, home: string = homedir()): Picker {
   return payloadFunction<
     [
-      (date: Date) => string,
       (title: string) => string,
-      (text: string, width: number) => string,
       () => { t: (key: string) => string },
-      (text: string, width: number) => string,
       (name: Module) => Loaded,
+      typeof endCut,
+      typeof prefixWithin,
     ],
     Picker
   >(
-    ['Mm', 'ZT', 'DB', 'R', 'Li', 'require'],
-    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_REPO}}`,
+    ['ZT', 'R', 'require', 'Li', 'Ar'],
+    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_REPO}${SESSION_LIST_STATICS}}`,
   )(
-    () => AGO,
     (title) => title,
-    middleCut,
     () => ({ t: () => 'Untitled' }),
-    endCut,
     (name) => ({ fs: { ...files, ...tree }, os: { homedir: () => home }, path })[name],
+    endCut,
+    prefixWithin,
   );
 }
 

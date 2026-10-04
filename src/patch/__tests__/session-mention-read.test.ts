@@ -5,7 +5,14 @@ import path from 'node:path';
 
 import { TRANSCRIPT_HEAD_BYTES, TRANSCRIPT_MAX_BYTES } from '../session-mention-patches.ts';
 import type { Files, ReadArgs } from './session-mention-harness.ts';
-import { picker, pickerReading, transcript, userLine } from './session-mention-harness.ts';
+import {
+  contextLine,
+  picker,
+  pickerReading,
+  transcript,
+  transcriptWith,
+  userLine,
+} from './session-mention-harness.ts';
 
 interface Reads {
   bytes: number;
@@ -42,34 +49,34 @@ describe('the transcript read stays bounded', () => {
   test('reads the first message from a file', () => {
     const file = path.join(folder, 'one.jsonl');
     writeFileSync(file, transcript(userLine('hello there')));
-    expect(picker.$ODsessionHead(file)).toBe('hello there');
+    expect(picker.$ODsessionHead(file).text).toBe('hello there');
   });
 
   test('a typed message that ends past the first read is still found', () => {
     const file = path.join(folder, 'straddle.jsonl');
     const typed = `typed after a long context ${'y'.repeat(TRANSCRIPT_HEAD_BYTES)}`;
     writeFileSync(file, transcript(hidden(TRANSCRIPT_HEAD_BYTES / 2), userLine(typed)));
-    expect(picker.$ODsessionHead(file)).toBe(typed);
+    expect(picker.$ODsessionHead(file).text).toBe(typed);
   });
 
   test('a typed message after many reads of hidden records is found', () => {
     const file = path.join(folder, 'deep.jsonl');
     const padding = Array.from({ length: 10 }, () => hidden(TRANSCRIPT_HEAD_BYTES / 3));
     writeFileSync(file, transcript(...padding, userLine('found deep')));
-    expect(picker.$ODsessionHead(file)).toBe('found deep');
+    expect(picker.$ODsessionHead(file).text).toBe('found deep');
   });
 
   test('a typed message past the read cap is not shown', () => {
     const file = path.join(folder, 'late.jsonl');
     const padding = Array.from({ length: 5 }, () => hidden(TRANSCRIPT_MAX_BYTES / 4));
     writeFileSync(file, transcript(...padding, userLine('too late')));
-    expect(picker.$ODsessionHead(file)).toBeNull();
+    expect(picker.$ODsessionHead(file).text).toBeNull();
   });
 
   test('repeated short reads still find the typed message', () => {
     const file = path.join(folder, 'short.jsonl');
     writeFileSync(file, transcript(hidden(200), userLine('first typed message')));
-    expect(pickerReading(readsAtMost(28, { bytes: 0 })).$ODsessionHead(file)).toBe(
+    expect(pickerReading(readsAtMost(28, { bytes: 0 })).$ODsessionHead(file).text).toBe(
       'first typed message',
     );
   });
@@ -77,7 +84,7 @@ describe('the transcript read stays bounded', () => {
   test('repeated short reads still count a last line without a newline', () => {
     const file = path.join(folder, 'short-bare.jsonl');
     writeFileSync(file, transcript(hidden(200), userLine('typed at the very end')).trimEnd());
-    expect(pickerReading(readsAtMost(28, { bytes: 0 })).$ODsessionHead(file)).toBe(
+    expect(pickerReading(readsAtMost(28, { bytes: 0 })).$ODsessionHead(file).text).toBe(
       'typed at the very end',
     );
   });
@@ -102,7 +109,7 @@ describe('the transcript read stays bounded', () => {
   test('a complete typed message right after the cap is not shown, and no byte past the cap is read', () => {
     const { file, reads } = capped('after-cap.jsonl', TRANSCRIPT_MAX_BYTES + 1);
     expect(
-      pickerReading(readsAtMost(Number.MAX_SAFE_INTEGER, reads)).$ODsessionHead(file),
+      pickerReading(readsAtMost(Number.MAX_SAFE_INTEGER, reads)).$ODsessionHead(file).text,
     ).toBeNull();
     expect(reads.bytes).toBeLessThanOrEqual(TRANSCRIPT_MAX_BYTES);
   });
@@ -110,7 +117,7 @@ describe('the transcript read stays bounded', () => {
   test('a typed message that is complete only past the cap is not shown', () => {
     const { file, reads } = capped('across-cap.jsonl', TRANSCRIPT_MAX_BYTES - 20);
     expect(
-      pickerReading(readsAtMost(Number.MAX_SAFE_INTEGER, reads)).$ODsessionHead(file),
+      pickerReading(readsAtMost(Number.MAX_SAFE_INTEGER, reads)).$ODsessionHead(file).text,
     ).toBeNull();
     expect(reads.bytes).toBeLessThanOrEqual(TRANSCRIPT_MAX_BYTES);
   });
@@ -118,10 +125,20 @@ describe('the transcript read stays bounded', () => {
   test('a file shorter than the read limit counts its last line without a newline', () => {
     const file = path.join(folder, 'bare.jsonl');
     writeFileSync(file, transcript(userLine('no newline at the end')).trimEnd());
-    expect(picker.$ODsessionHead(file)).toBe('no newline at the end');
+    expect(picker.$ODsessionHead(file).text).toBe('no newline at the end');
+  });
+
+  test('the branch read before a later read finds the typed message is kept', () => {
+    const file = path.join(folder, 'branch-straddle.jsonl');
+    const status = contextLine('% git status --short --branch\n## feat/list...origin/feat/list\n');
+    writeFileSync(file, transcriptWith(status, hidden(TRANSCRIPT_HEAD_BYTES), userLine('late')));
+    expect(pickerReading(readsAtMost(4096, { bytes: 0 })).$ODsessionHead(file)).toMatchObject({
+      text: 'late',
+      branch: 'feat/list',
+    });
   });
 
   test('a missing transcript shows one line', () => {
-    expect(picker.$ODsessionHead(path.join(folder, 'gone.jsonl'))).toBeNull();
+    expect(picker.$ODsessionHead(path.join(folder, 'gone.jsonl')).text).toBeNull();
   });
 });

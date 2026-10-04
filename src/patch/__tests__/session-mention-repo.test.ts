@@ -8,7 +8,11 @@ import type { Tree } from './session-mention-harness.ts';
 import { pickerReading, session } from './session-mention-harness.ts';
 
 function repoOf(entries: Entries, cwd: string | undefined): string {
-  return repoPicker(entries).$ODsessionRepo(cwd);
+  return repoPicker(entries).$ODsessionPlace(cwd).label;
+}
+
+function rootOf(entries: Entries, cwd: string): boolean {
+  return repoPicker(entries).$ODsessionPlace(cwd).root;
 }
 
 const CHECKOUT = {
@@ -88,7 +92,8 @@ describe('without a repo the label is a shortened path', () => {
   });
 
   test(`${SHORT_PATH_CHARS} characters stay whole and one more is cut`, () => {
-    const { $ODshortPath: shorten } = repoPicker({});
+    const input = repoPicker({});
+    const shorten = (cwd: string): string => input.$ODshortPath(cwd);
     const whole = `~/${'a'.repeat(SHORT_PATH_CHARS - 14)}/bb/cc/ddd/e`;
     expect(whole).toHaveLength(SHORT_PATH_CHARS);
     expect(shorten(`${HOME}${whole.slice(1)}`)).toBe(whole);
@@ -99,6 +104,27 @@ describe('without a repo the label is a shortened path', () => {
   test('a path with too few folders to cut stays whole however long it is', () => {
     const long = `/home/me/${'a'.repeat(40)}/${'b'.repeat(40)}`;
     expect(repoPicker({}).$ODshortPath(long)).toBe(`~/${'a'.repeat(40)}/${'b'.repeat(40)}`);
+  });
+});
+
+describe('the place says whether the label alone tells where the session ran', () => {
+  test('the root of a checkout is the repo itself', () => {
+    expect(rootOf(CHECKOUT, '/home/me/dev/proj')).toBe(true);
+  });
+
+  test('a subfolder of a checkout is not', () => {
+    expect(rootOf(CHECKOUT, '/home/me/dev/proj/src/deep')).toBe(false);
+  });
+
+  test('a worktree is not, even at its own root', () => {
+    const worktree = {
+      '/home/me/dev/proj-fix/.git': 'gitdir: /home/me/dev/proj/.git/worktrees/proj-fix\n',
+    };
+    expect(rootOf(worktree, '/home/me/dev/proj-fix')).toBe(false);
+  });
+
+  test('a folder outside any repo is, because its label is its path', () => {
+    expect(rootOf({ '/home/me/dev/tools': DIR }, '/home/me/dev/tools')).toBe(true);
   });
 });
 
@@ -120,7 +146,9 @@ describe('a folder that is gone or not given', () => {
         throw new Error('EACCES');
       },
     };
-    expect(pickerReading(fs, broken, HOME).$ODsessionRepo('/home/me/dev/bad')).toBe('~/dev/bad');
+    expect(pickerReading(fs, broken, HOME).$ODsessionPlace('/home/me/dev/bad').label).toBe(
+      '~/dev/bad',
+    );
   });
 
   test.each([undefined, ''])('%j gets no label', (cwd) => {
@@ -131,18 +159,18 @@ describe('a folder that is gone or not given', () => {
 describe('the label is read once per folder', () => {
   test('a second ask for the same cwd does not touch the disk', () => {
     const input = repoPicker(CHECKOUT);
-    expect(input.$ODsessionRepo('/home/me/dev/proj/src/deep')).toBe('proj');
+    expect(input.$ODsessionPlace('/home/me/dev/proj/src/deep').label).toBe('proj');
     const used = input.calls();
     expect(used).toBeGreaterThan(0);
-    expect(input.$ODsessionRepo('/home/me/dev/proj/src/deep')).toBe('proj');
+    expect(input.$ODsessionPlace('/home/me/dev/proj/src/deep').label).toBe('proj');
     expect(input.calls()).toBe(used);
   });
 
   test('a missing folder is remembered too', () => {
     const input = repoPicker(CHECKOUT);
-    input.$ODsessionRepo('/home/me/nowhere');
+    input.$ODsessionPlace('/home/me/nowhere');
     const used = input.calls();
-    expect(input.$ODsessionRepo('/home/me/nowhere')).toBe('~/nowhere');
+    expect(input.$ODsessionPlace('/home/me/nowhere').label).toBe('~/nowhere');
     expect(input.calls()).toBe(used);
   });
 
@@ -152,19 +180,19 @@ describe('the label is read once per folder', () => {
       { ...session('b', 'B', 2), cwd: '/home/me/dev/proj' },
     ];
     const alone = repoPicker(CHECKOUT);
-    alone.$ODsessionItems(rows.slice(0, 1), 120, () => null);
+    alone.$ODsessionItems(rows.slice(0, 1), () => null);
     const input = repoPicker(CHECKOUT);
-    input.$ODsessionItems(rows, 120, () => null);
+    input.$ODsessionItems(rows, () => null);
     expect(input.calls()).toBe(alone.calls());
-    input.$ODsessionItems(rows, 120, () => null);
+    input.$ODsessionItems(rows, () => null);
     expect(input.calls()).toBe(alone.calls());
   });
 
   test('only the rows handed over are read', () => {
     const input = repoPicker(CHECKOUT);
-    input.$ODsessionItems([{ ...session('a', 'A', 1), cwd: '/home/me/dev/proj' }], 120, () => null);
+    input.$ODsessionItems([{ ...session('a', 'A', 1), cwd: '/home/me/dev/proj' }], () => null);
     const used = input.calls();
-    input.$ODsessionRepo('/home/me/dev/proj/src/deep');
+    input.$ODsessionPlace('/home/me/dev/proj/src/deep');
     expect(input.calls()).toBeGreaterThan(used);
   });
 });

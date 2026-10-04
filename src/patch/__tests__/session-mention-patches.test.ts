@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { patchSource } from '../../binary/apply.ts';
 import { joinApp } from '../../binary/graph.ts';
 import { sessionIndexPatches } from '../session-index-patches.ts';
+import { sessionListPatches } from '../session-list-patches.ts';
 import {
   SESSION_PROMPT_LINE,
   sessionMentionPatches,
@@ -10,10 +11,14 @@ import {
 } from '../session-mention-patches.ts';
 import { freeNames } from '../tokens.ts';
 import { payloadFunction } from './payload.ts';
-import type { Hash, Session } from './session-mention-harness.ts';
-import { AGO, picker, session, stock, transcript, userLine } from './session-mention-harness.ts';
+import type { Hash, Head } from './session-mention-harness.ts';
+import { picker, session, stock, transcript, userLine } from './session-mention-harness.ts';
 
-const contracted = [...sessionIndexPatches, ...sessionMentionPatches];
+const contracted = [...sessionIndexPatches, ...sessionMentionPatches, ...sessionListPatches];
+
+function headsOf(texts: Readonly<Record<string, string | null>>): Map<string, Head> {
+  return new Map(Object.entries(texts).map(([id, text]) => [id, { text, branch: null }]));
+}
 
 describe('every name of three characters or fewer in a payload is captured or owned', () => {
   test.each(contracted.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
@@ -108,11 +113,11 @@ describe('matching narrows the pool without re-sorting it', () => {
 
 describe('matching also reads the first message the user typed', () => {
   const pool = picker.$ODsessionPool(SESSIONS, 'dddd4444');
-  const heads = new Map<string, string | null>([
-    ['aaaa1111', 'the vpisem field is empty'],
-    ['bbbb2222', 'Compare Zellij panes'],
-    ['eeee5555', null],
-  ]);
+  const heads = headsOf({
+    aaaa1111: 'the vpisem field is empty',
+    bbbb2222: 'Compare Zellij panes',
+    eeee5555: null,
+  });
   const ids = (query: string, max = 100) =>
     picker.$ODsessionMatches(pool, query, max, heads).map((row) => row.id);
 
@@ -149,10 +154,7 @@ describe('matching also reads the first message the user typed', () => {
       session('m3', 'Other', 3),
       session('m4', 'Herdr again', 4),
     ];
-    const text = new Map<string, string | null>([
-      ['m1', 'herdr in the first message'],
-      ['m3', 'herdr in the first message'],
-    ]);
+    const text = headsOf({ m1: 'herdr in the first message', m3: 'herdr in the first message' });
     expect(picker.$ODsessionMatches(mixed, 'herdr', 100, text).map((row) => row.id)).toEqual([
       'm2',
       'm4',
@@ -167,7 +169,7 @@ describe('matching also reads the first message the user typed', () => {
       session('m2', 'About herdr', 2),
       session('m3', 'Herdr again', 3),
     ];
-    const text = new Map<string, string | null>([['m1', 'herdr']]);
+    const text = headsOf({ m1: 'herdr' });
     const cut = (max: number) =>
       picker.$ODsessionMatches(mixed, 'herdr', max, text).map((row) => row.id);
     expect(cut(2)).toEqual(['m2', 'm3']);
@@ -191,63 +193,31 @@ describe('selecting a session writes the tag in place of the query', () => {
   });
 });
 
-function plain(id: string, title: string, minutesAgo: number): Session {
-  return { ...session(id, title, minutesAgo), cwd: undefined };
-}
+describe('each item carries what the list draws and what Enter inserts', () => {
+  const first: Head = { text: 'the herdr panel stutters', branch: 'main' };
+  const [item] = picker.$ODsessionItems(
+    [{ ...session('abc', 'Fix  the\nlag', 1), cwd: undefined }],
+    () => first,
+  );
 
-function rowLabel(row: Session, first: string | null, width = 120): string | undefined {
-  return picker.$ODsessionItems([row], width, () => first)[0]?.label;
-}
-
-describe('each row reads like a compact /sessions row', () => {
-  const [row] = picker.$ODsessionItems([plain('abc', 'Fix  the\nlag', 1)], 120, () => null);
-
-  test('shows the title, then the time ago and message count after two spaces', () => {
-    expect(row?.label).toBe(`Fix the lag  ${AGO} \u00B7 4 messages`);
+  test('the title with its whitespace collapsed', () => {
+    expect(item?.label).toBe('Fix the lag');
   });
 
-  test('carries the session id for the selection', () => {
-    expect(row?.value).toBe('#session-abc');
-    expect(row?.$ODsession).toBe('abc');
+  test('the tag and the session id for the selection', () => {
+    expect(item?.value).toBe('#session-abc');
+    expect(item?.$ODsession).toBe('abc');
   });
 
-  test('a session with one message says message', () => {
-    expect(rowLabel({ ...plain('a', 'T', 1), messageCount: 1 }, null)).toEndWith('1 message');
+  test('the session, its transcript head and its place', () => {
+    expect(item?.$ODrow?.id).toBe('abc');
+    expect(item?.$ODhead).toBe(first);
+    expect(item?.$ODplace).toEqual({ label: '', root: true });
   });
 
   test('an untitled session uses the /sessions wording', () => {
-    expect(rowLabel(plain('a', '', 1), null)).toStartWith('Untitled  ');
-  });
-
-  test('a long title is cut so the row fits inside the dropdown border and padding', () => {
-    const width = 40;
-    const inside = width - 4;
-    const first = rowLabel(plain('a', 'x'.repeat(200), 1), null, width)?.length ?? 0;
-    expect(2 + first).toBeLessThanOrEqual(inside);
-  });
-});
-
-describe('a second line shows the first message the user typed', () => {
-  const row = plain('a', 'Fix the lag', 1);
-
-  test('sits under the title, indented past the selection marker', () => {
-    expect(rowLabel(row, 'the herdr panel stutters')).toBe(
-      `Fix the lag  ${AGO} \u00B7 4 messages\n  the herdr panel stutters`,
-    );
-  });
-
-  test('is cut at the end so it fits the dropdown on one line', () => {
-    const width = 40;
-    const second = rowLabel(row, 'y'.repeat(200), width)?.split('\n')[1];
-    expect(second).toBe(`  ${'y'.repeat(width - 7)}\u2026`);
-  });
-
-  test.each([
-    ['no first message was found', null],
-    ['it repeats the title in another case', 'FIX THE LAG'],
-    ['the title is how it starts', 'fix the lag in the herdr panel'],
-  ])('is left out when %s', (_case, first) => {
-    expect(rowLabel(row, first)).not.toContain('\n');
+    const [untitled] = picker.$ODsessionItems([session('a', '', 1)], () => null);
+    expect(untitled?.label).toBe('Untitled');
   });
 });
 
@@ -300,12 +270,12 @@ describe('the first message is what the user typed, read from the transcript', (
     ],
     ['a transcript with no message yet', transcript(), null],
   ])('%s', (_case, raw, first) => {
-    expect(picker.$ODsessionText(raw)).toBe(first);
+    expect(picker.$ODsessionText(raw).text).toBe(first);
   });
 
   test('ascii-escaped unicode decodes too', () => {
     const line = userLine('caf\u00E9').replace('\u00E9', String.raw`\u00e9`);
-    expect(picker.$ODsessionText(transcript(line))).toBe('caf\u00E9');
+    expect(picker.$ODsessionText(transcript(line)).text).toBe('caf\u00E9');
   });
 
   test('a string content counts as typed text', () => {
@@ -314,7 +284,7 @@ describe('the first message is what the user typed, read from the transcript', (
       id: 'm1',
       message: { role: 'user', content: 'hi' },
     });
-    expect(picker.$ODsessionText(transcript(line))).toBe('hi');
+    expect(picker.$ODsessionText(transcript(line)).text).toBe('hi');
   });
 
   test('a tool result is not a typed message, even with text inside it', () => {
@@ -341,7 +311,7 @@ describe('the first message is what the user typed, read from the transcript', (
       },
     });
     expect(
-      picker.$ODsessionText(transcript(image, toolResult, userLine('Actual typed request'))),
+      picker.$ODsessionText(transcript(image, toolResult, userLine('Actual typed request'))).text,
     ).toBe('Actual typed request');
   });
 
@@ -350,12 +320,12 @@ describe('the first message is what the user typed, read from the transcript', (
       visibility: 'llm_only',
     });
     const raw = transcript(hidden).slice(0, TRANSCRIPT_HEAD_BYTES);
-    expect(picker.$ODsessionText(raw)).toBeNull();
+    expect(picker.$ODsessionText(raw).text).toBeNull();
   });
 
   test('a typed message cut by the read limit shows one line', () => {
     const raw = transcript(userLine(`long ask ${'word '.repeat(50)}`));
-    expect(picker.$ODsessionText(raw.slice(0, raw.lastIndexOf('word')))).toBeNull();
+    expect(picker.$ODsessionText(raw.slice(0, raw.lastIndexOf('word'))).text).toBeNull();
   });
 });
 
