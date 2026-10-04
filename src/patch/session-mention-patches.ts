@@ -15,7 +15,8 @@ export const SESSION_MATCHES =
   'static $ODsessionMatches($ODpool,$ODq,$ODmax,$ODheads){let $ODl=$ODq.toLowerCase(),$ODw=$ODl.split(/\\s+/).filter(Boolean),$ODtop=[],$ODrest=[];' +
   'for(let $ODs of $ODpool){if($ODtop.length>=$ODmax)break;let $ODt=$ODs.title.toLowerCase();' +
   'if($ODw.every(($ODk)=>$ODt.includes($ODk))||$ODs.id.toLowerCase().startsWith($ODl)){$ODtop.push($ODs);continue}' +
-  'let $ODh=$ODheads?.get($ODs.id)?.text;if($ODh){$ODh=$ODt+" "+$ODh.toLowerCase();if($ODw.every(($ODk)=>$ODh.includes($ODk)))$ODrest.push($ODs)}}' +
+  'let $ODhd=$ODheads?.get($ODs.id),$ODh=[$ODt,this.$ODsessionPlace($ODs.cwd).label,$ODs.cwd&&this.$ODhomePath($ODs.cwd),$ODhd?.branch,$ODhd?.text].filter(Boolean).join(" ").toLowerCase();' +
+  'if($ODw.every(($ODk)=>$ODh.includes($ODk)))$ODrest.push($ODs)}' +
   'return $ODtop.concat($ODrest).slice(0,$ODmax)}';
 
 export const SESSION_KEEP =

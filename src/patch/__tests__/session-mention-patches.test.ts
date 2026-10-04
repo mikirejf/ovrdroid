@@ -177,6 +177,38 @@ describe('matching also reads the first message the user typed', () => {
   });
 });
 
+describe('matching also reads the repo, the branch and the path', () => {
+  const pool = [
+    { ...session('r1', 'Fix lag', 1), cwd: '/work/dotfiles/macos' },
+    { ...session('r2', 'Fix lag', 2), cwd: '/work/ovrdroid' },
+    { ...session('r3', 'Fix lag', 3), cwd: '/work/ovrdroid' },
+  ];
+  const heads = new Map<string, Head>([
+    ['r2', { text: 'first message', branch: 'feature/picker' }],
+    ['r3', { text: 'first message', branch: 'main' }],
+  ]);
+  const ids = (query: string) =>
+    picker.$ODsessionMatches(pool, query, 100, heads).map((row) => row.id);
+
+  test('a word in the path matches, even when no first message is known', () => {
+    expect(ids('dotfiles')).toEqual(['r1']);
+    expect(ids('macos')).toEqual(['r1']);
+  });
+
+  test('a word in the branch matches', () => {
+    expect(ids('picker')).toEqual(['r2']);
+  });
+
+  test('a repo word and a branch word narrow together', () => {
+    expect(ids('ovrdroid main')).toEqual(['r3']);
+    expect(ids('ovrdroid lag')).toEqual(['r2', 'r3']);
+  });
+
+  test('a word in none of the title, repo, branch or path leaves the session out', () => {
+    expect(ids('dotfiles picker')).toEqual([]);
+  });
+});
+
 describe('selecting a session writes the tag in place of the query', () => {
   test('at the end of the input', () => {
     expect(picker.$ODsessionComplete('see #herdr', 10, 'abc-123')).toEqual({

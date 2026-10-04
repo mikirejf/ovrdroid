@@ -174,7 +174,7 @@ describe('the window shows whole sessions around the selected one', () => {
   });
 
   test('moving down keeps the top until the selection would leave the window', () => {
-    expect(view(items, 5, { rows: 40, top: 0 }).top).toBe(0);
+    expect(view(items, 4, { rows: 40, top: 0 }).top).toBe(0);
     expect(view(items, 7, { rows: 40, top: 0 }).top).toBeGreaterThan(0);
   });
 
@@ -197,36 +197,23 @@ describe('the window shows whole sessions around the selected one', () => {
   test('a session that does not fit whole peeks into the rows left over', () => {
     const shown = view(items, 0, { rows: 42, top: 0 });
     expect(shown.lines).toHaveLength(26);
-    expect(idsShown(shown.lines, items).at(-1)).toBe('s8');
-    expect(plain(shown.lines.at(-1) ?? { bg: '', segs: [] })).toContain('Title 8');
+    expect(idsShown(shown.lines, items).at(-1)).toBe('s6');
+    expect(plain(shown.lines.at(-1) ?? { bg: '', segs: [] })).toContain('Title 6');
   });
 
-  test('every second session is tinted, the selected one has the band', () => {
+  test('a blank row sits between sessions, none after the last', () => {
+    const { lines } = view(items, 0, { rows: 40, top: 0 });
+    expect(plain(lines[4] ?? { bg: '', segs: [] })).toBe('');
+    expect(plain(lines[5] ?? { bg: '', segs: [] })).toContain('Title 1');
+    expect(plain(lines[8] ?? { bg: '', segs: [] })).toBe('');
+    const bottom = view(items, items.length - 1, { rows: 40, top: 0 }).lines;
+    expect(plain(bottom.at(-1) ?? { bg: '', segs: [] })).not.toBe('');
+  });
+
+  test('only the selected session has a background, and the blank rows have none', () => {
     const tones = view(items, 0, { rows: 40, top: 0 }).lines.map((line) => line.bg);
-    expect(tones.slice(0, 10)).toEqual([
-      'band',
-      'band',
-      'band',
-      'band',
-      'zebra',
-      'zebra',
-      'zebra',
-      '',
-      '',
-      '',
-    ]);
-  });
-
-  test('the tint follows the session, not its place in the window', () => {
-    expect(
-      view(items, 9, { rows: 40, top: 0 }).lines.find((line) => plain(line).endsWith('Title 9'))
-        ?.bg,
-    ).toBe('band');
-    const shown = view(items, 12, { rows: 40, top: 0 });
-    const title = (index: number): Line | undefined =>
-      shown.lines.find((line) => plain(line).endsWith(`Title ${index}`));
-    expect(title(11)?.bg).toBe('zebra');
-    expect(title(10)?.bg).toBe('');
+    expect(tones.slice(0, 10)).toEqual(['band', 'band', 'band', 'band', '', '', '', '', '', '']);
+    expect(new Set(tones)).toEqual(new Set(['band', '']));
   });
 
   test('the footer gives the keys and the position', () => {
@@ -245,8 +232,8 @@ describe('the box height', () => {
 
   test('a short list is as tall as its sessions with the selected one opened as far as it can', () => {
     const two = many(2, { text: 'short' });
-    expect(view(two, 0).lines).toHaveLength(9);
-    expect(view(two, 1).lines).toHaveLength(9);
+    expect(view(two, 0).lines).toHaveLength(11);
+    expect(view(two, 1).lines).toHaveLength(11);
   });
 
   test('a tiny terminal still shows at least three rows', () => {

@@ -72,9 +72,10 @@ export const SESSION_BLOCK =
 export const SESSION_VIEW =
   'static $ODsessionView($ODitems,$ODpick,$ODin,$ODrows,$ODfrom,$ODnow){' +
   'let $ODn=$ODitems.length,$ODsel=Math.max(0,Math.min($ODn-1,$ODpick)),' +
-  `$ODh=Math.min(${LIST_BODY_CAP},Math.max(3,$ODrows-${LIST_CHROME_ROWS}),3*$ODn+3),` +
-  '$ODblock=($ODk)=>this.$ODsessionBlock($ODitems[$ODk],$ODk===$ODsel,$ODk===$ODsel?"band":$ODk%2?"zebra":"",$ODin,$ODnow,$ODh),' +
-  '$ODopen=$ODblock($ODsel),$ODsize=($ODk)=>$ODk===$ODsel?$ODopen.length:3,' +
+  `$ODh=Math.min(${LIST_BODY_CAP},Math.max(3,$ODrows-${LIST_CHROME_ROWS}),4*$ODn+3),` +
+  '$ODblock=($ODk)=>{let $ODb=this.$ODsessionBlock($ODitems[$ODk],$ODk===$ODsel,$ODk===$ODsel?"band":"",$ODin,$ODnow,$ODh);' +
+  'return $ODk<$ODn-1?[...$ODb,{bg:"",segs:[]}]:$ODb},' +
+  '$ODopen=$ODblock($ODsel),$ODsize=($ODk)=>$ODk===$ODsel?$ODopen.length:$ODk<$ODn-1?4:3,' +
   '$ODend=($ODt)=>{let $ODu=0,$ODk=$ODt;while($ODk<$ODn&&($ODk===$ODt||$ODu+$ODsize($ODk)<=$ODh))$ODu+=$ODsize($ODk++);return $ODk},' +
   '$ODrest=($ODt)=>{let $ODu=0;for(let $ODk=$ODt;$ODk<$ODn;$ODk++)$ODu+=$ODsize($ODk);return $ODu},' +
   '$ODtop=Math.max(0,Math.min($ODfrom,$ODn-1));' +
@@ -102,7 +103,7 @@ const LIST_COMPONENT =
   'function $ODSessionList({items:$ODitems,selectedIndex:$ODsel,width:$ODwide}){' +
   'let{width:$ODcols,height:$ODrows}=Zn(),$ODtop=S(0),$ODbox=Math.min($ODwide,$ODcols),' +
   '$ODview=uu.$ODsessionView($ODitems,$ODsel,$ODbox-4,$ODrows,$ODtop.current,Date.now()),' +
-  '$ODbg={band:uu.$ODblend(o.text.userBg,o.text.primary,0.1),zebra:o.text.userBg||void 0},$ODfaint=o.diff.unchanged.dimText,' +
+  '$ODbg={band:uu.$ODblend(o.text.userBg,o.text.primary,0.1)},$ODfaint=o.diff.unchanged.dimText,' +
   '$ODlook={bar:{color:o.primary},time:{color:o.text.muted},timeSel:{color:o.text.secondary},' +
   'place:{color:$ODfaint},placeSel:{color:o.text.muted},title:{color:o.text.primary},titleSel:{color:o.text.primary,bold:!0},' +
   'msg:{color:o.text.muted},msgSel:{color:o.text.secondary},none:{color:$ODfaint},meta:{color:o.text.muted}};' +
