@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
-import type { Driver, FirstMessages, Session } from './session-mention-harness.ts';
-import { session, sessionDriver, stock } from './session-mention-harness.ts';
+import { SCAN_BATCH } from '../session-mention-patches.ts';
+import type { DetailKey, Driver, FirstMessages, Session } from './session-mention-harness.ts';
+import { picker, session, sessionDriver, stock } from './session-mention-harness.ts';
 import type { EscapePath } from './session-mention-keys.ts';
 
 function withFirst(first: FirstMessages): Driver {
@@ -33,6 +34,7 @@ async function reordered(): Promise<Driver> {
   await input.update('#needle', 7);
   await input.finishLoad(POOL);
   expect(shownIds(input)).toEqual(['s1']);
+  input.view();
   await input.update('#zellij', 7);
   expect(shownIds(input)).toEqual(['s1']);
   return input;
@@ -90,6 +92,7 @@ describe.skipIf(stock === undefined)('a refresh never moves the rows already sho
     const input = withFirst({ ...FIRST, s2: 'zellij old', s3: 'zellij older' });
     await input.update('#needle', 7);
     await input.finishLoad([...POOL, session('s2', 'Other', 3), session('s3', 'Other', 4)]);
+    input.view();
     await input.update('#zellij', 7);
     expect(shownIds(input)).toEqual(['s1']);
     await input.runBatch();
@@ -145,10 +148,10 @@ describe.skipIf(stock === undefined)(
       await input.update('#zzz', 4);
       await input.finishLoad(chats(120));
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
       input.replaceService();
       await input.runAllBatches();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
     });
 
     test('unmounting after a replacement stops the read on the replacement too', async () => {
@@ -160,10 +163,61 @@ describe.skipIf(stock === undefined)(
       await input.update('#zzz', 4);
       await input.finishLoad(chats(120));
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(100);
+      expect(input.transcriptsRead).toHaveLength(2 * SCAN_BATCH);
       input.unmount();
       await input.runAllBatches();
-      expect(input.transcriptsRead).toHaveLength(100);
+      expect(input.transcriptsRead).toHaveLength(2 * SCAN_BATCH);
     });
   },
 );
+
+describe.skipIf(stock === undefined)('Left and Right in the session list', () => {
+  afterEach(() => {
+    picker.$ODdetail = false;
+  });
+
+  const opened = async (): Promise<Driver> => {
+    const input = withFirst({});
+    await input.update('#', 1);
+    await input.finishLoad(chats(3));
+    expect(input.suggestions.shown).toBe(true);
+    return input;
+  };
+
+  test('Right turns the detail on and Left turns it off', async () => {
+    const input = await opened();
+    expect(input.pressDetail('right')).toBe(true);
+    expect(picker.$ODdetail).toBe(true);
+    expect(input.pressDetail('left')).toBe(true);
+    expect(picker.$ODdetail).toBe(false);
+  });
+
+  test('Right when the detail is already on changes nothing and does not redraw', async () => {
+    const input = await opened();
+    input.pressDetail('right');
+    const before = input.suggestions.items;
+    input.pressDetail('right');
+    expect(picker.$ODdetail).toBe(true);
+    expect(input.suggestions.items).toBe(before);
+  });
+
+  test('the open list can be redrawn with the same rows in the same order', async () => {
+    const input = await opened();
+    const before = input.suggestions.items;
+    expect(input.redraw()).toBe(true);
+    expect(input.suggestions.items).not.toBe(before);
+    expect(shownIds(input)).toEqual(['s0', 's1', 's2']);
+  });
+
+  test('once the input unmounts there is nothing left to redraw', async () => {
+    const input = await opened();
+    input.unmount();
+    expect(input.redraw()).toBe(false);
+  });
+
+  test.each<DetailKey>(['shift-right', 'ctrl-left'])('%s is left to the text box', async (key) => {
+    const input = await opened();
+    expect(input.pressDetail(key)).toBe(false);
+    expect(picker.$ODdetail).toBe(false);
+  });
+});

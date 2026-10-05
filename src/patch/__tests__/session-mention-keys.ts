@@ -42,6 +42,7 @@ export interface EnterKey {
   readonly written: string[];
   press: () => boolean;
   down: () => boolean;
+  detail: (key: Record<string, boolean>) => boolean;
 }
 
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
@@ -216,9 +217,11 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       return hooks.entry.keyIndex;
     },
   };
-  const press = evaluate<(event: null, key: Record<string, boolean>) => boolean>(
+  const detailNamed = renamed(rebasedNamed(rebased, 'session-mention-detail-key'));
+  const press = evaluate<(event: string | null, key: Record<string, boolean>) => boolean>(
     handler,
     new Map<string, Stand>([
+      [detailNamed('uu'), hooks.picker],
       [
         group(parts, 'state', 'suggestion key handler'),
         () => ({ showSuggestions: hooks.isShown(), suggestions: hooks.rows() }),
@@ -260,12 +263,20 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
     written,
     press: () => press(null, { return: true }),
     down: () => press(null, { downArrow: true }),
+    detail: (key) => press(null, key),
   };
+}
+
+export interface Warmup {
+  readonly timers: { run: () => void; delay: number }[];
+  readonly cleared: number[];
+  readonly loaded: string[];
 }
 
 export function serviceEffect(
   rebased: readonly Rebase[],
-  sequence: Stand,
+  stands: { sequence: Stand; search: Stand },
+  warmup: Warmup,
 ): (service: Stand) => () => void {
   const rebase = rebasedNamed(rebased, 'session-mention-service-drops');
   const named = renamed(rebase);
@@ -280,7 +291,21 @@ export function serviceEffect(
             cleanup = effect();
           },
         ],
-        [named('Po'), sequence],
+        [named('Po'), stands.sequence],
+        [named('uu'), stands.search],
+        ['setTimeout', (run: () => void, delay: number) => warmup.timers.push({ run, delay })],
+        ['clearTimeout', (timer: number) => warmup.cleared.push(timer)],
+        [
+          named('p'),
+          () => ({
+            getSessionsForSelector: async (cwd: string) => {
+              await Promise.resolve();
+              warmup.loaded.push(cwd);
+              return [];
+            },
+          }),
+        ],
+        [named('h'), () => 0],
         [named('ao'), { current: null }],
         [named('go'), { current: null }],
         [named('Ba'), service],

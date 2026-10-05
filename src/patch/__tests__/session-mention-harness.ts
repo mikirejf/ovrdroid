@@ -15,7 +15,7 @@ import {
   rebasedNamed,
   setterArrow,
 } from './session-mention-callback.ts';
-import type { EscapePath, KeyResult } from './session-mention-keys.ts';
+import type { EscapePath, KeyResult, Warmup } from './session-mention-keys.ts';
 import { enterKey, escapeKeys, serviceEffect } from './session-mention-keys.ts';
 import type { Hash, Head, Item, Session } from './session-mention-picker.ts';
 import { picker, pickerReading } from './session-mention-picker.ts';
@@ -85,6 +85,7 @@ export interface Driver {
   readonly suggestions: Suggestions;
   readonly transcriptsRead: string[];
   readonly background: { pending: () => number };
+  readonly warmup: Warmup;
   readonly selected: () => number;
   readonly stockEscapes: string[];
   readonly bash: { active: boolean };
@@ -93,6 +94,8 @@ export interface Driver {
   pressEscape: (path?: EscapePath) => KeyResult;
   pressDown: () => void;
   pressEnter: () => string | undefined;
+  pressDetail: (key?: DetailKey) => boolean;
+  redraw: () => boolean;
   replaceService: () => void;
   unmount: () => void;
   finishLoad: (sessions: readonly Session[]) => Promise<void>;
@@ -100,7 +103,21 @@ export interface Driver {
   runBatchUnrendered: () => void;
   runAllBatches: () => Promise<void>;
   render: () => void;
+  view: () => void;
 }
+
+interface Redraw {
+  current: (() => void) | undefined;
+}
+
+export type DetailKey = 'right' | 'left' | 'shift-right' | 'ctrl-left';
+
+const DETAIL_KEYS: Record<DetailKey, Record<string, boolean>> = {
+  right: { rightArrow: true },
+  left: { leftArrow: true },
+  'shift-right': { rightArrow: true, shift: true },
+  'ctrl-left': { leftArrow: true, ctrl: true },
+};
 
 export type FirstMessages = Readonly<Record<string, string>>;
 
@@ -142,11 +159,19 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
   const transcriptsRead: string[] = [];
   const loads: ((sessions: readonly Session[]) => void)[] = [];
   const queued: (() => void)[] = [];
+  const transcriptHeads: unknown[] = [];
   const entry = { selected: 0, keyIndex: 0, text: '', cursor: 0 };
   const render = () => {
     entry.keyIndex = entry.selected;
   };
+  const redrawn: Redraw = { current: undefined };
   const fileSearch = {
+    get $ODredraw(): (() => void) | undefined {
+      return redrawn.current;
+    },
+    set $ODredraw(run: (() => void) | undefined) {
+      redrawn.current = run;
+    },
     $ODsessionHead: (path: string): Head => {
       transcriptsRead.push(path);
       const id = path.slice(path.lastIndexOf('/') + 1, -'.jsonl'.length);
@@ -161,7 +186,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
   const stubs = new Map<string, Stand>([
     [named('Po'), { current: 0 }],
     [named('Ba'), newService()],
-    [named('uu'), Object.assign(Object.create(picker), fileSearch)],
+    [named('uu'), Object.create(picker, Object.getOwnPropertyDescriptors(fileSearch))],
     [named('Pe'), false],
     [named('_e'), false],
     [named('U'), 120],
@@ -241,7 +266,12 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
   };
   const escape = escapeKeys(patched, rebased, hooks);
   const enter = enterKey(patched, rebased, hooks);
-  const mount = serviceEffect(rebased, stubs.get(named('Po')));
+  const warmup: Warmup = { timers: [], cleared: [], loaded: [] };
+  const mount = serviceEffect(
+    rebased,
+    { sequence: stubs.get(named('Po')), search: stubs.get(named('uu')) },
+    warmup,
+  );
   let unmount = mount(stubs.get(named('Ba')));
   const callbackFor = (service: Stand) =>
     payloadFunction<[typeof scope], (text: string, cursor: number) => Promise<void>>(
@@ -254,6 +284,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     suggestions,
     transcriptsRead,
     background: { pending: () => queued.length },
+    warmup,
     selected: () => entry.selected,
     stockEscapes: escape.escapes,
     bash: escape.bash,
@@ -264,6 +295,12 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     pressEnter: () => {
       enter.press();
       return enter.written.at(-1);
+    },
+    pressDetail: (key = 'right') => enter.detail(DETAIL_KEYS[key]),
+    redraw: () => {
+      const redraw = redrawn.current;
+      redraw?.();
+      return redraw !== undefined;
     },
     replaceService: () => {
       unmount();
@@ -288,6 +325,11 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
       }
     },
     render,
+    view: () => {
+      for (const item of suggestions.items) {
+        transcriptHeads.push(item.$ODhead);
+      }
+    },
     runAllBatches: async () => {
       while (queued.length > 0) {
         for (const run of queued.splice(0)) {

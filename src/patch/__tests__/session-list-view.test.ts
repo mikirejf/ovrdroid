@@ -218,7 +218,9 @@ describe('the window shows whole sessions around the selected one', () => {
 
   test('the footer gives the keys and the position', () => {
     const shown = view(items, 2);
-    expect(shown.left).toBe('\u2191\u2193 \u00B7 \u23CE select \u00B7 esc');
+    expect(shown.left).toBe(
+      '\u2191\u2193 \u00B7 \u2190\u2192 detail \u00B7 \u23CE select \u00B7 esc',
+    );
     expect(shown.right).toBe('3/30');
   });
 });

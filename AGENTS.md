@@ -102,6 +102,11 @@ prints its version. Launch it and watch for the input box, which is what `src/pr
 Painting proves nothing about chunks loaded later: run `bun run probe highlight /tmp/droid-test`,
 which asks for a code block in a real session and fails on a `Cannot find module` crash.
 
+Once a new patch is finalized (`bun run verify`, `bun test`, `bun run probe builds` and the copy
+check all pass), you may apply it to the installed Droid without asking. Run
+`bun run ovrdroid apply`; it backs up the stock binary first. Do not apply a patch that is still
+being tested. Tell the user afterwards that running Droid sessions need a restart.
+
 ## Conventions
 
 - Errors to stderr, data to stdout.

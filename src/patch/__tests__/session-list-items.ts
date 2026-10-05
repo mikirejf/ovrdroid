@@ -1,4 +1,4 @@
-import type { Item, Line } from './session-mention-picker.ts';
+import type { Item, Line, Session } from './session-mention-picker.ts';
 import { picker } from './session-mention-picker.ts';
 
 export const NOW = Date.UTC(2026, 0, 30);
@@ -15,22 +15,27 @@ export interface Given {
   root?: boolean;
   cwd?: string;
   count?: number;
+  last?: string;
 }
 
 export function item(given: Given = {}): Item {
   const id = given.id ?? 'aaaa1111';
+  const row: Session = {
+    id,
+    title: given.title ?? 'Fix the lag',
+    messageCount: given.count ?? 12,
+    modifiedTime: new Date(NOW - HOUR),
+    createdTime: new Date(NOW - 3 * HOUR),
+    cwd: given.cwd ?? '/home/me/dev/proj',
+  };
+  if (given.last !== undefined) {
+    row.$ODlast = { at: NOW - HOUR, role: 'assistant', text: given.last };
+  }
   return {
     label: given.title ?? 'Fix the lag',
     value: `#session-${id}`,
     $ODsession: id,
-    $ODrow: {
-      id,
-      title: given.title ?? 'Fix the lag',
-      messageCount: given.count ?? 12,
-      modifiedTime: new Date(NOW - HOUR),
-      createdTime: new Date(NOW - 3 * HOUR),
-      cwd: given.cwd ?? '/home/me/dev/proj',
-    },
+    $ODrow: row,
     $ODhead: {
       text: given.text === undefined ? 'the panel stutters' : given.text,
       branch: given.branch === undefined ? 'main' : given.branch,

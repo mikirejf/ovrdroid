@@ -49,6 +49,10 @@ export const GUTTER_MIN = 4;
 
 export const GUTTER_DROP_BELOW = 30;
 
+export const DETAIL_CHROME_ROWS = 7;
+
+export const DETAIL_FIXED_ROWS = 8;
+
 export const SESSION_BLOCK =
   `static $ODgutter($ODin){return $ODin>=100?${GUTTER_WIDE}:$ODin<${GUTTER_DROP_BELOW}?0:Math.min(${GUTTER_NARROW},Math.max(${GUTTER_MIN},Math.floor($ODin/3)))}` +
   'static $ODsessionBlock($ODit,$ODsel,$ODbg,$ODin,$ODnow,$ODroom){' +
@@ -67,11 +71,40 @@ export const SESSION_BLOCK =
   '$ODmeta=($ODg?"":$ODago+" \\u00B7 ")+$ODn+($ODn===1?" message":" messages")+" \\u00B7 started "+($ODfirst==="now"?"just now":$ODfirst+" ago");' +
   'if($ODs.cwd&&(!$ODpl.root||$ODsw($ODpl.label)>$ODg))' +
   '$ODmeta+=" \\u00B7 "+this.$ODfitStart(this.$ODhomePath($ODs.cwd),Math.max(8,$ODcw-$ODsw($ODmeta)-3));' +
-  '$ODlines.push($ODput("","place",Li($ODmeta,$ODcw),"meta"));return $ODlines}';
+  '$ODlines.push($ODput("","place",Li($ODmeta,$ODcw),"meta"));' +
+  'return $ODlines}';
+
+export const SESSION_DETAIL =
+  'static $ODdetail=!1;static $ODredraw=void 0;' +
+  'static $ODsetDetail($ODon){if(this.$ODdetail===$ODon)return;this.$ODdetail=$ODon;this.$ODredraw?.()}' +
+  'static $ODexcerpt($ODt,$ODroom,$ODn){let $ODa=Math.ceil(($ODn-1)/2),$ODb=Math.floor(($ODn-1)/2),$ODcut=$ODroom*$ODn+80,$ODgap=$ODt.length>2*$ODcut,' +
+  '$ODhead=this.$ODwrap($ODgap?$ODt.slice(0,$ODcut):$ODt,$ODroom,1e9),' +
+  '$ODtail=$ODgap?this.$ODwrap($ODt.slice(-$ODcut).replace(/^\\S*\\s+/,""),$ODroom,1e9):$ODhead;' +
+  'return!$ODgap&&$ODhead.length<=$ODn?$ODhead:[...$ODhead.slice(0,$ODa),"\\u2026",...($ODb?$ODtail.slice(-$ODb):[])]}';
+
+export const SESSION_FULL =
+  'static $ODsessionFull($ODit,$ODin,$ODh,$ODnow){' +
+  'let $ODcw=Math.max(1,$ODin-2),$ODs=$ODit.$ODrow,$ODhead=$ODit.$ODhead,$ODpl=$ODit.$ODplace,$ODlast=$ODs.$ODlast,' +
+  '$ODput=($ODtext,$ODts)=>({bg:"band",segs:[["\\u258C","bar"],[" ","place"],[$ODtext,$ODts]]}),' +
+  '$ODmsg=$ODhead?.text?this.$ODshown($ODhead.text):"",$ODfirst=this.$ODage($ODs.createdTime,$ODnow),$ODseen=this.$ODage($ODlast?.at??0,$ODnow),$ODn=$ODs.messageCount,' +
+  '$ODwhere=$ODpl.label+($ODhead?.branch?" \\u00B7 "+$ODhead.branch:""),' +
+  '$ODlines=[$ODput(Li($ODit.label,$ODcw),"titleSel"),' +
+  '$ODput(Li(this.$ODage($ODs.modifiedTime,$ODnow)+" \\u00B7 "+$ODn+($ODn===1?" message":" messages")+" \\u00B7 started "+($ODfirst==="now"?"just now":$ODfirst+" ago"),$ODcw),"meta"),' +
+  '$ODput(Li($ODwhere,$ODcw),"place"),$ODput(this.$ODfitStart(this.$ODhomePath($ODs.cwd??""),$ODcw),"place"),$ODput("","place"),$ODput("first message","meta")],' +
+  `$ODspare=Math.max(0,$ODh-${DETAIL_FIXED_ROWS}),$ODhas=!!$ODlast?.text,` +
+  `$ODfirstRows=$ODmsg?this.$ODwrap($ODmsg,$ODcw,$ODhas?Math.max(1,Math.floor($ODspare/3)):Math.max(1,$ODspare+3)):["${NO_MESSAGE}"];` +
+  '$ODlines.push(...$ODfirstRows.map(($ODm)=>$ODput($ODm,$ODmsg?"msgSel":"none")));' +
+  'if($ODhas){$ODlines.push($ODput("","place"),$ODput(Li("last message \\u00B7 "+($ODlast.role==="user"?"you":"droid")+" \\u00B7 "+($ODseen==="now"?"just now":$ODseen+" ago"),$ODcw),"meta"));' +
+  'for(let $ODm of this.$ODexcerpt($ODlast.text,$ODcw,Math.max(1,$ODh-$ODlines.length)))$ODlines.push($ODput($ODm,"msgSel"))}' +
+  'return $ODlines.slice(0,$ODh)}';
 
 export const SESSION_VIEW =
   'static $ODsessionView($ODitems,$ODpick,$ODin,$ODrows,$ODfrom,$ODnow){' +
-  'let $ODn=$ODitems.length,$ODsel=Math.max(0,Math.min($ODn-1,$ODpick)),' +
+  'let $ODn=$ODitems.length,$ODsel=Math.max(0,Math.min($ODn-1,$ODpick));' +
+  `if(this.$ODdetail&&$ODn){let $ODfull=Math.max(3,$ODrows-${DETAIL_CHROME_ROWS}),$ODbody=this.$ODsessionFull($ODitems[$ODsel],$ODin,$ODfull,$ODnow);` +
+  'while($ODbody.length<$ODfull)$ODbody.push({bg:"",segs:[]});' +
+  'return{top:0,lines:$ODbody,left:"\\u2190 back \\u00B7 \\u2191\\u2193 \\u00B7 \\u23CE select \\u00B7 esc",right:($ODsel+1)+"/"+$ODn}}' +
+  'let ' +
   `$ODh=Math.min(${LIST_BODY_CAP},Math.max(3,$ODrows-${LIST_CHROME_ROWS}),4*$ODn+3),` +
   '$ODblock=($ODk)=>{let $ODb=this.$ODsessionBlock($ODitems[$ODk],$ODk===$ODsel,$ODk===$ODsel?"band":"",$ODin,$ODnow,$ODh);' +
   'return $ODk<$ODn-1?[...$ODb,{bg:"",segs:[]}]:$ODb},' +
@@ -84,7 +117,7 @@ export const SESSION_VIEW =
   'let $ODlast=$ODend($ODtop),$ODlines=[];' +
   'for(let $ODk=$ODtop;$ODk<=$ODlast&&$ODk<$ODn&&$ODlines.length<$ODh;$ODk++)$ODlines.push(...($ODk===$ODsel?$ODopen:$ODblock($ODk)));' +
   '$ODlines.length=Math.min($ODlines.length,$ODh);while($ODlines.length<$ODh)$ODlines.push({bg:"",segs:[]});' +
-  'return{top:$ODtop,lines:$ODlines,left:"\\u2191\\u2193 \\u00B7 \\u23CE select \\u00B7 esc",right:($ODn?$ODsel+1:0)+"/"+$ODn}}';
+  'return{top:$ODtop,lines:$ODlines,left:"\\u2191\\u2193 \\u00B7 \\u2190\\u2192 detail \\u00B7 \\u23CE select \\u00B7 esc",right:($ODn?$ODsel+1:0)+"/"+$ODn}}';
 
 export const SESSION_LIST_STATICS =
   SESSION_FIT_START +
@@ -93,7 +126,9 @@ export const SESSION_LIST_STATICS =
   SESSION_BRANCH +
   SESSION_SHOWN +
   SESSION_BLEND +
+  SESSION_DETAIL +
   SESSION_BLOCK +
+  SESSION_FULL +
   SESSION_VIEW;
 
 const FF_HEAD =

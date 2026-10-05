@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { SESSION_LIST_STATICS } from '../session-list-patches.ts';
 import {
+  SESSION_BARE,
   SESSION_COMPLETE,
   SESSION_HEAD,
   SESSION_KEEP,
@@ -18,7 +19,14 @@ import {
 import { payloadFunction } from './payload.ts';
 import { endCut, prefixWithin } from './session-list-stock.ts';
 
+export interface LastMessage {
+  at: number;
+  role: string | null;
+  text: string | null;
+}
+
 export interface Session {
+  $ODlast?: LastMessage;
   id: string;
   title: string;
   messageCount: number;
@@ -106,6 +114,9 @@ type BlockArgs = [
 interface ListPicker {
   $ODsessionView: (...args: ViewArgs) => View;
   $ODsessionBlock: (...args: BlockArgs) => Line[];
+  $ODdetail: boolean;
+  $ODredraw: (() => void) | undefined;
+  $ODsetDetail: (on: boolean) => void;
   $ODgutter: (inner: number) => number;
   $ODwrap: (text: string, room: number, max: number) => string[];
   $ODfitStart: (text: string, room: number) => string;
@@ -124,7 +135,7 @@ export interface Picker extends ListPicker {
   $ODsessionItems: (rows: readonly Session[], first: (row: Session) => Head | null) => Item[];
   $ODsessionText: (raw: string) => Head;
   $ODsessionHead: (path: string) => Head;
-  $ODsessionLast: (path: string) => number | null;
+  $ODsessionLast: (path: string) => LastMessage | null;
   $ODsessionPlace: (cwd: string | undefined) => Place;
   $ODshortPath: (cwd: string) => string;
   $ODhomePath: (cwd: string) => string;
@@ -172,7 +183,7 @@ export function pickerReading(files: Files, tree: Tree = fs, home: string = home
     Picker
   >(
     ['ZT', 'R', 'require', 'Li', 'Ar'],
-    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_LAST}${SESSION_REPO}${SESSION_LIST_STATICS}}`,
+    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_LAST}${SESSION_BARE}${SESSION_REPO}${SESSION_LIST_STATICS}}`,
   )(
     (title) => title,
     () => ({ t: () => 'Untitled' }),

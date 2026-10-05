@@ -51,9 +51,13 @@ export const SESSION_REPO =
   `return $ODpath.length>${SHORT_PATH_CHARS}&&$ODparts.length>4?[...$ODparts.slice(0,2),"\\u2026",...$ODparts.slice(-2)].join("/"):$ODpath}`;
 
 export const SESSION_ITEMS =
-  'static $ODsessionItems($ODrows,$ODfirst){return $ODrows.map(($ODs)=>({' +
+  'static $ODsessionItems($ODrows,$ODfirst){let $ODself=this;return $ODrows.map(($ODs)=>({' +
   'label:($ODs.title?ZT($ODs.title):R().t("common:sessions.untitled")).replace(/\\s+/g," ").trim(),' +
-  'value:"#session-"+$ODs.id,$ODsession:$ODs.id,$ODrow:$ODs,$ODhead:$ODfirst($ODs),$ODplace:this.$ODsessionPlace($ODs.cwd)}))}';
+  'value:"#session-"+$ODs.id,$ODsession:$ODs.id,$ODrow:$ODs,get $ODhead(){return $ODfirst($ODs)},get $ODplace(){return $ODself.$ODsessionPlace($ODs.cwd)}}))}';
+
+export const SCAN_BATCH = 10;
+
+export const WARM_DELAY_MS = 2000;
 
 export const TRANSCRIPT_HEAD_BYTES = 131_072;
 
@@ -76,14 +80,19 @@ export const TRANSCRIPT_TAIL_BYTES = 65_536;
 
 export const SESSION_LAST =
   'static $ODsessionLast($ODpath){let $ODfs=require("fs"),$ODfd;try{$ODfd=$ODfs.openSync($ODpath,"r");' +
-  'let $ODsize=$ODfs.fstatSync($ODfd).size;' +
+  'let $ODsize=$ODfs.fstatSync($ODfd).size,$ODat=null;' +
   `for(let $ODlen=${TRANSCRIPT_TAIL_BYTES};;$ODlen*=2){let $ODstart=Math.max(0,$ODsize-$ODlen),$ODbuf=Buffer.allocUnsafe($ODsize-$ODstart),$ODgot=0;` +
   'while($ODgot<$ODbuf.length){let $ODn=$ODfs.readSync($ODfd,$ODbuf,$ODgot,$ODbuf.length-$ODgot,$ODstart+$ODgot);if($ODn===0)break;$ODgot+=$ODn}' +
   'let $ODlines=$ODbuf.toString("utf8",0,$ODgot).split("\\n");if($ODstart>0)$ODlines.shift();' +
   'for(let $ODi=$ODlines.length-1;$ODi>=0;$ODi--){let $ODr;try{$ODr=JSON.parse($ODlines[$ODi])}catch{continue}let $ODm=$ODr?.message;' +
-  'if($ODr?.type!=="message"||$ODm?.visibility!==void 0||$ODm.hookEventName)continue;let $ODat=Date.parse($ODr.timestamp);if(!Number.isNaN($ODat))return $ODat}' +
-  `if($ODstart===0||$ODlen>=${TRANSCRIPT_MAX_BYTES})return null}` +
+  'if($ODr?.type!=="message"||$ODm?.visibility!==void 0||$ODm.hookEventName)continue;let $ODstamp=Date.parse($ODr.timestamp);if(Number.isNaN($ODstamp))continue;' +
+  '$ODat??=$ODstamp;let $ODtext=this.$ODbare($ODm.content);if($ODtext)return{at:$ODat,role:$ODm.role,text:$ODtext}}' +
+  `if($ODstart===0||$ODlen>=${TRANSCRIPT_MAX_BYTES})return $ODat===null?null:{at:$ODat,role:null,text:null}}` +
   '}catch{return null}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}';
+
+export const SESSION_BARE =
+  'static $ODbare($ODc){let $ODt=typeof $ODc==="string"?$ODc:Array.isArray($ODc)?$ODc.filter(($ODb)=>$ODb?.type==="text"&&typeof $ODb.text==="string").map(($ODb)=>$ODb.text).join("\\n"):"";' +
+  'return $ODt.replace(/<(system-[\\w-]+)>[\\s\\S]*?<\\/\\1>/g,"").replace(/<system-[\\w-]+>[\\s\\S]*$/,"").replace(/\\s+/g," ").trim()}';
 
 const SESSION_STATICS =
   SESSION_QUERY +
@@ -95,6 +104,7 @@ const SESSION_STATICS =
   SESSION_TEXT +
   SESSION_HEAD +
   SESSION_LAST +
+  SESSION_BARE +
   SESSION_REPO +
   SESSION_LIST_STATICS;
 
@@ -156,16 +166,16 @@ export const sessionMentionPatches: readonly Patch[] = [
       'if(!$ODhash){En([]),Qt(!1);return}' +
       'let $ODseen=Ba.$ODfirst??=new Map,' +
       '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,$ODs.cwd);$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
-      'let $ODat=uu.$ODsessionLast($ODpath);if($ODat!==null)$ODs.modifiedTime=new Date($ODat)}return $ODseen.get($ODs.id)},' +
+      'let $ODlast=uu.$ODsessionLast($ODpath);if($ODlast)$ODs.modifiedTime=new Date($ODlast.at),$ODs.$ODlast=$ODlast}return $ODseen.get($ODs.id)},' +
       '$ODshown=[],$ODshow=($ODpool,$ODkeep)=>{let $ODopen=$ODkeep&&$ODshown.length>0,' +
       '$ODrows=uu.$ODsessionItems(uu.$ODsessionKeep($ODopen?$ODshown:[],uu.$ODsessionMatches($ODpool,$ODhash.query,r5,$ODseen),$ODpool,r5),$ODfirst);' +
       '$ODshown=$ODrows.map(($ODr)=>$ODr.$ODsession);En($ODrows);if(!$ODopen)Ro(0);' +
       'Qt($ODrows.length>0);$ODseq=Po.current},' +
       '$ODscan=($ODpool)=>{let $ODi=0,$ODstep=()=>{if(Ba.$ODpool!==$ODpool)return;' +
-      'for(let $ODend=Math.min($ODi+50,$ODpool.length);$ODi<$ODend;$ODi++)$ODfirst($ODpool[$ODi]);' +
+      `for(let $ODend=Math.min($ODi+${SCAN_BATCH},$ODpool.length);$ODi<$ODend;$ODi++)$ODfirst($ODpool[$ODi]);` +
       'if($ODi>=$ODpool.length)$ODpool.sort(($ODa,$ODb)=>$ODb.modifiedTime-$ODa.modifiedTime);' +
       'Ba.$ODrefresh?.();if($ODi<$ODpool.length)setTimeout($ODstep)};setTimeout($ODstep)};' +
-      'Ba.$ODrefresh=()=>{if($ODseq===Po.current&&Ba.$ODpool)$ODshow(Ba.$ODpool,!0)};' +
+      'uu.$ODredraw=Ba.$ODrefresh=()=>{if($ODseq===Po.current&&Ba.$ODpool)$ODshow(Ba.$ODpool,!0)};' +
       'if(Ba.$ODpool){$ODshow(Ba.$ODpool);return}' +
       'let $ODload=Ba.$ODload??=p().getSessionsForSelector(Ba.workingDirectory)' +
       '.then(($ODall)=>uu.$ODsessionPool($ODall,p().getCurrentSessionId()));' +
@@ -182,10 +192,27 @@ export const sessionMentionPatches: readonly Patch[] = [
   },
   {
     name: 'session-mention-service-drops',
+    lookups: [
+      UU_LOOKUP,
+      'catch(E){return h(E,"Error occurred while fetching file suggestions"),[]}',
+      'await p().getSessionsForSelector(I())',
+    ],
     find: 'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current),ao.current=null;if(go.current)clearTimeout(go.current),go.current=null;On(!1),En([]),Qt(!1),Ro(0)},[Ba])',
     replace:
       'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current),ao.current=null;if(go.current)clearTimeout(go.current),go.current=null;On(!1),En([]),Qt(!1),Ro(0);' +
-      'return()=>{Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=Ba.$ODrefresh=void 0}},[Ba])',
+      `let $ODwarm=setTimeout(()=>{p().getSessionsForSelector(Ba.workingDirectory).catch(($ODe)=>h($ODe,"Failed to warm the # picker"))},${WARM_DELAY_MS});` +
+      'return()=>{clearTimeout($ODwarm);if(uu.$ODredraw===Ba.$ODrefresh)uu.$ODredraw=void 0;Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=Ba.$ODrefresh=void 0}},[Ba])',
+  },
+  {
+    name: 'session-mention-detail-key',
+    find: 'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
+    lookups: [
+      'g((Ct,to)=>{let{showSuggestions:vo,suggestions:xo}=G();if(vo&&xo.length>0){if(to.upArrow)',
+      UU_LOOKUP,
+    ],
+    replace:
+      'if(xo[0].$ODsession&&(to.leftArrow||to.rightArrow)&&!to.ctrl&&!to.meta&&!to.shift)return uu.$ODsetDetail(!!to.rightArrow),!0;' +
+      'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
   },
   {
     name: 'session-mention-select',

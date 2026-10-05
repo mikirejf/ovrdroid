@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { SCAN_BATCH, WARM_DELAY_MS } from '../session-mention-patches.ts';
 import type { Driver, FirstMessages, Session } from './session-mention-harness.ts';
 import { session, sessionDriver, stock } from './session-mention-harness.ts';
 
@@ -56,7 +57,10 @@ describe.skipIf(stock === undefined)('a session load that finishes late', () => 
     const input = driver();
     await input.update('#', 1);
     await input.finishLoad(SESSIONS);
+    expect(input.transcriptsRead).toEqual([]);
+    input.view();
     await input.update('#pl', 3);
+    input.view();
     expect(input.transcriptsRead).toEqual(['/work/aaaa1111.jsonl', '/work/bbbb2222.jsonl']);
     expect(input.suggestions.items[0]?.$ODhead?.text).toBe('typed into /work/bbbb2222.jsonl');
   });
@@ -65,9 +69,11 @@ describe.skipIf(stock === undefined)('a session load that finishes late', () => 
     const input = driver();
     await input.update('#', 1);
     await input.finishLoad(SESSIONS);
+    input.view();
     await input.update('x', 1);
     await input.update('#', 1);
     await input.finishLoad(SESSIONS);
+    input.view();
     expect(input.transcriptsRead).toHaveLength(4);
   });
 
@@ -117,16 +123,16 @@ describe.skipIf(stock === undefined)(
       expect(shownIds(input)).toEqual(['bbbb2222', 'aaaa1111']);
     });
 
-    test('reads the pool in batches of fifty, one batch per timer', async () => {
+    test('reads the pool in batches of the scan size, one batch per timer', async () => {
       const input = withFirst({});
       await input.update('#zzz', 4);
       await input.finishLoad(many(120));
       expect(input.transcriptsRead).toHaveLength(0);
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(100);
-      await input.runBatch();
+      expect(input.transcriptsRead).toHaveLength(2 * SCAN_BATCH);
+      await input.runAllBatches();
       expect(input.transcriptsRead).toHaveLength(120);
       expect(input.background.pending()).toBe(0);
     });
@@ -148,8 +154,13 @@ describe.skipIf(stock === undefined)(
       await input.runBatch();
       expect(shownIds(input)).toEqual([]);
       await input.runBatch();
-      expect(shownIds(input)).toEqual(['s60']);
       await input.runBatch();
+      await input.runBatch();
+      await input.runBatch();
+      await input.runBatch();
+      await input.runBatch();
+      expect(shownIds(input)).toEqual(['s60']);
+      await input.runAllBatches();
       expect(shownIds(input)).toEqual(['s60', 's100']);
       expect(input.selected()).toBe(0);
     });
@@ -210,10 +221,10 @@ describe.skipIf(stock === undefined)(
       await input.update('#needle', 7);
       await input.finishLoad(many(120));
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
       input.unmount();
       await input.runAllBatches();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
       expect(input.suggestions.shown).toBe(false);
     });
 
@@ -242,10 +253,10 @@ describe.skipIf(stock === undefined)(
       await input.update('#zzz', 4);
       await input.finishLoad(many(120));
       await input.runBatch();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
       await input.update('plain', 5);
       await input.runAllBatches();
-      expect(input.transcriptsRead).toHaveLength(50);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH);
     });
 
     test('a new pool is read from the start', async () => {
@@ -257,7 +268,31 @@ describe.skipIf(stock === undefined)(
       await input.update('#zzz', 4);
       await input.finishLoad(many(60));
       await input.runAllBatches();
-      expect(input.transcriptsRead).toHaveLength(50 + 60);
+      expect(input.transcriptsRead).toHaveLength(SCAN_BATCH + 60);
+    });
+  },
+);
+
+describe.skipIf(stock === undefined)(
+  'the stock session list is read once while Droid is idle',
+  () => {
+    test('mounting arms one timer and reads nothing yet', () => {
+      const input = driver();
+      expect(input.warmup.timers.map((timer) => timer.delay)).toEqual([WARM_DELAY_MS]);
+      expect(input.warmup.loaded).toEqual([]);
+    });
+
+    test('when the timer fires it reads the list for the working directory', async () => {
+      const input = driver();
+      input.warmup.timers[0]?.run();
+      await Bun.sleep(1);
+      expect(input.warmup.loaded).toEqual(['/work']);
+    });
+
+    test('unmounting before the timer fires cancels it', () => {
+      const input = driver();
+      input.unmount();
+      expect(input.warmup.cleared).toHaveLength(1);
     });
   },
 );
