@@ -72,6 +72,19 @@ export const SESSION_HEAD =
   '$ODend-=$ODcut;$ODbuf.copyWithin(0,$ODcut,$ODcut+$ODend)}' +
   '}catch{return $ODhead}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}';
 
+export const TRANSCRIPT_TAIL_BYTES = 65_536;
+
+export const SESSION_LAST =
+  'static $ODsessionLast($ODpath){let $ODfs=require("fs"),$ODfd;try{$ODfd=$ODfs.openSync($ODpath,"r");' +
+  'let $ODsize=$ODfs.fstatSync($ODfd).size;' +
+  `for(let $ODlen=${TRANSCRIPT_TAIL_BYTES};;$ODlen*=2){let $ODstart=Math.max(0,$ODsize-$ODlen),$ODbuf=Buffer.allocUnsafe($ODsize-$ODstart),$ODgot=0;` +
+  'while($ODgot<$ODbuf.length){let $ODn=$ODfs.readSync($ODfd,$ODbuf,$ODgot,$ODbuf.length-$ODgot,$ODstart+$ODgot);if($ODn===0)break;$ODgot+=$ODn}' +
+  'let $ODlines=$ODbuf.toString("utf8",0,$ODgot).split("\\n");if($ODstart>0)$ODlines.shift();' +
+  'for(let $ODi=$ODlines.length-1;$ODi>=0;$ODi--){let $ODr;try{$ODr=JSON.parse($ODlines[$ODi])}catch{continue}let $ODm=$ODr?.message;' +
+  'if($ODr?.type!=="message"||$ODm?.visibility!==void 0||$ODm.hookEventName)continue;let $ODat=Date.parse($ODr.timestamp);if(!Number.isNaN($ODat))return $ODat}' +
+  `if($ODstart===0||$ODlen>=${TRANSCRIPT_MAX_BYTES})return null}` +
+  '}catch{return null}finally{if($ODfd!==void 0)$ODfs.closeSync($ODfd)}}';
+
 const SESSION_STATICS =
   SESSION_QUERY +
   SESSION_POOL +
@@ -81,6 +94,7 @@ const SESSION_STATICS =
   SESSION_ITEMS +
   SESSION_TEXT +
   SESSION_HEAD +
+  SESSION_LAST +
   SESSION_REPO +
   SESSION_LIST_STATICS;
 
@@ -141,13 +155,15 @@ export const sessionMentionPatches: readonly Patch[] = [
       `${SUGGESTIONS_CLOSED};let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);` +
       'if(!$ODhash){En([]),Qt(!1);return}' +
       'let $ODseen=Ba.$ODfirst??=new Map,' +
-      '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id))$ODseen.set($ODs.id,uu.$ODsessionHead(p().getSessionMessagesPath($ODs.id,$ODs.cwd)));return $ODseen.get($ODs.id)},' +
+      '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,$ODs.cwd);$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
+      'let $ODat=uu.$ODsessionLast($ODpath);if($ODat!==null)$ODs.modifiedTime=new Date($ODat)}return $ODseen.get($ODs.id)},' +
       '$ODshown=[],$ODshow=($ODpool,$ODkeep)=>{let $ODopen=$ODkeep&&$ODshown.length>0,' +
       '$ODrows=uu.$ODsessionItems(uu.$ODsessionKeep($ODopen?$ODshown:[],uu.$ODsessionMatches($ODpool,$ODhash.query,r5,$ODseen),$ODpool,r5),$ODfirst);' +
       '$ODshown=$ODrows.map(($ODr)=>$ODr.$ODsession);En($ODrows);if(!$ODopen)Ro(0);' +
       'Qt($ODrows.length>0);$ODseq=Po.current},' +
       '$ODscan=($ODpool)=>{let $ODi=0,$ODstep=()=>{if(Ba.$ODpool!==$ODpool)return;' +
       'for(let $ODend=Math.min($ODi+50,$ODpool.length);$ODi<$ODend;$ODi++)$ODfirst($ODpool[$ODi]);' +
+      'if($ODi>=$ODpool.length)$ODpool.sort(($ODa,$ODb)=>$ODb.modifiedTime-$ODa.modifiedTime);' +
       'Ba.$ODrefresh?.();if($ODi<$ODpool.length)setTimeout($ODstep)};setTimeout($ODstep)};' +
       'Ba.$ODrefresh=()=>{if($ODseq===Po.current&&Ba.$ODpool)$ODshow(Ba.$ODpool,!0)};' +
       'if(Ba.$ODpool){$ODshow(Ba.$ODpool);return}' +

@@ -8,6 +8,7 @@ import {
   SESSION_HEAD,
   SESSION_KEEP,
   SESSION_ITEMS,
+  SESSION_LAST,
   SESSION_MATCHES,
   SESSION_POOL,
   SESSION_QUERY,
@@ -123,6 +124,7 @@ export interface Picker extends ListPicker {
   $ODsessionItems: (rows: readonly Session[], first: (row: Session) => Head | null) => Item[];
   $ODsessionText: (raw: string) => Head;
   $ODsessionHead: (path: string) => Head;
+  $ODsessionLast: (path: string) => number | null;
   $ODsessionPlace: (cwd: string | undefined) => Place;
   $ODshortPath: (cwd: string) => string;
   $ODhomePath: (cwd: string) => string;
@@ -170,7 +172,7 @@ export function pickerReading(files: Files, tree: Tree = fs, home: string = home
     Picker
   >(
     ['ZT', 'R', 'require', 'Li', 'Ar'],
-    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_REPO}${SESSION_LIST_STATICS}}`,
+    `return class{${SESSION_QUERY}${SESSION_POOL}${SESSION_MATCHES}${SESSION_KEEP}${SESSION_COMPLETE}${SESSION_ITEMS}${SESSION_TEXT}${SESSION_HEAD}${SESSION_LAST}${SESSION_REPO}${SESSION_LIST_STATICS}}`,
   )(
     (title) => title,
     () => ({ t: () => 'Untitled' }),
