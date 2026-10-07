@@ -1466,15 +1466,24 @@ uncapped boot wait covered turn one; logs show `mcp_init` up to 36s and 13 of 44
 so it would now cost a bust on ~3% of starts. It is dropped, and the gate keeps stock's 60s cap. The
 message still shows at once either way; only the first reply waits.
 
+Since 0.235.0 stock saves each MCP server's tool list too (`catalog`, `seeds`, `persistCatalog`,
+under `~/.factory/cache/mcp/catalogs/`), but it cannot replace the `mcp-idle` cache:
+
+- Stock saves only when a user scope exists (a logged-in user).
+- Stock keys a stdio server's list by the working directory as well as the server and its config. So
+  the first session in a new folder or worktree finds no saved list, and would start every stdio
+  server at launch. The `mcp-idle` file is keyed by name and config only, so one list serves every
+  folder, and a wake corrects a list that differs in this folder.
+
+On the day 0.235.0 was installed, stock held 1 list and `mcp-idle` held 4. Both caches stay. The
+only cost is a second small file write when a tool list changes.
+
 ## Open items
 
 - Per-server start times reach the log only when the TUI's metrics flush, and `exec --list-tools`
   never writes them, so there is no per-run per-server number yet.
 - `blockOnMcpLoad: false` skips the wait entirely, but a first turn without every MCP tool grows the
   tools array later and busts the prompt cache, so it is not an option here.
-- Since 0.235.0 stock saves each MCP server's tool list itself (`catalog`, `seeds`,
-  `persistCatalog`), but only when a user scope exists. `mcp-idle` still keeps its own file. Folding
-  `mcp-idle` into stock's catalog would drop that file.
 
 # Prompt cache findings
 
