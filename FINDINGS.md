@@ -1472,6 +1472,9 @@ message still shows at once either way; only the first reply waits.
   never writes them, so there is no per-run per-server number yet.
 - `blockOnMcpLoad: false` skips the wait entirely, but a first turn without every MCP tool grows the
   tools array later and busts the prompt cache, so it is not an option here.
+- Since 0.235.0 stock saves each MCP server's tool list itself (`catalog`, `seeds`,
+  `persistCatalog`), but only when a user scope exists. `mcp-idle` still keeps its own file. Folding
+  `mcp-idle` into stock's catalog would drop that file.
 
 # Prompt cache findings
 

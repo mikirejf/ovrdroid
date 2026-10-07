@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { patchSource } from '../../binary/apply.ts';
 import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME, mcpIdlePatches } from '../mcp-idle-patches.ts';
 import { markerStatement } from '../patches.ts';
+import { fakeFs } from './mcp-fake-fs.ts';
 import { STOCK_HUB_MODULE, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
 import { payloadFunction } from './payload.ts';
 
@@ -66,11 +67,15 @@ interface Hub {
   toolsListCache: Map<string, CacheEntry>;
   clientResourceSubscriptions: Record<string, Subscriptions>;
   killServerProcessTree: (pid: number, name: string) => Promise<void>;
+  openPendingConnection: (name: string) => void;
   addServer: (name: string, config: ServerConfig) => Promise<void>;
   removeServer: (name: string) => Promise<void>;
   retryServer: (name: string) => Promise<void>;
   restartStdioServers: () => Promise<string[]>;
-  listToolsForServer: (name: string) => Promise<Tool[]>;
+  listToolsForServer: (name: string) => Promise<{ tools: Tool[] }>;
+  applyToolConfig: (name: string, tools: Tool[]) => Tool[];
+  persistCatalog: () => void;
+  discardCatalog: () => void;
   callTool: (name: string, tool: string) => Promise<ToolResult>;
   readResource: (name: string, uri: string) => Promise<Resource>;
   subscribeToServerResource: (name: string, uri: string) => Promise<void>;
@@ -128,7 +133,7 @@ const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdl
   .replace(STOCK_PID_HELPERS, '');
 
 const BINDINGS =
-  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout'.split(
+  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH'.split(
     ' ',
   );
 
@@ -222,6 +227,9 @@ export class HubWorld {
           timer.active = false;
         }
       },
+      async (pending: Promise<void>) => {
+        await pending;
+      },
     );
     this.hub = new Hub({
       userMcpConfigs: configs ?? { [SERVER]: STDIO_CONFIG },
@@ -231,11 +239,21 @@ export class HubWorld {
         await this.hub.listToolsForServer(name);
       },
     });
+    Object.assign(this.hub, {
+      applyToolConfig: (_name: string, tools: Tool[]) => tools,
+      persistCatalog: ignore,
+      discardCatalog: ignore,
+    });
     this.hub.killServerProcessTree = async (pid) => {
       this.killed.push(pid);
       this.alive.delete(pid);
       await Promise.resolve();
     };
+  }
+
+  async listed(name = SERVER): Promise<Tool[]> {
+    const { tools } = await this.hub.listToolsForServer(name);
+    return tools;
   }
 
   get pending(): Timer[] {
@@ -361,39 +379,8 @@ export class HubWorld {
       return { createHash };
     }
     if (name === 'fs') {
-      return this.fs();
+      return fakeFs(this.files);
     }
     throw new Error(`unexpected require("${name}")`);
-  }
-
-  private fs() {
-    const { files } = this;
-    return {
-      readFileSync(file: string): string {
-        const text = files.get(file);
-        if (text === undefined) {
-          throw new Error(`ENOENT: ${file}`);
-        }
-        return text;
-      },
-      promises: {
-        mkdir: async () => {
-          await Promise.resolve();
-        },
-        writeFile: async (file: string, text: string) => {
-          files.set(file, text);
-          await Promise.resolve();
-        },
-        rename: async (from: string, to: string) => {
-          const text = files.get(from);
-          if (text === undefined) {
-            throw new Error(`ENOENT: ${from}`);
-          }
-          files.delete(from);
-          files.set(to, text);
-          await Promise.resolve();
-        },
-      },
-    };
   }
 }

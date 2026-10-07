@@ -54,10 +54,14 @@ function renamed(rebase: Rebase): (name: string) => string {
   return (name) => rebase.renames[name] ?? name;
 }
 
-function arrowAround(text: string, anchor: number): string {
-  const start = text.lastIndexOf('=g((', anchor) + 3;
+function arrowAround(text: string, anchor: number, wrapper: string): string {
+  const start = text.lastIndexOf(`=${wrapper}((`, anchor) + wrapper.length + 2;
   const open = text.indexOf('=>{', start) + 2;
   return text.slice(start, blockEnd(text, open) + 1);
+}
+
+function callbackName(rebased: readonly Rebase[]): string {
+  return renamed(rebasedNamed(rebased, 'session-mention-escape'))('g');
 }
 
 function group(match: RegExpExecArray | null, name: string, what: string): string {
@@ -117,7 +121,7 @@ export function escapeKeys(
       },
     ],
   ]);
-  const sequence = arrowAround(patched, sequenceAt);
+  const sequence = arrowAround(patched, sequenceAt, callbackName(rebased));
   const quit = new RegExp(
     String.raw`\[27u"\)\{if\([\w$]+\|\|[\w$]+\)return (?<un>[\w$]+)\(\),!0;if\(${hi}\(\)\)return!0;return [\w$]+\(\)`,
     'u',
@@ -177,7 +181,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   if (at === -1) {
     throw new Error('the patched select callback is missing');
   }
-  const select = arrowAround(patched, at);
+  const select = arrowAround(patched, at, callbackName(rebased));
   const di = escaped(named('Di'));
   const writes = new RegExp(
     String.raw`(?<text>[\w$]+)\(${di}\.newText\),(?<cursor>[\w$]+)\(${di}\.newCursorPosition\)`,
@@ -207,7 +211,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   if (handlerAt === -1) {
     throw new Error('the stock suggestion key handler is missing');
   }
-  const handler = arrowAround(patched, handlerAt);
+  const handler = arrowAround(patched, handlerAt, callbackName(rebased));
   const parts =
     /let\{showSuggestions:[\w$]+,suggestions:[\w$]+\}=(?<state>[\w$]+)\(\);.*?\.upArrow\)return (?<move>[\w$]+)\(.*?return (?<select>[\w$]+)\(\{suggestion:[\w$]+\[(?<index>[\w$]+)\.current\],input:(?<input>[\w$]+)\.current,cursorPosition:(?<cursor>[\w$]+)\.current\}\),!0;if\([\w$]+\.escape\)return (?<un>[\w$]+)\(\)/u.exec(
       handler,

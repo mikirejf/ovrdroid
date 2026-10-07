@@ -143,6 +143,7 @@ const LIST_COMPONENT =
   'place:{color:$ODfaint},placeSel:{color:o.text.muted},title:{color:o.text.primary},titleSel:{color:o.text.primary,bold:!0},' +
   'msg:{color:o.text.muted},msgSel:{color:o.text.secondary},none:{color:$ODfaint},meta:{color:o.text.muted}};' +
   '$ODtop.current=$ODview.top;' +
+  'v(()=>()=>{globalThis.process.stdout.emit("resize")},[]);' +
   'return l(T,{flexDirection:"column",width:$ODbox,marginTop:1,children:[' +
   't(T,{borderStyle:"round",borderColor:o.border,flexDirection:"column",children:$ODview.lines.map(($ODline,$ODk)=>' +
   't(T,{paddingX:1,backgroundColor:$ODbg[$ODline.bg],children:t(i,{wrap:"truncate",children:$ODline.segs.length?' +
@@ -162,6 +163,7 @@ export const sessionListPatches: readonly Patch[] = [
       'children:[t(T,{borderStyle:X?void 0:"round",borderColor:X?void 0:o.border,',
       'return l(i,{bold:Pe,children:[t(i,{color:Ne(),children:Pe?we.selectedPrefix??"> ":"  "})',
       'ao=S(null),Po=S(0),go=S(null)',
+      'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current)',
     ],
     replace: LIST_COMPONENT + FF_HEAD,
   },

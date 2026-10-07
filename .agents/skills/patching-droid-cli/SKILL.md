@@ -94,18 +94,20 @@ names differ.
 
 ## Finding a patch site
 
-Two probe commands read the binary directly and answer the only two questions a patch site poses:
+Three probe commands read the binary directly and answer the questions a patch site poses:
 
 ```bash
 bun run probe grep <binary> 'gZ=58,hZ=24'        # is this literal unique enough to anchor?
 bun run probe names <binary> '<find>' g x P je   # what are the free names in the replacement?
+bun run probe hooks <binary> '<find>'            # which short name is which React hook there?
 ```
 
 `grep` prints a verdict (`unique, so it can anchor a patch`, or `N places … widen it`) then every
 place with its chunk and surrounding code. `names` resolves each name as the anchor's own chunk
-sees it: imported, locally defined, or free. **Never reach for shell `grep` here**: a chunk is one
-1.2MB line, so `grep -c` reports `1` for a string occurring four times, long `-E '.{400}'` context
-patterns error out, and a recursive grep over 502 chunks times out.
+sees it: imported, locally defined, or free. `hooks` names `useState`, `useEffect` and the rest as
+the anchor's chunk imports them. **Use these, not shell `grep`**: a chunk is one line, often over a
+megabyte, so `grep -c` reports `1` for a string occurring four times, long `-E '.{400}'` context
+patterns error out, and a recursive grep over hundreds of chunks times out.
 
 `bun run probe extract <binary> -o work/src/<version>` writes one file per module when you need to
 read a whole region rather than query it. Keep the previous release's extraction beside it.

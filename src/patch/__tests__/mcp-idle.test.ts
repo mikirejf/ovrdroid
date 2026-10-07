@@ -52,7 +52,7 @@ describe('starting a session', () => {
 
     expect(world.dormant).toBe(true);
     expect(world.spawned).toEqual([]);
-    expect(await world.hub.listToolsForServer(SERVER)).toEqual(TOOLS);
+    expect(await world.listed()).toEqual(TOOLS);
     expect(world.calls).toEqual([]);
     expect(world.pending).toEqual([]);
   });
@@ -64,7 +64,7 @@ describe('starting a session', () => {
     expect(world.spawned).toHaveLength(1);
     expect(world.dormant).toBe(false);
 
-    expect(await world.hub.listToolsForServer(SERVER)).toEqual(TOOLS);
+    expect(await world.listed()).toEqual(TOOLS);
     await HubWorld.settle();
 
     expect(world.cached()).toBe(JSON.stringify(TOOLS));
@@ -91,6 +91,22 @@ describe('waking', () => {
 
     expect(world.spawned).toHaveLength(1);
     expect(world.dormant).toBe(false);
+    expect(world.calls).toContain('callTool:click');
+  });
+
+  test('a call on a seeded server that arrives before it connects waits, then wakes it', async () => {
+    const world = new HubWorld();
+    world.seedCache();
+    world.hub.openPendingConnection(SERVER);
+
+    const call = world.hub.callTool(SERVER, 'click');
+    await HubWorld.settle();
+    expect(world.calls).toEqual([]);
+
+    await world.hub.addServer(SERVER, STDIO_CONFIG);
+    await call;
+
+    expect(world.spawned).toHaveLength(1);
     expect(world.calls).toContain('callTool:click');
   });
 
@@ -168,7 +184,7 @@ describe('refreshing the tool list after a wake', () => {
 
     expect(world.cached()).toBe(JSON.stringify(NEW_TOOLS));
     expect(world.changed).toEqual([SERVER]);
-    expect(await world.hub.listToolsForServer(SERVER)).toEqual(NEW_TOOLS);
+    expect(await world.listed()).toEqual(NEW_TOOLS);
   });
 
   test('an unchanged list writes nothing and reports nothing', async () => {
@@ -193,7 +209,7 @@ describe('sleeping when idle', () => {
     expect(world.dormant).toBe(true);
     expect(world.closed).toEqual([FIRST_PID]);
     expect(world.killed).toEqual([FIRST_PID]);
-    expect(await world.hub.listToolsForServer(SERVER)).toEqual(TOOLS);
+    expect(await world.listed()).toEqual(TOOLS);
   });
 
   test('a process that exits on close is not killed', async () => {
@@ -336,7 +352,7 @@ describe('a dormant server', () => {
 
     expect(world.dormant).toBe(true);
     expect(world.spawned).toEqual([]);
-    expect(await world.hub.listToolsForServer(SERVER)).toEqual(TOOLS);
+    expect(await world.listed()).toEqual(TOOLS);
   });
 });
 

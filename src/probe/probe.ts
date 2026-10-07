@@ -34,7 +34,7 @@ import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
-import { anchors, builds, extract, grep, hub, names } from './release-report.ts';
+import { registerReleaseCommands } from './release-commands.ts';
 import { registerSessionCommands } from './session-commands.ts';
 import {
   ab,
@@ -52,7 +52,6 @@ const AB_RUNS = 30;
 const KEYS_RUNS = 3;
 const IDLE_RUNS = 5;
 const TOP_MODULES = 20;
-const CONTEXT_SPAN = 200;
 const DEFAULT_CHURN: ChurnKind = 'startup';
 const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
 
@@ -160,52 +159,7 @@ program
   .argument('<binary>')
   .action(guard(touches));
 
-program
-  .command('extract')
-  .description('write every app module of a binary to a directory, one file each, for grepping')
-  .argument('<binary>')
-  .requiredOption('-o, --out <dir>', 'where to write the modules')
-  .action(guard(extract));
-
-program
-  .command('anchors')
-  .description('re-find every patch anchor in a new Droid release by identifier shape')
-  .argument('<binary>')
-  .option('--json', 'print the rebased patches as JSON', false)
-  .action(guard(anchors));
-
-program
-  .command('builds')
-  .description(
-    'does the patch set apply to the newest Droid release on every platform we support? Run it before pushing a patch change',
-  )
-  .option('--version <v>', 'release to check instead of the newest one')
-  .action(guard(builds));
-
-program
-  .command('grep')
-  .description('count where a literal occurs across the app: can it anchor a patch on its own?')
-  .argument('<binary>')
-  .argument('<needle>')
-  .option('-s, --span <chars>', 'characters of surrounding code to print', count, CONTEXT_SPAN)
-  .option('-q, --quiet', 'print only the verdict, not the surrounding code', false)
-  .action(guard(grep));
-
-program
-  .command('hub')
-  .description(
-    'is the MCP hub test fixture still stock code, names aside? For each method upstream changed, show the change and the new method in fixture names',
-  )
-  .argument('<binary>', 'a stock build: a .orig backup or a probe builds download')
-  .action(guard(hub));
-
-program
-  .command('names')
-  .description('resolve the free names a patch body uses, in the module its anchor sits in')
-  .argument('<binary>')
-  .argument('<anchor>')
-  .argument('<names...>')
-  .action(guard(names));
+registerReleaseCommands(program);
 
 program
   .command('idle')

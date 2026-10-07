@@ -45,9 +45,9 @@ export const updateNoticePatches: readonly Patch[] = [
   },
   {
     name: 'update-notice-reader',
-    find: 'function $D({width:t,height:e,t:n}){',
+    find: 'function $D({width:t,height:e,r}){',
     lookups: ['E=Hs(),C=!'],
-    replace: `${UPDATE_FILE_READER}function $D({width:t,height:e,t:n}){`,
+    replace: `${UPDATE_FILE_READER}function $D({width:t,height:e,r}){`,
   },
   {
     name: 'update-notice-header-room',

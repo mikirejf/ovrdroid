@@ -129,9 +129,11 @@ describe.skipIf(stock === undefined)('the shipped title generator', () => {
       [PATCH],
       app.map((module) => module.text),
     );
-    expect(rebase !== undefined && applies(rebase)).toBe(true);
-    expect(occurrences(stockText, PATCH.find)).toBe(1);
-    expect(occurrences(patchedText, PATCH.find)).toBe(0);
+    if (rebase === undefined || !applies(rebase)) {
+      throw new Error('the title model patch does not apply to the stock Droid');
+    }
+    expect(occurrences(stockText, rebase.find)).toBe(1);
+    expect(occurrences(patchedText, rebase.find)).toBe(0);
     expect(occurrences(patchedText, 'messageCallType:"session-title-generation"')).toBe(1);
   });
 });

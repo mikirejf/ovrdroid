@@ -21,7 +21,7 @@ const HELPERS =
   'function $ODMd($ODname,$ODcfg){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},$ODMz:!0}}';
 
 const ADD =
-  'async addServer(t,r){if($ODMh(r))return await this.$ODMspawn(t,r);' +
+  'async connectServer(t,r){if($ODMh(r))return await this.$ODMspawn(t,r);' +
   'let $ODold=this.servers[t],$ODtools=!this.shuttingDown&&(!$ODold||$ODold.$ODMz)?$ODMr(t,r):void 0;' +
   'if($ODtools){this.servers[t]=$ODMd(t,r),this.availableResources[t]=G(),this.toolsListCache.set(t,{state:"ready",tools:$ODtools}),' +
   'this.logger?.info("[ovrdroid] MCP server dormant until first use",{name:t});return}' +
@@ -47,7 +47,7 @@ const SLEEP =
 const WAKE =
   '$ODMw($ODname){let $ODsrv=this.servers[$ODname];if(!$ODsrv?.$ODMz)return;' +
   'return $ODsrv.$ODMb??=this.$ODMspawn($ODname,$ODsrv.config).then(()=>{let $ODnow=this.servers[$ODname];if($ODnow&&$ODsrv.$ODMstop)$ODnow.$ODMstop=$ODsrv.$ODMstop;this.$ODMf($ODname)},($ODerr)=>{throw $ODsrv.$ODMb=void 0,$ODerr})}' +
-  '$ODMf($ODname){this.fetchToolsForServer($ODname).then(($ODtools)=>{let $ODcache=this.toolsListCache.get($ODname);' +
+  '$ODMf($ODname){this.requestToolsList($ODname).then(($ODtools)=>{let $ODcache=this.toolsListCache.get($ODname);' +
   'if($ODcache?.state!=="ready"||JSON.stringify($ODcache.tools)!==JSON.stringify($ODtools))return this.handleToolsListChanged($ODname)})' +
   '.catch(($ODerr)=>{this.logger?.warn("[ovrdroid] MCP tools refresh after wake failed",{server:$ODname,error:$ODerr})})}';
 
@@ -56,7 +56,7 @@ const USE =
   'let $ODst=this.$ODMg($ODname);$ODst.n++,clearTimeout($ODst.t);try{return await this.$ODMw($ODname),await $ODrun()}finally{if(!--$ODst.n)this.$ODMa($ODname)}}';
 
 const FETCH =
-  'async fetchToolsForServer(t){return await this.$ODMu(t,async()=>{let $ODtools=await this.$ODMlist(t),$ODsrv=this.servers[t],$ODcache=this.toolsListCache.get(t);' +
+  'async requestToolsList(t){return await this.$ODMu(t,async()=>{let $ODtools=await this.$ODMlist(t),$ODsrv=this.servers[t],$ODcache=this.toolsListCache.get(t);' +
   'if($ODsrv&&!$ODMh($ODsrv.config)&&($ODcache?.state!=="ready"||JSON.stringify($ODcache.tools)!==JSON.stringify($ODtools)))$ODMW(t,$ODsrv.config,$ODtools);return $ODtools})}';
 
 const ADD_SERVER_HEAD =
@@ -65,12 +65,12 @@ const ADD_SERVER_HEAD =
 export const mcpIdlePatches: readonly Patch[] = [
   {
     name: 'mcp-idle-helpers',
-    find: 'class Ft{logger;clientInfo;getOAuthDriver;',
-    replace: `${HELPERS}class Ft{logger;clientInfo;getOAuthDriver;`,
+    find: 'class Ft{logger;catalog;clientInfo;getOAuthDriver;',
+    replace: `${HELPERS}class Ft{logger;catalog;clientInfo;getOAuthDriver;`,
   },
   {
-    name: 'mcp-idle-add-server',
-    find: `async addServer(t,r){${ADD_SERVER_HEAD}){`,
+    name: 'mcp-idle-connect-server',
+    find: `async connectServer(t,r){${ADD_SERVER_HEAD}){`,
     lookups: [
       'availableResources=G();invalidToolsFingerprints=new Map;',
       'var ri=(t)=>{try{return process.kill(t,0),!0}',
@@ -79,15 +79,18 @@ export const mcpIdlePatches: readonly Patch[] = [
     replace: `${ADD}${STATE}${ARM}${SLEEP}${WAKE}${USE}async $ODMspawn(t,r){${ADD_SERVER_HEAD}&&!p.$ODMz){`,
   },
   {
-    name: 'mcp-idle-fetch-tools',
-    find: 'async fetchToolsForServer(t){let r=Date.now()+Dt(),',
+    name: 'mcp-idle-request-tools',
+    find: 'async requestToolsList(t){let r=Date.now()+Dt(),',
     replace: `${FETCH}async $ODMlist(t){let r=Date.now()+Dt(),`,
   },
   {
     name: 'mcp-idle-call-tool',
     find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
+    lookups: ['if(await QH(A.promise,u),p=this.servers[t],!p)'],
     replace:
-      'async callTool(...$ODargs){return await this.$ODMu($ODargs[0],()=>this.$ODMcall(...$ODargs))}' +
+      'async callTool(...$ODargs){let $ODpend=!this.servers[$ODargs[0]]&&this.pendingConnections.get($ODargs[0]);' +
+      'if($ODpend)await QH($ODpend.promise,$ODargs[5]);' +
+      'return await this.$ODMu($ODargs[0],()=>this.$ODMcall(...$ODargs))}' +
       'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
   },
   {

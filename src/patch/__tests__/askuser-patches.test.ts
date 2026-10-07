@@ -33,14 +33,12 @@ interface ToolContext {
 
 type EnabledCheck = boolean | ((context: ToolContext) => boolean);
 
-function enabledCheckOf(property: string): (context: ToolContext) => boolean {
+function enabledCheckOf(payload: string): (context: ToolContext) => boolean {
+  const property = payload.slice(payload.indexOf('isToolEnabled:'));
   const check = payloadFunction<[], { isToolEnabled: EnabledCheck }>([], `return{${property}}`)()
     .isToolEnabled;
   return typeof check === 'boolean' ? () => check : check;
 }
-
-const stockCheck = enabledCheckOf(PATCH.find);
-const patchedCheck = enabledCheckOf(PATCH.replace);
 
 const TERMINAL_UI: ToolContext = { cliDroidMode: 'terminal-ui', askUserToolEnabled: true };
 
@@ -53,11 +51,11 @@ const SURFACES = [
 
 describe('the AskUser tool is off on every surface', () => {
   test('stock Droid turns it on in the terminal UI', () => {
-    expect(stockCheck(TERMINAL_UI)).toBe(true);
+    expect(enabledCheckOf(PATCH.find)(TERMINAL_UI)).toBe(true);
   });
 
   test.each(SURFACES)('the patched check says no in %s', (_surface, context) => {
-    expect(patchedCheck(context)).toBe(false);
+    expect(enabledCheckOf(PATCH.replace)(context)).toBe(false);
   });
 });
 
@@ -70,22 +68,6 @@ function stockAppAt(target: string): App | undefined {
 }
 
 const stock = stockAppAt(INSTALLED_DROID) ?? stockAppAt(backupPath(INSTALLED_DROID));
-
-const ASK_USER_DEFINITION = /displayName:"Ask User",[\s\S]*?isToolEnabled:(?<check>[^,}]+)/u;
-
-function enabledChecksIn(app: App): string[] {
-  return app.flatMap((module) => {
-    const check = ASK_USER_DEFINITION.exec(module.text)?.groups?.['check'];
-    return check === undefined ? [] : [check];
-  });
-}
-
-function stockOrThrow(): App {
-  if (stock === undefined) {
-    throw new Error('no stock Droid to read');
-  }
-  return stock;
-}
 
 const stockText = stock === undefined ? '' : joinApp(stock);
 const patchedText = stock === undefined ? '' : joinApp(patchSource(stock, askUserPatches));
@@ -109,10 +91,20 @@ function occurrences(text: string, part: string): number {
   return text.split(part).length - 1;
 }
 
+const ASK_USER_GATE = /askUserToolEnabled:(?<flag>[\w$]+)\}\)=>\k<flag>===!0/gu;
+
 describe.skipIf(stock === undefined)('the shipped AskUser tool definition', () => {
   test('is switched off once patched', () => {
-    expect(enabledChecksIn(stockOrThrow())).toHaveLength(1);
-    expect(enabledChecksIn(patchSource(stockOrThrow(), askUserPatches))).toEqual(['!1']);
+    const { find, replace } = rebasedNamed('ask-user-tool-never-enabled');
+    expect(occurrences(stockText, find)).toBe(1);
+    expect(occurrences(patchedText, find)).toBe(0);
+    expect(occurrences(patchedText, replace)).toBe(1);
+  });
+
+  test('leaves every other tool that reads the AskUser flag alone', () => {
+    const stockGates = [...stockText.matchAll(ASK_USER_GATE)].length;
+    expect(stockGates).toBeGreaterThan(1);
+    expect([...patchedText.matchAll(ASK_USER_GATE)]).toHaveLength(stockGates - 1);
   });
 });
 

@@ -11,7 +11,7 @@ import { findMarker, patches } from '../patches.ts';
 type Commands = (command: string, options: { respectHeredocs: boolean }) => string[][];
 
 const SPLITTER =
-  /function (?<name>[\w$]+)\(e,n\)\{return [\w$]+\(e,n\)\.map\(\(\{argv:t\}\)=>t\)\}/u;
+  /function (?<name>[\w$]+)\((?<a>[\w$]+),(?<b>[\w$]+)\)\{return [\w$]+\(\k<a>,\k<b>\)\.map\(\(\{argv:(?<c>[\w$]+)\}\)=>\k<c>\)\}/u;
 
 function exportedName(text: string, local: string): string {
   const exports = /export\{(?<list>[^}]*)\}/u.exec(text)?.groups?.['list'] ?? '';
@@ -24,6 +24,33 @@ function exportedName(text: string, local: string): string {
   throw new Error(`the command parser module does not export its splitter ${local}`);
 }
 
+const BUN_ROOT = '/$bunfs/root/';
+
+function writeWithImports(
+  start: { name: string; text: string },
+  modules: readonly { name: string; text: string }[],
+  dir: string,
+): string {
+  const queue = [start];
+  const written = new Set<string>();
+  for (const module of queue) {
+    const base = path.basename(module.name);
+    if (written.has(base)) {
+      continue;
+    }
+    written.add(base);
+    writeFileSync(path.join(dir, base), module.text.replaceAll(BUN_ROOT, './'));
+    for (const [, imported] of module.text.matchAll(/from"\/\$bunfs\/root\/(?<file>[^"]+)"/gu)) {
+      const next = modules.find((candidate) => path.basename(candidate.name) === imported);
+      if (next === undefined) {
+        throw new Error(`the command parser imports ${imported}, which the bundle does not carry`);
+      }
+      queue.push(next);
+    }
+  }
+  return path.join(dir, path.basename(start.name));
+}
+
 async function parserOf(target: string): Promise<Commands | undefined> {
   let app;
   try {
@@ -34,13 +61,14 @@ async function parserOf(target: string): Promise<Commands | undefined> {
   if (findMarker(app[0].text) !== undefined) {
     return undefined;
   }
-  const parser = patchSource(app, patches).find((module) => SPLITTER.test(module.text));
+  const patchedApp = patchSource(app, patches);
+  const parser = patchedApp.find((module) => SPLITTER.test(module.text));
   const local = parser === undefined ? undefined : SPLITTER.exec(parser.text)?.groups?.['name'];
   if (parser === undefined || local === undefined) {
     throw new Error(`no module defines a splitter shaped like ${SPLITTER.source}`);
   }
-  const file = path.join(mkdtempSync(path.join(tmpdir(), 'ovrdroid-heredoc-')), 'parser.js');
-  writeFileSync(file, parser.text);
+  const dir = mkdtempSync(path.join(tmpdir(), 'ovrdroid-heredoc-'));
+  const file = writeWithImports(parser, patchedApp, dir);
   // SAFETY: the module is Droid's own command parser, and the name is its exported splitter.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const loaded = (await import(file)) as Record<string, Commands>;

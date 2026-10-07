@@ -1,5 +1,9 @@
 import type { Patch } from './patches.ts';
 
+const ASK_USER_DEFINITION_TAIL =
+  'describe("A plain-text list of questions and the selected answers.")},streamingSchemas:{result:{content:e()}},' +
+  'isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!0,sideEffects:[],toolkit:"Base",';
+
 export const askUserTextPatches: readonly Patch[] = [
   {
     name: 'exit-spec-description-asks-in-text',
@@ -96,8 +100,8 @@ export const askUserTextPatches: readonly Patch[] = [
 export const askUserPatches: readonly Patch[] = [
   {
     name: 'ask-user-tool-never-enabled',
-    find: 'isToolEnabled:({cliDroidMode:t,askUserToolEnabled:o})=>o===!0&&(t==="terminal-ui"||t==="interactive-cli")',
-    replace: 'isToolEnabled:!1',
+    find: `${ASK_USER_DEFINITION_TAIL}isToolEnabled:({cliDroidMode:t,askUserToolEnabled:o})=>o===!0&&(t==="terminal-ui"||t==="interactive-cli")`,
+    replace: `${ASK_USER_DEFINITION_TAIL}isToolEnabled:!1`,
   },
   {
     name: 'spec-reminder-without-ask-user',

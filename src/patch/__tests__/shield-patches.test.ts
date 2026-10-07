@@ -9,6 +9,7 @@ import { findMarker } from '../patches.ts';
 import { EXTRA_PREFIX_RULES, shieldPatches } from '../shield-patches.ts';
 import { freeNames } from '../tokens.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
+import { scannerSource } from './scanner-source.ts';
 
 const PATH_PATCH = patchNamed(shieldPatches, 'shield-code-paths-skip-guessing-rules');
 
@@ -189,10 +190,9 @@ function lineMatcherIn(app: App): LineMatcher {
   if (name === undefined || end === -1) {
     throw new Error('the secret-scanner line matcher is not where the tests expect it');
   }
-  const body = text.slice(text.lastIndexOf('function ', rules), rules + end);
   // SAFETY: the body is the shipped scanner, from its rule helpers up to the redactor that follows the line matcher.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${body};return ${name}`)() as LineMatcher;
+  return new Function(`${scannerSource(text, rules, end)};return ${name}`)() as LineMatcher;
 }
 
 function ruleIdsIn(text: string): string[] {
