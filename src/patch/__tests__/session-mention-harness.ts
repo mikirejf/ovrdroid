@@ -94,7 +94,7 @@ export interface Driver {
   pressEscape: (path?: EscapePath) => KeyResult;
   pressDown: () => void;
   pressEnter: () => string | undefined;
-  pressDetail: (key?: DetailKey) => boolean;
+  pressScope: (key?: ScopeKey) => boolean;
   redraw: () => boolean;
   replaceService: () => void;
   unmount: () => void;
@@ -110,9 +110,9 @@ interface Redraw {
   current: (() => void) | undefined;
 }
 
-export type DetailKey = 'right' | 'left' | 'shift-right' | 'ctrl-left';
+export type ScopeKey = 'right' | 'left' | 'shift-right' | 'ctrl-left';
 
-const DETAIL_KEYS: Record<DetailKey, Record<string, boolean>> = {
+const SCOPE_KEYS: Record<ScopeKey, Record<string, boolean>> = {
   right: { rightArrow: true },
   left: { leftArrow: true },
   'shift-right': { rightArrow: true, shift: true },
@@ -296,7 +296,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
       enter.press();
       return enter.written.at(-1);
     },
-    pressDetail: (key = 'right') => enter.detail(DETAIL_KEYS[key]),
+    pressScope: (key = 'right') => enter.scope(SCOPE_KEYS[key]),
     redraw: () => {
       const redraw = redrawn.current;
       redraw?.();

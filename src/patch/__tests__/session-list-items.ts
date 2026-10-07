@@ -15,7 +15,6 @@ export interface Given {
   root?: boolean;
   cwd?: string;
   count?: number;
-  last?: string;
 }
 
 export function item(given: Given = {}): Item {
@@ -28,9 +27,6 @@ export function item(given: Given = {}): Item {
     createdTime: new Date(NOW - 3 * HOUR),
     cwd: given.cwd ?? '/home/me/dev/proj',
   };
-  if (given.last !== undefined) {
-    row.$ODlast = { at: NOW - HOUR, role: 'assistant', text: given.last };
-  }
   return {
     label: given.title ?? 'Fix the lag',
     value: `#session-${id}`,

@@ -26,7 +26,6 @@ export interface LastMessage {
 }
 
 export interface Session {
-  $ODlast?: LastMessage;
   id: string;
   title: string;
   messageCount: number;
@@ -114,9 +113,9 @@ type BlockArgs = [
 interface ListPicker {
   $ODsessionView: (...args: ViewArgs) => View;
   $ODsessionBlock: (...args: BlockArgs) => Line[];
-  $ODdetail: boolean;
-  $ODredraw: (() => void) | undefined;
-  $ODsetDetail: (on: boolean) => void;
+  $ODwide: boolean;
+  $ODredraw: ((reset?: boolean) => void) | undefined;
+  $ODsetWide: (on: boolean) => void;
   $ODgutter: (inner: number) => number;
   $ODwrap: (text: string, room: number, max: number) => string[];
   $ODfitStart: (text: string, room: number) => string;

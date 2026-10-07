@@ -42,7 +42,7 @@ export interface EnterKey {
   readonly written: string[];
   press: () => boolean;
   down: () => boolean;
-  detail: (key: Record<string, boolean>) => boolean;
+  scope: (key: Record<string, boolean>) => boolean;
 }
 
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
@@ -221,11 +221,11 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       return hooks.entry.keyIndex;
     },
   };
-  const detailNamed = renamed(rebasedNamed(rebased, 'session-mention-detail-key'));
+  const scopeNamed = renamed(rebasedNamed(rebased, 'session-mention-scope-key'));
   const press = evaluate<(event: string | null, key: Record<string, boolean>) => boolean>(
     handler,
     new Map<string, Stand>([
-      [detailNamed('uu'), hooks.picker],
+      [scopeNamed('uu'), hooks.picker],
       [
         group(parts, 'state', 'suggestion key handler'),
         () => ({ showSuggestions: hooks.isShown(), suggestions: hooks.rows() }),
@@ -267,7 +267,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
     written,
     press: () => press(null, { return: true }),
     down: () => press(null, { downArrow: true }),
-    detail: (key) => press(null, key),
+    scope: (key) => press(null, key),
   };
 }
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { SCAN_BATCH } from '../session-mention-patches.ts';
-import type { DetailKey, Driver, FirstMessages, Session } from './session-mention-harness.ts';
+import type { ScopeKey, Driver, FirstMessages, Session } from './session-mention-harness.ts';
 import { picker, session, sessionDriver, stock } from './session-mention-harness.ts';
 import type { EscapePath } from './session-mention-keys.ts';
 
@@ -173,7 +173,7 @@ describe.skipIf(stock === undefined)(
 
 describe.skipIf(stock === undefined)('Left and Right in the session list', () => {
   afterEach(() => {
-    picker.$ODdetail = false;
+    picker.$ODwide = false;
   });
 
   const opened = async (): Promise<Driver> => {
@@ -184,21 +184,47 @@ describe.skipIf(stock === undefined)('Left and Right in the session list', () =>
     return input;
   };
 
-  test('Right turns the detail on and Left turns it off', async () => {
+  test('Right shows every repo and Left goes back to this repo', async () => {
     const input = await opened();
-    expect(input.pressDetail('right')).toBe(true);
-    expect(picker.$ODdetail).toBe(true);
-    expect(input.pressDetail('left')).toBe(true);
-    expect(picker.$ODdetail).toBe(false);
+    expect(input.pressScope('right')).toBe(true);
+    expect(picker.$ODwide).toBe(true);
+    expect(input.pressScope('left')).toBe(true);
+    expect(picker.$ODwide).toBe(false);
   });
 
-  test('Right when the detail is already on changes nothing and does not redraw', async () => {
+  test('Right when every repo is already shown changes nothing and does not redraw', async () => {
     const input = await opened();
-    input.pressDetail('right');
+    input.pressScope('right');
     const before = input.suggestions.items;
-    input.pressDetail('right');
-    expect(picker.$ODdetail).toBe(true);
+    input.pressScope('right');
+    expect(picker.$ODwide).toBe(true);
     expect(input.suggestions.items).toBe(before);
+  });
+
+  test('the list starts with this repo only, and showing every repo adds the others', async () => {
+    const input = withFirst({});
+    await input.update('#', 1);
+    await input.finishLoad([
+      session('here', 'Here', 2),
+      { ...session('away', 'Away', 1), cwd: '/elsewhere' },
+    ]);
+    expect(shownIds(input)).toEqual(['here']);
+    picker.$ODwide = true;
+    input.redraw();
+    expect(shownIds(input)).toEqual(['here', 'away']);
+    picker.$ODwide = false;
+    input.redraw();
+    expect(shownIds(input)).toEqual(['here']);
+  });
+
+  test('a query that nothing in this repo answers shows the other repos', async () => {
+    const input = withFirst({});
+    await input.update('#away', 5);
+    await input.finishLoad([
+      session('here', 'Here', 2),
+      { ...session('away', 'Away', 1), cwd: '/elsewhere' },
+    ]);
+    expect(shownIds(input)).toEqual(['away']);
   });
 
   test('the open list can be redrawn with the same rows in the same order', async () => {
@@ -215,9 +241,9 @@ describe.skipIf(stock === undefined)('Left and Right in the session list', () =>
     expect(input.redraw()).toBe(false);
   });
 
-  test.each<DetailKey>(['shift-right', 'ctrl-left'])('%s is left to the text box', async (key) => {
+  test.each<ScopeKey>(['shift-right', 'ctrl-left'])('%s is left to the text box', async (key) => {
     const input = await opened();
-    expect(input.pressDetail(key)).toBe(false);
-    expect(picker.$ODdetail).toBe(false);
+    expect(input.pressScope(key)).toBe(false);
+    expect(picker.$ODwide).toBe(false);
   });
 });

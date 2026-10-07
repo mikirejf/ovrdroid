@@ -22,7 +22,7 @@ export const SESSION_MATCHES =
 export const SESSION_KEEP =
   'static $ODsessionKeep($ODids,$ODnow,$ODpool,$ODmax){if(!$ODids.length)return $ODnow;' +
   'let $ODby=new Map($ODpool.map(($ODs)=>[$ODs.id,$ODs])),$ODhad=new Set($ODids);' +
-  'return $ODids.map(($ODi)=>$ODby.get($ODi)).concat($ODnow.filter(($ODs)=>!$ODhad.has($ODs.id))).slice(0,$ODmax)}';
+  'return $ODids.map(($ODi)=>$ODby.get($ODi)).filter(Boolean).concat($ODnow.filter(($ODs)=>!$ODhad.has($ODs.id))).slice(0,$ODmax)}';
 
 export const SESSION_COMPLETE =
   'static $ODsessionComplete($ODt,$ODc,$ODid){let $ODm=this.$ODsessionQuery($ODt,$ODc);' +
@@ -142,7 +142,7 @@ export const sessionMentionPatches: readonly Patch[] = [
     lookups: [UU_LOOKUP, PO_LOOKUP, 'Ba=k(()=>new uu(q,co),[q,co])'],
     replace:
       'let vr=wn??zi,Di=$n??Ma,$ODseq=++Po.current;' +
-      'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=void 0;if(!_e){',
+      'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=void 0,uu.$ODwide=uu.$ODfell=!1;if(!_e){',
   },
   {
     name: 'session-mention-close-cancels',
@@ -166,16 +166,20 @@ export const sessionMentionPatches: readonly Patch[] = [
       'if(!$ODhash){En([]),Qt(!1);return}' +
       'let $ODseen=Ba.$ODfirst??=new Map,' +
       '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,$ODs.cwd);$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
-      'let $ODlast=uu.$ODsessionLast($ODpath);if($ODlast)$ODs.modifiedTime=new Date($ODlast.at),$ODs.$ODlast=$ODlast}return $ODseen.get($ODs.id)},' +
-      '$ODshown=[],$ODshow=($ODpool,$ODkeep)=>{let $ODopen=$ODkeep&&$ODshown.length>0,' +
-      '$ODrows=uu.$ODsessionItems(uu.$ODsessionKeep($ODopen?$ODshown:[],uu.$ODsessionMatches($ODpool,$ODhash.query,r5,$ODseen),$ODpool,r5),$ODfirst);' +
+      'let $ODlast=uu.$ODsessionLast($ODpath);if($ODlast)$ODs.modifiedTime=new Date($ODlast.at)}return $ODseen.get($ODs.id)},' +
+      '$ODshown=[],$ODshow=($ODall,$ODkeep)=>{let $ODopen=$ODkeep&&$ODshown.length>0,' +
+      '$ODhere=uu.$ODsessionPlace(Ba.workingDirectory).label,' +
+      '$ODscoped=uu.$ODwide?$ODall:$ODall.filter(($ODs)=>uu.$ODsessionPlace($ODs.cwd).label===$ODhere),' +
+      '$ODhit=uu.$ODsessionMatches($ODscoped,$ODhash.query,r5,$ODseen),$ODfell=!uu.$ODwide&&!$ODhit.length,' +
+      '$ODpool=$ODfell?$ODall:$ODscoped;uu.$ODfell=$ODfell;' +
+      'let $ODrows=uu.$ODsessionItems(uu.$ODsessionKeep($ODopen?$ODshown:[],$ODfell?uu.$ODsessionMatches($ODall,$ODhash.query,r5,$ODseen):$ODhit,$ODpool,r5),$ODfirst);' +
       '$ODshown=$ODrows.map(($ODr)=>$ODr.$ODsession);En($ODrows);if(!$ODopen)Ro(0);' +
       'Qt($ODrows.length>0);$ODseq=Po.current},' +
       '$ODscan=($ODpool)=>{let $ODi=0,$ODstep=()=>{if(Ba.$ODpool!==$ODpool)return;' +
       `for(let $ODend=Math.min($ODi+${SCAN_BATCH},$ODpool.length);$ODi<$ODend;$ODi++)$ODfirst($ODpool[$ODi]);` +
       'if($ODi>=$ODpool.length)$ODpool.sort(($ODa,$ODb)=>$ODb.modifiedTime-$ODa.modifiedTime);' +
       'Ba.$ODrefresh?.();if($ODi<$ODpool.length)setTimeout($ODstep)};setTimeout($ODstep)};' +
-      'uu.$ODredraw=Ba.$ODrefresh=()=>{if($ODseq===Po.current&&Ba.$ODpool)$ODshow(Ba.$ODpool,!0)};' +
+      'uu.$ODredraw=Ba.$ODrefresh=($ODreset)=>{if($ODseq===Po.current&&Ba.$ODpool)$ODshow(Ba.$ODpool,!$ODreset)};' +
       'if(Ba.$ODpool){$ODshow(Ba.$ODpool);return}' +
       'let $ODload=Ba.$ODload??=p().getSessionsForSelector(Ba.workingDirectory)' +
       '.then(($ODall)=>uu.$ODsessionPool($ODall,p().getCurrentSessionId()));' +
@@ -204,14 +208,14 @@ export const sessionMentionPatches: readonly Patch[] = [
       'return()=>{clearTimeout($ODwarm);if(uu.$ODredraw===Ba.$ODrefresh)uu.$ODredraw=void 0;Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=Ba.$ODrefresh=void 0}},[Ba])',
   },
   {
-    name: 'session-mention-detail-key',
+    name: 'session-mention-scope-key',
     find: 'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
     lookups: [
       'g((Ct,to)=>{let{showSuggestions:vo,suggestions:xo}=G();if(vo&&xo.length>0){if(to.upArrow)',
       UU_LOOKUP,
     ],
     replace:
-      'if(xo[0].$ODsession&&(to.leftArrow||to.rightArrow)&&!to.ctrl&&!to.meta&&!to.shift)return uu.$ODsetDetail(!!to.rightArrow),!0;' +
+      'if(xo[0].$ODsession&&(to.leftArrow||to.rightArrow)&&!to.ctrl&&!to.meta&&!to.shift)return uu.$ODsetWide(!!to.rightArrow),!0;' +
       'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
   },
   {
