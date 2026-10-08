@@ -1,7 +1,7 @@
+import { agentPatches } from './agent-patches.ts';
 import { askUserPatches } from './askuser-patches.ts';
 import { compactionPatches } from './compaction-patches.ts';
 import { denylistPatches } from './denylist-patches.ts';
-import { errorPatches } from './error-patches.ts';
 import { logoPatches } from './logo.ts';
 import { mcpIdlePatches } from './mcp-idle-patches.ts';
 import { sessionPatches } from './session-patches.ts';
@@ -278,7 +278,7 @@ export const patches: readonly Patch[] = [
   ...shieldPatches,
   ...askUserPatches,
   ...sessionPatches,
-  ...errorPatches,
+  ...agentPatches,
 ];
 
 export function markerDigest(list: readonly Patch[]): string {
