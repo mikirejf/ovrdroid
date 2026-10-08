@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { patchSource } from './binary/apply.ts';
 import { reportedVersion } from './binary/bun.ts';
-import { cacheStock, latestVersion } from './binary/droid-release.ts';
+import { cacheStock, latestVersion, parseVersion } from './binary/droid-release.ts';
 import { rebuildInto } from './binary/rebuild.ts';
 import type { Stock } from './binary/stock.ts';
 import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
@@ -81,9 +81,9 @@ async function hooks(): Promise<void> {
   }
 }
 
-async function update(options: Options): Promise<void> {
+async function update(wanted: string | undefined, options: Options): Promise<void> {
   const { target } = options;
-  const version = await latestVersion();
+  const version = wanted === undefined ? await latestVersion() : parseVersion(wanted);
   if (reportedVersion(target) === version) {
     say(`already on ${version}`);
     await apply(options);
@@ -139,7 +139,8 @@ program
 
 program
   .command('update')
-  .description('install the newest Droid release, then apply the patch set')
+  .description('install a Droid release (the newest by default), then apply the patch set')
+  .argument('[version]', 'Droid version to install, such as 0.236.0')
   .option(...targetOption)
   .action(guard(update));
 

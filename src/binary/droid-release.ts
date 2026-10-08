@@ -26,7 +26,7 @@ export function releaseUrl(version: string, host: string): string {
 export function parseVersion(body: string): string {
   const version = body.trim();
   if (!VERSION_PATTERN.test(version)) {
-    throw new Error(`LATEST is not a Droid version: ${JSON.stringify(version)}`);
+    throw new Error(`not a Droid version: ${JSON.stringify(version)}`);
   }
   return version;
 }

@@ -138,21 +138,28 @@ The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modul
 
 ## After a Droid update
 
-`ovrdroid update` reads Factory's newest release from `downloads.factory.ai/factory-cli/LATEST`,
-downloads it for the host (darwin-arm64 or linux-x64) into `~/.cache/ovrdroid/`, verifies its
-sha256, and applies the patch set. The installed Droid is replaced only once the patched build
-passes, so a release the patches do not fit yet leaves the current Droid in place and `update` exits
-non-zero. Drift prints `markers not found (Droid version drift): <name> (<reason>)`: the rebase
-could not settle that patch. Load the `patching-droid-cli` skill and follow its `UPDATING.md`: it
-fixes the stuck patches with `lookups`, `$OD` names and wider finds (`probe grep`, `probe names`),
-re-anchors the tests that carry their own release-scoped names, and proves the result on a copy.
+`ovrdroid update [version]` reads Factory's newest release from
+`downloads.factory.ai/factory-cli/LATEST`, or installs the exact `version` you pass (for example
+`ovrdroid update 0.236.0`). It downloads the release for the host (darwin-arm64 or linux-x64) into
+`~/.cache/ovrdroid/`, verifies its sha256, and applies the patch set. If the target already reports
+that version, it only applies the patch set. The installed Droid is replaced only once the patched
+build passes, so a release the patches do not fit yet leaves the current Droid in place and `update`
+exits non-zero. Drift prints `markers not found (Droid version drift): <name> (<reason>)`: the
+rebase could not settle that patch. Load the `patching-droid-cli` skill and follow its
+`UPDATING.md`: it fixes the stuck patches with `lookups`, `$OD` names and wider finds (`probe grep`,
+`probe names`), re-anchors the tests that carry their own release-scoped names, and proves the
+result on a copy.
 
-**The Mac is the master.** Edit ovrdroid on the Mac (or a separate full clone on the Linux box) and
-push to main. Each Linux box's dotfiles timer pulls ovrdroid into `~/dev/ovrdroid` and runs
-`ovrdroid update` every 15 minutes; the Mac pulls by hand. Before pushing a patch change, run
+**The Mac is the master.** Edit ovrdroid on the Mac (or a separate full clone on the Linux box).
+Linux boxes do not run `ovrdroid update` on a timer: their `dotfiles-update` timer (every 15
+minutes) only pulls the dotfiles repo and never touches Droid or ovrdroid. After `ovrdroid update`
+or a patch change on the Mac, push ovrdroid to main and run `dotfiles-sync` on the Mac. For each
+Linux host it pulls `~/dev/ovrdroid` and runs `ovrdroid update <version>`, where `<version>` is the
+Mac's installed Droid version. Every Linux host ends on the Mac's exact Droid version with the
+current patch set and never jumps to a newer release on its own. Before pushing a patch change, run
 `bun run probe builds`: it checks the patch set against the stock newest release of every supported
 platform (downloading and caching them) and exits non-zero on drift. A patch that fits only one
-platform breaks the other machine's next update.
+platform makes that host's `dotfiles-sync` step fail, and the host keeps its current Droid.
 
 **Delete a patch when upstream makes it obsolete.** A patch that still applies is not proof that it
 is still needed: Droid may have fixed the bug in code next to the patched line, so the patch now
