@@ -152,7 +152,7 @@ export const sessionMentionPatches: readonly Patch[] = [
   },
   {
     name: 'session-mention-suggest',
-    find: `${SUGGESTIONS_CLOSED},En([]),Qt(!1)},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe])`,
+    find: `${SUGGESTIONS_CLOSED},En([]),Qt(!1)},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe,Ko])`,
     lookups: [
       CALLBACK_START,
       UU_LOOKUP,
@@ -186,7 +186,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       '$ODload.then(($ODpool)=>{if(Ba.$ODload!==$ODload)return;let $ODfresh=Ba.$ODpool!==$ODpool;Ba.$ODpool=$ODpool;' +
       'if($ODseq===Po.current)$ODshow($ODpool);if($ODfresh)$ODscan($ODpool)},' +
       '($ODe)=>{if(Ba.$ODload===$ODload)Ba.$ODload=void 0;h($ODe,"Failed to load sessions for the # picker")})' +
-      '},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe])',
+      '},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe,Ko])',
   },
   {
     name: 'session-mention-escape',

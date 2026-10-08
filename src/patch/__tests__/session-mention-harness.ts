@@ -250,6 +250,10 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     menuGroupBlock: undefined,
   }));
   stubs.set(named('qt'), undefined);
+  stubs.set(named('Zt'), { status: 'ready' });
+  stubs.set(calleeAfter(callback, /if\(!(?<name>[\w$]+)\.current\.showCommands/u), {
+    current: { showCommands: false },
+  });
 
   const scope = scopeOver(stubs);
   const close = payloadFunction<[typeof scope], (shown: boolean) => void>(

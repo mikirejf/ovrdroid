@@ -105,8 +105,8 @@ export const askUserPatches: readonly Patch[] = [
   },
   {
     name: 'spec-reminder-without-ask-user',
-    find: 'isAskUserEnabled:!je().isAcpMode()',
-    replace: 'isAskUserEnabled:!1',
+    find: 'isAskUserEnabled:!0,usesCreateEditTools:',
+    replace: 'isAskUserEnabled:!1,usesCreateEditTools:',
   },
   ...askUserTextPatches,
 ];

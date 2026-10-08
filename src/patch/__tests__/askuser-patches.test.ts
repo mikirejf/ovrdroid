@@ -143,7 +143,8 @@ describe.skipIf(stock === undefined)('the spec-mode reminder', () => {
     const { find, replace } = rebasedNamed('spec-reminder-without-ask-user');
     expect(occurrences(stockText, find)).toBe(1);
     expect(occurrences(patchedText, find)).toBe(0);
-    expect(occurrences(patchedText, `${replace},usesCreateEditTools:`)).toBe(1);
+    expect(replace).toBe('isAskUserEnabled:!1,usesCreateEditTools:');
+    expect(occurrences(patchedText, replace)).toBe(1);
   });
 });
 

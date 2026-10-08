@@ -93,11 +93,11 @@ export function escapeKeys(
   const windows = windowsAround(patched, `if(${named('Hi')}())return`);
   const keyMatcher = new RegExp(
     String.raw`\((?<key>[\w$]+)\)=>\{let\{showSuggestions:(?<list>[\w$]+),showCommands:(?<menu>[\w$]+)\}=(?<state>[\w$]+)\(\);` +
-      String.raw`if\(\k<key>\.escape&&!\k<list>&&!\k<menu>\)\{if\(${hi}\(\)\)return!0;return (?<escape>[\w$]+)\(\)\}return!1\}`,
+      String.raw`if\(\k<key>\.escape&&!\k<list>&&!\k<menu>\)\{if\(${hi}\(\)\)return!0;if\((?<vim>[\w$]+)\(\)\)return!0;return (?<escape>[\w$]+)\(\)\}return!1\}`,
     'u',
   );
   const callbackMatcher = new RegExp(
-    String.raw`\(\)=>\{let\{showSuggestions:(?<list>[\w$]+),showCommands:(?<menu>[\w$]+)\}=[\w$]+\(\);if\(\k<list>\|\|\k<menu>\)\{[\w$]+\(\);return\}if\(${hi}\(\)\)return;[\w$]+\(\)\}`,
+    String.raw`\(\)=>\{let\{showSuggestions:(?<list>[\w$]+),showCommands:(?<menu>[\w$]+)\}=[\w$]+\(\);if\(\k<list>\|\|\k<menu>\)\{[\w$]+\(\);return\}if\(${hi}\(\)\)return;if\([\w$]+\(\)\)return;[\w$]+\(\)\}`,
     'u',
   );
   const key = windows.map((text) => keyMatcher.exec(text)).find((hit) => hit !== null) ?? null;
@@ -110,9 +110,11 @@ export function escapeKeys(
   const names = {
     state: group(key, 'state', 'Esc key handler'),
     escape: group(key, 'escape', 'Esc key handler'),
+    vim: group(key, 'vim', 'Esc key handler'),
   };
   const stubs: Stubs = new Map<string, Stand>([
     [names.state, () => ({ showSuggestions: isShown(), showCommands: false })],
+    [names.vim, () => false],
     [
       names.escape,
       () => {
@@ -123,7 +125,7 @@ export function escapeKeys(
   ]);
   const sequence = arrowAround(patched, sequenceAt, callbackName(rebased));
   const quit = new RegExp(
-    String.raw`\[27u"\)\{if\([\w$]+\|\|[\w$]+\)return (?<un>[\w$]+)\(\),!0;if\(${hi}\(\)\)return!0;return [\w$]+\(\)`,
+    String.raw`\[27u"\)\{if\([\w$]+\|\|[\w$]+\)return (?<un>[\w$]+)\(\),!0;if\(${hi}\(\)\)return!0;if\([\w$]+\(\)\)return!0;return [\w$]+\(\)`,
     'u',
   ).exec(sequence);
   stubs.set(group(quit, 'un', 'Esc sequence handler'), () => {

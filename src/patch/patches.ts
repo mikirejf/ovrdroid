@@ -70,8 +70,8 @@ const LAZY_ACCESSORS = `static{let $ODp=this.prototype,${OWN_METHOD},$ODlazy=($O
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
-    find: 'timeoutMs:a=150}={}){if(p)return i;',
-    replace: 'timeoutMs:a=30}={}){if(p)return i;',
+    find: 'timeoutMs:n=150}={}){if(f)return;',
+    replace: 'timeoutMs:n=30}={}){if(f)return;',
   },
   {
     name: 'shutdown-flush-deadline',
@@ -130,30 +130,6 @@ export const patches: readonly Patch[] = [
     replace: 'if(d)return m?1:2;if(m)return 3;return 4}',
   },
   {
-    name: 'command-catalog-mark-scanned',
-    find: 'function fT(a){let t=o();if(t.snapshot.status===a.status',
-    lookups: ['}function ei(){return '],
-    replace:
-      'function fT(a){if(a.status==="ready")ei.$done=!0;let t=o();if(t.snapshot.status===a.status',
-  },
-  {
-    name: 'command-menu-loading-first-scan-only',
-    find: 'isLoading:Uo.status==="refreshing"}',
-    lookups: ['(_P,ei,ei),ro='],
-    replace: 'isLoading:Uo.status==="refreshing"&&!ei.$done}',
-  },
-  {
-    name: 'command-menu-visibility-same-commit',
-    find: 'vo=f((_n)=>{Pt({showCommands:_n}),Do(_n)},[Pt])',
-    lookups: ['onCommandMenuVisibilityChange:Ke,draftAttachments:'],
-    replace: 'vo=f((_n)=>{Pt({showCommands:_n}),Do(_n),Ke?.(_n)},[Pt,Ke])',
-  },
-  {
-    name: 'command-menu-visibility-reset-on-unmount',
-    find: 'v(()=>{Ke?.(mo)},[mo,Ke]);',
-    replace: 'v(()=>()=>{Ke?.(!1)},[Ke]);',
-  },
-  {
     name: 'settings-watch-after-paint',
     find: 'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,',
     replace:
@@ -179,9 +155,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'gate-first-turn-on-ide-connect',
-    find: 'awaitMcpReadinessBeforeAgentTurnIfEnabled(){if(this.refreshMcpListeners(),!this.isBlockOnMcpLoadEnabled())return;',
+    find: 'awaitMcpReadinessBeforeAgentTurnIfEnabled(e){if(this.refreshMcpListeners(),!this.isBlockOnMcpLoadEnabled())return;',
     replace:
-      'awaitMcpReadinessBeforeAgentTurnIfEnabled(){this.refreshMcpListeners();' +
+      'awaitMcpReadinessBeforeAgentTurnIfEnabled(e){this.refreshMcpListeners();' +
       'if(this.ideInitPromise){let $ODtimer;await Promise.race([this.ideInitPromise.catch(()=>{}),new Promise(($ODdone)=>{$ODtimer=setTimeout($ODdone,5000);$ODtimer.unref?.()})]);clearTimeout($ODtimer)}' +
       'if(!this.isBlockOnMcpLoadEnabled())return;',
   },
@@ -209,9 +185,12 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-load-reads-loaded-settings',
-    find: 'A=await t.loadSession(e.sessionId,k),O=Number(',
-    lookups: ['allowAmbientAwsCredentialProviders:()=>we()', 'C().validateModelAccess('],
-    replace: 'A=(we()&&await C().initialize(),await t.loadSession(e.sessionId,k)),O=Number(',
+    find: 'U=await t.loadSession(e.sessionId,x),H=Number(',
+    lookups: [
+      'zi=me({name:"SessionController",lifecycle:"agent",create:()=>new se});function _n(){let Wz=_e(zi);',
+      'C().validateModelAccess(',
+    ],
+    replace: 'U=(_e(zi)&&await C().initialize(),await t.loadSession(e.sessionId,x)),H=Number(',
   },
   {
     name: 'session-worker-starts-mcp-in-background',
