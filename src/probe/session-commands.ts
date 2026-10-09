@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 
 import { count, guard } from '../cli.ts';
+import { DEFAULT_SESSIONS, DEFAULT_SINCE_DAYS, external } from './external-report.ts';
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
@@ -42,6 +43,21 @@ export function registerSessionCommands(program: Command): void {
       process.cwd(),
     )
     .action(guard(sessions));
+
+  program
+    .command('external')
+    .description(
+      "who changed the files Droid called modified externally: the agent's own tools, or someone else",
+    )
+    .option(
+      '--since <days>',
+      'only transcripts touched in the last N days',
+      count,
+      DEFAULT_SINCE_DAYS,
+    )
+    .option('--sessions <dir>', 'where Droid keeps its session transcripts', DEFAULT_SESSIONS)
+    .option('--json', 'print the counts as JSON', false)
+    .action(guard(external));
 
   program
     .command('mcp-children')
