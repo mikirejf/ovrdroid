@@ -55,6 +55,21 @@ describe('a # opens the picker only where a session tag can start', () => {
     },
   );
 
+  test.each(['#659', 'issue #659', '#6', '#0042', '#659 ', 'issue #659 fix'])(
+    '%j is an issue number, so it does not open',
+    (text) => {
+      expect(queryAtEnd(text)).toBeNull();
+    },
+  );
+
+  test.each([
+    ['#a1b2', { query: 'a1b2', start: 0 }],
+    ['#659x', { query: '659x', start: 0 }],
+    ['#feat 659', { query: 'feat 659', start: 0 }],
+  ])('%j holds more than digits, so it opens with its query', (text, hash) => {
+    expect(queryAtEnd(text)).toEqual(hash);
+  });
+
   test('the query ends at the cursor, not at the end of the text', () => {
     expect(picker.$ODsessionQuery('#abc def', 4)).toEqual({ query: 'abc', start: 0 });
   });

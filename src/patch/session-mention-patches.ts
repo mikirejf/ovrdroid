@@ -5,7 +5,7 @@ export const SESSION_QUERY =
   'static $ODsessionQuery($ODt,$ODc){for(let $ODi=$ODc-1;$ODi>=0;$ODi--){let $ODch=$ODt[$ODi];' +
   'if($ODch==="\\n"||$ODch==="\\r")return null;' +
   'if($ODch==="#"&&($ODi===0||/\\s/.test($ODt[$ODi-1]))){let $ODq=$ODt.slice($ODi+1,$ODc);' +
-  'if(/^\\s/.test($ODq))return null;return{query:$ODq,start:$ODi}}}return null}';
+  'if(/^\\s/.test($ODq)||/^\\d+(\\s|$)/.test($ODq))return null;return{query:$ODq,start:$ODi}}}return null}';
 
 export const SESSION_POOL =
   'static $ODsessionPool($ODall,$ODself){return $ODall.filter(($ODs)=>!$ODs.isSubagent&&$ODs.id!==$ODself)' +
