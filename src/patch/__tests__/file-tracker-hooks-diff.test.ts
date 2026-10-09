@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { rmSync } from 'node:fs';
 
-import { NOTE_LINE_CAP, SNAPSHOT_BYTE_CAP, TOOL_HOOKS_DONE_EVENT } from '../hook-format-patches.ts';
+import {
+  NOTE_LINE_CAP,
+  SNAPSHOT_BYTE_CAP,
+  TOOL_HOOKS_DONE_EVENT,
+} from '../file-tracker-patches.ts';
 import {
   busWithListeners,
+  creditNoteOf,
   hooksWriting,
   noteOf,
   outcomeOf,
@@ -15,7 +20,7 @@ import {
   WRITE_RESULT,
   writeResultWith,
   writtenWith,
-} from './hook-format-harness.ts';
+} from './file-tracker-harness.ts';
 
 useScratchFolder();
 
@@ -52,7 +57,7 @@ describe('the tool result after a PostToolUse hook changed the file', () => {
     expect(result).toBe(WRITE_RESULT);
   });
 
-  test('no hook ran, so the result is untouched and no done event fires', async () => {
+  test('no hook ran, so no hook refresh runs and no hook done event fires', async () => {
     const tracker = writtenWith('nohook.ts', BEFORE, 'call-7');
     const path = pathOf('nohook.ts');
     const bus = busWithListeners(tracker);
@@ -67,7 +72,7 @@ describe('the tool result after a PostToolUse hook changed the file', () => {
       hooks: hooksWriting({ [path]: AFTER }, []),
     });
 
-    expect(result).toBe(WRITE_RESULT);
+    expect(result).toBe(writeResultWith(creditNoteOf('Execute', [path])));
     expect(done).toEqual([]);
   });
 
@@ -235,7 +240,7 @@ describe('the tool result after a PostToolUse hook changed the file', () => {
     expect(result).toBe(writeResultWith(noteOf(path, edge, `${edge}y`)));
   });
 
-  test('files of another call and files only read get no note', async () => {
+  test('files of another call and files only read get no diff note, only the credit note', async () => {
     const mine = pathOf('quiet-mine.ts');
     const theirs = pathOf('quiet-theirs.ts');
     const seen = pathOf('quiet-seen.ts');
@@ -251,7 +256,7 @@ describe('the tool result after a PostToolUse hook changed the file', () => {
       hooks: hooksWriting({ [mine]: 'm\n', [theirs]: 'T\n', [seen]: 'S\n' }, OK),
     });
 
-    expect(result).toBe(WRITE_RESULT);
+    expect(result).toBe(writeResultWith(creditNoteOf('Execute', [theirs, seen])));
   });
 
   test('a file the hook deleted gets no note and does not fail the call', async () => {

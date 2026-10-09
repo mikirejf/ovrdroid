@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 
-import { TOOL_HOOKS_DONE_EVENT, TOOL_HOOKS_START_EVENT } from '../hook-format-patches.ts';
+import { TOOL_HOOKS_DONE_EVENT, TOOL_HOOKS_START_EVENT } from '../file-tracker-patches.ts';
 import {
   created,
   hooksRewriting,
@@ -10,7 +10,7 @@ import {
   toolCall,
   trackedBy,
   useScratchFolder,
-} from './hook-format-harness.ts';
+} from './file-tracker-harness.ts';
 
 useScratchFolder();
 
@@ -35,17 +35,17 @@ describe('tracker refresh after PostToolUse hooks', () => {
     expect(tracker.hasFileChangedExternally(path)).toBe(false);
   });
 
-  test('no hook ran, so the tracker is left alone', async () => {
+  test('no hook ran, so the credit step is what records the change', async () => {
     const path = created('quiet.ts');
     const tracker = trackedBy([[path, 'call-3', 'create']]);
 
     const results = await toolCall(tracker, 'call-3', hooksRewriting([path], []));
 
     expect(results).toEqual([]);
-    expect(tracker.hasFileChangedExternally(path)).toBe(true);
+    expect(tracker.hasFileChangedExternally(path)).toBe(false);
   });
 
-  test('files of another call and files only read stay stale', async () => {
+  test('files of another call and files only read are credited, not refreshed as hook output', async () => {
     const mine = created('mine.ts');
     const theirs = created('theirs.ts');
     const seen = created('seen.ts');
@@ -58,8 +58,9 @@ describe('tracker refresh after PostToolUse hooks', () => {
     await toolCall(tracker, 'call-4', hooksRewriting([mine, theirs, seen], [{ exitCode: 0 }]));
 
     expect(tracker.hasFileChangedExternally(mine)).toBe(false);
-    expect(tracker.hasFileChangedExternally(theirs)).toBe(true);
-    expect(tracker.hasFileChangedExternally(seen)).toBe(true);
+    expect(tracker.hasFileChangedExternally(theirs)).toBe(false);
+    expect(tracker.hasFileChangedExternally(seen)).toBe(false);
+    expect(tracker.fileTimestamps.get(seen)?.operation).toBe('read');
   });
 
   test('the notice and the listener use the same event names', () => {
