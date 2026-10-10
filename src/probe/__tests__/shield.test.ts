@@ -304,6 +304,14 @@ describe('the case list', () => {
     expect(lineOf('src/config.ts')).toMatch(/sk-ant-api03-[A-Za-z0-9]{40}'$/u);
   });
 
+  test('the JSON keys are 64 hex digits and a UUID with at least 14 distinct digits', () => {
+    expect(lineOf('config/hex-key.json')).toMatch(/"apiKey": "[a-f0-9]{64}",$/u);
+    const uuid = /"(?<uuid>[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})",$/u.exec(
+      lineOf('config/uuid-key.json'),
+    )?.groups?.['uuid'];
+    expect(new Set(uuid?.replaceAll('-', '')).size).toBeGreaterThanOrEqual(14);
+  });
+
   test('the DigitalOcean token is its prefix and 64 lower-case hex digits', () => {
     expect(lineOf('src/do.ts')).toMatch(/'dop_v1_[a-f0-9]{64}'$/u);
   });

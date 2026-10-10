@@ -2,14 +2,11 @@
 import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
-import type { App } from '../../binary/graph.ts';
-import { readApp } from '../../binary/graph.ts';
-import { backupPath, INSTALLED_DROID } from '../../paths.ts';
-import { findMarker } from '../patches.ts';
 import { EXTRA_PREFIX_RULES, shieldPatches } from '../shield-patches.ts';
 import { freeNames } from '../tokens.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
-import { scannerSource } from './scanner-source.ts';
+import type { Finding, LineMatcher } from './stock-scanner.ts';
+import { lineMatcherIn, scannerText, stockDroid } from './stock-scanner.ts';
 
 const PATH_PATCH = patchNamed(shieldPatches, 'shield-code-paths-skip-guessing-rules');
 
@@ -24,16 +21,6 @@ describe('every name of three characters or fewer in a payload is captured or ow
     expect(stray).toEqual([]);
   });
 });
-
-interface Finding {
-  ruleId: string;
-  start: number;
-  end: number;
-  blocking: boolean;
-  guessing: boolean;
-}
-
-type LineMatcher = (line: string) => Finding[];
 
 type Search = (cL: LineMatcher, P: { content: string }, m: string) => Finding | undefined;
 
@@ -155,45 +142,10 @@ describe('guessing rules are off for code, test, fixture and doc paths', () => {
   });
 });
 
-async function stockApp(target: string): Promise<App | undefined> {
-  let app: App;
-  try {
-    app = readApp(await Bun.file(target).bytes());
-  } catch {
-    return undefined;
-  }
-  return findMarker(app[0].text) === undefined ? app : undefined;
-}
-
-const stock = (await stockApp(INSTALLED_DROID)) ?? (await stockApp(backupPath(INSTALLED_DROID)));
-
-const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
-
-const LINE_MATCHER =
-  /function (?<name>[\w$]+)\(\w+\)\{let \w+=\w+\.replace\(\w+,\(\w+\)=>" "\.repeat\(/u;
-
-const REDACTOR = /function [\w$]+\(\w+\)\{if\(!\w+\)return\{success:!0,value:\w+\};try\{/u;
-
-function scannerText(app: App): string {
-  const module = app.find((candidate) => candidate.text.includes(SCANNER_ANCHOR));
-  if (module === undefined) {
-    throw new Error('no module carries the secret-scanner rules');
-  }
-  return module.text;
-}
-
-function lineMatcherIn(app: App): LineMatcher {
-  const text = scannerText(app);
-  const rules = text.indexOf(SCANNER_ANCHOR);
-  const name = LINE_MATCHER.exec(text.slice(rules))?.groups?.['name'];
-  const end = text.slice(rules).search(REDACTOR);
-  if (name === undefined || end === -1) {
-    throw new Error('the secret-scanner line matcher is not where the tests expect it');
-  }
-  // SAFETY: the body is the shipped scanner, from its rule helpers up to the redactor that follows the line matcher.
-  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${scannerSource(text, rules, end)};return ${name}`)() as LineMatcher;
-}
+const TYPOGRAPHY_TOKENS = [
+  'typography.p22-mackinac-pro.h6-18-bold',
+  'typography.p22-mackinac-pro.h3-32-bold',
+] as const;
 
 function ruleIdsIn(text: string): string[] {
   return [...text.matchAll(/(?:\bid:|\bSe\()"(?<id>[a-z0-9-]+)"/gu)].flatMap(
@@ -211,6 +163,11 @@ const ANTHROPIC_KEY = `${['sk', 'ant', ''].join('-')}aB3dE5gH7jK9mN1pQ3sT5vW7yZ9
 
 type Case = readonly [line: string, path: string];
 
+const TOKEN_LINES: readonly Case[] = TYPOGRAPHY_TOKENS.map((token) => [
+  `  "styleToken": "${token}",`,
+  'design-system/audit/typography.json',
+]);
+
 const PASSES: readonly Case[] = [
   ['http://${encodeURIComponent(user)}:${encodeURIComponent(p)}@p.webshare.io:80', 'a.json'],
   ['DATABASE_URL=postgresql://u:${TRIGGER_PG_PASS}@host', '.env'],
@@ -224,6 +181,7 @@ const PASSES: readonly Case[] = [
   ],
   [`AUTH_SECRET=${SHORT_SAMPLE}`, 'infisical/.env.example'],
   [`keybind=${SAMPLE}`, '.env'],
+  ...TOKEN_LINES,
 ];
 
 const PASSES_BY_PATH: readonly Case[] = [
@@ -234,7 +192,11 @@ const PASSES_BY_PATH: readonly Case[] = [
   [`API_KEY=${SAMPLE}`, 'src/App.vue'],
 ];
 
+const BOOTSTRAP_TOKEN = 'abcdef.9705823469017285';
+const BOOTSTRAP_LINE = `{"bootstrapToken":"${BOOTSTRAP_TOKEN}"}`;
+
 const BLOCKS: readonly Case[] = [
+  [BOOTSTRAP_LINE, 'config/settings.json'],
   [`OPENAI_API_KEY=${SAMPLE}`, '.env'],
   [`"url": "postgres://admin:${SHORT_SAMPLE}@db.internal.acme.io/x"`, '.agents/mcp.json'],
   [`const key = "${ANTHROPIC_KEY}"`, 'src/config.ts'],
@@ -243,6 +205,14 @@ const BLOCKS: readonly Case[] = [
   [`API_KEY=${SAMPLE}`, 'schema.sql'],
   [ANTHROPIC_KEY, '.env.example'],
   [ANTHROPIC_KEY, 'docs/guide.md'],
+  ...[
+    'Hq83kdPzW1xLm0QaZt7bNc4V',
+    '3f2a9c1e4b1c4d2e9a7b1c2d3e4f5a6b',
+    '3f2a9c1e4b1c4d2e9a7b1c2d3e4f5a6b8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b',
+    '3f2a9c1e-4b1c-4d2e-9a7b-1c2d3e4f5a6b',
+    'ab12-cd34-ef56-7a8b-9c0d-e1f2',
+  ].map((value): Case => [`  "apiKey": "${value}",`, 'config/settings.json']),
+  [`  "password": "${TYPOGRAPHY_TOKENS[0]}",`, 'config/settings.json'],
 ];
 
 const HEX = '0123456789abcdef';
@@ -317,6 +287,8 @@ function sampleLine(token: string): string {
   return `const sample = "${token}"`;
 }
 
+const stock = stockDroid;
+
 if (stock !== undefined) {
   describe('the patched scanner on real lines', () => {
     const stockMatcher = lineMatcherIn(stock);
@@ -336,6 +308,25 @@ if (stock !== undefined) {
         expect(blocks(stockMatcher, path, line)).toBe(true);
       },
     );
+
+    test.each(TOKEN_LINES)(
+      'the stock scanner blocks %s in %s, so the dotted-name rule lets it pass',
+      (line, path) => {
+        expect(blocks(stockMatcher, path, line)).toBe(true);
+      },
+    );
+
+    test('the stock scanner blocks a Kubernetes bootstrap token and so does the patched one', () => {
+      expect(blocks(stockMatcher, 'config/settings.json', BOOTSTRAP_LINE)).toBe(true);
+    });
+
+    test('the patched scanner reports exactly the bootstrap token span for redaction', () => {
+      const stockSpans = stockMatcher(BOOTSTRAP_LINE).map(({ start, end }) => [start, end]);
+      const patchedSpans = patchedMatcher(BOOTSTRAP_LINE).map(({ start, end }) => [start, end]);
+      expect(patchedSpans).toEqual(stockSpans);
+      const [start = 0, end = 0] = patchedSpans[0] ?? [];
+      expect(BOOTSTRAP_LINE.slice(start, end)).toBe(BOOTSTRAP_TOKEN);
+    });
 
     test('a finding from an exact-prefix rule is not marked as guessing', () => {
       const [finding] = patchedMatcher(ANTHROPIC_KEY);

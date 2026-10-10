@@ -12,10 +12,14 @@ export interface ShieldCase {
 
 const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 const HEX = '0123456789abcdef';
+const KUBE_SECRET_CHARS = 16;
 const ANTHROPIC_KEY_CHARS = 40;
 const SECRET_CHARS = 24;
 const SECRET_MIN_DISTINCT = 14;
 const DIGITALOCEAN_HEX_CHARS = 64;
+const HEX_KEY_CHARS = 64;
+const UUID_GROUPS = [8, 4, 4, 4, 12] as const;
+const UUID_MIN_DISTINCT = 14;
 const TICK = '`';
 const DOLLAR = '$';
 const AT = '@';
@@ -31,6 +35,14 @@ export function randomAlphanumeric(length: number): string {
 
 export function randomHex(length: number): string {
   return randomFrom(HEX, length);
+}
+
+function randomUuid(): string {
+  let uuid = '';
+  while (new Set(uuid.replaceAll('-', '')).size < UUID_MIN_DISTINCT) {
+    uuid = UUID_GROUPS.map((length) => randomHex(length)).join('-');
+  }
+  return uuid;
 }
 
 export function randomSecret(): string {
@@ -81,6 +93,20 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
   passes('docs/setup.md', `export API_TOKEN=${randomSecret()}`),
   passes('infisical/.env.example', `AUTH_SECRET=${randomSecret()}`),
   passes('tests/fixtures/page.html', `<meta name="x" content="x" data-token="${randomSecret()}">`),
+  passes(
+    'design-system/audit/typography.json',
+    '  "styleToken": "typography.p22-mackinac-pro.h6-18-bold",',
+  ),
+  passes(
+    'design-system/audit/headings.json',
+    '  "styleToken": "typography.p22-mackinac-pro.h3-32-bold",',
+  ),
+  blocks('config/hex-key.json', `  "apiKey": "${randomHex(HEX_KEY_CHARS)}",`),
+  blocks('config/uuid-key.json', `  "apiKey": "${randomUuid()}",`),
+  blocks(
+    'config/kube-join.json',
+    `  "bootstrapToken": "abcdef.${randomFrom('0123456789', KUBE_SECRET_CHARS)}",`,
+  ),
   blocks('.env', `OPENAI_API_KEY=${randomSecret()}`),
   blocks('.env.local', `STRIPE_SECRET_KEY=${randomSecret()}`),
   blocks('scripts/backup.sh', `PGPASSWORD=${randomSecret()} pg_dump mydb`),

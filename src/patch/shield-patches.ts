@@ -80,6 +80,13 @@ export const EXTRA_PREFIX_RULES: readonly PrefixRule[] = [
 
 const CODE_PATH = String.raw`/\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|go|rs|rb|java|kt|swift|c|cc|cpp|h|hpp|cs|php|scala|lua|vue|svelte|dart|ex|exs|css|scss|md|mdx|txt|rst|html|htm)\x22?$|(?:^\x22?|\/)(?:__tests__|__fixtures__|fixtures|tests?|docs)(?:\/|\x22?$)|\.(?:test|spec|test-support)\.[^\/]*$|(?:^\x22?|\/)\.env\.(?:example|sample|template)\x22?$/i`;
 
+const NAME_PART = String.raw`(?:[a-z]{5,12}|[a-z\d]{1,4})`;
+
+export const DOTTED_NAME = new RegExp(
+  String.raw`^(?=[^.]*\.)${NAME_PART}(?:[.-]${NAME_PART})*$`,
+  'u',
+);
+
 const EXTRA_RULES = EXTRA_PREFIX_RULES.map(
   ({ id, source }) => `{id:${JSON.stringify(id)},pattern:${JSON.stringify(source)}}`,
 ).join(',');
@@ -96,6 +103,11 @@ export const shieldPatches: readonly Patch[] = [
     find: 'cL(P.content).find(({blocking:N})=>N)',
     lookups: ['if(od(m,f)||ad(m)){v=[];return}'],
     replace: `cL(P.content).find(({blocking:N,guessing:$ODguess})=>N&&!($ODguess&&${CODE_PATH}.test(m)))`,
+  },
+  {
+    name: 'shield-dotted-names-read-as-words',
+    find: 'function nl(t,o){return vr(t)&&!pt(t)&&(o===void 0||/passw(?:or)?d/i.test(o)||!Lr(t))}',
+    replace: `function nl(t,o){return vr(t)&&!pt(t)&&(o===void 0||/passw(?:or)?d/i.test(o)||!Lr(t)&&!${DOTTED_NAME}.test(t))}`,
   },
   {
     name: 'shield-extra-exact-prefix-rules',
