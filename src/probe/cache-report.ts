@@ -15,6 +15,7 @@ export {
   DEFAULT_QUOTA_STEPS,
   quota,
 } from './quota-report.ts';
+export { reopens, reopensOptions } from './reopens-report.ts';
 export {
   DEFAULT_CLIFF_MINUTES,
   DEFAULT_MODEL,

@@ -2011,3 +2011,105 @@ mentioned but no longer replaces the content.
 
 One limit remains. The summary covers the whole conversation, including the messages compaction
 keeps, where stock summarises only the part it drops.
+
+## Measured: a reopened session mostly reads its history from the cache
+
+2026-10-01, `bun run probe reopens`, from `cache-usage.jsonl` (2026-09-18 on) and the `SessionStart`
+hook with matcher `resume` in the session transcripts. Sends nothing. A reopen counts when the first
+request after it came 1 to 60 minutes after the last one before it. This row had been carried as
+"open" in the `TOKEN_OPTIMIZER.md` ledger.
+
+**133 of 162 real reopens read the full history (82.1%).** "Full" is a cache read of at least 90% of
+what the last request before the reopen held. The log grows with every session, so a rerun prints
+slightly larger counts.
+
+| gap, minutes | all models | Claude (opus, sonnet) |   GPT |
+| :----------- | ---------: | --------------------: | ----: |
+| under 5      |      68/76 |                 34/36 | 34/40 |
+| 5 to 10      |      20/25 |                  6/11 | 14/14 |
+| 10 to 20     |      24/33 |                 17/26 |   7/7 |
+| 20 to 40     |      15/21 |                 14/17 |   1/4 |
+| 40 to 60     |        6/7 |                   4/5 |   2/2 |
+
+Claude reads less once the gap passes 5 minutes: claude-opus 31 of 46, Claude overall 41 of 59. Gaps
+of 20 to 60 minutes still mostly hit. Since 2026-09-20 the picture is the same, a little better: 124
+of 147 reopens (84.4%), and 41 of 55 for Claude past 5 minutes. The 15 reopens before 09-20 hold 9
+full reads and 6 misses.
+
+Three controlled live-vs-reopen recordings with body capture (Sonnet 5.5 text, Sonnet 5.5 realistic,
+Opus 5.5 realistic) were byte-identical in the shared prefix, except that reopened tool results
+carried `"is_error": false`. Droid only emits that key for messages reloaded from disk. The patch
+`tool-result-omit-false-is-error` now emits `is_error` only when it is true. The cache still hit
+with the key present, so it is a cleanup, not the cause of the misses.
+
+The probe sorts the 29 reopens that missed by cause, one cause each, midnight first: **crossed
+midnight 4, setup changed 6, unexplained 19.**
+
+- **Crossed midnight (4).** A Claude reopen whose last request before it and first request after it
+  fell on different days in `Europe/Ljubljana`. See the next section. Two read 0 on 2026-09-24
+  (`9cfa168a`, `347cf80a`), one read 10,296 on 2026-09-28 (`0ea51e93`), and one read 9,594 on
+  2026-09-30 (`338c2cf4`).
+- **Setup changed (6).** Another session of the same provider started within 10 minutes and read the
+  same amount (within 500 tokens) as the reopen, so the reopen got exactly what a brand-new Droid
+  process could share at that moment, and the setup had changed since the live process started. Four
+  Claude reopens on 2026-09-30 that read 9,594 (`b4ca2341`, `0e61d7b5`, `0223b60b`, `66ae2ad8`), the
+  GPT reopen that day that read 3,584 (`1d97feec`), and one Claude reopen on 2026-09-23 that read
+  11,819 (`69692d87`).
+- **Unexplained (19).** They read more than a fresh session would, so `messages[0]` hit too, or they
+  read 9,594 or 3,584 with no new session nearby. These cannot be explained without the bodies as
+  they went out on the wire.
+
+## Measured: the proxy's date note flips at local midnight, and the cache dies with it
+
+CLIProxyAPI, the local proxy in front of Claude, puts "Today's date is YYYY-MM-DD." as the first
+block of the first user message of every request, taken from `time.Now()` in the proxy's configured
+time zone (`Europe/Ljubljana` here). At local midnight the bytes of `messages[0]` change, so
+everything after the tools and the system prompt misses. Source, v8.0.5:
+[claude_executor_cloaking.go](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.5/internal/runtime/executor/claude_executor_cloaking.go#L1157)
+(`claudeCodeCurrentTime` near L1084, `injectClaudeCodeCurrentDate` at L1157, called near L1450).
+
+It is the same for a live session that sits idle across midnight, not only for a reopen. Recomputed
+2026-10-01 from `cache-usage.jsonl`: Claude request pairs in one session with a gap of 3 to 55
+minutes and a previous request of at least 40,000 tokens.
+
+| pair                            | read the full history |
+| :------------------------------ | --------------------: |
+| both requests on one local day  |  1,489 of 1,599 (93%) |
+| the pair crosses local midnight |          1 of 13 (8%) |
+
+The reopen subset says the same: the 4 Claude reopens that crossed local midnight read 0 of 4 in
+full, against 75 of 91 for Claude reopens inside one local day. The 3 GPT reopens that crossed
+midnight read 2 of 3, so GPT is not hit, which fits a note added only on the Claude path. The probe
+flags the crossing with `--time-zone` (default: the system zone), for Claude models only.
+
+Midnight explains 4 reopen misses, not all of the 9,594-token reads on 2026-09-30. Only one of those
+pairs (`338c2cf4`, 23:49 to 00:09 local) crosses midnight. Three more (`b4ca2341`, `0e61d7b5`,
+`0223b60b`) are after midnight on both sides, between 00:24 and 00:50 local, and `66ae2ad8` read
+9,594 twice in the afternoon (14:59 and 15:25 local). Those stay in the setup-changed or unexplained
+counts above. Why a reopen shortly after the flip still misses is not known.
+
+No proxy setting avoids this. The time-zone setting only moves where midnight falls.
+
+CLIProxyAPI fixed it upstream. Issue
+[#6282](https://github.com/router-for-me/CLIProxyAPI/issues/6282) was closed by commit 6d57ac90
+"fix(claude): pin session date in cloaked reminder to prevent prompt cache invalidation", released
+in v8.0.12 (2026-10-02). PR #6283 proposed the same idea and is still open. The first request of a
+session saves that day's date and later requests of the session reuse it
+([`PinClaudeSessionDate`](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.12/internal/runtime/executor/helps/claude_diagnostics.go)),
+so `messages[0]` stays byte-identical across midnight. The date lives only in the proxy's memory: a
+restart (a Homebrew upgrade restarts it) forgets it, and it expires one hour after the session's
+last request.
+
+For Droid, the proxy has to guess the session. Droid sends no `x-session-id` on BYOK custom-model
+requests, so the proxy uses a hash of the system prompt start, the first user message and the first
+assistant reply
+([`extractMessageHashIDs`](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.12/sdk/cliproxy/auth/selector.go)).
+That hash changes once, between turn 1 and turn 2, then holds. The pin therefore protects idle
+sessions and reopens from turn 2 on. A session started just after midnight can still miss once on
+turn 1's small prefix. An ovrdroid patch that adds `x-session-id` to BYOK requests would remove that
+gap (not done;
+[`session/info.go`](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.12/sdk/cliproxy/session/info.go)
+reads the header). Homebrew upgraded the proxy here to cliproxyapi 8.0.20 on 2026-10-08, and
+`probe reopens` found no midnight miss from then to 2026-10-10.
+
+The details and the other evidence are in `RESUME_CACHE.md`.

@@ -24,6 +24,8 @@ import {
   minuteList,
   prices,
   quota,
+  reopens,
+  reopensOptions,
   SCHEDULE_NAMES,
   ttl,
 } from './cache-report.ts';
@@ -201,6 +203,12 @@ program
   .option('--from <dir>', 'where the preserved logs are', DEFAULT_BUST_SOURCE)
   .option('--runs <file>', 'quota runs to price the rewrites against', DEFAULT_QUOTA_RUNS)
   .action(guard(busts));
+
+reopensOptions(
+  program
+    .command('reopens')
+    .description('on a session reopen, does the first request read its history from the cache?'),
+).action(guard(reopens));
 
 program
   .command('prices')

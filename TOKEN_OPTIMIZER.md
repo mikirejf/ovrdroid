@@ -527,7 +527,7 @@ run. Nothing downstream may read from an `open` row.
 | a model change starts a new cache                                 | documented               | `probe busts --event model`                  |
 | an image invalidates the message cache                            | documented               | `probe busts --event image`                  |
 | an MCP connect or drop invalidates the whole cache                | open                     | `probe busts --event tools`                  |
-| session resume within the TTL hits the cache                      | open                     | `probe busts --event resume`                 |
+| session resume within the TTL hits the cache                      | **measured**: 2026-10-01 | `probe reopens`: 133 of 162 read it all      |
 | a fork shares the parent's cache up to the fork point             | open                     | `probe busts --event fork`                   |
 | `characters / 3.5` estimates tokens within X%                     | open                     | `probe calibrate`, which reports X           |
 | `always-5m` replay reproduces `settings.json` sums within X%      | open                     | `probe calibrate`                            |
@@ -535,6 +535,13 @@ run. Nothing downstream may read from an `open` row.
 | Droid's model ids map onto models.dev ids                         | open                     | `probe prices`, fails on an unmapped id      |
 | subagent sessions are files without index entries                 | open                     | `probe sessions`, reports the count          |
 | the logs rotate daily and keep about 3 days                       | open                     | `probe logs`, reports what it found          |
+
+Session resume hits the cache mostly: `probe reopens` found 133 of 162 real reopens reading the full
+history. Three controlled live-vs-reopen recordings were byte-identical except `is_error:false` on
+tool results, now patched (`tool-result-omit-false-is-error`). One proven cause of misses: the
+proxy's date note changes at local midnight, so any Claude request after midnight misses, reopen or
+not (1 of 13 pairs across midnight read in full, against 1,489 of 1,599 within a day). It is fixed
+in CLIProxyAPI 8.0.12; Homebrew installed 8.0.20 here on 2026-10-08. `FINDINGS.md` records the run.
 
 ## Findings
 
