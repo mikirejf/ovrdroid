@@ -40,6 +40,7 @@ export type Hooks = (event: string) => Promise<object[]>;
 export interface ToolOutcome {
   results: object[];
   result: string;
+  modelContent: string | undefined;
 }
 
 export type Tool = () => Promise<void> | void;
@@ -49,6 +50,7 @@ interface ToolCall {
   id: string;
   hooks: Hooks;
   result?: string;
+  modelContent?: string;
   name?: string;
   tool?: Tool;
   reads?: string[];
@@ -64,14 +66,14 @@ const install = payloadFunction<[() => FakeTracker, EventEmitter, typeof fsPromi
 );
 
 const afterTool = payloadFunction<
-  [Hooks, EventEmitter, { id: string; name: string }, string, Tool],
+  [Hooks, EventEmitter, { id: string; name: string }, string, string | undefined, Tool],
   Promise<ToolOutcome>
 >(
-  ['_o', 'process', 'd', 'result', 'tool'],
+  ['_o', 'process', 'd', 'result', 'transformed', 'tool'],
   'const I=()=>"/",JR=()=>"default",q="s",C="",w=0,o={abortController:{signal:{}}};' +
-    'return(async function(){let z=result;' +
+    'return(async function(){let{content:z,modelContent:re}={content:result,modelContent:transformed};' +
     `${beforeCallPatch.replace.slice(beforeCallPatch.find.length)}await tool();` +
-    `let x=0,${noticePatch.replace};return{results:ie,result:z}}).call({context:{},updateAction:undefined})`,
+    `let x=0,${noticePatch.replace};return{results:ie,result:z,modelContent:re}}).call({context:{},updateAction:undefined})`,
 );
 
 export const noteOf = payloadFunction<[], (path: string, before: string, after: string) => string>(
@@ -179,6 +181,7 @@ export async function runOn(bus: EventEmitter, call: ToolCall): Promise<ToolOutc
     bus,
     { id: call.id, name: call.name ?? 'Execute' },
     call.result ?? WRITE_RESULT,
+    call.modelContent,
     call.tool ?? (() => {}),
   );
 }

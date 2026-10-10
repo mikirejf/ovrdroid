@@ -119,7 +119,11 @@ const FOLD_NOTES =
   '{let $ODwaits=[];' +
   `process.emit(${JSON.stringify(TOOL_CALL_DONE_EVENT)},d.id,d.name,$ODpre,$ODwaits);` +
   '$ODnotes.push(...(await Promise.all($ODwaits)))}' +
-  'z=$ODfold(z,$ODnotes.filter(Boolean));';
+  '{let $ODshown=$ODnotes.filter(Boolean);' +
+  'z=$ODfold(z,$ODshown);' +
+  're!==void 0&&(re=$ODfold(re,$ODshown))}';
+
+const MODEL_CONTENT_BINDING = 'let{content:z,modelContent:re}=await this.raceToolWithBatchAbort(';
 
 export const fileTrackerPatches: readonly Patch[] = [
   {
@@ -136,6 +140,7 @@ export const fileTrackerPatches: readonly Patch[] = [
   {
     name: 'tool-call-done-notice',
     find: HOOKS_CALL,
+    lookups: [MODEL_CONTENT_BINDING],
     replace: FOLD_FUNCTION + TAKE_SNAPSHOT + HOOKS_CALL + FOLD_NOTES,
   },
 ];
