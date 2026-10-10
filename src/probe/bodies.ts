@@ -11,7 +11,6 @@ export interface BodyRow {
   sessionId: string;
   assistantMessageId: string;
   route: string;
-  transport: string;
   body: JsonObject;
 }
 
@@ -95,7 +94,6 @@ function parseRow(line: string): BodyRow | undefined {
     sessionId: stringOr(value['sessionId'], ''),
     assistantMessageId: stringOr(value['assistantMessageId'], ''),
     route: stringOr(value['route'], ''),
-    transport: stringOr(value['transport'], 'http'),
     body: value['body'],
   };
 }

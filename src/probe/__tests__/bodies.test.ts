@@ -28,7 +28,6 @@ function row(assistantMessageId: string, payload: JsonObject): BodyRow {
     sessionId: 's1',
     assistantMessageId,
     route: 'openai_responses',
-    transport: 'http',
     body: payload,
   };
 }
