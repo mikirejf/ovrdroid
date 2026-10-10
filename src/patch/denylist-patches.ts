@@ -13,11 +13,15 @@ const FEEDS_A_SHELL =
 
 const SHELL_HEREDOC_BODIES_RUN = `let g=OT(S);if(g.length>0)C(g,n,v,i,r)}if(${HEREDOCS}.length>0&&E_(x,!1).some(($ODbody)=>{${FEEDS_A_SHELL}}))for(let $ODbody of ${HEREDOCS})C($ODbody,n+1,{...t,hasUnprovenArgs:!0},i,r);return}`;
 
+export const COMMAND_WORD_END = '"(?=[\\\\s;&|)`]|$)"';
+
+const SINGLE_TOKEN_BRANCH = ':"";try{if(e.length===1)';
+
 export const denylistPatches: readonly Patch[] = [
   {
     name: 'denylist-command-word-whole-argument',
-    find: 'a=/\\w$/.test(e[0])?"\\\\b":"";',
-    replace: 'a=/\\w$/.test(e[0])?"(?=[\\\\s;&|)`]|$)":"";',
+    find: `?"\\\\b"${SINGLE_TOKEN_BRANCH}`,
+    replace: `?${COMMAND_WORD_END}${SINGLE_TOKEN_BRANCH}`,
   },
   {
     name: 'denylist-quoted-heredoc-body-is-text',

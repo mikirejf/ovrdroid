@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { denylistPatches } from '../denylist-patches.ts';
+import { COMMAND_WORD_END, denylistPatches } from '../denylist-patches.ts';
 
 type Tail = (last: string, escaped: string) => string;
 
@@ -127,20 +127,16 @@ describe('rm -rf /* only matches a bare root glob', () => {
   });
 });
 
-const COMMAND_WORD_END = replacementOf('denylist-command-word-whole-argument');
-
-function commandWordEnd(word: string): string {
-  // SAFETY: the payload is one declarator of the shipped pattern builder's `let`, reading its entry tokens from `e`.
+function commandWordEnd(): string {
+  // SAFETY: the payload is the string literal the shipped pattern builder appends after a command word ending in a word character.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion
-  return (new Function('e', `let ${COMMAND_WORD_END}return a`) as (tokens: string[]) => string)([
-    word,
-  ]);
+  return (new Function(`return ${COMMAND_WORD_END}`) as () => string)();
 }
 
 function deniesByWord(entry: string, command: string): boolean {
   const [word = '', argument = ''] = entry.split(' ');
   return new RegExp(
-    `^${word}${commandWordEnd(word)}[^;&|]{0,100}${argument}([\\s;&|)\`]+|$)`,
+    `^${word}${commandWordEnd()}[^;&|]{0,100}${argument}([\\s;&|)\`]+|$)`,
     'iu',
   ).test(command);
 }

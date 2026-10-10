@@ -91,7 +91,7 @@ export const BEFORE_CALL =
   `process.emit(${JSON.stringify(TOOL_CALL_START_EVENT)},$ODwaits);` +
   'return Promise.all($ODwaits)})();';
 
-const RACE_CALL = 'let z=await this.raceToolWithBatchAbort(';
+const PERMISSION_FN = 'this.createTuiRequestPermissionFn(t);';
 
 const HOOKS_CALL =
   'ie=await _o("PostToolUse",{session_id:q,transcript_path:C,cwd:I(),permission_mode:JR(w),hook_event_name:"PostToolUse",tool_name:d.name,tool_input:d.input,tool_response:z},d.name,{...this.context,updateAction:this.updateAction,sessionId:q,toolCallId:d.id,abortSignal:o.abortController.signal});';
@@ -130,8 +130,8 @@ export const fileTrackerPatches: readonly Patch[] = [
   },
   {
     name: 'tool-call-start-stat',
-    find: RACE_CALL,
-    replace: BEFORE_CALL + RACE_CALL,
+    find: PERMISSION_FN,
+    replace: PERMISSION_FN + BEFORE_CALL,
   },
   {
     name: 'tool-call-done-notice',

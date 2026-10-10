@@ -70,7 +70,7 @@ const afterTool = payloadFunction<
   ['_o', 'process', 'd', 'result', 'tool'],
   'const I=()=>"/",JR=()=>"default",q="s",C="",w=0,o={abortController:{signal:{}}};' +
     'return(async function(){let z=result;' +
-    `${beforeCallPatch.replace.slice(0, -beforeCallPatch.find.length)}await tool();` +
+    `${beforeCallPatch.replace.slice(beforeCallPatch.find.length)}await tool();` +
     `let x=0,${noticePatch.replace};return{results:ie,result:z}}).call({context:{},updateAction:undefined})`,
 );
 

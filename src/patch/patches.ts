@@ -75,8 +75,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'shutdown-flush-deadline',
-    find: 'H=2000,M=1e4,R=1000,A=250;',
-    replace: 'H=2000,M=1e4,R=10,A=250;',
+    find: 'var x=3000,H=2000,M=1e4,R=1000,A=250',
+    replace: 'var x=3000,H=2000,M=1e4,R=10,A=250',
   },
   {
     name: 'session-index-atomic-save',
