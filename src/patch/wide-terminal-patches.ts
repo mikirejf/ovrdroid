@@ -1,7 +1,7 @@
 import type { Patch } from './patches.ts';
 
 export const MAX_WIDTH_ENV = 'OVRDROID_MAX_WIDTH';
-export const DEFAULT_MAX_WIDTH = 140;
+export const DEFAULT_ON_WIDTH = 140;
 export const MIN_MAX_WIDTH = 60;
 export const WIDTH_COMMAND = 'width';
 export const WIDTH_USAGE = `Usage: /${WIDTH_COMMAND} [on|off|<columns>]`;
@@ -19,8 +19,8 @@ export const WIDE_TERMINAL_HELPERS =
   '$ODload=()=>{try{let $ODjson=JSON.parse(require("fs").readFileSync($ODfile,"utf8"));' +
   'return $ODjson&&typeof $ODjson==="object"&&!Array.isArray($ODjson)?$ODjson:{}}catch{return{}}},' +
   `$ODconfig=$ODload(),$ODenv=process.env.${MAX_WIDTH_ENV},` +
-  `$ODmaxWidth=$ODenv?$ODclamp(Number($ODenv)):$ODwidthOf($ODconfig.${SAVED_WIDTH_KEY})??${DEFAULT_MAX_WIDTH},` +
-  `$ODlastWidth=$ODmaxWidth||$ODwidthOf($ODconfig.${SAVED_LAST_WIDTH_KEY})||${DEFAULT_MAX_WIDTH};` +
+  `$ODmaxWidth=$ODenv?$ODclamp(Number($ODenv)):$ODwidthOf($ODconfig.${SAVED_WIDTH_KEY})??0,` +
+  `$ODlastWidth=$ODmaxWidth||$ODwidthOf($ODconfig.${SAVED_LAST_WIDTH_KEY})||${DEFAULT_ON_WIDTH};` +
   'function $ODboxWidth($ODcols){return $ODmaxWidth>0&&$ODcols>$ODmaxWidth?$ODmaxWidth:$ODcols}' +
   'function $ODsave(){let $ODfs=require("fs"),$ODtmp=$ODfile+"."+process.pid+".tmp";' +
   'try{$ODfs.mkdirSync($ODdir,{recursive:!0});' +

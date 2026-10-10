@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  DEFAULT_MAX_WIDTH,
+  DEFAULT_ON_WIDTH,
   MIN_MAX_WIDTH,
   WIDTH_USAGE,
   wideTerminalPatches,
@@ -10,12 +10,13 @@ import { patchNamed, payloadFunction } from './payload.ts';
 import { UNSET, helpersWith } from './wide-terminal-harness.ts';
 
 describe('layout width', () => {
-  test('a terminal wider than the default is cut to the default', () => {
-    expect(helpersWith(UNSET).boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+  test('with nothing set, centering is off and the terminal keeps its width', () => {
+    expect(helpersWith(UNSET).boxWidth(300)).toBe(300);
+    expect(helpersWith(UNSET).boxWidth(100)).toBe(100);
   });
 
   test('a narrow terminal keeps its own width', () => {
-    expect(helpersWith(UNSET).boxWidth(100)).toBe(100);
+    expect(helpersWith('120').boxWidth(100)).toBe(100);
   });
 
   test('a number in the variable sets the width', () => {
@@ -88,12 +89,18 @@ describe('the width command', () => {
     expect(helpers.boxWidth(300)).toBe(100);
   });
 
-  test('on after starting with it off uses the default width', () => {
+  test('with nothing set, the toggle turns centering on at the default on-width', () => {
+    const helpers = helpersWith(UNSET);
+    expect(helpers.setWidth()).toBe(`Centered layout on, max width ${DEFAULT_ON_WIDTH} columns`);
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
+  });
+
+  test('on after starting with it off uses the default on-width', () => {
     const helpers = helpersWith('off');
     expect(helpers.setWidth('on')).toBe(
-      `Centered layout on, max width ${DEFAULT_MAX_WIDTH} columns`,
+      `Centered layout on, max width ${DEFAULT_ON_WIDTH} columns`,
     );
-    expect(helpers.boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
   });
 
   test('off and a column count are accepted in any case', () => {

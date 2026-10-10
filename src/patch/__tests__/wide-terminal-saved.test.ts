@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   CONFIG_FILE,
-  DEFAULT_MAX_WIDTH,
+  DEFAULT_ON_WIDTH,
   MIN_MAX_WIDTH,
   SAVED_LAST_WIDTH_KEY,
   SAVED_WIDTH_KEY,
@@ -55,7 +55,7 @@ describe('the width saved in the ovrdroid file', () => {
   test('on after a saved off without a last width uses the default width', () => {
     const helpers = started({ [SAVED_WIDTH_KEY]: 0 });
     helpers.setWidth('on');
-    expect(helpers.boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
   });
 
   test('a tiny saved width is raised to the minimum', () => {
@@ -87,18 +87,28 @@ describe('the width saved in the ovrdroid file', () => {
     ['a width written as text', '{"maxWidth":"90"}'],
     ['a negative width', file({ [SAVED_WIDTH_KEY]: -5 })],
     ['a file without the key', file({})],
-  ])('%s falls back to the default width', (_label, saved) => {
-    expect(helpersWith(UNSET, { saved }).boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+  ])('%s starts with centering off', (_label, saved) => {
+    expect(helpersWith(UNSET, { saved }).boxWidth(300)).toBe(300);
   });
 
   test('a last width of the wrong type is ignored', () => {
     const helpers = started({ [SAVED_WIDTH_KEY]: 0, [SAVED_LAST_WIDTH_KEY]: 'wide' });
     helpers.setWidth('on');
-    expect(helpers.boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
   });
 
-  test('a missing file falls back to the default width', () => {
-    expect(helpersWith(UNSET).boxWidth(300)).toBe(DEFAULT_MAX_WIDTH);
+  test('a missing file starts with centering off, and on then uses the default on-width', () => {
+    const helpers = helpersWith(UNSET);
+    expect(helpers.boxWidth(300)).toBe(300);
+    helpers.setWidth('on');
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
+  });
+
+  test('a garbled file starts off, and on then uses the default on-width', () => {
+    const helpers = helpersWith(UNSET, { saved: '{"maxWidth": 9' });
+    expect(helpers.boxWidth(300)).toBe(300);
+    helpers.setWidth('on');
+    expect(helpers.boxWidth(300)).toBe(DEFAULT_ON_WIDTH);
   });
 
   test('the file is read from the Factory home override, or else from the home folder', () => {
