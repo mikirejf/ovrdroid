@@ -30,8 +30,7 @@ import {
   ttl,
 } from './cache-report.ts';
 import { bodies, modules, trace } from './capture-report.ts';
-import { cpu, idleCpu } from './cpu-report.ts';
-import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
+import { cpu } from './cpu-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
@@ -46,11 +45,9 @@ import {
   effortClear,
   keys,
 } from './speed-report.ts';
-import { timers } from './timers-report.ts';
 
 const AB_RUNS = 30;
 const KEYS_RUNS = 3;
-const IDLE_RUNS = 5;
 const TOP_MODULES = 20;
 const DEFAULT_CHURN: ChurnKind = 'startup';
 const CHURN_DESCRIPTION = `what disturbs the menu: ${CHURN_KINDS.join(', ')}`;
@@ -70,6 +67,14 @@ program
   .option(
     '--counters',
     'include the patches that count commits, frames, renders and markdown parses into $OD_COUNTERS',
+  )
+  .option(
+    '--heap',
+    'include the heap sampler: appends memory rows to $OD_HEAP every $OD_HEAP_MS ms and writes a heap snapshot on SIGUSR2',
+  )
+  .option(
+    '--lag',
+    'include the event-loop lag meter: appends one row per second to $OD_LAG with how late a 50ms timer fires; combines with --heap',
   )
   .option(
     '--without <names...>',
@@ -160,29 +165,6 @@ program
   .description('show which config files a startup rewrites and which it only touches')
   .argument('<binary>')
   .action(guard(touches));
-
-program
-  .command('idle')
-  .description('interleaved A/B of what a Droid costs per minute of standing by')
-  .argument('<binaries...>')
-  .option('-r, --runs <n>', 'number of runs', count, IDLE_RUNS)
-  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
-  .action(guard(idle));
-
-program
-  .command('idle-cpu')
-  .description('profile an idle Droid and print what the standing-by CPU is spent on')
-  .argument('<binary>')
-  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
-  .requiredOption('-o, --out <dir>', 'where to write the profile')
-  .action(guard(idleCpu));
-
-program
-  .command('timers')
-  .description('census of the timers that wake an idle Droid')
-  .argument('<binary>')
-  .option('-w, --window <s>', 'seconds to stand by', count, DEFAULT_WINDOW_S)
-  .action(guard(timers));
 
 program
   .command('logs')

@@ -20,6 +20,8 @@ export const FACTORY_SETTINGS = path.join(FACTORY, 'settings.json');
 
 export const FACTORY_MCP = path.join(FACTORY, 'mcp.json');
 
+export const FACTORY_DROIDS = path.join(FACTORY, 'droids');
+
 export const FACTORY_LOGS = path.join(FACTORY, 'logs');
 
 export const FACTORY_SESSIONS = path.join(FACTORY, 'sessions');

@@ -110,11 +110,11 @@ prompt cache still warm?" the way Claude Code's "Prompt cache warm, about 59 min
 The clock is written by `cache-warm-arm`, not the footer. The recording code lives in
 `src/patch/cache-clock.ts` and is spliced into that patch, because it already owns the `pY` rewrite.
 `pY` stamps `globalThis.__odCache` with the request's `capturedAt` for the session, because the
-cache lifetime runs from when a request is **sent** (see FINDINGS, "the clock starts at request
-start") and every request resets it. A successful cache warm resets it to the moment the warm was
-sent. Only Anthropic models get a clock: DroidProxy makes every Anthropic write last an hour, and no
-lifetime has been measured for the others, so a non-Anthropic request removes the entry and the
-footer shows nothing.
+cache lifetime runs from when a request is **sent** (see `docs/cache-lifetime.md`, "The clock starts
+at request start") and every request resets it. A successful cache warm resets it to the moment the
+warm was sent. Only Anthropic models get a clock: DroidProxy makes every Anthropic write last an
+hour, and no lifetime has been measured for the others, so a non-Anthropic request removes the entry
+and the footer shows nothing.
 
 The footer's one timer now wakes at the earlier of the turn clock's next step and the next minute
 boundary of the cache's remaining time, one millisecond past it so the digit has changed, and again
@@ -122,6 +122,41 @@ at the exact expiry moment. Once the entry is cold and no turn clock is running,
 
 The footer only reads the entry when it renders, so a warm that resets the clock while the session
 sits idle shows up at the next wake-up, at most a minute later.
+
+### Resuming a session
+
+The clock lives in memory, so a session you resume would show nothing until its first new request.
+So every request and successful warm also writes `~/.factory/ovrdroid/cache-clock/<sessionId>.json`
+as `{"at": <ms>, "setup": {...}}`, and a non-Anthropic request deletes the file. When the footer
+shows a session with no entry, it reads that file once and puts the entry in `globalThis.__odCache`
+marked `loaded`. The next live request replaces it with a normal entry.
+
+A changed Droid setup (skills, `AGENTS.md`, MCP servers, the patch set, the Droid version) changes
+the request bytes, so the cache misses even inside the 45 minutes. The `setup` object is the one
+`move-work parity` prints. It is costly (about 0.9s of CPU, because it starts Droid and `brew`), so
+a Droid process runs `echo '{}' | move-work parity` only when it first needs the answer: its first
+Anthropic request, or a resumed file still inside the 45 minutes. It starts 3 seconds after that,
+runs once, and the process keeps the answer. A process that never needs it never runs it.
+
+When it runs, it also deletes every file in the folder not written for a day. Each deletion waits
+behind that session's own writes, so it never removes a file a session just saved. A loaded entry
+then says:
+
+- older than 45 minutes: `cache cold`, at once, without waiting for `move-work`;
+- inside the window, `move-work` still running: `cache checking`;
+- inside the window, same setup: `cache 32m`, counting down like a live entry;
+- inside the window, different setup: `cache cold: skills, AGENTS.md changed` (warning colour),
+  listing the differing keys in the current setup's order;
+- inside the window, no fingerprint on either side (`move-work` missing, failing or printing bad
+  JSON): `cache unchecked` (warning colour).
+
+Failures go to Droid's log as `[ovrdroid] cache setup fingerprint failed`,
+`cache clock write failed`, `cache clock load failed` and `cache clock prune failed`. The code is in
+`src/patch/cache-clock.ts`: the runtime is installed as `globalThis.__odCacheClock` by
+`cache-warm-arm` (the footer lives in another chunk and cannot see the warmer's names), and the
+footer asks it to load and to tell it when to re-render. The footer chunk imports the warmer chunk
+today, so the runtime exists before the first render, but the footer does not rely on it: with no
+runtime it skips the resumed entry instead of throwing.
 
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example
@@ -462,10 +497,10 @@ the two Droid ones are the smaller half; the `npm exec` wrapper around an MCP se
 session and does nothing after startup. Pointing the MCP config at the resolved entry point removes
 one process per session for an identical response. That is a config change, not a patch.
 
-`FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
-first time. `TOKEN_OPTIMIZER.md` covers the prompt cache: what a write and a read cost on the
-subscription meter, what busted the cache and how the patches close it, and where the remaining
-token spend sits. Its opening section is the settled summary.
+`docs/` has the full measurement record, one file per question, including how the measuring tools
+were wrong the first time. Start at `docs/README.md`. For the prompt cache (what a write and a read
+cost on the subscription meter, what busts the cache, and where token spend sits), start at
+`docs/token-spend.md`.
 
 ## How it works
 

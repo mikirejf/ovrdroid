@@ -1,7 +1,10 @@
 import { setSystemTime } from 'bun:test';
 
+import { CACHE_CLOCK_KEY } from '../cache-clock.ts';
 import type { Patch } from '../patches.ts';
 import { patches } from '../patches.ts';
+import type { ClockRuntime } from './clock-env.ts';
+import { ClockEnv } from './clock-env.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
 export const SESSION = 'footer-session';
@@ -21,13 +24,15 @@ export interface Timer {
   callback: () => void;
 }
 
+type Dependency = number | string;
+
 interface Effect {
   run: () => (() => void) | undefined;
-  deps: number[];
+  deps: Dependency[];
 }
 
 interface Committed {
-  deps: number[];
+  deps: Dependency[];
   cleanup: (() => void) | undefined;
 }
 
@@ -37,7 +42,7 @@ type Render = (
 
 type Bindings = [
   (initial: number) => [number, (update: (value: number) => number) => void],
-  (run: Effect['run'], deps: number[]) => void,
+  (run: Effect['run'], deps: Dependency[]) => void,
   () => object,
   (text: string, style: { color: string }) => Part,
   (target: Part[], parts: Part[], separator?: string) => void,
@@ -79,7 +84,11 @@ export class FooterWorld {
   private parts: Part[] = [];
   private readonly footer: Render;
 
+  readonly clock = new ClockEnv();
+  readonly runtime: ClockRuntime;
+
   constructor() {
+    this.runtime = this.clock.runtime();
     const build = payloadFunction<Bindings, Render>(BINDINGS, COMPONENT);
     this.footer = build(
       (initial) => this.useState(initial),
@@ -118,12 +127,12 @@ export class FooterWorld {
 
   static reset(): void {
     setSystemTime();
-    Reflect.deleteProperty(globalThis, '__odCache');
+    ClockEnv.close();
   }
 
   static cache(entries: Record<string, number>): void {
     Object.assign(globalThis, {
-      __odCache: new Map(Object.entries(entries).map(([id, at]) => [id, { at }])),
+      [CACHE_CLOCK_KEY]: new Map(Object.entries(entries).map(([id, at]) => [id, { at }])),
     });
   }
 

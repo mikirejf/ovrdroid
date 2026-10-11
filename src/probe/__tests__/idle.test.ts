@@ -86,7 +86,7 @@ describe('readIdle charges cost per minute, not per window', () => {
     expect(reading.footprintKib).toBeLessThan(reading.rssKib);
   });
 
-  test('a process vmmap could not read is charged no footprint rather than guessed', () => {
+  test('a process whose footprint could not be read is charged no footprint rather than guessed', () => {
     expect(readIdle(WINDOW, { names: NAMES }).footprintKib).toBe(0);
   });
 

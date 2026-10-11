@@ -1,37 +1,32 @@
+import { dlopen, FFIType, ptr } from 'bun:ffi';
+
 import { KIB } from '../cli.ts';
-import { stdoutOf } from './run.ts';
 
-const VMMAP_TIMEOUT_MS = 5000;
-const UNITS = new Map([
-  ['K', 1],
-  ['M', KIB],
-  ['G', KIB * KIB],
-]);
+const RUSAGE_INFO_V4 = 4;
+const RUSAGE_BUFFER_BYTES = 512;
+const PHYS_FOOTPRINT_OFFSET = 72;
 
-export function parseFootprint(text: string): number | undefined {
-  const pattern = /^Physical footprint:\s+(?<size>[\d.]+)(?<unit>[KMG])/mu;
-  const groups = pattern.exec(text)?.groups;
-  if (groups === undefined) {
+const libSystem =
+  process.platform === 'darwin'
+    ? dlopen('/usr/lib/libSystem.B.dylib', {
+        proc_pid_rusage: { args: [FFIType.i32, FFIType.i32, FFIType.ptr], returns: FFIType.i32 },
+      })
+    : undefined;
+
+export function footprintOf(pid: number): number | undefined {
+  if (libSystem === undefined) {
     return undefined;
   }
-  const scale = UNITS.get(groups['unit'] ?? '');
-  return scale === undefined ? undefined : Number(groups['size']) * scale;
+  const buffer = new BigUint64Array(RUSAGE_BUFFER_BYTES / BigUint64Array.BYTES_PER_ELEMENT);
+  const failed = libSystem.symbols.proc_pid_rusage(pid, RUSAGE_INFO_V4, ptr(buffer)) !== 0;
+  const bytes = buffer[PHYS_FOOTPRINT_OFFSET / BigUint64Array.BYTES_PER_ELEMENT];
+  return failed || bytes === undefined ? undefined : Number(bytes) / KIB;
 }
 
-export async function footprintOf(pid: number): Promise<number | undefined> {
-  const listing = await stdoutOf(['vmmap', '-summary', String(pid)], {
-    quiet: true,
-    timeoutMs: VMMAP_TIMEOUT_MS,
-  }).catch(() => '');
-  return parseFootprint(listing);
-}
-
-export async function footprintsOf(pids: Iterable<number>): Promise<Map<number, number>> {
+export function footprintsOf(pids: Iterable<number>): Map<number, number> {
   const found = new Map<number, number>();
-  const measured = await Promise.all(
-    [...pids].map(async (pid) => [pid, await footprintOf(pid)] as const),
-  );
-  for (const [pid, kib] of measured) {
+  for (const pid of pids) {
+    const kib = footprintOf(pid);
     if (kib !== undefined) {
       found.set(pid, kib);
     }

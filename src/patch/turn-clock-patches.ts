@@ -1,4 +1,4 @@
-import { CACHE_CLOCK_GLOBAL, CACHE_TRUSTED_MS } from './cache-clock.ts';
+import { CACHE_CLOCK_GLOBAL, CACHE_CLOCK_RUNTIME_GLOBAL, CACHE_TRUSTED_MS } from './cache-clock.ts';
 import type { Patch } from './patches.ts';
 
 const TURN_CLOCK_STATE =
@@ -9,8 +9,9 @@ const TURN_CLOCK_STATE =
   '?.getDroidWorkingStateChangedAtMs()||Date.now()}catch{return Date.now()}}';
 
 const TURN_CLOCK_TICK =
-  `let $ODlast=Math.max($ODc.sent,$ODc.done),$ODcat=${CACHE_CLOCK_GLOBAL}?.get(F)?.at??0,$ODexp=$ODcat&&$ODcat+${CACHE_TRUSTED_MS},` +
+  `let $ODlast=Math.max($ODc.sent,$ODc.done),$ODce=${CACHE_CLOCK_GLOBAL}?.get(F),$ODcat=$ODce?.at??0,$ODexp=$ODcat&&$ODcat+${CACHE_TRUSTED_MS},` +
   '$ODnow=$ODlast||$ODcat?Date.now():0,[$ODtick,$ODretick]=A(0);' +
+  `v(()=>{let $ODclock=${CACHE_CLOCK_RUNTIME_GLOBAL};if(!$ODclock)return;$ODclock.load(F);return $ODclock.listen(()=>$ODretick(($ODn)=>$ODn+1))},[F]);` +
   'v(()=>{let $ODat=Date.now(),$ODwait=1/0;' +
   'if($ODlast){let $ODage=$ODat-$ODlast,$ODstep=$ODage<36e5?6e4:$ODage<864e5?36e5:864e5;$ODwait=$ODstep-$ODage%$ODstep}' +
   'if($ODcat&&$ODexp>$ODat)$ODwait=Math.min($ODwait,($ODexp-$ODat)%6e4+1);' +
@@ -27,8 +28,9 @@ const TURN_CLOCK_PARTS =
   'let $ODago=[];if($ODlast||$ODcat){' +
   'if($ODc.sent)$ODago.push(rt("\\u2191"+$ODa($ODnow-$ODc.sent),{color:o.text.muted}));' +
   'if($ODc.done)$ODago.push(rt(($ODc.sent?" ":"")+"\\u2193"+$ODa($ODnow-$ODc.done),{color:o.text.muted}));' +
-  'if($ODcat){let $ODrem=$ODexp-$ODnow;if($ODago.length)$ODago.push(rt(", ",{color:o.text.muted}));' +
-  `$ODago.push($ODrem>0?rt("cache "+$ODa(Math.min($ODrem,${CACHE_TRUSTED_MS - 1})),{color:o.text.muted}):rt("cache cold",{color:o.warning}))}}` +
+  `if($ODcat){let $ODrem=$ODexp-$ODnow,$ODloaded=$ODce.loaded?${CACHE_CLOCK_RUNTIME_GLOBAL}.view($ODce,$ODnow):null;if($ODago.length)$ODago.push(rt(", ",{color:o.text.muted}));` +
+  '$ODago.push($ODloaded?rt($ODloaded.text,{color:$ODloaded.warn?o.warning:o.text.muted}):' +
+  `$ODrem>0?rt("cache "+$ODa(Math.min($ODrem,${CACHE_TRUSTED_MS - 1})),{color:o.text.muted}):rt("cache cold",{color:o.warning}))}}` +
   'if($ODago.length){let $ODbr=fe||"[]",$ODcut=$ODbr.indexOf(",");if($ODcut<0)$ODcut=$ODbr.length-1;' +
   'sd(Ie,[rt($ODbr.slice(0,$ODcut)+(fe?", ":""),{color:o.text.muted}),...$ODago,rt($ODbr.slice($ODcut),{color:o.text.muted})]," ")}' +
   'else if(fe)sd(Ie,[rt(fe,{color:o.text.muted})]," ");';

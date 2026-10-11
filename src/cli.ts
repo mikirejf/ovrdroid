@@ -69,6 +69,14 @@ export function count(raw: string): number {
   return Math.floor(parsed);
 }
 
+export function countOrZero(raw: string): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new InvalidArgumentError('expected a whole number of at least 0');
+  }
+  return Math.floor(parsed);
+}
+
 export function choice<T extends string>(allowed: readonly T[]) {
   return (raw: string): T => {
     const found = allowed.find((value) => value === raw);

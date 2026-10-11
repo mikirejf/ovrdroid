@@ -4,26 +4,17 @@ import { patchSource } from '../binary/apply.ts';
 import { readApp } from '../binary/graph.ts';
 import { rebuildInto } from '../binary/rebuild.ts';
 import { say } from '../cli.ts';
-import { bodyPatches } from '../patch/body-patches.ts';
-import { counterPatches } from '../patch/counter-patches.ts';
 import type { Patch } from '../patch/patches.ts';
 import { patches } from '../patch/patches.ts';
-import { timerPatches } from '../patch/timer-patches.ts';
-import { modulePatches, tracePatches } from '../patch/trace-patches.ts';
-import { watchPatches } from '../patch/watch-patches.ts';
 import { backupPath, INSTALLED_DROID, realOrUndefined } from '../paths.ts';
+import type { ChosenSets } from './probe-patch-sets.ts';
+import { chosenSets } from './probe-patch-sets.ts';
 
 export const DEFAULT_STOCK = backupPath(INSTALLED_DROID);
 
-export interface BuildOptions {
+export interface BuildOptions extends ChosenSets {
   target: string;
   extra?: string;
-  trace?: boolean;
-  modules?: boolean;
-  watch?: boolean;
-  timers?: boolean;
-  bodies?: boolean;
-  counters?: boolean;
   without?: readonly string[];
   out: string;
 }
@@ -85,26 +76,7 @@ function refuseOverwrite(options: BuildOptions): void {
 export async function buildProbe(options: BuildOptions): Promise<void> {
   refuseOverwrite(options);
   const stock = await Bun.file(options.target).bytes();
-  const list: Patch[] = withoutNamed(patches, options.without ?? []);
-
-  if (options.trace === true) {
-    list.push(...tracePatches);
-  }
-  if (options.modules === true) {
-    list.push(...modulePatches);
-  }
-  if (options.watch === true) {
-    list.push(...watchPatches);
-  }
-  if (options.timers === true) {
-    list.push(...timerPatches);
-  }
-  if (options.bodies === true) {
-    list.push(...bodyPatches);
-  }
-  if (options.counters === true) {
-    list.push(...counterPatches);
-  }
+  const list: Patch[] = [...withoutNamed(patches, options.without ?? []), ...chosenSets(options)];
   if (options.extra !== undefined) {
     list.push(...(await readExtra(options.extra)));
   }

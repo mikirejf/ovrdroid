@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { freeNames } from '../tokens.ts';
 import { wideTerminalPatches } from '../wide-terminal-patches.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { patchNamed, payloadFunction, strayNames } from './payload.ts';
 import { helpersWith, patched } from './wide-terminal-harness.ts';
 
 interface InkFrame {
@@ -187,12 +186,7 @@ describe('every wide terminal patch', () => {
   test.each(wideTerminalPatches.map((patch) => patch.name))(
     '%s captures or owns each name of three characters or fewer',
     (name) => {
-      const { find, until, lookups, replace } = patchNamed(wideTerminalPatches, name);
-      const captured = new Set(freeNames([find, until ?? '', ...(lookups ?? [])].join(';')));
-      const stray = freeNames(replace).filter(
-        (word) => !word.startsWith('$OD') && !captured.has(word),
-      );
-      expect(stray).toEqual([]);
+      expect(strayNames(patchNamed(wideTerminalPatches, name))).toEqual([]);
     },
   );
 });

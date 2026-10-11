@@ -8,6 +8,14 @@ export function fieldsOf(value: unknown): Fields {
   return new Map(isObject(value) ? Object.entries(value) : []);
 }
 
+export function fieldsOfJson(line: string): Fields {
+  try {
+    return fieldsOf(JSON.parse(line));
+  } catch {
+    return new Map();
+  }
+}
+
 export function worded(fields: Fields, name: string): string {
   const value = fields.get(name);
   return typeof value === 'string' ? value : '';
