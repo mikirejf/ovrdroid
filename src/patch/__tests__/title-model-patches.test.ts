@@ -8,18 +8,12 @@ import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { findMarker } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { titleModelPatches } from '../title-model-patches.ts';
-import { freeNames } from '../tokens.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { patchNamed, payloadFunction, strayNames } from './payload.ts';
 
 const PATCH = patchNamed(titleModelPatches, 'session-title-model-setting');
 
 test('every name of three characters or fewer in the payload is captured by the anchors or owned', () => {
-  const anchors = [PATCH.find, ...(PATCH.lookups ?? [])].join(' ');
-  const captured = new Set(freeNames(anchors));
-  const stray = freeNames(PATCH.replace).filter(
-    (name) => !name.startsWith('$OD') && !captured.has(name),
-  );
-  expect(stray).toEqual([]);
+  expect(strayNames(PATCH)).toEqual([]);
 });
 
 interface World {

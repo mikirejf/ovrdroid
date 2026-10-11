@@ -9,20 +9,14 @@ import { askUserPatches, askUserTextPatches } from '../askuser-patches.ts';
 import { findMarker } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { rebaseAll } from '../rebase.ts';
-import { blockEnd, freeNames } from '../tokens.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { blockEnd } from '../tokens.ts';
+import { patchNamed, payloadFunction, strayNames } from './payload.ts';
 
 const PATCH = patchNamed(askUserPatches, 'ask-user-tool-never-enabled');
 
 describe('every name of three characters or fewer in a payload is captured or owned', () => {
   test.each(askUserPatches.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
-    const known = new Set(
-      [patch.find, patch.until ?? '', ...(patch.lookups ?? [])].flatMap((text) => freeNames(text)),
-    );
-    const stray = freeNames(patch.replace).filter(
-      (name) => !name.startsWith('$OD') && !known.has(name),
-    );
-    expect(stray).toEqual([]);
+    expect(strayNames(patch)).toEqual([]);
   });
 });
 

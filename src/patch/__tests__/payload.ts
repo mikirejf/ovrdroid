@@ -1,4 +1,12 @@
 import type { Patch } from '../patches.ts';
+import { freeNames } from '../tokens.ts';
+
+export function strayNames(patch: Patch): string[] {
+  const captured = new Set(
+    freeNames([patch.find, patch.until ?? '', ...(patch.lookups ?? [])].join(';')),
+  );
+  return freeNames(patch.replace).filter((name) => !name.startsWith('$OD') && !captured.has(name));
+}
 
 export function patchNamed(list: readonly Patch[], name: string): Patch {
   const patch = list.find((entry) => entry.name === name);
