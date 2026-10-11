@@ -138,77 +138,21 @@ The existing commands are the shape to copy: `probe ab`, `keys`, `trace`, `modul
 
 ## After a Droid update
 
-`ovrdroid update [version]` reads Factory's newest release from
-`downloads.factory.ai/factory-cli/LATEST`, or installs the exact `version` you pass (for example
-`ovrdroid update 0.236.0`). It downloads the release for the host (darwin-arm64 or linux-x64) into
-`~/.cache/ovrdroid/`, verifies its sha256, and applies the patch set. If the target already reports
-that version, it only applies the patch set. The installed Droid is replaced only once the patched
-build passes, so a release the patches do not fit yet leaves the current Droid in place and `update`
-exits non-zero. Drift prints `markers not found (Droid version drift): <name> (<reason>)`: the
-rebase could not settle that patch. Load the `patching-droid-cli` skill and follow its
-`UPDATING.md`: it fixes the stuck patches with `lookups`, `$OD` names and wider finds (`probe grep`,
-`probe names`), re-anchors the tests that carry their own release-scoped names, and proves the
-result on a copy.
+`ovrdroid update [version]` installs Factory's newest release (or the exact version you pass) and
+applies the patch set. It replaces the installed Droid only once the patched build passes. When it
+prints `markers not found (Droid version drift)`, load the `patching-droid-cli` skill and follow its
+`UPDATING.md`. That guide also covers deleting patches upstream made obsolete, and syncing the Linux
+hosts.
 
-**The Mac is the master.** Edit ovrdroid on the Mac (or a separate full clone on the Linux box).
-Linux boxes do not run `ovrdroid update` on a timer: their `dotfiles-update` timer (every 15
-minutes) only pulls the dotfiles repo and never touches Droid or ovrdroid. After `ovrdroid update`
-or a patch change on the Mac, push ovrdroid to main and run `dotfiles-sync` on the Mac. For each
-Linux host it pulls `~/dev/ovrdroid` and runs `ovrdroid update <version>`, where `<version>` is the
-Mac's installed Droid version. Every Linux host ends on the Mac's exact Droid version with the
-current patch set and never jumps to a newer release on its own. Before pushing a patch change, run
-`bun run probe builds`: it checks the patch set against the stock newest release of every supported
-platform (downloading and caching them) and exits non-zero on drift. A patch that fits only one
-platform makes that host's `dotfiles-sync` step fail, and the host keeps its current Droid.
+**The Mac is the master.** Edit and push ovrdroid from the Mac. Run `bun run probe builds` before
+pushing a patch change: a patch that fits only one platform breaks that host's `dotfiles-sync` step.
 
-**Delete a patch when upstream makes it obsolete.** A patch that still applies is not proof that it
-is still needed: Droid may have fixed the bug in code next to the patched line, so the patch now
-repeats a check stock already has. After every update, read the stock code around each bug-fix patch
-(extract it with `probe extract`, compare it with the previous release). If stock now behaves
-correctly, remove the patch from `src/patch/` together with its tests. Do not keep it as a safety
-net. Dead patches cost build time, hide real drift, and make the next update harder to read.
+## Findings and measuring
 
-Searching the bundle with shell `grep` does not work: a chunk is one 1.2MB line, so `grep -c` says
-`1` for a string occurring four times. Use `probe grep`.
-
-## Measuring startup
-
-`--version` is **not** a valid benchmark (0.09s, skips almost everything). Measure
-time-to-first-paint in a real PTY by watching for the input box border characters `╰` (U+2570) and
-`╮` (U+256E).
-
-Droid has built-in instrumentation: `DROID_PROFILE=1` plus `FACTORY_PROFILE_DIR=<dir>` writes
-`profile.jsonl`. Gotchas:
-
-- It appends across runs. Always `rm -rf` the profile dir first, or timelines interleave and look
-  nonsensical.
-- `bootstrap_complete` and `ready` are `taskType: boundary` and carry no `startMonoMs`. Guard for
-  that when sorting.
-- It does not work on an extracted bundle run via `BUN_BE_BUN`; profile the real binary.
-
-## Why the command menu rescans
-
-Every Droid startup re-applies mode 600 to `~/.factory/settings.json` and `~/.factory/mcp.json`. The
-files are already 600, so nothing is written and the bytes never change, but macOS still fires a
-change event and the watcher counts both files as relevant. Every **other** Droid already running
-then rescans its whole slash-command catalog. One new terminal tab disturbs every open menu.
-
-Two consequences worth knowing before you chase this again:
-
-- An idle Droid does not loop. Confirmed over 40s with the menu open: zero events, zero rescans. If
-  you cannot reproduce a loop, you are missing the second Droid, not looking at a fixed bug.
-- A file whose content is unchanged can still wake every watcher. `probe touches` exists to tell a
-  real rewrite from a bare metadata touch, because mtime and content both stay put here and only
-  ctime moves.
-
-`probe watch` prints the whole chain (file event, watcher wake-up, rescan, cache write) and
-`probe menu` counts the resulting flicker. Both take `--churn chmod` to trigger it directly, or
-`--churn startup` to trigger it the way a real second terminal does.
-
-## Background
-
-Full investigation notes, including the measured phase breakdown and the ranked fix list, live in
-the handoff document referenced in `README.md`.
+Measured findings live in `docs/`, one file per question: startup, typing, idle, prompt cache and
+token spend, subagents, and more. Before you measure, profile, or change a patch in an area, read
+`docs/README.md` and then only that area's file. Read `docs/method.md` before any A/B or profile.
+Record a new measurement in the file for its area.
 
 <!-- devkit:core:start -->
 

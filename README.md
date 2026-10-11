@@ -99,11 +99,11 @@ prompt cache still warm?" the way Claude Code's "Prompt cache warm, about 59 min
 The clock is written by `cache-warm-arm`, not the footer. The recording code lives in
 `src/patch/cache-clock.ts` and is spliced into that patch, because it already owns the `pY` rewrite.
 `pY` stamps `globalThis.__odCache` with the request's `capturedAt` for the session, because the
-cache lifetime runs from when a request is **sent** (see FINDINGS, "the clock starts at request
-start") and every request resets it. A successful cache warm resets it to the moment the warm was
-sent. Only Anthropic models get a clock: DroidProxy makes every Anthropic write last an hour, and no
-lifetime has been measured for the others, so a non-Anthropic request removes the entry and the
-footer shows nothing.
+cache lifetime runs from when a request is **sent** (see `docs/cache-lifetime.md`, "The clock starts
+at request start") and every request resets it. A successful cache warm resets it to the moment the
+warm was sent. Only Anthropic models get a clock: DroidProxy makes every Anthropic write last an
+hour, and no lifetime has been measured for the others, so a non-Anthropic request removes the entry
+and the footer shows nothing.
 
 The footer's one timer now wakes at the earlier of the turn clock's next step and the next minute
 boundary of the cache's remaining time, one millisecond past it so the digit has changed, and again
@@ -397,10 +397,10 @@ the two Droid ones are the smaller half; the `npm exec` wrapper around an MCP se
 session and does nothing after startup. Pointing the MCP config at the resolved entry point removes
 one process per session for an identical response. That is a config change, not a patch.
 
-`FINDINGS.md` has the full measurement record, including how the measuring tools were wrong the
-first time. `TOKEN_OPTIMIZER.md` covers the prompt cache: what a write and a read cost on the
-subscription meter, what busted the cache and how the patches close it, and where the remaining
-token spend sits. Its opening section is the settled summary.
+`docs/` has the full measurement record, one file per question, including how the measuring tools
+were wrong the first time. Start at `docs/README.md`. For the prompt cache (what a write and a read
+cost on the subscription meter, what busts the cache, and where token spend sits), start at
+`docs/token-spend.md`.
 
 ## How it works
 
