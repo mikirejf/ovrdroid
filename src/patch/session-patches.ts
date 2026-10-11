@@ -1,3 +1,4 @@
+import { copyMenuPatches } from './copy-menu-patches.ts';
 import type { Patch } from './patches.ts';
 import { resumeCachePatches } from './resume-cache-patches.ts';
 import { sessionIndexPatches } from './session-index-patches.ts';
@@ -13,4 +14,5 @@ export const sessionPatches: readonly Patch[] = [
   ...titleModelPatches,
   ...suggestionListPatches,
   ...resumeCachePatches,
+  ...copyMenuPatches,
 ];
