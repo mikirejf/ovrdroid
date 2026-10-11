@@ -1,11 +1,12 @@
 import type { Patch } from './patches.ts';
 
 export const NESTING_CEILING = 3;
+export const DEFAULT_MAX_DEPTH = 2;
 export const DEFAULT_DESCENDANTS_PER_ROOT = 25;
 export const DEFAULT_SUBAGENTS_PER_DAEMON = 100;
 
 export const NEST_CAP =
-  'function $ODnestCap($ODv,$ODd){return Number.isInteger($ODv)&&$ODv>0?$ODv:$ODd}';
+  'function $ODnestCap($ODv,$ODd,$ODmax=1/0){return Number.isInteger($ODv)&&$ODv>0&&$ODv<=$ODmax?$ODv:$ODd}';
 
 export const MAY_NEST =
   'function $ODmayNest($ODl,$ODm,$ODc){return $ODl===0||$ODl<Math.min($ODm??1,$ODc)}';
@@ -26,13 +27,14 @@ const STOCK_GATES =
 
 const PATCHED_GATES =
   `${NEST_CAP}${MAY_NEST}${NEST_REFUSAL}` +
-  `function o6(){return{maxDepth:j6,maxActiveDescendantsPerRoot:$ODnestCap(C().settings.general?.nestedTaskDelegation?.maxActiveDescendantsPerRoot,${DEFAULT_DESCENDANTS_PER_ROOT})}}` +
+  'function o6(){let $ODn=C().settings.general?.nestedTaskDelegation;' +
+  `return{maxDepth:$ODnestCap($ODn?.maxDepth,${DEFAULT_MAX_DEPTH},j6),maxActiveDescendantsPerRoot:$ODnestCap($ODn?.maxActiveDescendantsPerRoot,${DEFAULT_DESCENDANTS_PER_ROOT})}}` +
   'function a6(){let t=m();if(t.isSpecMode())return!1;let o=t.getCurrentSessionId();if(!o)return!1;' +
-  'try{let a=$z(o).lineage.depth;return a>0&&$ODmayNest(a,hn(o)?.maxDepth,j6)}' +
+  'try{let a=$z(o).lineage.depth;return a>0&&$ODmayNest(a,hn(o)?.maxDepth,o6().maxDepth)}' +
   'catch(a){return n("Nested Task availability check failed; disabling delegation",{sessionId:o,cause:a}),!1}}' +
   'function kTe(t){let $ODr=hn(t.parentSessionId);if(!$ODr)return;let o;try{o=$z(t.parentSessionId).lineage.depth}' +
   'catch(a){return n("Nested Task scope check failed; rejecting call",{sessionId:t.parentSessionId,cause:a}),"over_depth"}' +
-  'return $ODmayNest(o,$ODr.maxDepth,j6)?void 0:$ODnestRefusal($ODr,o,j6)}';
+  'let $ODc=o6().maxDepth;return $ODmayNest(o,$ODr.maxDepth,$ODc)?void 0:$ODnestRefusal($ODr,o,$ODc)}';
 
 const STOCK_SCOPE_VIOLATION =
   'switch(t){case"over_depth":default:return{llmError:"Nested Task delegation has reached its maximum depth.';

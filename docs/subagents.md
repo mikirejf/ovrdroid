@@ -26,6 +26,17 @@ There is no cap at 10 here. The code has `max_active_task_subagents_per_daemon:1
 `max_active_descendants_per_root:5`, but only when `nested_task_delegation` is on, and it is off.
 The only active limit is the in-process host's 50.
 
+The `nesting-*` patches turn nested delegation on and read three limits from the top-level
+`nestedTaskDelegation` object in `~/.factory/settings.json`:
+
+- `maxDepth`: the deepest level any subagent may sit at. 1 to 3, default 2. Anything else falls back
+  to 2. The binary caps it at 3.
+- `maxActiveDescendantsPerRoot`: default 25.
+- `maxActiveTaskSubagentsPerDaemon`: default 100.
+
+A droid's own `maxDepth` (default 1) can stop its subagents earlier, but never lets them go deeper
+than this ceiling.
+
 ## In-process is lighter
 
 Sleeping subagents, peak footprint of the whole process tree:

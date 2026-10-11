@@ -4,11 +4,11 @@ import { EFFORTS, MATCH_NAME, subagentModelPatches } from '../subagent-model-pat
 import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 import { shipped, stockDroid } from './stock-scanner.ts';
 import type { DroidFields } from './subagent-model-harness.ts';
-import { BRACKETED, droidErrors, isKnown, KNOWN, OPUS, splitOf } from './subagent-model-harness.ts';
+import { BRACKETED, droidErrors, KNOWN, OPUS, splitOf } from './subagent-model-harness.ts';
 
 describeStrayNames(subagentModelPatches);
 
-describe('the launch model string splits into id, tier and effort', () => {
+describe('the launch model string splits into id and effort', () => {
   test('a launch without a model keeps its tier and effort fields', () => {
     expect(splitOf({ complexity: 'heavy', effort: 'low' })).toEqual({
       complexity: 'heavy',
@@ -20,20 +20,19 @@ describe('the launch model string splits into id, tier and effort', () => {
     expect(splitOf({ model: OPUS })).toMatchObject({ model: OPUS });
   });
 
-  test('brackets give the tier and the effort', () => {
-    expect(splitOf({ model: `${OPUS}[complexity=light,effort=high]` })).toMatchObject({
+  test('brackets give the effort', () => {
+    expect(splitOf({ model: `${OPUS}[effort=high]` })).toMatchObject({
       model: OPUS,
-      complexity: 'light',
       effort: 'high',
     });
   });
 
   test('inherit means the parent model, with or without brackets', () => {
     expect(splitOf({ model: 'inherit' })).toMatchObject({ inherit: true });
-    expect(splitOf({ model: 'inherit[complexity=medium]' })).toEqual({
+    expect(splitOf({ model: 'inherit[effort=medium]' })).toEqual({
       inherit: true,
-      complexity: 'medium',
-      effort: undefined,
+      complexity: undefined,
+      effort: 'medium',
     });
   });
 
@@ -45,7 +44,7 @@ describe('the launch model string splits into id, tier and effort', () => {
     });
   });
 
-  test('a launch may give a tier in one place and an effort in the other', () => {
+  test('a launch may give a tier in its field and an effort in the brackets', () => {
     expect(splitOf({ model: `${OPUS}[effort=max]`, complexity: 'light' })).toMatchObject({
       model: OPUS,
       complexity: 'light',
@@ -55,7 +54,16 @@ describe('the launch model string splits into id, tier and effort', () => {
 
   test('an unknown key is refused, naming the allowed keys', () => {
     expect(() => splitOf({ model: `${OPUS}[colour=red]` })).toThrow(
-      'unknown key "colour". Allowed keys: complexity, effort',
+      'unknown key "colour". Allowed keys: effort',
+    );
+  });
+
+  test('a tier in the brackets is an unknown key, with or without an effort next to it', () => {
+    expect(() => splitOf({ model: `${OPUS}[complexity=heavy]` })).toThrow(
+      'unknown key "complexity". Allowed keys: effort',
+    );
+    expect(() => splitOf({ model: `inherit[effort=low,complexity=light]` })).toThrow(
+      'unknown key "complexity"',
     );
   });
 
@@ -63,15 +71,9 @@ describe('the launch model string splits into id, tier and effort', () => {
     expect(() => splitOf({ model: `${OPUS}[effort=huge]` })).toThrow(
       'Allowed: minimal, low, medium, high, xhigh, max, inherit',
     );
-    expect(() => splitOf({ model: `${OPUS}[complexity=extreme]` })).toThrow(
-      'Allowed: light, medium, heavy',
-    );
   });
 
-  test('a tier or effort set in brackets and in its field is refused', () => {
-    expect(() => splitOf({ model: `${OPUS}[complexity=heavy]`, complexity: 'light' })).toThrow(
-      'complexity is set twice',
-    );
+  test('an effort set in brackets and in its field is refused', () => {
     expect(() => splitOf({ model: `${OPUS}[effort=max]`, effort: 'low' })).toThrow(
       'effort is set twice',
     );
@@ -151,7 +153,7 @@ describe('a droid file may set reasoningEffort: inherit', () => {
 });
 
 function errorsOf(metadata: DroidFields): string[] {
-  return droidErrors(metadata, isKnown);
+  return droidErrors(metadata);
 }
 
 function firstErrorOf(metadata: DroidFields): string {
@@ -163,38 +165,13 @@ describe('a droid file is checked when it loads', () => {
     expect(errorsOf({ name: 'plain', model: 'inherit' })).toEqual([]);
   });
 
-  test('a well-formed tier map, maxDepth and skills pass', () => {
-    expect(
-      errorsOf({
-        complexity: { light: { model: KNOWN[1], effort: 'low' }, heavy: { effort: 'xhigh' } },
-        maxDepth: 3,
-        skills: ['poteto-mode'],
-      }),
-    ).toEqual([]);
+  test('well-formed maxDepth and skills pass', () => {
+    expect(errorsOf({ maxDepth: 3, skills: ['poteto-mode'] })).toEqual([]);
   });
 
-  test('a tier effort of inherit passes, and the steps list names inherit', () => {
-    expect(errorsOf({ complexity: { light: { effort: 'inherit' } } })).toEqual([]);
-    expect(firstErrorOf({ complexity: { light: { effort: 'off' } } })).toContain(
-      'Steps: minimal, low, medium, high, xhigh, max, inherit',
-    );
-  });
-
-  test('a tier naming an unknown model is an error that names the tier and the id', () => {
-    expect(errorsOf({ complexity: { light: { model: 'custom:nope', effort: 'low' } } })).toEqual([
-      'complexity.light: model "custom:nope" is not a valid model id',
-    ]);
-  });
-
-  test.each([
-    ['a value that is not a map', 'heavy', 'complexity must map tiers'],
-    ['an unknown tier', { extreme: { effort: 'low' } }, 'unknown tier "extreme"'],
-    ['an empty tier', { light: {} }, 'complexity.light sets neither model nor effort'],
-    ['an effort off the scale', { light: { effort: 'off' } }, 'effort "off" is not a step'],
-    ['an unknown key', { light: { effort: 'low', speed: 'fast' } }, 'unknown key "speed"'],
-    ['a tier that is not a map', { light: 'low' }, 'complexity.light must be a map'],
-  ])('a tier map with %s is an error', (_label, complexity, message) => {
-    expect(firstErrorOf({ complexity })).toContain(message);
+  test('a leftover complexity key is not read, whatever it holds', () => {
+    expect(errorsOf({ complexity: { extreme: { effort: 'off' } } })).toEqual([]);
+    expect(errorsOf({ complexity: 'heavy' })).toEqual([]);
   });
 
   test.each([0, -1, 2.5, '3'])('maxDepth %p is an error', (maxDepth) => {
@@ -286,5 +263,11 @@ describe.skipIf(stockDroid === undefined)('the shipped Task launcher', () => {
 
   test('no longer says custom subagents ignore the tier', () => {
     expect(patchedText).not.toContain('Ignored for custom subagents');
+  });
+
+  test('the descriptions say custom agents refuse a tier and brackets take only effort', () => {
+    expect(patchedText).toContain('every custom agent refuses one');
+    expect(patchedText).toContain('Brackets take only effort.');
+    expect(patchedText).not.toContain('tier map');
   });
 });

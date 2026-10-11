@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   DEFAULT_DESCENDANTS_PER_ROOT,
+  DEFAULT_MAX_DEPTH,
   DEFAULT_SUBAGENTS_PER_DAEMON,
   MAY_NEST,
   NEST_CAP,
@@ -19,7 +20,7 @@ const mayNest = payloadFunction<
   (level: number, maxDepth: number | undefined, ceiling: number) => boolean
 >([], `${MAY_NEST};return $ODmayNest`)();
 
-const nestCap = payloadFunction<[], (value: unknown, fallback: number) => number>(
+const nestCap = payloadFunction<[], (value: unknown, fallback: number, max?: number) => number>(
   [],
   `${NEST_CAP};return $ODnestCap`,
 )();
@@ -102,6 +103,14 @@ describe('a count cap from settings', () => {
   ] as const)('%s', (_case, value, cap) => {
     expect(nestCap(value, 25)).toBe(cap);
   });
+
+  test.each([
+    ['a value at the maximum is used', 3, 3],
+    ['a value over the maximum falls back', 4, 2],
+    ['a value under the maximum is used', 1, 1],
+  ] as const)('%s', (_case, value, cap) => {
+    expect(nestCap(value, 2, 3)).toBe(cap);
+  });
 });
 
 interface Gates {
@@ -114,7 +123,7 @@ interface Ledger {
   records: Record<string, LedgerRecord & { parentSessionId: string }>;
   current: string;
   specMode?: boolean;
-  general?: { nestedTaskDelegation?: { maxActiveDescendantsPerRoot?: number } };
+  general?: { nestedTaskDelegation?: { maxDepth?: unknown; maxActiveDescendantsPerRoot?: number } };
 }
 
 function depthOf(ledger: Ledger, sessionId: string): number {
@@ -147,17 +156,28 @@ const CHAIN: Ledger['records'] = {
   plain: { parentSessionId: 'main', subagentType: 'coder-medium' },
 };
 
+function ceilingOf(maxDepth: unknown): NonNullable<Ledger['general']> {
+  return { nestedTaskDelegation: { maxDepth } };
+}
+
 describe('the Task tool is offered only to a subagent that may nest', () => {
   test.each([
-    ['the main session', 'main', false],
-    ['poteto-agent at level 1', 'potetoOne', true],
-    ['poteto-agent at level 2', 'potetoTwo', true],
-    ['poteto-agent at level 3', 'potetoThree', false],
-    ['generalPurpose at level 3', 'verifier', false],
-    ['coder-heavy at level 2', 'coder', false],
-    ['coder-medium at level 1', 'plain', false],
-  ] as const)('%s', (_case, current, offered) => {
-    expect(gatesOver({ records: CHAIN, current }).a6()).toBe(offered);
+    { name: 'the main session', current: 'main', byDefault: false, atThree: false },
+    { name: 'poteto-agent at level 1', current: 'potetoOne', byDefault: true, atThree: true },
+    { name: 'poteto-agent at level 2', current: 'potetoTwo', byDefault: false, atThree: true },
+    { name: 'poteto-agent at level 3', current: 'potetoThree', byDefault: false, atThree: false },
+    { name: 'generalPurpose at level 3', current: 'verifier', byDefault: false, atThree: false },
+    { name: 'coder-heavy at level 2', current: 'coder', byDefault: false, atThree: false },
+    { name: 'coder-medium at level 1', current: 'plain', byDefault: false, atThree: false },
+  ])('$name: ceiling 2 by default, 3 when set', ({ current, byDefault, atThree }) => {
+    expect(gatesOver({ records: CHAIN, current }).a6()).toBe(byDefault);
+    expect(gatesOver({ records: CHAIN, current, general: ceilingOf(3) }).a6()).toBe(atThree);
+  });
+
+  test('a ceiling of 1 keeps the Task tool from every subagent', () => {
+    for (const current of ['potetoOne', 'potetoTwo', 'plain']) {
+      expect(gatesOver({ records: CHAIN, current, general: ceilingOf(1) }).a6()).toBe(false);
+    }
   });
 
   test('spec mode keeps it off, as stock does', () => {
@@ -166,14 +186,28 @@ describe('the Task tool is offered only to a subagent that may nest', () => {
 });
 
 describe('a launch from over the limit is refused with the reason', () => {
-  const { kTe } = gatesOver({ records: CHAIN, current: 'main' });
+  const byDefault = gatesOver({ records: CHAIN, current: 'main' }).kTe;
+  const atThree = gatesOver({ records: CHAIN, current: 'main', general: ceilingOf(3) }).kTe;
 
   test.each([
     ['the main session', 'main'],
     ['poteto-agent at level 1', 'potetoOne'],
-    ['poteto-agent at level 2', 'potetoTwo'],
   ] as const)('%s may launch', (_case, parentSessionId) => {
-    expect(kTe({ parentSessionId })).toBeUndefined();
+    expect(byDefault({ parentSessionId })).toBeUndefined();
+  });
+
+  test('poteto-agent at level 2 may launch only under a ceiling of 3', () => {
+    expect(atThree({ parentSessionId: 'potetoTwo' })).toBeUndefined();
+    expect(byDefault({ parentSessionId: 'potetoTwo' })).toBe(
+      'poteto-agent runs at level 2 and its maxDepth is 3, but Droid allows subagents only down to level 2, so it cannot launch a subagent. Complete this work yourself instead of delegating further.',
+    );
+  });
+
+  test('a ceiling of 1 refuses a launch from level 1 and names the ceiling', () => {
+    const atOne = gatesOver({ records: CHAIN, current: 'main', general: ceilingOf(1) }).kTe;
+    expect(atOne({ parentSessionId: 'potetoOne' })).toContain(
+      'poteto-agent runs at level 1 and its maxDepth is 3, but Droid allows subagents only down to level 1',
+    );
   });
 
   test.each([
@@ -190,19 +224,50 @@ describe('a launch from over the limit is refused with the reason', () => {
     ['coder-heavy at level 2', 'coder', 'coder-heavy runs at level 2 and its maxDepth is 1'],
     ['coder-medium at level 1', 'plain', 'coder-medium runs at level 1 and its maxDepth is 1'],
   ] as const)('%s may not', (_case, parentSessionId, reason) => {
-    expect(kTe({ parentSessionId })).toContain(reason);
+    expect(atThree({ parentSessionId })).toContain(reason);
+    expect(byDefault({ parentSessionId })).toContain(reason);
   });
 });
 
-describe('the per-root cap comes from settings and the depth limit is the ceiling', () => {
+describe('the depth ceiling comes from nestedTaskDelegation.maxDepth', () => {
+  const maxDepthOf = (general: NonNullable<Ledger['general']> = {}): number =>
+    gatesOver({ records: CHAIN, current: 'main', general }).o6().maxDepth;
+
+  test('it is 2 when settings say nothing', () => {
+    expect(maxDepthOf()).toBe(DEFAULT_MAX_DEPTH);
+    expect(maxDepthOf({})).toBe(2);
+    expect(maxDepthOf({ nestedTaskDelegation: {} })).toBe(2);
+  });
+
+  test.each([1, 2, 3])('a setting of %p is the ceiling', (maxDepth) => {
+    expect(maxDepthOf(ceilingOf(maxDepth))).toBe(maxDepth);
+  });
+
+  test.each([
+    ['above the compiled maximum', 4],
+    ['zero', 0],
+    ['negative', -1],
+    ['a fraction', 1.5],
+    ['a string', '3'],
+    ['null', null],
+  ])('an invalid setting (%s) falls back to 2', (_label, maxDepth) => {
+    expect(maxDepthOf(ceilingOf(maxDepth))).toBe(DEFAULT_MAX_DEPTH);
+  });
+
+  test('the compiled maximum stays 3', () => {
+    expect(NESTING_CEILING).toBe(3);
+  });
+});
+
+describe('the per-root cap comes from settings', () => {
   test('defaults when settings say nothing', () => {
     expect(gatesOver({ records: CHAIN, current: 'main' }).o6()).toEqual({
-      maxDepth: NESTING_CEILING,
+      maxDepth: DEFAULT_MAX_DEPTH,
       maxActiveDescendantsPerRoot: DEFAULT_DESCENDANTS_PER_ROOT,
     });
   });
 
-  test('reads general.nestedTaskDelegation.maxActiveDescendantsPerRoot', () => {
+  test('reads nestedTaskDelegation.maxActiveDescendantsPerRoot', () => {
     const general = { nestedTaskDelegation: { maxActiveDescendantsPerRoot: 4 } };
     expect(
       gatesOver({ records: CHAIN, current: 'main', general }).o6().maxActiveDescendantsPerRoot,
@@ -248,7 +313,7 @@ describe('the per-daemon cap comes from the user settings file', () => {
     expect(reservedCap('{"sessionTitleModel":"x"}')).toBe(DEFAULT_SUBAGENTS_PER_DAEMON);
   });
 
-  test('reads general.nestedTaskDelegation.maxActiveTaskSubagentsPerDaemon, comments allowed', () => {
+  test('reads nestedTaskDelegation.maxActiveTaskSubagentsPerDaemon, comments allowed', () => {
     expect(
       reservedCap('{\n// cap\n"nestedTaskDelegation":{"maxActiveTaskSubagentsPerDaemon":12},}'),
     ).toBe(12);

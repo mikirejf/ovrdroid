@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  droidErrors,
   isKnownOrEmpty,
   OPUS,
   SONNET,
@@ -66,15 +65,10 @@ describe('a droid that declares a model fixes it, even when the model is not con
     });
   });
 
-  test('a tier map on it still takes its tier, as a fixed-model droid does', () => {
-    const droid: Subagent = {
-      ...UNAVAILABLE,
-      tiers: { heavy: { model: OPUS, effort: 'max' } },
-    };
-    expect(resolve(splitOf({ complexity: 'heavy' }), droid)).toMatchObject({
-      modelId: OPUS,
-      reasoningEffort: 'max',
-    });
+  test('a tier is refused, as it is for every custom droid', () => {
+    expect(() => resolve(splitOf({ complexity: 'heavy' }), UNAVAILABLE)).toThrow(
+      'retired is a custom agent, so it cannot take a tier',
+    );
   });
 });
 
@@ -86,7 +80,7 @@ describe('an explicit model id is not empty', () => {
     ['blanks', '   '],
     ['brackets alone', '[effort=inherit]'],
     ['brackets with blanks around them', '  [effort=high]  '],
-    ['an empty id before brackets', ' [complexity=heavy,effort=low]'],
+    ['an empty id before brackets', ' [effort=low]'],
   ])('%s is refused with the valid ids listed', (_label, model) => {
     expect(() => splitAsStockValidates({ model })).toThrow(VALID_IDS);
   });
@@ -100,24 +94,5 @@ describe('an explicit model id is not empty', () => {
     expect(splitAsStockValidates({ model: 'inherit[effort=low]' })).toMatchObject({
       inherit: true,
     });
-  });
-
-  test('a tier model that is empty is refused at launch', () => {
-    const droid: Subagent = { name: 'blank', custom: true, tiers: { light: { model: '  ' } } };
-    const inputs = { ...inputsOf(droid), valid: isKnownOrEmpty };
-    expect(() => pick(splitOf({ complexity: 'light' }), inputs)).toThrow(
-      'blank\'s light tier names model "  ", which this session cannot use',
-    );
-  });
-});
-
-describe('a droid file whose tier model is empty fails to load', () => {
-  test.each([
-    ['an empty string', ''],
-    ['blanks', '   '],
-  ])('%s is a tier error naming the tier', (_label, model) => {
-    expect(droidErrors({ complexity: { light: { model } } }, isKnownOrEmpty)).toEqual([
-      `complexity.light: model "${model}" is not a valid model id`,
-    ]);
   });
 });

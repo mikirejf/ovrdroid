@@ -45,10 +45,10 @@ export interface DroidFields {
   skills?: unknown;
 }
 
-export const droidErrors = payloadFunction<
+export const droidErrors = payloadFunction<[], (metadata: DroidFields) => string[]>(
   [],
-  (metadata: DroidFields, valid: (id: string) => boolean) => string[]
->([], `${CHECK_DROID}return $ODdroidErrors`)();
+  `${CHECK_DROID}return $ODdroidErrors`,
+)();
 
 export function isKnownOrEmpty(id: string): boolean {
   return id === '' || isKnown(id);

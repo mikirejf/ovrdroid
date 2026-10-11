@@ -31,19 +31,6 @@ describe('effort inherit means the parent effort, from every place an effort is 
     });
   });
 
-  test("a tier's effort: inherit", () => {
-    const droid: Subagent = {
-      name: 'tier-inherit',
-      custom: true,
-      effort: 'high',
-      tiers: { heavy: { effort: 'inherit' } },
-    };
-    expect(resolveUnder(XHIGH_PARENT, splitOf({ complexity: 'heavy' }), droid)).toMatchObject({
-      reasoningEffort: 'xhigh',
-      complexity: 'heavy',
-    });
-  });
-
   test('the Task effort field', () => {
     expect(resolveUnder(XHIGH_PARENT, splitOf({ effort: 'inherit' }), POTETO)).toMatchObject({
       modelId: HAIKU,
@@ -57,10 +44,10 @@ describe('effort inherit means the parent effort, from every place an effort is 
     ).toMatchObject({ modelId: OPUS, reasoningEffort: 'xhigh' });
   });
 
-  test('a launch inherit beats the tier and the droid effort', () => {
-    expect(
-      resolveUnder(PARENT, splitOf({ effort: 'inherit', complexity: 'heavy' }), POTETO),
-    ).toMatchObject({ reasoningEffort: 'medium', complexity: 'heavy' });
+  test('a launch inherit beats the droid effort', () => {
+    expect(resolveUnder(PARENT, splitOf({ effort: 'inherit' }), POTETO)).toMatchObject({
+      reasoningEffort: 'medium',
+    });
   });
 
   test('a parent with no effort leaves the model default', () => {
@@ -80,14 +67,9 @@ describe('the inherited effort is fitted to the final model', () => {
     });
   });
 
-  test("a tier's effort: inherit next to a tier model", () => {
-    const droid: Subagent = {
-      name: 'capped',
-      custom: true,
-      tiers: { heavy: { model: HIGH_ONLY, effort: 'inherit' } },
-    };
-    const inputs = { ...inputsOf(droid), parent: () => XHIGH_PARENT, valid: () => true };
-    expect(pick(splitOf({ complexity: 'heavy' }), inputs)).toMatchObject({
+  test("a droid's reasoningEffort: inherit next to a launch model", () => {
+    const droid: Subagent = { ...PLAIN_INHERIT, effort: 'inherit' };
+    expect(resolveUnder(XHIGH_PARENT, { model: HIGH_ONLY }, droid)).toMatchObject({
       modelId: HIGH_ONLY,
       reasoningEffort: 'high',
     });
@@ -127,7 +109,7 @@ describe('a fixed-model droid', () => {
     }
   });
 
-  test('without a tier map, an inherit droid with reasoningEffort: inherit runs at the parent effort', () => {
+  test('an inherit droid with reasoningEffort: inherit, launched bare, runs at the parent effort', () => {
     const droid: Subagent = { ...PLAIN_INHERIT, effort: 'inherit' };
     expect(resolveUnder(XHIGH_PARENT, splitOf({}), droid)).toMatchObject({
       modelId: HAIKU,

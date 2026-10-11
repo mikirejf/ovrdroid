@@ -11,107 +11,130 @@ import {
   resolve,
   STOCK_MARK,
   stockOf,
-  TIERED,
   WORKER,
 } from './subagent-model-pick-harness.ts';
 import type { Subagent } from './subagent-model-pick-harness.ts';
 
-describe('a launch picks the model and effort in the spec order', () => {
-  test('a launch model with a heavy tier runs that model at the tier effort, above the parent', () => {
-    expect(resolve(splitOf({ model: `${OPUS}[complexity=heavy]` }), POTETO)).toEqual({
+describe('an inherit droid picks its model in the spec order', () => {
+  test('a launch model beats the parent model and is the tool model', () => {
+    expect(resolve(splitOf({ model: OPUS }), POTETO)).toMatchObject({
       modelId: OPUS,
-      reasoningEffort: 'xhigh',
-      complexity: 'heavy',
       $ODtoolModel: OPUS,
     });
   });
 
-  test("a launch model without a tier runs at the droid's reasoningEffort", () => {
-    expect(resolve(splitOf({ model: OPUS }), POTETO)).toMatchObject({
-      modelId: OPUS,
-      reasoningEffort: 'high',
-    });
+  test('no launch model runs the parent model, and the droid file picks the tools', () => {
+    const selection = resolve(splitOf({ effort: 'max' }), POTETO);
+    expect(selection.modelId).toBe(HAIKU);
+    expect(selection.$ODtoolModel).toBeUndefined();
   });
 
-  test("a tier alone runs the tier's model and effort", () => {
-    expect(resolve(splitOf({ complexity: 'light' }), TIERED)).toMatchObject({
-      modelId: SONNET,
-      reasoningEffort: 'low',
-    });
+  test('inherit runs the parent model', () => {
+    const selection = resolve(splitOf({ model: 'inherit' }), POTETO);
+    expect(selection.modelId).toBe(HAIKU);
+    expect(selection.$ODtoolModel).toBeUndefined();
   });
+});
 
-  test("a launch model wins over the tier's model, and the tier's effort still applies", () => {
-    expect(resolve(splitOf({ model: `${OPUS}[complexity=light]` }), TIERED)).toMatchObject({
-      modelId: OPUS,
-      reasoningEffort: 'low',
-    });
-  });
-
-  test("a launch effort wins over the tier's effort", () => {
+describe('an inherit droid picks its effort in the spec order', () => {
+  test('a launch effort beats the droid reasoningEffort', () => {
     expect(resolve(splitOf({ model: `${OPUS}[effort=max]` }), POTETO)).toMatchObject({
       modelId: OPUS,
       reasoningEffort: 'max',
     });
-    expect(
-      resolve(splitOf({ model: `${OPUS}[effort=max]`, complexity: 'light' }), POTETO),
-    ).toMatchObject({ modelId: OPUS, reasoningEffort: 'max', complexity: 'light' });
+    expect(resolve(splitOf({ effort: 'max' }), POTETO)).toMatchObject({
+      modelId: HAIKU,
+      reasoningEffort: 'max',
+    });
   });
 
-  test("inherit with a tier runs the parent's model at the tier's effort", () => {
-    expect(resolve(splitOf({ model: 'inherit[complexity=medium]' }), POTETO)).toMatchObject({
+  test('inherit[effort=xhigh] runs the parent model at xhigh', () => {
+    expect(resolve(splitOf({ model: 'inherit[effort=xhigh]' }), POTETO)).toMatchObject({
+      modelId: HAIKU,
+      reasoningEffort: 'xhigh',
+    });
+  });
+
+  test('a launch effort of inherit is the parent effort', () => {
+    expect(resolve(splitOf({ effort: 'inherit' }), POTETO)).toMatchObject({
+      modelId: HAIKU,
+      reasoningEffort: 'medium',
+    });
+  });
+
+  test('without a launch effort the droid reasoningEffort applies, also on a launch model', () => {
+    expect(resolve(splitOf({ model: OPUS }), POTETO)).toMatchObject({
+      modelId: OPUS,
+      reasoningEffort: 'high',
+    });
+    expect(resolve(splitOf({ model: 'inherit' }), POTETO)).toMatchObject({
       modelId: HAIKU,
       reasoningEffort: 'high',
     });
   });
 
-  test("the parent's effort applies only when the model is the parent's", () => {
-    const droid: Subagent = { name: 'mapped', custom: true, tiers: { heavy: { model: OPUS } } };
-    expect(resolve(splitOf({ model: 'inherit[complexity=heavy]' }), droid)).toEqual({
+  test('a droid reasoningEffort of inherit is the parent effort, also on a launch model', () => {
+    const droid: Subagent = { ...POTETO, effort: 'inherit' };
+    expect(resolve(splitOf({ model: OPUS }), droid)).toMatchObject({
+      modelId: OPUS,
+      reasoningEffort: 'medium',
+    });
+  });
+
+  test('with no effort anywhere, the parent effort applies only to the parent model', () => {
+    const droid: Subagent = { ...PLAIN_INHERIT };
+    expect(resolve(splitOf({ model: 'inherit' }), droid)).toMatchObject({
       modelId: HAIKU,
       reasoningEffort: 'medium',
-      complexity: 'heavy',
     });
-    expect(resolve(splitOf({ complexity: 'heavy' }), droid)).toEqual({
+    expect(resolve(splitOf({ model: OPUS }), droid)).toMatchObject({
       modelId: OPUS,
       reasoningEffort: undefined,
-      complexity: 'heavy',
-      $ODtoolModel: OPUS,
     });
   });
 
   test('the effort is fitted to what the final model supports', () => {
-    const droid: Subagent = {
-      name: 'capped',
-      custom: true,
-      tiers: { heavy: { model: HIGH_ONLY, effort: 'max' } },
-    };
-    expect(pick({ complexity: 'heavy' }, { ...inputsOf(droid), valid: () => true })).toMatchObject({
+    expect(resolve({ model: HIGH_ONLY, effort: 'max' }, POTETO)).toMatchObject({
       modelId: HIGH_ONLY,
       reasoningEffort: 'high',
     });
-  });
-
-  test('a fixed-model droid with a tier map takes its tier models', () => {
-    const droid: Subagent = { ...CODER_MEDIUM, tiers: { heavy: { model: OPUS, effort: 'max' } } };
-    expect(resolve(splitOf({ complexity: 'heavy' }), droid)).toMatchObject({
-      modelId: OPUS,
-      reasoningEffort: 'max',
+    const inputs = { ...inputsOf({ ...POTETO, effort: 'max' }), clamp: () => 'high' };
+    expect(pick(splitOf({ model: 'inherit' }), inputs)).toMatchObject({
+      modelId: HAIKU,
+      reasoningEffort: 'high',
     });
-    expect(resolve(splitOf({}), droid)).toEqual({ modelId: SONNET, reasoningEffort: 'high' });
   });
 });
 
-describe('a launch that a droid cannot take is refused', () => {
-  test('a droid without a tier map refuses a tier, in the field or in brackets', () => {
-    expect(() => resolve(splitOf({ complexity: 'heavy' }), CODER_MEDIUM)).toThrow(
-      'coder-medium has no tier map, so it cannot take a tier',
-    );
-    expect(() => resolve(splitOf({ model: 'inherit[complexity=heavy]' }), PLAIN_INHERIT)).toThrow(
-      'generalPurpose has no tier map, so it cannot take a tier',
+describe('a custom droid refuses a tier', () => {
+  test.each([
+    ['a fixed-model droid', CODER_MEDIUM],
+    ['an inherit droid', PLAIN_INHERIT],
+    ['an inherit droid with an effort', POTETO],
+  ] as const)('%s, and the error names it', (_label, droid) => {
+    expect(() => resolve(splitOf({ complexity: 'heavy' }), droid)).toThrow(
+      `${droid.name} is a custom agent, so it cannot take a tier. Launch it without complexity`,
     );
   });
 
-  test('a fixed-model droid refuses any launch model, inherit included', () => {
+  test('the tier is refused next to a launch model and a launch effort too', () => {
+    expect(() =>
+      resolve(splitOf({ model: OPUS, effort: 'low', complexity: 'light' }), POTETO),
+    ).toThrow('poteto-agent is a custom agent, so it cannot take a tier');
+  });
+
+  test('a tier in the model brackets is an unknown key, so it never reaches the pick', () => {
+    expect(() => splitOf({ model: 'inherit[complexity=heavy]' })).toThrow(
+      'model brackets: unknown key "complexity". Allowed keys: effort',
+    );
+    expect(() => splitOf({ model: `${OPUS}[complexity=light,effort=high]` })).toThrow(
+      'unknown key "complexity"',
+    );
+  });
+});
+
+describe('a fixed-model droid takes nothing from the launch', () => {
+  test('any launch model is refused, inherit included', () => {
     expect(() => resolve(splitOf({ model: OPUS }), CODER_MEDIUM)).toThrow(
       `coder-medium fixes its model (${SONNET}), so it cannot take a launch model`,
     );
@@ -120,34 +143,37 @@ describe('a launch that a droid cannot take is refused', () => {
     );
   });
 
-  test('a fixed-model droid refuses a launch effort', () => {
+  test('a launch effort is refused', () => {
     expect(() => resolve(splitOf({ effort: 'xhigh' }), CODER_MEDIUM)).toThrow(
       `coder-medium fixes its model (${SONNET}), so it cannot take a launch effort`,
     );
   });
 
-  test('a tier the map does not name is refused, listing the tiers it has', () => {
-    expect(() => resolve(splitOf({ complexity: 'medium' }), TIERED)).toThrow(
-      'tiered has no medium tier in its tier map. Its tiers: light, heavy',
-    );
-  });
-
-  test('a tier model this session cannot use is refused at launch', () => {
-    const droid: Subagent = {
-      name: 'gone',
-      custom: true,
-      tiers: { light: { model: 'custom:retired', effort: 'low' } },
-    };
-    expect(() => resolve(splitOf({ complexity: 'light' }), droid)).toThrow(
-      'gone\'s light tier names model "custom:retired", which this session cannot use',
-    );
+  test('a bare launch takes the stock path: the file model at the file effort', () => {
+    const inputs = { ...inputsOf(CODER_MEDIUM), stock: () => STOCK_MARK };
+    expect(pick(splitOf({}), inputs)).toBe(STOCK_MARK);
+    expect(resolve(splitOf({}), CODER_MEDIUM)).toEqual({
+      modelId: SONNET,
+      reasoningEffort: 'high',
+    });
   });
 });
 
-describe('a launch without a new field resolves exactly as stock does', () => {
+function lowParent() {
+  return { modelId: HAIKU, reasoningEffort: 'low' };
+}
+function lowHighOnlyParent() {
+  return { modelId: HIGH_ONLY, reasoningEffort: 'low' };
+}
+
+describe('a bare launch resolves exactly as stock does, unless an inherit droid sets an effort', () => {
   test.each([
     ['a fixed-model droid', CODER_MEDIUM],
-    ['an inherit droid without a tier map', PLAIN_INHERIT],
+    [
+      'a fixed-model droid without a reasoningEffort',
+      { name: 'fixed', custom: true, fixedModel: SONNET },
+    ],
+    ['an inherit droid without a reasoningEffort', PLAIN_INHERIT],
     ['a built-in', WORKER],
   ] as const)('%s takes the stock path', (_label, subagent) => {
     const inputs = { ...inputsOf(subagent), stock: () => STOCK_MARK };
@@ -155,83 +181,75 @@ describe('a launch without a new field resolves exactly as stock does', () => {
     expect(resolve(splitOf({}), subagent)).toEqual(stockOf(subagent)());
   });
 
-  test('a built-in given only a tier keeps the stock fixed mapping', () => {
-    expect(resolve(splitOf({ complexity: 'light' }), WORKER)).toEqual(stockOf(WORKER)('light'));
+  test('an inherit droid with a reasoningEffort leaves the stock path', () => {
+    const inputs = { ...inputsOf(POTETO), stock: () => STOCK_MARK };
+    expect(pick(splitOf({}), inputs)).not.toBe(STOCK_MARK);
   });
-});
 
-describe('a droid with a tier map picks its model and effort on every launch', () => {
-  test('an inherit droid launched bare runs the parent model at its own reasoningEffort', () => {
-    expect(resolve(splitOf({}), POTETO)).toEqual({
+  test('a bare launch of an inherit droid runs the parent model at its reasoningEffort', () => {
+    expect(pick(splitOf({}), { ...inputsOf(POTETO), parent: lowParent })).toEqual({
       modelId: HAIKU,
       reasoningEffort: 'high',
       complexity: undefined,
     });
   });
 
-  test('a tier map makes the bare launch leave the stock path', () => {
-    const inputs = { ...inputsOf(POTETO), stock: () => STOCK_MARK };
-    expect(pick(splitOf({}), inputs)).not.toBe(STOCK_MARK);
-  });
-
-  test("an inherit droid without a reasoningEffort keeps the parent's effort", () => {
-    const droid: Subagent = { ...POTETO };
-    delete droid.effort;
-    expect(resolve(splitOf({}), droid)).toMatchObject({
-      modelId: HAIKU,
-      reasoningEffort: 'medium',
+  test('that reasoningEffort is fitted to the parent model', () => {
+    const droid: Subagent = { ...POTETO, effort: 'max' };
+    expect(pick(splitOf({}), { ...inputsOf(droid), parent: lowHighOnlyParent })).toMatchObject({
+      modelId: HIGH_ONLY,
+      reasoningEffort: 'high',
     });
   });
 
-  test("the droid's reasoningEffort is fitted to the parent model", () => {
-    const droid: Subagent = { ...POTETO, effort: 'max' };
-    const inputs = { ...inputsOf(droid), clamp: () => 'high' };
-    expect(pick(splitOf({}), inputs)).toMatchObject({ modelId: HAIKU, reasoningEffort: 'high' });
+  test('an inherit droid without a reasoningEffort keeps the parent effort', () => {
+    const inputs = { ...inputsOf(PLAIN_INHERIT), parent: lowParent, stock: lowParent };
+    expect(pick(splitOf({}), inputs)).toEqual({ modelId: HAIKU, reasoningEffort: 'low' });
+  });
+
+  test('an inherit droid with reasoningEffort: inherit runs the parent model at the parent effort', () => {
+    const droid: Subagent = { ...PLAIN_INHERIT, effort: 'inherit' };
+    expect(resolve(splitOf({}), droid)).toEqual({
+      modelId: HAIKU,
+      reasoningEffort: 'medium',
+      complexity: undefined,
+    });
+  });
+
+  test('a fixed-model droid with reasoningEffort: inherit still goes through the pick', () => {
+    const droid: Subagent = { ...CODER_MEDIUM, effort: 'inherit' };
+    const inputs = { ...inputsOf(droid), stock: () => STOCK_MARK };
+    expect(pick(splitOf({}), inputs)).toEqual({
+      modelId: SONNET,
+      reasoningEffort: 'medium',
+      complexity: undefined,
+    });
   });
 });
 
-describe('the model that picks the tools is the one a launch or a tier chose', () => {
-  test('a launch model is the tool model', () => {
+describe('the model that picks the tools is the launch model', () => {
+  test('a launch model is the tool model, for every kind of agent', () => {
     expect(resolve(splitOf({ model: OPUS }), POTETO).$ODtoolModel).toBe(OPUS);
     expect(resolve(splitOf({ model: OPUS }), WORKER).$ODtoolModel).toBe(OPUS);
     expect(resolve(splitOf({ model: OPUS }), PLAIN_INHERIT).$ODtoolModel).toBe(OPUS);
   });
 
-  test('a tier model is the tool model, also for a fixed-model droid', () => {
-    expect(resolve(splitOf({ complexity: 'heavy' }), TIERED).$ODtoolModel).toBe(OPUS);
-    const fixed: Subagent = { ...CODER_MEDIUM, tiers: { heavy: { model: OPUS } } };
-    expect(resolve(splitOf({ complexity: 'heavy' }), fixed).$ODtoolModel).toBe(OPUS);
-  });
-
-  test("a launch model wins over the tier's model", () => {
-    expect(resolve(splitOf({ model: `${SONNET}[complexity=heavy]` }), TIERED).$ODtoolModel).toBe(
-      SONNET,
-    );
-  });
-
   test.each([
     ['a fixed-model droid launched bare', CODER_MEDIUM, {}],
-    [
-      'a fixed-model droid whose tier names no model',
-      { ...CODER_MEDIUM, tiers: { light: { effort: 'low' } } },
-      { complexity: 'light' },
-    ],
     ['an inherit droid launched bare', POTETO, {}],
     ['an inherit droid given inherit', POTETO, { model: 'inherit' }],
-    ['an inherit droid given a tier with no model', POTETO, { complexity: 'heavy' }],
+    ['an inherit droid given only an effort', POTETO, { effort: 'low' }],
     ['a built-in launched bare', WORKER, {}],
   ] as const)('%s leaves the tool model to the droid file', (_label, subagent, fields) => {
     expect(resolve(splitOf(fields), subagent).$ODtoolModel).toBeUndefined();
   });
-
-  test('inherit given to a droid whose tier names a model still runs the parent model', () => {
-    const selection = resolve(splitOf({ model: 'inherit[complexity=heavy]' }), TIERED);
-    expect(selection.modelId).toBe(HAIKU);
-    expect(selection.$ODtoolModel).toBeUndefined();
-  });
 });
 
-describe('a built-in takes a launch model and a launch effort', () => {
+describe('a built-in keeps the stock tier and takes a launch model and a launch effort', () => {
+  test('a tier alone keeps the stock fixed mapping', () => {
+    expect(resolve(splitOf({ complexity: 'light' }), WORKER)).toEqual(stockOf(WORKER)('light'));
+  });
+
   test('a launch model wins and the tier still sets the effort the stock way', () => {
     expect(resolve(splitOf({ model: OPUS, complexity: 'light' }), WORKER)).toEqual({
       modelId: OPUS,

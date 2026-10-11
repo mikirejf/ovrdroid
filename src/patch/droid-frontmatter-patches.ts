@@ -3,7 +3,7 @@ import type { Patch } from './patches.ts';
 const MCP_SERVERS_FIELD =
   'mcpServers:Nt((t)=>typeof t==="string"?t.split(",").map((o)=>o.trim()).filter((o)=>o.length>0):t,d(e())).optional()';
 
-const DROID_FRONTMATTER_FIELDS = ['complexity', 'maxDepth', 'skills'] as const;
+const DROID_FRONTMATTER_FIELDS = ['maxDepth', 'skills'] as const;
 
 export const droidFrontmatterPatches: readonly Patch[] = [
   {

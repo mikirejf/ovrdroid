@@ -20,11 +20,10 @@ export const SPLIT_MODEL =
   'let $ODseen=new Set;' +
   'for(let $ODpair of $ODid.slice($ODopen+1,-1).split(",")){' +
   'let $ODeq=$ODpair.indexOf("="),$ODkey=($ODeq<0?$ODpair:$ODpair.slice(0,$ODeq)).trim(),$ODval=$ODeq<0?"":$ODpair.slice($ODeq+1).trim();' +
-  'if($ODkey!=="complexity"&&$ODkey!=="effort")' +
-  'throw Error("model brackets: unknown key \\""+$ODkey+"\\". Allowed keys: complexity, effort");' +
-  'let $ODallowed=$ODkey==="complexity"?$ODtiers:$ODsteps;' +
-  'if(!$ODallowed.includes($ODval))' +
-  'throw Error("model brackets: "+$ODkey+" \\""+$ODval+"\\" is not allowed. Allowed: "+$ODallowed.join(", "));' +
+  'if($ODkey!=="effort")' +
+  'throw Error("model brackets: unknown key \\""+$ODkey+"\\". Allowed keys: effort");' +
+  'if(!$ODsteps.includes($ODval))' +
+  'throw Error("model brackets: effort \\""+$ODval+"\\" is not allowed. Allowed: "+$ODsteps.join(", "));' +
   'if($ODseen.has($ODkey))throw Error("model brackets set "+$ODkey+" twice");' +
   'if($ODout[$ODkey]!==void 0)' +
   'throw Error($ODkey+" is set twice: in the model brackets and in the "+$ODkey+" field. Set it in one place");' +
@@ -51,24 +50,19 @@ export const PICK_MODEL =
   '$ODm=$ODl.model??($ODl.inherit?$ODp.modelId:void 0)??$ODbase.modelId,' +
   '$ODe=$ODl.effort==="inherit"?$ODp.reasoningEffort:$ODl.effort??($ODm===$ODbase.modelId?$ODbase.reasoningEffort:$ODm?$ODs.lower($ODm,$ODbase.complexity,$ODp.reasoningEffort):void 0);' +
   'return{modelId:$ODm,reasoningEffort:$ODe!==void 0&&$ODm?$ODs.clamp($ODm,$ODe):$ODe,complexity:$ODbase.complexity,$ODtoolModel:$ODl.model}}' +
-  'let $ODfixed=$ODs.fixedModel,$ODdeclared=$ODs.declaredModel,$ODmap=$ODs.tiers;' +
-  'if($ODtier!==void 0&&$ODmap===void 0)throw Error($ODs.name+" has no tier map, so it cannot take a tier. Launch it without complexity");' +
+  'if($ODtier!==void 0)throw Error($ODs.name+" is a custom agent, so it cannot take a tier. Launch it without complexity");' +
+  'let $ODfixed=$ODs.fixedModel,$ODdeclared=$ODs.declaredModel;' +
   'if($ODdeclared&&$ODgiven)' +
   'throw Error($ODs.name+" fixes its model ("+$ODdeclared+"), so it cannot take a launch model. Launch it without model");' +
   'if($ODdeclared&&$ODl.effort!==void 0)' +
   'throw Error($ODs.name+" fixes its model ("+$ODdeclared+"), so it cannot take a launch effort. Launch it without effort");' +
-  'if($ODtier===void 0&&!$ODlaunch&&$ODmap===void 0&&$ODs.effort!=="inherit")return $ODs.stock(void 0);' +
-  'let $ODt=$ODtier===void 0?{}:$ODmap[$ODtier];' +
-  'if($ODt===void 0)throw Error($ODs.name+" has no "+$ODtier+" tier in its tier map. Its tiers: "+Object.keys($ODmap).join(", "));' +
-  'if(!$ODgiven&&$ODt.model!==void 0&&($ODt.model.trim()===""||!$ODs.valid($ODt.model)))' +
-  'throw Error($ODs.name+"\'s "+$ODtier+" tier names model \\""+$ODt.model+"\\", which this session cannot use. Valid model ids: inherit, "+$ODs.ids().join(", "));' +
+  'if(!$ODlaunch&&$ODs.effort!=="inherit"&&($ODfixed||$ODdeclared||$ODs.effort===void 0))return $ODs.stock(void 0);' +
   'let $ODp=$ODs.parent(),' +
-  '$ODfromParent=$ODl.model===void 0&&($ODl.inherit===!0||$ODt.model===void 0&&!$ODfixed),' +
-  '$ODm=$ODl.model??($ODfromParent?$ODp.modelId:$ODt.model??$ODfixed),' +
-  '$ODx=$ODl.effort??$ODt.effort??$ODs.effort,' +
+  '$ODfromParent=$ODl.model===void 0&&($ODl.inherit===!0||!$ODfixed),' +
+  '$ODm=$ODl.model??($ODfromParent?$ODp.modelId:$ODfixed),' +
+  '$ODx=$ODl.effort??$ODs.effort,' +
   '$ODe=$ODx==="inherit"?$ODp.reasoningEffort:$ODx??($ODfromParent?$ODp.reasoningEffort:void 0);' +
-  'return{modelId:$ODm,reasoningEffort:$ODe!==void 0&&$ODm?$ODs.clamp($ODm,$ODe):$ODe,complexity:$ODtier,' +
-  '$ODtoolModel:$ODl.model??($ODl.inherit===!0?void 0:$ODt.model)}}';
+  'return{modelId:$ODm,reasoningEffort:$ODe!==void 0&&$ODm?$ODs.clamp($ODm,$ODe):$ODe,complexity:void 0,$ODtoolModel:$ODl.model}}';
 
 export const REFUSE_RESUME_FIELDS =
   'function $ODresume($ODt){' +
@@ -79,21 +73,8 @@ export const REFUSE_RESUME_FIELDS =
   'throw Error($ODk+" applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the model and effort it started with. Resume without "+$ODk)}';
 
 export const CHECK_DROID =
-  'function $ODdroidErrors($ODmeta,$ODvalid){' +
-  `let $ODerr=[],$ODtiers=${TIER_LIST},$ODsteps=${EFFORT_LIST},$ODmap=$ODmeta.complexity;` +
-  'if($ODmap!==void 0){' +
-  'if($ODmap===null||typeof $ODmap!=="object"||Array.isArray($ODmap))' +
-  '$ODerr.push("complexity must map tiers ("+$ODtiers.join(", ")+") to { model, effort }");' +
-  'else for(let[$ODk,$ODt]of Object.entries($ODmap)){' +
-  'if(!$ODtiers.includes($ODk)){$ODerr.push("complexity: unknown tier \\""+$ODk+"\\". Tiers: "+$ODtiers.join(", "));continue}' +
-  'if($ODt===null||typeof $ODt!=="object"||Array.isArray($ODt)){$ODerr.push("complexity."+$ODk+" must be a map with model, effort, or both");continue}' +
-  'for(let $ODf of Object.keys($ODt))if($ODf!=="model"&&$ODf!=="effort")' +
-  '$ODerr.push("complexity."+$ODk+": unknown key \\""+$ODf+"\\". Keys: model, effort");' +
-  'if($ODt.model===void 0&&$ODt.effort===void 0)$ODerr.push("complexity."+$ODk+" sets neither model nor effort");' +
-  'if($ODt.effort!==void 0&&!$ODsteps.includes($ODt.effort))' +
-  '$ODerr.push("complexity."+$ODk+": effort \\""+$ODt.effort+"\\" is not a step. Steps: "+$ODsteps.join(", "));' +
-  'if($ODt.model!==void 0&&(typeof $ODt.model!=="string"||$ODt.model.trim()===""||!$ODvalid($ODt.model)))' +
-  '$ODerr.push("complexity."+$ODk+": model \\""+$ODt.model+"\\" is not a valid model id")}}' +
+  'function $ODdroidErrors($ODmeta){' +
+  'let $ODerr=[];' +
   'if($ODmeta.maxDepth!==void 0&&!(Number.isInteger($ODmeta.maxDepth)&&$ODmeta.maxDepth>0))' +
   '$ODerr.push("maxDepth must be a positive integer, not "+JSON.stringify($ODmeta.maxDepth));' +
   'if($ODmeta.skills!==void 0&&!(Array.isArray($ODmeta.skills)&&$ODmeta.skills.every(($ODn)=>typeof $ODn==="string")))' +
@@ -116,19 +97,19 @@ const LAUNCH_MODEL_LOOKUP =
 
 const MODEL_DESCRIPTION =
   'Optional model for the subagent: a model id from the list at the end of this tool\'s description, or "inherit" for this session\'s model. ' +
-  'Brackets set the tier or effort in the same string: "<id>[complexity=heavy]", "<id>[effort=xhigh]", "<id>[complexity=light,effort=high]", "<id>[effort=inherit]" (this session\'s effort), "inherit[complexity=medium]". ' +
-  'Only agents whose model is inherit, and the built-ins worker and explorer, take a model; an agent that fixes its model refuses one. Omit it to run the agent on its own model.';
+  'Brackets set the effort in the same string: "<id>[effort=xhigh]", "<id>[effort=inherit]" (this session\'s effort), "inherit[effort=high]". Brackets take only effort. ' +
+  'Only agents whose file says model inherit, and the built-ins worker and explorer, take a model; an agent whose file names a model refuses one. Omit it to run the agent on its own model.';
 
 const EFFORT_DESCRIPTION =
   `Optional exact reasoning effort for the subagent, one of ${EFFORTS.join(', ')}. ` +
   `"inherit" means this session's effort. ` +
-  "It wins over the tier's effort. Droid then moves it to the highest step at or below it that the final model supports, or to the model's lowest step. " +
-  'Only agents that take a model take an effort; an agent that fixes its model refuses one.';
+  "On an agent whose file says model inherit it wins over the reasoningEffort in that file. Droid then moves it to the highest step at or below it that the final model supports, or to the model's lowest step. " +
+  'Only agents that take a model take an effort; an agent whose file names a model refuses one.';
 
 const COMPLEXITY_DESCRIPTION =
   `Optional complexity tier, one of ${TIERS.join(', ')}. ` +
-  'Only agents with a tier map take a tier: their map turns it into a model, an effort, or both. Other custom agents refuse a tier. ' +
-  "The built-ins worker and explorer keep their fixed mapping: when they inherit this session's model, light does not reason at all where the model allows it, heavy reasons most, and the tier never raises effort above this session; it also selects the tier model when tier models are configured in settings.";
+  'Only the built-ins worker and explorer take a tier; every custom agent refuses one. ' +
+  "When a built-in inherits this session's model, light does not reason at all where the model allows it, heavy reasons most, and the tier never raises effort above this session; it also selects the tier model when tier models are configured in settings.";
 
 const STOCK_COMPLEXITY_FIELD =
   'complexity:y(tte).optional().describe("Optional complexity tier. When the subagent inherits this session\'s model, caps how hard it reasons (light does not reason at all where the model allows it, heavy reasons most) and never raises it above this session. Also selects the tier model when complexity\\u2192model routing is configured in settings. Ignored for custom subagents, which run on their configured model and reasoning effort, or on this session\'s when they inherit."),';
@@ -148,7 +129,7 @@ export const PICK_CALL =
   '{modelId:O,reasoningEffort:W,complexity:j,$ODtoolModel}=$ODpick($ODl,{' +
   'name:R.metadata.name,custom:v.type==="custom",fixedModel:F&&F!=="inherit"?F:void 0,' +
   'declaredModel:typeof R.metadata.model==="string"&&R.metadata.model.trim()!==""&&R.metadata.model!=="inherit"?R.metadata.model:void 0,' +
-  'effort:R.metadata.reasoningEffort,tiers:R.metadata.complexity,valid:A,ids:$ODids,' +
+  'effort:R.metadata.reasoningEffort,' +
   'stock:($ODc)=>Ie.resolveSubagentModelSelection({subagent:v,requestedComplexity:$ODc,droidModel:F,dependencies:o}),' +
   'parent:()=>Ie.resolveSubagentModelSelection({subagent:{type:"custom",droid:R},droidModel:"inherit",dependencies:o}),' +
   'lower:($ODm,$ODc,$ODe)=>lw({modelId:$ODm,complexity:$ODc,inherited:$ODe}),' +
@@ -168,7 +149,7 @@ const STOCK_EFFORT_WARNING =
 
 export const subagentModelPatches: readonly Patch[] = [
   {
-    name: 'task-schema-model-effort-tiers',
+    name: 'task-schema-model-effort-fields',
     find: STOCK_COMPLEXITY_FIELD,
     lookups: ['subagent_type:e().describe("An available agent type'],
     replace:
@@ -233,21 +214,16 @@ export const subagentModelPatches: readonly Patch[] = [
     find: STOCK_EFFORT_WARNING,
     replace:
       'let R=this.validateModel(e.model,r);' +
-      'if(t.push(...R.errors,...$ODdroidErrors(e,($ODm)=>$ODm!=="inherit"&&this.validateModel($ODm,r).valid)),e.reasoningEffort!==void 0){' +
-      'if(o==="inherit"){' +
-      'if(e.complexity===void 0&&e.reasoningEffort!=="inherit")a.push("Reasoning effort is ignored when inheriting the parent model")}',
+      'if(t.push(...R.errors,...$ODdroidErrors(e)),e.reasoningEffort!==void 0){' +
+      'if(o==="inherit"){}',
   },
   {
     name: 'droid-load-checks-new-fields',
     find: STOCK_DROID_CLASS_HEAD + STOCK_GET_ALL_DROIDS,
-    lookups: [
-      'let a=await nA(),o=Gf.parse(e,a);if(!o.metadata.name)throw new i("Invalid droid content: missing name in metadata");',
-      'let l=vi.validateMetadata(o.metadata,a);if(!l.valid)throw new i("Invalid droid configuration"',
-    ],
     replace:
       `${CHECK_DROID}${STOCK_DROID_CLASS_HEAD}async getAllDroids(){` +
-      'let $ODlist=(await this.settingsManager.getResolvedSettings()).droids?.customDroids??[],$ODknown=await nA();' +
-      'return $ODlist.map(($ODd)=>{let $ODerr=$ODdroidErrors($ODd.metadata,($ODm)=>$ODm!=="inherit"&&vi.validateModel($ODm,$ODknown).valid);' +
+      'let $ODlist=(await this.settingsManager.getResolvedSettings()).droids?.customDroids??[];' +
+      'return $ODlist.map(($ODd)=>{let $ODerr=$ODdroidErrors($ODd.metadata);' +
       'return $ODerr.length===0?$ODd:{...$ODd,validationResult:{...$ODd.validationResult,valid:!1,errors:[...$ODd.validationResult.errors,...$ODerr]}}})}',
   },
 ];

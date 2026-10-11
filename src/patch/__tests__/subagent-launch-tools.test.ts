@@ -171,9 +171,8 @@ describe('the tools are expanded for the model the launch ends up on', () => {
     expect(events).toEqual(['pick', `expand:${SONNET}`]);
   });
 
-  test('a fixed Sonnet droid whose tier picks a GPT model gets ApplyPatch, not Edit and Create', () => {
+  test('an inherit droid launched on a GPT model gets ApplyPatch, not Edit and Create', () => {
     const { tools, modelId } = launchTools(undefined, undefined, {
-      droidModel: SONNET,
       picked: { modelId: GPT, $ODtoolModel: GPT },
     });
     expect(modelId).toBe(GPT);

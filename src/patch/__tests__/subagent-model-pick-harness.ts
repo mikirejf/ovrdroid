@@ -1,7 +1,7 @@
 import { PICK_MODEL } from '../subagent-model-patches.ts';
 import { payloadFunction } from './payload.ts';
 import type { Launch } from './subagent-model-harness.ts';
-import { HAIKU, isKnown, KNOWN, OPUS, SONNET } from './subagent-model-harness.ts';
+import { HAIKU, SONNET } from './subagent-model-harness.ts';
 
 export interface Selection {
   modelId?: string | undefined;
@@ -10,18 +10,12 @@ export interface Selection {
   $ODtoolModel?: string | undefined;
 }
 
-interface Tier {
-  model?: string;
-  effort?: string;
-}
-
 export interface Subagent {
   name: string;
   custom: boolean;
   fixedModel?: string;
   declaredModel?: string | undefined;
   effort?: string;
-  tiers?: Partial<Record<'light' | 'medium' | 'heavy', Tier>>;
 }
 
 export interface PickInputs extends Subagent {
@@ -29,8 +23,6 @@ export interface PickInputs extends Subagent {
   parent: () => Selection;
   lower: (model: string, tier: string, inherited?: string) => string;
   clamp: (model: string, effort: string) => string;
-  valid: (id: string) => boolean;
-  ids: () => readonly string[];
 }
 
 export const pick = payloadFunction<[], (launch: Launch, inputs: PickInputs) => Selection>(
@@ -69,8 +61,6 @@ export function inputsOf(subagent: Subagent): PickInputs {
     parent: () => PARENT,
     lower: (_model, tier) => (tier === 'light' ? 'off' : 'medium'),
     clamp,
-    valid: isKnown,
-    ids: () => KNOWN,
   };
 }
 
@@ -78,18 +68,7 @@ export function resolve(launch: Launch, subagent: Subagent): Selection {
   return pick(launch, inputsOf(subagent));
 }
 
-export const POTETO: Subagent = {
-  name: 'poteto-agent',
-  custom: true,
-  effort: 'high',
-  tiers: { light: { effort: 'low' }, medium: { effort: 'high' }, heavy: { effort: 'xhigh' } },
-};
-
-export const TIERED: Subagent = {
-  name: 'tiered',
-  custom: true,
-  tiers: { light: { model: SONNET, effort: 'low' }, heavy: { model: OPUS, effort: 'xhigh' } },
-};
+export const POTETO: Subagent = { name: 'poteto-agent', custom: true, effort: 'high' };
 
 export const CODER_MEDIUM: Subagent = {
   name: 'coder-medium',

@@ -35,7 +35,7 @@ const patched = payloadFunction<[], Validator>(
 
 describe('the droid validator checks the new fields', () => {
   test('the stand-in validator ignores them before the patch', () => {
-    const metadata = { name: 'tiered', complexity: 'heavy', maxDepth: 0 };
+    const metadata = { name: 'deep', maxDepth: 0 };
     expect(stock.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
@@ -47,34 +47,14 @@ describe('the droid validator checks the new fields', () => {
     });
   });
 
-  test('a well-formed tier map, maxDepth and skills stay valid', () => {
-    const metadata = {
-      name: 'tiered',
-      complexity: { light: { model: OPUS, effort: 'low' }, heavy: { effort: 'xhigh' } },
-      maxDepth: 2,
-      skills: ['poteto-mode'],
-    };
+  test('a well-formed maxDepth and skills stay valid', () => {
+    const metadata = { name: 'deep', maxDepth: 2, skills: ['poteto-mode'] };
     expect(patched.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
-  test('a bad tier map makes the droid invalid and says why', () => {
-    const result = patched.validateMetadata(
-      { name: 'tiered', complexity: { extreme: { effort: 'low' } } },
-      KNOWN,
-    );
-    expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors.join('\n')).toContain('unknown tier "extreme"');
-  });
-
-  test('a tier model outside the known list is judged against that list', () => {
-    const result = patched.validateMetadata(
-      { name: 'tiered', complexity: { light: { model: 'custom:nope' } } },
-      KNOWN,
-    );
-    expect(result.errors).toEqual([
-      'complexity.light: model "custom:nope" is not a valid model id',
-    ]);
+  test('a leftover complexity key is not read, so the droid stays valid', () => {
+    const metadata = { name: 'old', complexity: { extreme: { effort: 'low' } } };
+    expect(patched.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
   test('a bad maxDepth and bad skills are both reported', () => {
@@ -85,23 +65,25 @@ describe('the droid validator checks the new fields', () => {
   });
 });
 
-describe('reasoning effort on an inherit droid warns only when nothing uses it', () => {
+describe('reasoning effort on an inherit droid is used, so it never warns', () => {
   const warningsOf = (metadata: DroidFields): string[] =>
     patched.validateMetadata({ name: 'agent', ...metadata }, KNOWN).warnings;
+
+  test('the stand-in validator warns before the patch', () => {
+    expect(
+      stock.validateMetadata({ name: 'agent', model: 'inherit', reasoningEffort: 'high' }, KNOWN)
+        .warnings,
+    ).toEqual([WARNING]);
+  });
 
   test.each([
     ['no model', {}],
     ['model inherit', { model: 'inherit' }],
-  ])('%s keeps the warning for a fixed effort and no tier map', (_label, model) => {
-    expect(warningsOf({ ...model, reasoningEffort: 'high' })).toEqual([WARNING]);
+  ])('%s has no warning for a fixed effort', (_label, model) => {
+    expect(warningsOf({ ...model, reasoningEffort: 'high' })).toEqual([]);
   });
 
-  test('a tier map drops the warning, because the pick uses the effort', () => {
-    const complexity = { light: { effort: 'low' } };
-    expect(warningsOf({ model: 'inherit', reasoningEffort: 'high', complexity })).toEqual([]);
-  });
-
-  test('an effort of inherit drops the warning, because the pick uses it', () => {
+  test('an effort of inherit has no warning', () => {
     expect(warningsOf({ model: 'inherit', reasoningEffort: 'inherit' })).toEqual([]);
   });
 
