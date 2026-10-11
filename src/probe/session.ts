@@ -43,6 +43,7 @@ export interface SessionOptions {
   signal?: NodeJS.Signals;
   collect?: boolean;
   cwd?: string;
+  args?: readonly string[];
 }
 
 export const SETTLE_MS = 3000;
@@ -127,7 +128,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
 
   const start = async () => {
     const spawnedAt = performance.now();
-    const spawned = Bun.spawn([binary], {
+    const spawned = Bun.spawn([binary, ...(options.args ?? [])], {
       terminal,
       env: launchEnv({ ...options.env, ...ledger.env }),
       ...(options.cwd !== undefined && { cwd: options.cwd }),

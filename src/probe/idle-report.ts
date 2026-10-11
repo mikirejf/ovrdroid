@@ -43,10 +43,8 @@ export async function measureIdle(binary: string, options: IdleOptions): Promise
     const startedAt = performance.now();
     const head = await sampleTree(names.keys(), performance.now() - startedAt);
     await delay(options.window * MS_PER_SECOND);
-    const [tail, footprints] = await Promise.all([
-      sampleTree(names.keys(), performance.now() - startedAt),
-      footprintsOf(names.keys()),
-    ]);
+    const tail = await sampleTree(names.keys(), performance.now() - startedAt);
+    const footprints = footprintsOf(names.keys());
 
     const reading = readIdle([...head, ...tail], { names, footprints });
     return { reading, bytes: session.bytes() };

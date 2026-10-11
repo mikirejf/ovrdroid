@@ -5,6 +5,8 @@ import { readApp } from '../binary/graph.ts';
 import { rebuildInto } from '../binary/rebuild.ts';
 import { say } from '../cli.ts';
 import { bodyPatches } from '../patch/body-patches.ts';
+import { heapPatches } from '../patch/heap-patches.ts';
+import { lagPatches } from '../patch/lag-patches.ts';
 import type { Patch } from '../patch/patches.ts';
 import { patches } from '../patch/patches.ts';
 import { timerPatches } from '../patch/timer-patches.ts';
@@ -22,6 +24,8 @@ export interface BuildOptions {
   watch?: boolean;
   timers?: boolean;
   bodies?: boolean;
+  heap?: boolean;
+  lag?: boolean;
   without?: readonly string[];
   out: string;
 }
@@ -99,6 +103,12 @@ export async function buildProbe(options: BuildOptions): Promise<void> {
   }
   if (options.bodies === true) {
     list.push(...bodyPatches);
+  }
+  if (options.heap === true) {
+    list.push(...heapPatches);
+  }
+  if (options.lag === true) {
+    list.push(...lagPatches);
   }
   if (options.extra !== undefined) {
     list.push(...(await readExtra(options.extra)));
