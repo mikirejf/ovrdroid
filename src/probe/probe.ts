@@ -31,13 +31,11 @@ import {
 } from './cache-report.ts';
 import { bodies, modules, trace } from './capture-report.ts';
 import { cpu, idleCpu } from './cpu-report.ts';
-import { registerExecCommands } from './exec-commands.ts';
 import { DEFAULT_WINDOW_S, idle } from './idle-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
-import { registerReleaseCommands } from './release-commands.ts';
-import { registerSessionCommands } from './session-commands.ts';
+import { registerCommands } from './register-commands.ts';
 import {
   ab,
   DEFAULT_CHARS,
@@ -69,6 +67,10 @@ program
   .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--timers', 'include the timer census patches')
   .option('--bodies', 'include the patches that write every LLM request body to $OD_BODIES')
+  .option(
+    '--counters',
+    'include the patches that count commits, frames, renders and markdown parses into $OD_COUNTERS',
+  )
   .option(
     '--without <names...>',
     'leave out these shipped patches and their name- companions, to A/B what each one buys',
@@ -115,7 +117,7 @@ program
   .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
   .action(guard(keys));
 
-registerExecCommands(program);
+registerCommands(program);
 
 function churnOptions(command: Command): Command {
   return command
@@ -139,8 +141,6 @@ churnOptions(
     .argument('<binary>'),
 ).action(guard(watch));
 
-registerSessionCommands(program);
-
 program
   .command('effort')
   .description('cycle reasoning effort as early as it shows: does the label move at once and stay?')
@@ -160,8 +160,6 @@ program
   .description('show which config files a startup rewrites and which it only touches')
   .argument('<binary>')
   .action(guard(touches));
-
-registerReleaseCommands(program);
 
 program
   .command('idle')

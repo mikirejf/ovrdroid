@@ -1,4 +1,13 @@
-const CONFIDENCE_95 = 1.96;
+const T_95_BY_DF = [
+  12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.16, 2.145,
+  2.131, 2.12, 2.11, 2.101, 2.093, 2.086, 2.08, 2.074, 2.069, 2.064, 2.06, 2.056, 2.052, 2.048,
+  2.045, 2.042,
+];
+const Z_95 = 1.96;
+
+function critical95(n: number): number {
+  return T_95_BY_DF[n - 2] ?? Z_95;
+}
 
 export interface PairedStats {
   n: number;
@@ -22,7 +31,8 @@ export function pairedStats(first: readonly number[], second: readonly number[])
   const variance =
     n < 2 ? 0 : diffs.reduce((sum, value) => sum + (value - meanDiff) ** 2, 0) / (n - 1);
   const sdDiff = Math.sqrt(variance);
-  return { n, meanDiff, sdDiff, margin: n === 0 ? 0 : (CONFIDENCE_95 * sdDiff) / Math.sqrt(n) };
+  const margin = n < 2 ? Number.POSITIVE_INFINITY : (critical95(n) * sdDiff) / Math.sqrt(n);
+  return { n, meanDiff, sdDiff, margin };
 }
 
 export type Series<T> = readonly (readonly [string, T[]])[];

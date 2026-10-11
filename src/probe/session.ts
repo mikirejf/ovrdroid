@@ -43,6 +43,7 @@ export interface SessionOptions {
   signal?: NodeJS.Signals;
   collect?: boolean;
   cwd?: string;
+  args?: readonly string[];
 }
 
 export const SETTLE_MS = 3000;
@@ -55,6 +56,7 @@ export interface Session {
   paste: (text: string) => undefined;
   quiet: (quietMs: number, timeoutMs: number) => Promise<void>;
   mark: () => undefined;
+  resize: (cols: number, rows: number) => undefined;
   frames: () => readonly Frame[];
   bytes: () => number;
   close: () => Promise<void>;
@@ -127,7 +129,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
 
   const start = async () => {
     const spawnedAt = performance.now();
-    const spawned = Bun.spawn([binary], {
+    const spawned = Bun.spawn([binary, ...(options.args ?? [])], {
       terminal,
       env: launchEnv({ ...options.env, ...ledger.env }),
       ...(options.cwd !== undefined && { cwd: options.cwd }),
@@ -174,6 +176,10 @@ export async function openSession(binary: string, options: SessionOptions = {}):
       pending = '';
       written = 0;
       markedAt = performance.now();
+    },
+    resize(cols: number, rows: number): undefined {
+      terminal.resize(cols, rows);
+      process.kill(child.pid, 'SIGWINCH');
     },
     frames: () => collected,
     bytes: () => written,

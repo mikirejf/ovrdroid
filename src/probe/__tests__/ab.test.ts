@@ -43,9 +43,14 @@ describe('pairedStats', () => {
     expect(loose.margin).toBeGreaterThan(tight.margin);
   });
 
-  test('empty series yield zeroes rather than NaN', () => {
-    const stats = pairedStats([], []);
-    expect([stats.n, stats.meanDiff, stats.sdDiff, stats.margin]).toEqual([0, 0, 0, 0]);
+  test('fewer than two pairs never resolve, because there is no spread to bound', () => {
+    expect(pairedStats([], []).margin).toBe(Number.POSITIVE_INFINITY);
+    expect(pairedStats([100], [80]).margin).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  test('small samples use Student t, so two pairs need a far wider margin than z gives', () => {
+    const stats = pairedStats([100, 100], [86, 90]);
+    expect(stats.margin).toBeCloseTo((12.706 * stats.sdDiff) / Math.sqrt(2), 6);
   });
 });
 
