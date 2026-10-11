@@ -1,24 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
 
-import { patchSource } from '../../binary/apply.ts';
-import type { App } from '../../binary/graph.ts';
-import { joinApp, readApp } from '../../binary/graph.ts';
-import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { askUserPatches, askUserTextPatches } from '../askuser-patches.ts';
-import { findMarker } from '../patches.ts';
-import type { Rebase } from '../rebase.ts';
-import { rebaseAll } from '../rebase.ts';
 import { blockEnd } from '../tokens.ts';
-import { patchNamed, payloadFunction, strayNames } from './payload.ts';
+import { describeStrayNames, occurrences, patchNamed, payloadFunction } from './payload.ts';
+import { shipped, stockDroid as stock, stockText } from './stock-scanner.ts';
 
 const PATCH = patchNamed(askUserPatches, 'ask-user-tool-never-enabled');
 
-describe('every name of three characters or fewer in a payload is captured or owned', () => {
-  test.each(askUserPatches.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
-    expect(strayNames(patch)).toEqual([]);
-  });
-});
+describeStrayNames(askUserPatches);
 
 interface ToolContext {
   cliDroidMode: string;
@@ -53,37 +42,7 @@ describe('the AskUser tool is off on every surface', () => {
   });
 });
 
-function stockAppAt(target: string): App | undefined {
-  if (!existsSync(target)) {
-    return undefined;
-  }
-  const app = readApp(readFileSync(target));
-  return findMarker(app[0].text) === undefined ? app : undefined;
-}
-
-const stock = stockAppAt(INSTALLED_DROID) ?? stockAppAt(backupPath(INSTALLED_DROID));
-
-const stockText = stock === undefined ? '' : joinApp(stock);
-const patchedText = stock === undefined ? '' : joinApp(patchSource(stock, askUserPatches));
-
-const rebased = new Map(
-  rebaseAll(
-    askUserPatches,
-    (stock ?? []).map((module) => module.text),
-  ).map((rebase) => [rebase.name, rebase] as const),
-);
-
-function rebasedNamed(name: string): Rebase {
-  const rebase = rebased.get(name);
-  if (rebase === undefined) {
-    throw new TypeError(`${name} is missing from the AskUser patches`);
-  }
-  return rebase;
-}
-
-function occurrences(text: string, part: string): number {
-  return text.split(part).length - 1;
-}
+const { patchedText, rebasedNamed } = shipped(askUserPatches);
 
 const ASK_USER_GATE = /askUserToolEnabled:(?<flag>[\w$]+)\}\)=>\k<flag>===!0/gu;
 

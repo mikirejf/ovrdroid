@@ -1,20 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import { MAIN_MARKDOWN_SCOPE, renderPatches } from '../render-patches.ts';
-import { freeNames } from '../tokens.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 
-describe('every name of three characters or fewer in a payload is captured or owned', () => {
-  test.each(renderPatches.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
-    const known = new Set(
-      [patch.find, patch.until ?? '', ...(patch.lookups ?? [])].flatMap((text) => freeNames(text)),
-    );
-    const stray = freeNames(patch.replace).filter(
-      (name) => !name.startsWith('$OD') && !known.has(name),
-    );
-    expect(stray).toEqual([]);
-  });
-});
+describeStrayNames(renderPatches);
 
 interface Manager {
   renderLimit: number | null;

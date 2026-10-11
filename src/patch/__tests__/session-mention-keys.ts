@@ -1,7 +1,7 @@
 import type { Rebase } from '../rebase.ts';
 import { blockEnd } from '../tokens.ts';
-import { payloadFunction } from './payload.ts';
-import { escaped, rebasedNamed } from './session-mention-callback.ts';
+import { payloadFunction, rebasedNamed } from './payload.ts';
+import { escaped } from './session-mention-callback.ts';
 import type { Stand } from './session-mention-scope.ts';
 import { scoped, scopeOver } from './session-mention-scope.ts';
 

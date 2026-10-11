@@ -1,11 +1,43 @@
+import { describe, expect, test } from 'bun:test';
+
 import type { Patch } from '../patches.ts';
+import type { Rebase } from '../rebase.ts';
 import { freeNames } from '../tokens.ts';
+
+export function occurrences(text: string, part: string): number {
+  return text.split(part).length - 1;
+}
+
+export function rebasedNamed(rebased: readonly Rebase[], name: string): Rebase {
+  const rebase = rebased.find((entry) => entry.name === name);
+  if (rebase === undefined) {
+    throw new TypeError(`${name} is missing from the rebased patches`);
+  }
+  return rebase;
+}
+
+export async function failureOf(run: Promise<unknown>): Promise<string> {
+  try {
+    await run;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return 'the call did not fail';
+}
 
 export function strayNames(patch: Patch): string[] {
   const captured = new Set(
     freeNames([patch.find, patch.until ?? '', ...(patch.lookups ?? [])].join(';')),
   );
   return freeNames(patch.replace).filter((name) => !name.startsWith('$OD') && !captured.has(name));
+}
+
+export function describeStrayNames(patches: readonly Patch[]): void {
+  describe('every name of three characters or fewer in a payload is captured or owned', () => {
+    test.each(patches.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
+      expect(strayNames(patch)).toEqual([]);
+    });
+  });
 }
 
 export function patchNamed(list: readonly Patch[], name: string): Patch {

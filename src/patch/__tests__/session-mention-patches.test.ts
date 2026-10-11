@@ -9,7 +9,7 @@ import {
   sessionMentionPatches,
   TRANSCRIPT_HEAD_BYTES,
 } from '../session-mention-patches.ts';
-import { payloadFunction, strayNames } from './payload.ts';
+import { describeStrayNames, payloadFunction } from './payload.ts';
 import type { Hash, Head } from './session-mention-harness.ts';
 import { picker, session, stock, transcript, userLine } from './session-mention-harness.ts';
 
@@ -19,11 +19,7 @@ function headsOf(texts: Readonly<Record<string, string | null>>): Map<string, He
   return new Map(Object.entries(texts).map(([id, text]) => [id, { text, branch: null }]));
 }
 
-describe('every name of three characters or fewer in a payload is captured or owned', () => {
-  test.each(contracted.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
-    expect(strayNames(patch)).toEqual([]);
-  });
-});
+describeStrayNames(contracted);
 
 function queryAtEnd(text: string): Hash | null {
   return picker.$ODsessionQuery(text, text.length);

@@ -1,14 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
 
-import { patchSource } from '../../binary/apply.ts';
-import type { App } from '../../binary/graph.ts';
-import { joinApp, readApp } from '../../binary/graph.ts';
-import { backupPath, INSTALLED_DROID } from '../../paths.ts';
-import { findMarker } from '../patches.ts';
-import { applies, rebaseAll } from '../rebase.ts';
+import { applies } from '../rebase.ts';
 import { titleModelPatches } from '../title-model-patches.ts';
-import { patchNamed, payloadFunction, strayNames } from './payload.ts';
+import { occurrences, patchNamed, payloadFunction, strayNames } from './payload.ts';
+import { shipped, stockDroid, stockText } from './stock-scanner.ts';
 
 const PATCH = patchNamed(titleModelPatches, 'session-title-model-setting');
 
@@ -94,36 +89,12 @@ describe('the title model setting', () => {
   });
 });
 
-function stockApp(): App | undefined {
-  const binary = [INSTALLED_DROID, backupPath(INSTALLED_DROID)].find((target) => {
-    if (!existsSync(target)) {
-      return false;
-    }
-    return findMarker(readApp(readFileSync(target))[0].text) === undefined;
-  });
-  return binary === undefined ? undefined : readApp(readFileSync(binary));
-}
+const { patchedText, rebasedNamed } = shipped([PATCH]);
 
-const stock = stockApp();
-
-function occurrences(text: string, part: string): number {
-  return text.split(part).length - 1;
-}
-
-describe.skipIf(stock === undefined)('the shipped title generator', () => {
-  const app = stock;
-
+describe.skipIf(stockDroid === undefined)('the shipped title generator', () => {
   test('has the one call that picks the title model, and the patch replaces it', () => {
-    if (app === undefined) {
-      throw new Error('no stock Droid to read');
-    }
-    const stockText = joinApp(app);
-    const patchedText = joinApp(patchSource(app, [PATCH]));
-    const [rebase] = rebaseAll(
-      [PATCH],
-      app.map((module) => module.text),
-    );
-    if (rebase === undefined || !applies(rebase)) {
+    const rebase = rebasedNamed(PATCH.name);
+    if (!applies(rebase)) {
       throw new Error('the title model patch does not apply to the stock Droid');
     }
     expect(occurrences(stockText, rebase.find)).toBe(1);

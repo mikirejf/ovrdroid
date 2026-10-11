@@ -1,13 +1,4 @@
-import type { Rebase } from '../rebase.ts';
 import { blockEnd } from '../tokens.ts';
-
-export function rebasedNamed(rebased: readonly Rebase[], name: string): Rebase {
-  const rebase = rebased.find((entry) => entry.name === name);
-  if (rebase === undefined) {
-    throw new TypeError(`${name} is missing from the session mention patches`);
-  }
-  return rebase;
-}
 
 export function callbackAround(text: string, anchor: string): string {
   const at = text.indexOf(anchor);

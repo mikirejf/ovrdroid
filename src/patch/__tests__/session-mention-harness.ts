@@ -7,14 +7,8 @@ import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { findMarker } from '../patches.ts';
 import { rebaseAll } from '../rebase.ts';
 import { sessionMentionPatches } from '../session-mention-patches.ts';
-import { payloadFunction } from './payload.ts';
-import {
-  callbackAround,
-  calleeAfter,
-  escaped,
-  rebasedNamed,
-  setterArrow,
-} from './session-mention-callback.ts';
+import { payloadFunction, rebasedNamed } from './payload.ts';
+import { callbackAround, calleeAfter, escaped, setterArrow } from './session-mention-callback.ts';
 import type { EscapePath, KeyResult, Warmup } from './session-mention-keys.ts';
 import { enterKey, escapeKeys, serviceEffect } from './session-mention-keys.ts';
 import type { Hash, Head, Item, Session } from './session-mention-picker.ts';

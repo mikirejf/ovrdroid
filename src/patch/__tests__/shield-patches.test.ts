@@ -3,17 +3,13 @@ import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
 import { EXTRA_PREFIX_RULES, shieldPatches } from '../shield-patches.ts';
-import { patchNamed, payloadFunction, strayNames } from './payload.ts';
+import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 import type { Finding, LineMatcher } from './stock-scanner.ts';
 import { lineMatcherIn, scannerText, stockDroid } from './stock-scanner.ts';
 
 const PATH_PATCH = patchNamed(shieldPatches, 'shield-code-paths-skip-guessing-rules');
 
-describe('every name of three characters or fewer in a payload is captured or owned', () => {
-  test.each(shieldPatches.map((patch) => [patch.name, patch] as const))('%s', (_name, patch) => {
-    expect(strayNames(patch)).toEqual([]);
-  });
-});
+describeStrayNames(shieldPatches);
 
 type Search = (cL: LineMatcher, P: { content: string }, m: string) => Finding | undefined;
 

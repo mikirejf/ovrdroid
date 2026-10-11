@@ -1,7 +1,11 @@
+import { patchSource } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
-import { readApp } from '../../binary/graph.ts';
+import { joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
+import type { Patch } from '../patches.ts';
 import { findMarker } from '../patches.ts';
+import { rebaseAll } from '../rebase.ts';
+import { rebasedNamed as rebasedIn } from './payload.ts';
 import { scannerSource } from './scanner-source.ts';
 
 export interface Finding {
@@ -26,6 +30,19 @@ async function stockApp(target: string): Promise<App | undefined> {
 
 export const stockDroid =
   (await stockApp(INSTALLED_DROID)) ?? (await stockApp(backupPath(INSTALLED_DROID)));
+
+export const stockText = stockDroid === undefined ? '' : joinApp(stockDroid);
+
+export function shipped(patches: readonly Patch[]) {
+  const rebased = rebaseAll(
+    patches,
+    (stockDroid ?? []).map((module) => module.text),
+  );
+  return {
+    patchedText: stockDroid === undefined ? '' : joinApp(patchSource(stockDroid, patches)),
+    rebasedNamed: (name: string) => rebasedIn(rebased, name),
+  };
+}
 
 const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
 
