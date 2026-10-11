@@ -1,6 +1,7 @@
 import { highlightPatches } from './highlight-patches.ts';
 import { inkFramePatches } from './ink-frame-patches.ts';
 import type { Patch } from './patches.ts';
+import { renderProfilePatches } from './render-profile-patches.ts';
 import { rootRenderPatches } from './root-render-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
 
@@ -14,6 +15,7 @@ export const renderPatches: readonly Patch[] = [
   ...streamRenderPatches,
   ...highlightPatches,
   ...rootRenderPatches,
+  ...renderProfilePatches,
   {
     name: 'resume-expand-once',
     find: 'expandUiMessages(){if(this.renderLimit===null)return!1;let t=un(this.store.getMessages()).length,o=this.renderLimit*2;if(o>=t)this.renderLimit=null;else this.renderLimit=o;return this.store.notifyMessagesChanged(),this.renderLimit!==null}',

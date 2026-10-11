@@ -3,6 +3,7 @@ import type { Command } from 'commander';
 import type { RunOptions } from '../cli.ts';
 import { count, guard, messageOf, say } from '../cli.ts';
 import { interleave } from './ab.ts';
+import { counterRecorder } from './counter-file.ts';
 import { sayCounters } from './counters-report.ts';
 import { TERMINAL_SIZE } from './launch.ts';
 import { sayPaired } from './paired.ts';
@@ -30,7 +31,7 @@ async function resume(binaries: string[], options: ResumeCommandOptions): Promis
   const results = await interleave(
     binaries,
     async (binary) =>
-      await measureResume(binary, options).catch((error: unknown) => {
+      await measureResume(binary, options, counterRecorder).catch((error: unknown) => {
         throw new Error(`${binary}: ${messageOf(error)}`);
       }),
     options.runs,

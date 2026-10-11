@@ -8,6 +8,14 @@ export function patchNamed(list: readonly Patch[], name: string): Patch {
   return patch;
 }
 
+export function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    Reflect.deleteProperty(Bun.env, name);
+  } else {
+    Bun.env[name] = value;
+  }
+}
+
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 export function payloadFunction<Args extends unknown[], Result>(
   parameters: readonly string[],

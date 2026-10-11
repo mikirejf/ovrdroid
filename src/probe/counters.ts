@@ -1,3 +1,5 @@
+import { fieldsOf, hasNumbers, parseJsonLines } from './fields.ts';
+
 const SAMPLE_KEYS = [
   't',
   'pid',
@@ -31,32 +33,15 @@ export interface CounterWindow {
 }
 
 function isSample(value: unknown): value is CounterSample {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const fields = new Map(Object.entries(value));
-  return SAMPLE_KEYS.every((key) => Number.isFinite(fields.get(key)));
-}
-
-function parseLine(line: string): CounterSample | undefined {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    return undefined;
-  }
-  return isSample(value) ? value : undefined;
+  return hasNumbers(fieldsOf(value), SAMPLE_KEYS);
 }
 
 export function parseCounters(text: string): CounterSample[] {
-  return text
-    .split('\n')
-    .map((line) => parseLine(line))
-    .filter((sample) => sample !== undefined);
+  return parseJsonLines(text, isSample);
 }
 
-export function busiestProcess(samples: readonly CounterSample[]): CounterSample[] {
-  const perProcess = Map.groupBy(samples, (sample) => sample.pid);
+export function busiestProcess<T extends { pid: number }>(lines: readonly T[]): T[] {
+  const perProcess = Map.groupBy(lines, (line) => line.pid);
   const [busiest = []] = [...perProcess.values()].toSorted((a, b) => b.length - a.length);
   return busiest;
 }

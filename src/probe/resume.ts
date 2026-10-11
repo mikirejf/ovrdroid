@@ -4,8 +4,8 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { cacheDir, FACTORY_SESSIONS } from '../paths.ts';
-import type { Counted, Measured } from './counter-file.ts';
-import { endSpan, withCounters } from './counter-file.ts';
+import type { Measured, Recorder } from './counter-file.ts';
+import { endSpan, withRecorder } from './counter-file.ts';
 import type { Span } from './counters.ts';
 import type { LaunchEnv } from './launch.ts';
 import { TERMINAL_SIZE } from './launch.ts';
@@ -134,13 +134,14 @@ async function resumeIn(
   }
 }
 
-export async function measureResume(
+export async function measureResume<R extends object>(
   binary: string,
   options: ResumeOptions,
-): Promise<ResumeRun & Counted> {
+  recorder: Recorder<R>,
+): Promise<ResumeRun & R> {
   const placed = place(options.turns);
   try {
-    return await withCounters(async (env) => await resumeIn(binary, placed, env));
+    return await withRecorder(recorder, async (env) => await resumeIn(binary, placed, env));
   } finally {
     remove(placed);
   }

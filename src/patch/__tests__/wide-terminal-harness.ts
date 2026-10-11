@@ -1,7 +1,7 @@
 import { expect } from 'bun:test';
 
+import { CONFIG_FILE } from '../ovrdroid-config.ts';
 import {
-  CONFIG_FILE,
   MAX_WIDTH_ENV,
   WIDE_TERMINAL_HELPERS,
   wideTerminalPatches,

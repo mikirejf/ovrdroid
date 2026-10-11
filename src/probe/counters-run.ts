@@ -3,8 +3,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
 import { interleave } from './ab.ts';
-import type { Counted, Measured } from './counter-file.ts';
-import { endSpan, withCounters } from './counter-file.ts';
+import type { Counted, Measured, Recorder } from './counter-file.ts';
+import { counterRecorder, endSpan, withRecorder } from './counter-file.ts';
 import { sayCounters } from './counters-report.ts';
 import type { Span } from './counters.ts';
 import type { Session } from './session.ts';
@@ -43,8 +43,12 @@ async function measureWindows(session: Session, keys: number): Promise<Measured<
   return { reading: {}, spans: { idle, typing, menu } };
 }
 
-async function measureCounters(binary: string, keys: number): Promise<Counted> {
-  const run = await withCounters(async (env) => {
+export async function measureTyping<R extends object>(
+  binary: string,
+  keys: number,
+  recorder: Recorder<R>,
+): Promise<R> {
+  return await withRecorder(recorder, async (env) => {
     const { session } = await openSettledSession(binary, { env });
     try {
       return await measureWindows(session, keys);
@@ -52,6 +56,10 @@ async function measureCounters(binary: string, keys: number): Promise<Counted> {
       await session.close();
     }
   });
+}
+
+async function measureCounters(binary: string, keys: number): Promise<Counted> {
+  const run = await measureTyping(binary, keys, counterRecorder);
   if (run.counters === undefined) {
     throw new Error('wrote no counter samples: build it with probe build --counters');
   }

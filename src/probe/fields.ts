@@ -18,6 +18,27 @@ export function numberAt(fields: Fields, name: string): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+export function hasNumbers(fields: Fields, names: readonly string[]): boolean {
+  return names.every((name) => numberAt(fields, name) !== undefined);
+}
+
+export function parseJson<T>(text: string, guard: (value: unknown) => value is T): T | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  return guard(value) ? value : undefined;
+}
+
+export function parseJsonLines<T>(text: string, guard: (value: unknown) => value is T): T[] {
+  return text
+    .split('\n')
+    .map((line) => parseJson(line, guard))
+    .filter((parsed) => parsed !== undefined);
+}
+
 export function counted(fields: Fields, name: string): number {
   return numberAt(fields, name) ?? 0;
 }

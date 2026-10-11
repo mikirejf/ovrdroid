@@ -1,3 +1,4 @@
+import { CONFIG_LOAD, CONFIG_PATHS, configSave } from './ovrdroid-config.ts';
 import type { Patch } from './patches.ts';
 
 export const MAX_WIDTH_ENV = 'OVRDROID_MAX_WIDTH';
@@ -5,7 +6,6 @@ export const DEFAULT_ON_WIDTH = 140;
 export const MIN_MAX_WIDTH = 60;
 export const WIDTH_COMMAND = 'width';
 export const WIDTH_USAGE = `Usage: /${WIDTH_COMMAND} [on|off|<columns>]`;
-export const CONFIG_FILE = 'ovrdroid.json';
 export const SAVED_WIDTH_KEY = 'maxWidth';
 export const SAVED_LAST_WIDTH_KEY = 'lastMaxWidth';
 
@@ -14,20 +14,12 @@ const COMMAND_DESCRIPTION = 'Center the chat in a wide terminal (on, off, or a c
 export const WIDE_TERMINAL_HELPERS =
   `var $ODclamp=($ODn)=>$ODn>0?Math.max($ODn,${MIN_MAX_WIDTH}):0,` +
   '$ODwidthOf=($ODvalue)=>typeof $ODvalue==="number"&&Number.isFinite($ODvalue)&&$ODvalue>=0?$ODclamp($ODvalue):void 0,' +
-  '$ODdir=(process.env.FACTORY_HOME_OVERRIDE||require("os").homedir())+"/.factory",' +
-  `$ODfile=$ODdir+"/${CONFIG_FILE}",` +
-  '$ODload=()=>{try{let $ODjson=JSON.parse(require("fs").readFileSync($ODfile,"utf8"));' +
-  'return $ODjson&&typeof $ODjson==="object"&&!Array.isArray($ODjson)?$ODjson:{}}catch{return{}}},' +
+  `${CONFIG_PATHS},${CONFIG_LOAD},` +
   `$ODconfig=$ODload(),$ODenv=process.env.${MAX_WIDTH_ENV},` +
   `$ODmaxWidth=$ODenv?$ODclamp(Number($ODenv)):$ODwidthOf($ODconfig.${SAVED_WIDTH_KEY})??0,` +
   `$ODlastWidth=$ODmaxWidth||$ODwidthOf($ODconfig.${SAVED_LAST_WIDTH_KEY})||${DEFAULT_ON_WIDTH};` +
   'function $ODboxWidth($ODcols){return $ODmaxWidth>0&&$ODcols>$ODmaxWidth?$ODmaxWidth:$ODcols}' +
-  'function $ODsave(){let $ODfs=require("fs"),$ODtmp=$ODfile+"."+process.pid+".tmp";' +
-  'try{$ODfs.mkdirSync($ODdir,{recursive:!0});' +
-  `$ODfs.writeFileSync($ODtmp,JSON.stringify({...$ODload(),${SAVED_WIDTH_KEY}:$ODmaxWidth,${SAVED_LAST_WIDTH_KEY}:$ODlastWidth},null,2)+"\\n");` +
-  '$ODfs.renameSync($ODtmp,$ODfile)}' +
-  'catch($ODerr){try{$ODfs.rmSync($ODtmp,{force:!0})}catch{}return $ODerr.message}}' +
-  'function $ODsetWidth($ODarg){let $ODword=$ODarg?.toLowerCase(),$ODnum=Number($ODarg);' +
+  `${configSave(`${SAVED_WIDTH_KEY}:$ODmaxWidth,${SAVED_LAST_WIDTH_KEY}:$ODlastWidth`)}function $ODsetWidth($ODarg){let $ODword=$ODarg?.toLowerCase(),$ODnum=Number($ODarg);` +
   'if($ODarg===void 0)$ODmaxWidth=$ODmaxWidth>0?0:$ODlastWidth;' +
   'else if($ODword==="on")$ODmaxWidth=$ODlastWidth;' +
   'else if($ODword==="off")$ODmaxWidth=0;' +

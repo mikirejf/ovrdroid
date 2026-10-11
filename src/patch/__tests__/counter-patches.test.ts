@@ -10,7 +10,7 @@ import { parseCounters } from '../../probe/counters.ts';
 import { COUNTER_VARIABLE, counterPatches } from '../counter-patches.ts';
 import { patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { patchNamed, payloadFunction, restoreEnv } from './payload.ts';
 import { stockDroid } from './stock-scanner.ts';
 
 const INCREMENTS = [
@@ -131,11 +131,7 @@ const savedPath = Bun.env[COUNTER_VARIABLE];
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, '$ODc');
-  if (savedPath === undefined) {
-    Reflect.deleteProperty(Bun.env, COUNTER_VARIABLE);
-  } else {
-    Bun.env[COUNTER_VARIABLE] = savedPath;
-  }
+  restoreEnv(COUNTER_VARIABLE, savedPath);
   for (const folder of folders.splice(0)) {
     rmSync(folder, { recursive: true, force: true });
   }

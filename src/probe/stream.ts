@@ -5,8 +5,8 @@ import path from 'node:path';
 import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
 import { interleave } from './ab.ts';
-import type { Counted, Measured } from './counter-file.ts';
-import { endSpan, withCounters } from './counter-file.ts';
+import type { Measured, Recorder } from './counter-file.ts';
+import { counterRecorder, endSpan, withRecorder } from './counter-file.ts';
 import { countVerdict, sayCounters } from './counters-report.ts';
 import { race } from './launch.ts';
 import { sayPaired } from './paired.ts';
@@ -69,16 +69,17 @@ async function streamOnce(
   return { reading, spans: { stream: window } };
 }
 
-export async function measureStream(
+export async function measureStream<R extends object>(
   binary: string,
   plan: ReplyPlan,
-): Promise<StreamReading & Counted> {
+  recorder: Recorder<R>,
+): Promise<StreamReading & R> {
   const stub = startStubModel(plan);
   const file = settingsFile(stub);
   try {
-    return await withCounters(async (counterEnv) => {
+    return await withRecorder(recorder, async (recorderEnv) => {
       const { session } = await openSettledSession(binary, {
-        env: { FACTORY_RUNTIME_SETTINGS_PATH: file, ...counterEnv },
+        env: { FACTORY_RUNTIME_SETTINGS_PATH: file, ...recorderEnv },
       });
       try {
         return await streamOnce(session, stub, plan);
@@ -103,7 +104,7 @@ export async function stream(binaries: string[], options: StreamCommandOptions):
   const results = await interleave(
     binaries,
     async (binary) =>
-      await measureStream(binary, plan).catch((error: unknown) => {
+      await measureStream(binary, plan, counterRecorder).catch((error: unknown) => {
         throw new Error(`${binary}: ${messageOf(error)}`);
       }),
     options.runs,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
+import { CONFIG_FILE } from '../ovrdroid-config.ts';
 import {
-  CONFIG_FILE,
   DEFAULT_ON_WIDTH,
   MIN_MAX_WIDTH,
   SAVED_LAST_WIDTH_KEY,

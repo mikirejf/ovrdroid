@@ -127,6 +127,27 @@ sits idle shows up at the next wake-up, at most a minute later.
 from Ctrl-C to exit. Pass a path to measure a copy, for example
 `bun run bench ~/.local/bin/droid.orig`.
 
+## Render recording
+
+`/renders on` makes Droid record which React components render while you work; `/renders off` stops
+it, and a bare `/renders` flips the setting. The command saves `renders` in
+`~/.factory/ovrdroid.json`, and the change takes effect at the next Droid start. Its reply says
+whether the current Droid is recording.
+
+With the setting off, Droid runs the stock reconciler. The only extra work is one small read of
+`ovrdroid.json` when the reconciler module loads. With it on, Droid runs the React profiling build
+of the same reconciler (`react-reconciler` 0.33.0, vendored in `src/patch/vendor/` and pinned by its
+sha256 in a test). After each commit, a small DevTools hook adds each component's renders, own time
+and causes to a running total. Each Droid writes its totals for the day every minute and at exit, to
+`~/.factory/ovrdroid-renders/<YYYY-MM-DD>/<pid>.json`. The profiling build is slower than stock, so
+leave recording off when you do not need it.
+
+`probe renders-log` reads those files and ranks components by own time across all processes:
+
+```bash
+bun run probe renders-log --days 7 --top 15
+```
+
 ## Hooks
 
 Two Droid hooks ship alongside the patch set. They are official extension points, so they survive
@@ -329,6 +350,21 @@ cannot.
 ```bash
 bun run probe build --counters --out /tmp/od-counters
 bun run probe counters /tmp/od-counters
+```
+
+`probe renders` tells which React components render and why, on any build with the shipped patch
+set. It sets `OD_RENDERS` to a file, so the binary starts the profiling reconciler and writes one
+line per commit: each component that rendered, its own time without its children, and the cause (its
+props, its state, a context it reads, or only its parent). It drives the stream, resume and typing
+scenarios and prints, for each window, the components ranked by own time, with how many renders
+changed nothing but the parent. The hook knows each component by its function, not its minified
+name, so two components that share a name stay two rows; across runs a component is matched by its
+code. The probe finds that code among the binary's own modules and prints its place as
+`chunk-x.js:line`. The rebuild drops the source maps, so places are bundle lines, not `src/...`
+lines.
+
+```bash
+bun run probe renders ~/.local/bin/droid --runs 2 --scenario all
 ```
 
 Read the numbers with care. This machine's load swings paint between 0.6s and 2.7s. Believe the
