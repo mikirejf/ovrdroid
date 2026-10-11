@@ -1,4 +1,7 @@
+import { CACHE_CLOCK_ENV, CACHE_CLOCK_KEY } from '../cache-clock.ts';
 import { STREAMING_CORE_IMPORT, warmerPatches } from '../warmer-patches.ts';
+import type { ClockEnvironment, Logged } from './clock-env.ts';
+import { ClockEnv } from './clock-env.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
 export interface Snapshot {
@@ -121,13 +124,14 @@ type HarnessBindings = [
   Map<string, WarmEntry>,
   Map<string, WarmEntry>,
   () => { modelProvider: string },
-  () => void,
+  (message: string, detail: Logged['detail']) => void,
   () => SessionService,
   () => object,
   (callback: () => void, delay: number) => Timer,
   (timer: Timer) => void,
   (deps: CoreDeps, options: CoreOptions) => StreamingCore,
   { env: Record<string, string> },
+  ClockEnvironment,
 ];
 
 export function snapshot(capturedAt: number): Snapshot {
@@ -145,7 +149,7 @@ export function snapshot(capturedAt: number): Snapshot {
 function ignore(): void {}
 
 export function cacheClockAt(sessionId = SESSION): number | undefined {
-  const clock: unknown = Object.getOwnPropertyDescriptor(globalThis, '__odCache')?.value;
+  const clock: unknown = Object.getOwnPropertyDescriptor(globalThis, CACHE_CLOCK_KEY)?.value;
   if (!(clock instanceof Map)) {
     return undefined;
   }
@@ -165,6 +169,7 @@ export class World {
   readonly sent: SentRequest[] = [];
   readonly logged: WarmLine[] = [];
   readonly writes: SessionWrite[] = [];
+  readonly clock = new ClockEnv();
   readonly env: Record<string, string> = {};
   readonly built: { deps: CoreDeps; options: CoreOptions }[] = [];
   aborted = 0;
@@ -195,11 +200,11 @@ export class World {
         'clearTimeout',
         '$client',
         'process',
+        '$clockEnv',
       ],
-      `${ARM}${STOCK_VU}${CLOSE}${EXPORTS}`.replace(
-        STREAMING_CORE_IMPORT,
-        '{createLLMStreamingCore:$client}',
-      ),
+      `${ARM}${STOCK_VU}${CLOSE}${EXPORTS}`
+        .replace(STREAMING_CORE_IMPORT, '{createLLMStreamingCore:$client}')
+        .replace(CACHE_CLOCK_ENV, '$clockEnv'),
     );
     this.harness = build(
       new Map(),
@@ -207,7 +212,7 @@ export class World {
       new Map(),
       new Map(),
       () => ({ modelProvider: this.provider }),
-      ignore,
+      this.clock.log,
       () => this.sessionService(),
       () => ({}),
       (callback, delay) => {
@@ -220,6 +225,7 @@ export class World {
       },
       (deps, options) => this.streamingCore(deps, options),
       { env: this.env },
+      this.clock.environment(),
     );
   }
 
@@ -234,7 +240,7 @@ export class World {
   static close(): void {
     Reflect.deleteProperty(globalThis, '__odKids');
     Reflect.deleteProperty(globalThis, '__odUsage');
-    Reflect.deleteProperty(globalThis, '__odCache');
+    ClockEnv.close();
   }
 
   private sessionService(): SessionService {

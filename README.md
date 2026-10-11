@@ -112,6 +112,41 @@ at the exact expiry moment. Once the entry is cold and no turn clock is running,
 The footer only reads the entry when it renders, so a warm that resets the clock while the session
 sits idle shows up at the next wake-up, at most a minute later.
 
+### Resuming a session
+
+The clock lives in memory, so a session you resume would show nothing until its first new request.
+So every request and successful warm also writes `~/.factory/ovrdroid/cache-clock/<sessionId>.json`
+as `{"at": <ms>, "setup": {...}}`, and a non-Anthropic request deletes the file. When the footer
+shows a session with no entry, it reads that file once and puts the entry in `globalThis.__odCache`
+marked `loaded`. The next live request replaces it with a normal entry.
+
+A changed Droid setup (skills, `AGENTS.md`, MCP servers, the patch set, the Droid version) changes
+the request bytes, so the cache misses even inside the 45 minutes. The `setup` object is the one
+`move-work parity` prints. It is costly (about 0.9s of CPU, because it starts Droid and `brew`), so
+a Droid process runs `echo '{}' | move-work parity` only when it first needs the answer: its first
+Anthropic request, or a resumed file still inside the 45 minutes. It starts 3 seconds after that,
+runs once, and the process keeps the answer. A process that never needs it never runs it.
+
+When it runs, it also deletes every file in the folder not written for a day. Each deletion waits
+behind that session's own writes, so it never removes a file a session just saved. A loaded entry
+then says:
+
+- older than 45 minutes: `cache cold`, at once, without waiting for `move-work`;
+- inside the window, `move-work` still running: `cache checking`;
+- inside the window, same setup: `cache 32m`, counting down like a live entry;
+- inside the window, different setup: `cache cold: skills, AGENTS.md changed` (warning colour),
+  listing the differing keys in the current setup's order;
+- inside the window, no fingerprint on either side (`move-work` missing, failing or printing bad
+  JSON): `cache unchecked` (warning colour).
+
+Failures go to Droid's log as `[ovrdroid] cache setup fingerprint failed`,
+`cache clock write failed`, `cache clock load failed` and `cache clock prune failed`. The code is in
+`src/patch/cache-clock.ts`: the runtime is installed as `globalThis.__odCacheClock` by
+`cache-warm-arm` (the footer lives in another chunk and cannot see the warmer's names), and the
+footer asks it to load and to tell it when to re-render. The footer chunk imports the warmer chunk
+today, so the runtime exists before the first render, but the footer does not rely on it: with no
+runtime it skips the resumed entry instead of throwing.
+
 `bench` launches the binary in a real terminal three times and prints time to first paint and time
 from Ctrl-C to exit. Pass a path to measure a copy, for example
 `bun run bench ~/.local/bin/droid.orig`.

@@ -1,0 +1,99 @@
+import { expect, test } from 'bun:test';
+
+import { CACHE_CLOCK_ENV, FINGERPRINT_DELAY_MS, FINGERPRINT_TIMEOUT_MS } from '../cache-clock.ts';
+import type { ClockEnvironment, Finish, Logged } from './clock-env.ts';
+import { CLOCK_DIR, ClockEnv, HOME } from './clock-env.ts';
+import { payloadFunction } from './payload.ts';
+
+type ExecFileArguments = [file: string, args: string[], options: { timeout: number }, done: Finish];
+
+interface Armed {
+  start: () => void;
+  delay: number;
+  unrefs: number;
+}
+
+type Bindings = [
+  (name: string) => object,
+  (start: () => void, delay: number) => { unref: () => void },
+  (message: string, detail: Logged['detail']) => void,
+];
+
+function done(): void {}
+
+function start(): void {}
+
+function environment() {
+  const spawned: ExecFileArguments[] = [];
+  const armed: Armed[] = [];
+  const logged: Logged[] = [];
+  const { fs } = new ClockEnv();
+  const env = payloadFunction<Bindings, ClockEnvironment>(
+    ['require', 'setTimeout', 'n'],
+    `return ${CACHE_CLOCK_ENV}`,
+  )(
+    (name) => {
+      if (name === 'fs') {
+        return fs;
+      }
+      if (name === 'os') {
+        return { homedir: () => HOME };
+      }
+      if (name === 'child_process') {
+        return {
+          execFile: (...call: ExecFileArguments) => {
+            spawned.push(call);
+            return { stdin: { end: done } };
+          },
+        };
+      }
+      throw new Error(`unexpected require(${name})`);
+    },
+    (callback, delay) => {
+      const timer = { start: callback, delay, unrefs: 0 };
+      armed.push(timer);
+      return {
+        unref: () => {
+          timer.unrefs += 1;
+        },
+      };
+    },
+    (message, detail) => {
+      logged.push({ message, detail });
+    },
+  );
+  return { env, fs, spawned, armed, logged };
+}
+
+test('the shipped environment keeps its files under the ovrdroid folder in the home folder', () => {
+  const { env, fs } = environment();
+
+  expect(env.dir).toBe(CLOCK_DIR);
+  expect(env.fs).toBe(fs);
+});
+
+test('the shipped environment runs a command with a timeout', () => {
+  const { env, spawned } = environment();
+
+  env.exec('move-work', ['parity'], done);
+
+  expect(spawned).toEqual([['move-work', ['parity'], { timeout: FINGERPRINT_TIMEOUT_MS }, done]]);
+});
+
+test('the shipped environment waits before it starts and does not keep Droid alive', () => {
+  const { env, armed } = environment();
+
+  env.later(start);
+
+  expect(armed).toEqual([{ start, delay: FINGERPRINT_DELAY_MS, unrefs: 1 }]);
+});
+
+test('the shipped environment logs through Droid', () => {
+  const { env, logged } = environment();
+
+  env.log('[ovrdroid] cache clock load failed', { sessionId: 's' });
+
+  expect(logged).toEqual([
+    { message: '[ovrdroid] cache clock load failed', detail: { sessionId: 's' } },
+  ]);
+});
