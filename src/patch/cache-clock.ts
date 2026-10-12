@@ -6,7 +6,9 @@ export const CACHE_CLOCK_GLOBAL = `globalThis.${CACHE_CLOCK_KEY}`;
 export const CACHE_CLOCK_RUNTIME_GLOBAL = `globalThis.${CACHE_CLOCK_RUNTIME_KEY}`;
 export const CACHE_TRUSTED_MS = 45 * 60_000;
 export const CACHE_CLOCK_DIR = 'cache-clock';
+export const SESSIONS_UNDER_HOME = '.factory/sessions';
 export const CACHE_CLOCK_KEEP_MS = 24 * 60 * 60_000;
+export const REPLAYED_SETUP_KEYS = ['skills', 'droids', 'commands'];
 export const FINGERPRINT_DELAY_MS = 3000;
 export const FINGERPRINT_COMMAND = 'move-work';
 export const FINGERPRINT_ARGS = ['parity'];
@@ -16,7 +18,7 @@ export const FINGERPRINT_TIMEOUT_MS = 30_000;
 export const CACHE_CLOCK_PURE =
   'function $ODCd($ODrecorded,$ODcurrent){' +
   'let $ODkeys=[...Object.keys($ODcurrent),...Object.keys($ODrecorded).filter(($ODkey)=>!($ODkey in $ODcurrent))];' +
-  'return $ODkeys.filter(($ODkey)=>$ODrecorded[$ODkey]!==$ODcurrent[$ODkey])}' +
+  `return $ODkeys.filter(($ODkey)=>!${JSON.stringify(REPLAYED_SETUP_KEYS)}.includes($ODkey)&&$ODrecorded[$ODkey]!==$ODcurrent[$ODkey])}` +
   'function $ODCv($ODentry,$ODnow,$ODmine){' +
   `if($ODnow-$ODentry.at>=${CACHE_TRUSTED_MS})return{text:"cache cold",warn:!0};` +
   'if(!$ODmine.done)return{text:"cache checking",warn:!1};' +
@@ -51,18 +53,36 @@ const SAVE =
   'await $ODfs.promises.mkdir($ODenv.dir,{recursive:!0});' +
   'await $ODfs.promises.writeFile($ODfile($ODsid),JSON.stringify({at:$ODentry.at,setup:$ODsetup}))}))';
 
+const HIDDEN_LINE = '"visibility":"user_only"';
+
+const RECORDED =
+  '$ODrecorded=async($ODsid)=>{try{let $ODrec=JSON.parse(await $ODfs.promises.readFile($ODfile($ODsid),"utf8"));' +
+  'if($ODrec.at!==null&&typeof $ODrec.at!=="number")throw new TypeError("no timestamp");return $ODrec}' +
+  'catch($ODerr){if($ODerr.code!=="ENOENT")throw $ODerr}}';
+
+const TRANSCRIPT =
+  '$ODtranscript=async($ODsid)=>{for(let $ODfolder of await $ODfs.promises.readdir($ODenv.sessions))' +
+  'try{return await $ODfs.promises.readFile($ODenv.sessions+"/"+$ODfolder+"/"+$ODsid+".jsonl","utf8")}' +
+  'catch($ODerr){if($ODerr.code!=="ENOENT"&&$ODerr.code!=="ENOTDIR")throw $ODerr}}';
+
 const LOAD =
   'load:($ODsid)=>{if($ODmap().has($ODsid)||$ODtried.has($ODsid))return;$ODtried.add($ODsid);' +
-  '$ODfs.promises.readFile($ODfile($ODsid),"utf8").then(($ODtext)=>{' +
-  'let $ODrec=JSON.parse($ODtext);if(typeof $ODrec.at!=="number")throw new TypeError("no timestamp");' +
-  'if($ODmap().has($ODsid))return;' +
+  '(async()=>{let $ODrec=await $ODrecorded($ODsid);' +
+  'if(!$ODrec){let $ODtext=await $ODtranscript($ODsid),' +
+  `$ODstamp=$ODtext?.split("\\n").map(($ODline)=>$ODline.includes(${JSON.stringify(HIDDEN_LINE)})?0:$ODline.match(/"timestamp":"([^"]+)"/)?.[1]).findLast(Boolean);` +
+  'for(let $ODhere=$ODtext;$ODhere&&!$ODrec;){' +
+  'let $ODparent=JSON.parse($ODhere.split("\\n",1)[0]).parent;if(!$ODparent)return;' +
+  '$ODrec=await $ODrecorded($ODparent);$ODhere=$ODrec?0:await $ODtranscript($ODparent)}' +
+  'if(!$ODrec||$ODrec.at===null)return;$ODrec={at:Math.min($ODrec.at,Date.parse($ODstamp)||1/0),setup:$ODrec.setup}}' +
+  'if($ODrec.at===null||$ODmap().has($ODsid))return;' +
   '$ODmap().set($ODsid,{at:$ODrec.at,setup:$ODrec.setup??null,loaded:!0});' +
-  `if(Date.now()-$ODrec.at<${CACHE_TRUSTED_MS})$ODready();$ODemit()})` +
+  `if(Date.now()-$ODrec.at<${CACHE_TRUSTED_MS})$ODready();$ODemit()})()` +
   '.catch(($ODcause)=>{if($ODcause?.code!=="ENOENT")$ODenv.log("[ovrdroid] cache clock load failed",{sessionId:$ODsid,cause:$ODcause})})}';
 
 const FORGET =
   'forget:($ODsid)=>{if($ODmap().delete($ODsid)||!$ODgone.has($ODsid)){$ODgone.add($ODsid);' +
-  '$ODqueue($ODsid,()=>$ODfs.promises.unlink($ODfile($ODsid)).catch(($ODerr)=>{if($ODerr.code!=="ENOENT")throw $ODerr}))}}';
+  '$ODqueue($ODsid,async()=>{await $ODfs.promises.mkdir($ODenv.dir,{recursive:!0});' +
+  'await $ODfs.promises.writeFile($ODfile($ODsid),\'{"at":null}\')})}}';
 
 export const CACHE_CLOCK_FACTORY =
   `${CACHE_CLOCK_PURE}function $ODCf($ODenv){` +
@@ -72,6 +92,8 @@ export const CACHE_CLOCK_FACTORY =
   '$ODfile=($ODsid)=>$ODenv.dir+"/"+$ODsid+".json",' +
   `${FINGERPRINT},` +
   `${SAVE},` +
+  `${RECORDED},` +
+  `${TRANSCRIPT},` +
   `${PRUNE};` +
   'return{' +
   'record:($ODsid,$ODat)=>{$ODgone.delete($ODsid),$ODmap().set($ODsid,{at:$ODat}),$ODsave($ODsid)},' +
@@ -85,6 +107,7 @@ export const CACHE_CLOCK_ENV =
   '{fs:require("fs"),' +
   `exec:($ODfile,$ODargs,$ODdone)=>require("child_process").execFile($ODfile,$ODargs,{timeout:${FINGERPRINT_TIMEOUT_MS}},$ODdone),` +
   `dir:require("os").homedir()+"/${OVRDROID_UNDER_HOME}/${CACHE_CLOCK_DIR}",` +
+  `sessions:require("os").homedir()+"/${SESSIONS_UNDER_HOME}",` +
   'log:($ODmessage,$ODdetail)=>n($ODmessage,$ODdetail),' +
   `later:($ODstart)=>setTimeout($ODstart,${FINGERPRINT_DELAY_MS}).unref?.()}`;
 

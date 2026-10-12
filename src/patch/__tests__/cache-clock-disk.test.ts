@@ -14,6 +14,8 @@ const SENT_AT = 1_000_000;
 const WARM_TIME = SENT_AT + 45 * MINUTE_MS;
 const SETUP: Setup = { droid: '0.238.0', skills: 'aaa', 'AGENTS.md': 'bbb' };
 
+const TOMBSTONE = '{"at":null}';
+
 let world: World;
 
 beforeEach(() => {
@@ -190,7 +192,7 @@ describe('old files', () => {
 });
 
 describe('a session that leaves Anthropic', () => {
-  test('loses its file', async () => {
+  test('has its file replaced by a tombstone', async () => {
     world.request(SENT_AT);
     await settled();
 
@@ -198,8 +200,17 @@ describe('a session that leaves Anthropic', () => {
     world.request(SENT_AT + MINUTE_MS);
     await Bun.sleep(0);
 
-    expect(recorded()).toBeUndefined();
-    expect(world.clock.unlinked).toEqual([fileOf(SESSION)]);
+    expect(recorded()).toBe(TOMBSTONE);
+    expect(world.clock.unlinked).toHaveLength(0);
+  });
+
+  test('gets a tombstone even when it never had a file', async () => {
+    world.provider = 'openai';
+    world.request(SENT_AT);
+    await Bun.sleep(0);
+
+    expect(recorded()).toBe(TOMBSTONE);
+    expect(world.clock.directories).toEqual([CLOCK_DIR]);
   });
 
   test('is not written while the fingerprint is still pending', async () => {
@@ -208,24 +219,50 @@ describe('a session that leaves Anthropic', () => {
     world.request(SENT_AT + MINUTE_MS);
     await settled();
 
-    expect(recorded()).toBeUndefined();
+    expect(recorded()).toBe(TOMBSTONE);
   });
 
-  test('has its file removed once, not on every request', async () => {
+  test('has its tombstone written once, not on every request', async () => {
     world.provider = 'openai';
     world.request(SENT_AT);
     world.request(SENT_AT + MINUTE_MS);
     world.request(SENT_AT + 2 * MINUTE_MS);
     await Bun.sleep(0);
 
-    expect(world.clock.unlinked).toHaveLength(1);
+    expect(world.clock.directories).toHaveLength(1);
     expect(world.clock.logged).toHaveLength(0);
+  });
+
+  test('has its tombstone deleted after a day like any other file', async () => {
+    setSystemTime(new Date(SENT_AT));
+    const old = fileOf('old-session');
+    world.clock.files.set(old, TOMBSTONE);
+    world.clock.modified.set(old, SENT_AT - CACHE_CLOCK_KEEP_MS - 1);
+
+    world.request(SENT_AT);
+    await settled();
+    await Bun.sleep(0);
+
+    expect(world.clock.unlinked).toEqual([old]);
   });
 
   test('gets a file again when it returns to Anthropic', async () => {
     world.provider = 'openai';
     world.request(SENT_AT);
     await Bun.sleep(0);
+
+    world.provider = 'anthropic';
+    world.request(SENT_AT + MINUTE_MS);
+    await settled();
+
+    expect(recorded()).toBe(file(SENT_AT + MINUTE_MS, SETUP));
+  });
+
+  test('has its tombstone overwritten by a real time when it returns to Anthropic', async () => {
+    world.provider = 'openai';
+    world.request(SENT_AT);
+    await Bun.sleep(0);
+    expect(recorded()).toBe(TOMBSTONE);
 
     world.provider = 'anthropic';
     world.request(SENT_AT + MINUTE_MS);

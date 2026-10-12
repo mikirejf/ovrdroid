@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 
 import { CACHE_CLOCK_ENV, FINGERPRINT_DELAY_MS, FINGERPRINT_TIMEOUT_MS } from '../cache-clock.ts';
 import type { ClockEnvironment, Finish, Logged } from './clock-env.ts';
-import { CLOCK_DIR, ClockEnv, HOME } from './clock-env.ts';
+import { CLOCK_DIR, ClockEnv, HOME, SESSIONS_DIR } from './clock-env.ts';
 import { payloadFunction } from './payload.ts';
 
 type ExecFileArguments = [file: string, args: string[], options: { timeout: number }, done: Finish];
@@ -70,6 +70,12 @@ test('the shipped environment keeps its files under the ovrdroid folder in the h
 
   expect(env.dir).toBe(CLOCK_DIR);
   expect(env.fs).toBe(fs);
+});
+
+test('the shipped environment reads transcripts from the sessions folder in the home folder', () => {
+  const { env } = environment();
+
+  expect(env.sessions).toBe(SESSIONS_DIR);
 });
 
 test('the shipped environment runs a command with a timeout', () => {

@@ -1,51 +1,28 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import type { Setup } from './clock-env.ts';
 import { fileOf, pureClock } from './clock-env.ts';
 import { FooterWorld, SESSION } from './footer-harness.ts';
+import { HELP, NOW, ResumeWorld, SETUP, TRUSTED_MS } from './resume-world.ts';
 import { MINUTE_MS } from './warmer-harness.ts';
 
-const NOW = Date.UTC(2026, 9, 11, 12, 0, 0);
-const TRUSTED_MS = 45 * MINUTE_MS;
-const SETUP: Setup = { droid: '0.238.0', skills: 'aaa', mcp: 'ccc', 'AGENTS.md': 'bbb' };
-const HELP = '? for help';
-
-let footer: FooterWorld;
+let footer: ResumeWorld;
 
 beforeEach(() => {
-  footer = new FooterWorld();
-  FooterWorld.at(NOW);
+  footer = new ResumeWorld();
 });
 
 afterEach(() => {
   FooterWorld.reset();
 });
 
-function saved(ageMs: number, setup: Setup | null = SETUP): void {
-  footer.clock.files.set(fileOf(SESSION), JSON.stringify({ at: NOW - ageMs, setup }));
-}
-
-async function resumed(): Promise<string> {
-  footer.render();
-  await Bun.sleep(0);
-  return footer.text;
-}
-
-async function fingerprint(setup: Setup | null): Promise<string> {
-  footer.clock.startFingerprint();
-  footer.clock.answer(setup);
-  await Bun.sleep(0);
-  return footer.text;
-}
-
 describe('what the pure part decides', () => {
   const { $ODCd: diff, $ODCv: view } = pureClock();
   const settled = { done: true, setup: SETUP };
 
   test('lists the differing keys in the current setup order', () => {
-    const recorded = { ...SETUP, skills: 'zzz', 'AGENTS.md': 'yyy' };
+    const recorded = { ...SETUP, proxy: 'zzz', 'AGENTS.md': 'yyy' };
 
-    expect(diff(recorded, SETUP)).toEqual(['skills', 'AGENTS.md']);
+    expect(diff(recorded, SETUP)).toEqual(['proxy', 'AGENTS.md']);
   });
 
   test('lists a key that is gone now after the current ones', () => {
@@ -62,6 +39,21 @@ describe('what the pure part decides', () => {
 
   test('lists nothing for equal setups', () => {
     expect(diff({ ...SETUP }, SETUP)).toEqual([]);
+  });
+
+  test('ignores skills, droids and commands, which a resumed transcript replays', () => {
+    const recorded = { ...SETUP, skills: 'old', droids: 'old', commands: 'old' };
+    const current = { ...SETUP, droids: 'new', commands: 'new' };
+
+    expect(diff(recorded, current)).toEqual([]);
+    expect(diff(current, recorded)).toEqual([]);
+  });
+
+  test('lists only the keys that are not replayed when both kinds differ', () => {
+    const recorded = { ...SETUP, skills: 'old', droids: 'old', proxy: 'old', mcp: 'old' };
+    const current = { ...SETUP, droids: 'new', commands: 'new' };
+
+    expect(diff(recorded, current)).toEqual(['proxy', 'mcp']);
   });
 
   test('says cold at once for an entry past the trusted window, whatever the setup', () => {
@@ -102,7 +94,7 @@ describe('what the pure part decides', () => {
 
 describe('a resumed session in the footer', () => {
   test('shows nothing until its file has been read, then re-renders by itself', async () => {
-    saved(10 * MINUTE_MS);
+    footer.saved(10 * MINUTE_MS);
 
     expect(footer.render()).toBe(HELP);
     await Bun.sleep(0);
@@ -111,24 +103,24 @@ describe('a resumed session in the footer', () => {
   });
 
   test('says cold at once past the trusted window, and never runs the fingerprint', async () => {
-    saved(TRUSTED_MS + MINUTE_MS);
+    footer.saved(TRUSTED_MS + MINUTE_MS);
 
-    expect(await resumed()).toBe(`[cache cold] ${HELP}`);
+    expect(await footer.resumed()).toBe(`[cache cold] ${HELP}`);
     expect(footer.colorOf('cache cold')).toBe('warning');
     expect(footer.pending).toHaveLength(0);
     expect(footer.clock.fingerprintTimerArmed).toBe(false);
   });
 
   test('says checking within the window while the fingerprint is pending', async () => {
-    saved(10 * MINUTE_MS);
+    footer.saved(10 * MINUTE_MS);
 
-    expect(await resumed()).toBe(`[cache checking] ${HELP}`);
+    expect(await footer.resumed()).toBe(`[cache checking] ${HELP}`);
     expect(footer.colorOf('cache checking')).toBe('muted');
     expect(footer.clock.fingerprintTimerArmed).toBe(true);
   });
 
   test('does not run the fingerprint for a session without a file', async () => {
-    await resumed();
+    await footer.resumed();
 
     expect(footer.clock.fingerprintTimerArmed).toBe(false);
   });
@@ -141,26 +133,45 @@ describe('a resumed session in the footer', () => {
   });
 
   test('counts down like a live entry when the setups match', async () => {
-    saved(13 * MINUTE_MS + 1000);
-    await resumed();
+    footer.saved(13 * MINUTE_MS + 1000);
+    await footer.resumed();
 
-    expect(await fingerprint({ ...SETUP })).toBe(`[cache 31m] ${HELP}`);
+    expect(await footer.fingerprint({ ...SETUP })).toBe(`[cache 31m] ${HELP}`);
     expect(footer.colorOf('cache 31m')).toBe('muted');
     expect(footer.pending.map((timer) => timer.delay)).toEqual([59 * 1000 + 1]);
     expect(footer.fireOnlyTimer()).toBe(`[cache 30m] ${HELP}`);
   });
 
   test('names what changed when the setups differ', async () => {
-    saved(10 * MINUTE_MS, { ...SETUP, skills: 'old', 'AGENTS.md': 'old' });
-    await resumed();
+    footer.saved(10 * MINUTE_MS, { ...SETUP, proxy: 'old', 'AGENTS.md': 'old' });
+    await footer.resumed();
 
-    expect(await fingerprint(SETUP)).toBe(`[cache cold: skills, AGENTS.md changed] ${HELP}`);
-    expect(footer.colorOf('cache cold: skills, AGENTS.md changed')).toBe('warning');
+    expect(await footer.fingerprint(SETUP)).toBe(`[cache cold: proxy, AGENTS.md changed] ${HELP}`);
+    expect(footer.colorOf('cache cold: proxy, AGENTS.md changed')).toBe('warning');
+  });
+
+  test('counts down when only skills, droids and commands differ', async () => {
+    footer.saved(13 * MINUTE_MS + 1000, {
+      ...SETUP,
+      skills: 'old',
+      droids: 'old',
+      commands: 'old',
+    });
+    await footer.resumed();
+
+    expect(await footer.fingerprint({ ...SETUP, droids: 'new' })).toBe(`[cache 31m] ${HELP}`);
+  });
+
+  test('names only the keys that are not replayed when others differ too', async () => {
+    footer.saved(10 * MINUTE_MS, { ...SETUP, skills: 'old', droids: 'old', mcp: 'old' });
+    await footer.resumed();
+
+    expect(await footer.fingerprint(SETUP)).toBe(`[cache cold: mcp changed] ${HELP}`);
   });
 
   test('says unchecked when this process has no fingerprint', async () => {
-    saved(10 * MINUTE_MS);
-    await resumed();
+    footer.saved(10 * MINUTE_MS);
+    await footer.resumed();
 
     footer.clock.startFingerprint();
     footer.clock.reply(new Error('spawn move-work ENOENT'), '');
@@ -171,25 +182,25 @@ describe('a resumed session in the footer', () => {
   });
 
   test('says unchecked when the file recorded no fingerprint', async () => {
-    saved(10 * MINUTE_MS, null);
-    await resumed();
+    footer.saved(10 * MINUTE_MS, null);
+    await footer.resumed();
 
-    expect(await fingerprint(SETUP)).toBe(`[cache unchecked] ${HELP}`);
+    expect(await footer.fingerprint(SETUP)).toBe(`[cache unchecked] ${HELP}`);
   });
 
   test('goes cold on its own when the window ends while the setups match', async () => {
-    saved(TRUSTED_MS - 30 * 1000);
-    await resumed();
-    await fingerprint(SETUP);
+    footer.saved(TRUSTED_MS - 30 * 1000);
+    await footer.resumed();
+    await footer.fingerprint(SETUP);
 
     expect(footer.text).toBe(`[cache <1m] ${HELP}`);
     expect(footer.fireOnlyTimer()).toBe(`[cache cold] ${HELP}`);
   });
 
   test('is replaced by the live entry when a request follows', async () => {
-    saved(10 * MINUTE_MS, { ...SETUP, skills: 'old' });
-    await resumed();
-    await fingerprint(SETUP);
+    footer.saved(10 * MINUTE_MS, { ...SETUP, proxy: 'old' });
+    await footer.resumed();
+    await footer.fingerprint(SETUP);
 
     footer.runtime.record(SESSION, Date.now());
 
@@ -197,7 +208,7 @@ describe('a resumed session in the footer', () => {
   });
 
   test('keeps the live entry when the file arrives after a request', async () => {
-    saved(10 * MINUTE_MS, { ...SETUP, skills: 'old' });
+    footer.saved(10 * MINUTE_MS, { ...SETUP, proxy: 'old' });
     footer.render();
     footer.runtime.record(SESSION, NOW);
     await Bun.sleep(0);
@@ -206,8 +217,8 @@ describe('a resumed session in the footer', () => {
   });
 
   test('reads the file once however often the footer renders', async () => {
-    saved(10 * MINUTE_MS);
-    await resumed();
+    footer.saved(10 * MINUTE_MS);
+    await footer.resumed();
     footer.render();
     footer.render();
     await Bun.sleep(0);
@@ -216,14 +227,14 @@ describe('a resumed session in the footer', () => {
   });
 
   test('shows nothing for a session without a file, and logs nothing', async () => {
-    expect(await resumed()).toBe(HELP);
+    expect(await footer.resumed()).toBe(HELP);
     expect(footer.clock.logged).toHaveLength(0);
   });
 
   test('shows nothing for an unreadable file, and logs it', async () => {
     footer.clock.files.set(fileOf(SESSION), 'not json');
 
-    expect(await resumed()).toBe(HELP);
+    expect(await footer.resumed()).toBe(HELP);
     expect(footer.clock.logged.map((line) => line.message)).toEqual([
       '[ovrdroid] cache clock load failed',
     ]);

@@ -127,12 +127,25 @@ sits idle shows up at the next wake-up, at most a minute later.
 
 The clock lives in memory, so a session you resume would show nothing until its first new request.
 So every request and successful warm also writes `~/.factory/ovrdroid/cache-clock/<sessionId>.json`
-as `{"at": <ms>, "setup": {...}}`, and a non-Anthropic request deletes the file. When the footer
-shows a session with no entry, it reads that file once and puts the entry in `globalThis.__odCache`
-marked `loaded`. The next live request replaces it with a normal entry.
+as `{"at": <ms>, "setup": {...}}`, and a non-Anthropic request overwrites the file with a tombstone,
+`{"at": null}`, which means "no clock". When the footer shows a session with no entry, it reads that
+file once and puts the entry in `globalThis.__odCache` marked `loaded`. A tombstone shows nothing.
+The next live request replaces the entry, and the file, with a normal one.
 
-A changed Droid setup (skills, `AGENTS.md`, MCP servers, the patch set, the Droid version) changes
-the request bytes, so the cache misses even inside the 45 minutes. The `setup` object is the one
+A rewind or a fork gives Droid a new session id whose transcript copies the parent's history, and
+the new id has no file. So when the file is missing, the footer reads the first line of
+`~/.factory/sessions/*/<sessionId>.jsonl`, follows its `parent` up the chain (a middle session that
+never sent a request has no file either) until it finds a file, and uses that file's setup. An
+ancestor whose file is a tombstone ends the walk with nothing shown, because its last request was
+not Anthropic. The entry's time is the older of the ancestor's request and the fork's last message,
+because a rewind cuts the history back to a point whose cache is only as fresh as the request that
+ended there. The last message is the last transcript line that does not carry
+`"visibility":"user_only"`, because Droid appends such hook records on every resume and never sends
+them to the model. The fork gets no file of its own; its next live request writes one. With no
+transcript, no `parent` or no ancestor file, the footer shows nothing, as before.
+
+A changed Droid setup (`AGENTS.md`, MCP servers, the patch set, the Droid version) changes the
+request bytes, so the cache misses even inside the 45 minutes. The `setup` object is the one
 `move-work parity` prints. It is costly (about 0.9s of CPU, because it starts Droid and `brew`), so
 a Droid process runs `echo '{}' | move-work parity` only when it first needs the answer: its first
 Anthropic request, or a resumed file still inside the 45 minutes. It starts 3 seconds after that,
@@ -145,8 +158,11 @@ then says:
 - older than 45 minutes: `cache cold`, at once, without waiting for `move-work`;
 - inside the window, `move-work` still running: `cache checking`;
 - inside the window, same setup: `cache 32m`, counting down like a live entry;
-- inside the window, different setup: `cache cold: skills, AGENTS.md changed` (warning colour),
-  listing the differing keys in the current setup's order;
+- inside the window, different setup: `cache cold: proxy, AGENTS.md changed` (warning colour),
+  listing the differing keys in the current setup's order, except `skills`, `droids` and `commands`,
+  because those lists reach the model as text in the first user message, which the transcript stores
+  and replays byte for byte on resume, so editing them on disk cannot change a resumed session's
+  cached prefix;
 - inside the window, no fingerprint on either side (`move-work` missing, failing or printing bad
   JSON): `cache unchecked` (warning colour).
 

@@ -7,6 +7,7 @@ import {
   CACHE_CLOCK_RUNTIME_KEY,
   FINGERPRINT_ARGS,
   FINGERPRINT_COMMAND,
+  SESSIONS_UNDER_HOME,
 } from '../cache-clock.ts';
 import { payloadFunction } from './payload.ts';
 
@@ -74,6 +75,7 @@ export interface ClockEnvironment {
   fs: FakeFs;
   exec: (file: string, args: string[], finish: Finish) => FakeExecChild;
   dir: string;
+  sessions: string;
   log: (message: string, detail: Logged['detail']) => void;
   later: (start: () => void) => void;
 }
@@ -81,6 +83,12 @@ export interface ClockEnvironment {
 export const HOME = '/home/test';
 
 export const CLOCK_DIR = `${HOME}/${OVRDROID_UNDER_HOME}/${CACHE_CLOCK_DIR}`;
+
+export const SESSIONS_DIR = `${HOME}/${SESSIONS_UNDER_HOME}`;
+
+export function transcriptOf(sessionId: string, folder = '-project'): string {
+  return `${SESSIONS_DIR}/${folder}/${sessionId}.jsonl`;
+}
 
 function noEntry(file: string): Error {
   return Object.assign(new Error(`ENOENT: ${file}`), { code: 'ENOENT' });
@@ -138,9 +146,13 @@ export class ClockEnv {
       },
       readdir: async (directory) => {
         await Promise.resolve();
-        const names = [...this.files.keys()]
-          .filter((file) => file.startsWith(`${directory}/`))
-          .map((file) => file.slice(directory.length + 1));
+        const names = [
+          ...new Set(
+            [...this.files.keys()]
+              .filter((file) => file.startsWith(`${directory}/`))
+              .map((file) => file.slice(directory.length + 1).split('/')[0] ?? ''),
+          ),
+        ];
         if (names.length === 0 && !this.directories.includes(directory)) {
           throw noEntry(directory);
         }
@@ -208,7 +220,14 @@ export class ClockEnv {
   }
 
   environment(): ClockEnvironment {
-    return { fs: this.fs, exec: this.exec, dir: CLOCK_DIR, log: this.log, later: this.later };
+    return {
+      fs: this.fs,
+      exec: this.exec,
+      dir: CLOCK_DIR,
+      sessions: SESSIONS_DIR,
+      log: this.log,
+      later: this.later,
+    };
   }
 
   runtime(): ClockRuntime {
