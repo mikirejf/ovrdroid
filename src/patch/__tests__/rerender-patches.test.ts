@@ -66,7 +66,7 @@ describe.skipIf(STOCK === undefined)(
     );
 
     test('the chat input call site passes every callback the wrapper steadies', () => {
-      const anchor = 'children:t(Hc,{';
+      const anchor = rebased('chat-input-stable-use').find;
       const text = sourceApp()
         .map((module) => module.text)
         .find((module) => module.includes(anchor));
@@ -301,5 +301,14 @@ describe('tool-progress-sanitize-cache', () => {
     run([{ text: 'a' }]);
     run([{ text: 'a' }]);
     expect(counts.objects).toBe(2);
+  });
+});
+
+describe('progress-notify-100ms', () => {
+  const patch = patchNamed(rerenderPatches, 'progress-notify-100ms');
+
+  test('raises the coalesced notify fallback from 50 to 100', () => {
+    expect(patch.find).toContain('COALESCED_NOTIFY_FALLBACK_MS=50;');
+    expect(patch.replace).toBe('static COALESCED_NOTIFY_FALLBACK_MS=100;');
   });
 });

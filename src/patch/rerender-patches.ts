@@ -107,4 +107,9 @@ export const rerenderPatches: readonly Patch[] = [
       '$ODhit={...$t,text:$e($t.text),error:$e($t.error),details:$e($t.details),valueSnippet:$e($t.valueSnippet),fullOutput:$e($t.fullOutput),parameters:Ee($t.parameters)};' +
       '$ODcache.set($t,$ODhit);return $ODhit})',
   },
+  {
+    name: 'progress-notify-100ms',
+    find: 'static COALESCED_NOTIFY_FALLBACK_MS=50;',
+    replace: 'static COALESCED_NOTIFY_FALLBACK_MS=100;',
+  },
 ];
