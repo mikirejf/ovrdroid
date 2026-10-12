@@ -11,8 +11,8 @@ The hand work is the patches the rebase cannot settle. They surface as
 A new release reaches the Mac when you run `ovrdroid update`. It follows Factory's
 `factory-cli/LATEST`, and the session header says `↓ vX available · run ovrdroid update`. When the
 patch set does not fit, `update` stops with the drift list and leaves the installed Droid and its
-`.orig` untouched. Linux boxes never fetch a release on their own: `dotfiles-sync` on the Mac runs
-`ovrdroid update <version>` there, with the Mac's Droid version. The pre-push hook runs `probe builds` against the same newest release, so
+`.orig` untouched. Linux boxes never fetch a release on their own: they run `ovrdroid sync` on a
+timer, which installs the version `update` pinned in `droid-version` on the Mac. The pre-push hook runs `probe builds` against the same newest release, so
 it blocks every push until the drift is fixed. Start here.
 
 Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints and renders a code
@@ -302,9 +302,9 @@ bun run ovrdroid update --target /tmp/droid-test   # installs the newest release
 `ovrdroid update` installs Factory's newest release for the host (darwin-arm64 or linux-x64) and
 checks its sha256 before applying. A target that does not exist yet counts as not on that release,
 so a fresh `/tmp` path runs the same install-then-apply path every machine runs.
-Then prove it, below, and push. After the push, `dotfiles-sync` on the Mac pulls ovrdroid on each
-Linux host and runs `ovrdroid update <version>` with the Mac's Droid version. A patch set that fits
-only one platform makes that step fail, and the host keeps its current Droid. `probe builds` is the
+Then prove it, below, and push. The real `ovrdroid update` pins the new version in `droid-version`;
+push that file too. Within 15 minutes each Linux host pulls ovrdroid and runs `ovrdroid sync`, which
+installs the pinned version. A patch set that fits only one platform makes that step fail, and the host keeps its current Droid. `probe builds` is the
 gate that catches it.
 
 ## 6. Prove it

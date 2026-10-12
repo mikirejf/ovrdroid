@@ -6,7 +6,14 @@ import { Command } from 'commander';
 import pkg from '../package.json' with { type: 'json' };
 import { patchSource } from './binary/apply.ts';
 import { reportedVersion } from './binary/bun.ts';
-import { cacheStock, latestVersion, parseVersion } from './binary/droid-release.ts';
+import {
+  cacheStock,
+  latestVersion,
+  parseVersion,
+  PINNED_VERSION_FILE,
+  pinVersion,
+  readPinnedVersion,
+} from './binary/droid-release.ts';
 import { rebuildInto } from './binary/rebuild.ts';
 import type { Stock } from './binary/stock.ts';
 import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
@@ -81,12 +88,10 @@ async function hooks(): Promise<void> {
   }
 }
 
-async function update(wanted: string | undefined, options: Options): Promise<void> {
-  const { target } = options;
-  const version = wanted === undefined ? await latestVersion() : parseVersion(wanted);
+async function install(version: string, target: string): Promise<void> {
   if (reportedVersion(target) === version) {
     say(`already on ${version}`);
-    await apply(options);
+    await apply({ target });
     return;
   }
   const { binary } = await cacheStock(version, `${process.platform}-${process.arch}`);
@@ -97,6 +102,19 @@ async function update(wanted: string | undefined, options: Options): Promise<voi
   await installPatched(target, readStock(binary));
   copyFileSync(binary, backupPath(target));
   say(`updated to ${version}, stock saved to ${backupPath(target)}`);
+}
+
+async function update(wanted: string | undefined, options: Options): Promise<void> {
+  const version = wanted === undefined ? await latestVersion() : parseVersion(wanted);
+  await install(version, options.target);
+  if (options.target === INSTALLED_DROID) {
+    pinVersion(version);
+    say(`pinned ${version} in ${PINNED_VERSION_FILE}; push it and the Linux hosts follow`);
+  }
+}
+
+async function sync(options: Options): Promise<void> {
+  await install(readPinnedVersion(), options.target);
 }
 
 function doctor(options: DoctorOptions): void {
@@ -139,10 +157,20 @@ program
 
 program
   .command('update')
-  .description('install a Droid release (the newest by default), then apply the patch set')
+  .description(
+    'install a Droid release (the newest by default), apply the patch set, and pin that version in droid-version when the target is the installed Droid',
+  )
   .argument('[version]', 'Droid version to install, such as 0.236.0')
   .option(...targetOption)
   .action(guard(update));
+
+program
+  .command('sync')
+  .description(
+    'install the Droid version pinned in droid-version and apply the patch set; the Linux hosts run this on a timer',
+  )
+  .option(...targetOption)
+  .action(guard(sync));
 
 program
   .command('hooks')

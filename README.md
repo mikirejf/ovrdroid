@@ -436,14 +436,15 @@ set fits both builds. `bun run probe builds` checks it against the stock newest 
 platform (downloading and caching them); `--version <v>` checks another release instead, and it
 exits non-zero on drift.
 
-The Mac is the master: edit and push from there. Linux boxes do not run `ovrdroid update` on a
-timer; their dotfiles timer only pulls the dotfiles repo. After `ovrdroid update` or a patch change
-on the Mac, push to main and run `dotfiles-sync` on the Mac. For each Linux host it pulls
-`~/dev/ovrdroid` and runs `ovrdroid update <version>`, where `<version>` is the Mac's installed
-Droid version (`ovrdroid update [version]` installs that exact release; without it, the newest).
-Every Linux host ends on the Mac's exact Droid version and never jumps to a newer release on its
-own. Run `probe builds` before pushing a patch change, because a patch that fits only one platform
-makes that host's `dotfiles-sync` step fail, and the host keeps its current Droid.
+The Mac is the master: edit and push from there. When `ovrdroid update` installs to
+`~/.local/bin/droid`, it writes the version it installed to `droid-version` at the repo root. Commit
+and push that file with the patches. Each Linux host runs `ovrdroid-sync` (from the dotfiles) every
+15 minutes: it pulls `~/dev/ovrdroid` and runs `ovrdroid sync`, which installs the pinned version
+and applies the patch set, and does nothing when both are already in place. So every Linux host
+follows the Mac's exact Droid version within 15 minutes of a push, and never jumps to a newer
+release on its own. `dotfiles-sync` on the Mac runs the same step at once. Run `probe builds` before
+pushing a patch change, because a patch that fits only one platform makes that host's sync fail, and
+the host keeps its current Droid.
 
 To run it from anywhere, link the entry point onto your `PATH`:
 

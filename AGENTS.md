@@ -144,8 +144,10 @@ prints `markers not found (Droid version drift)`, load the `patching-droid-cli` 
 `UPDATING.md`. That guide also covers deleting patches upstream made obsolete, and syncing the Linux
 hosts.
 
-**The Mac is the master.** Edit and push ovrdroid from the Mac. Run `bun run probe builds` before
-pushing a patch change: a patch that fits only one platform breaks that host's `dotfiles-sync` step.
+**The Mac is the master.** Edit and push ovrdroid from the Mac. `update` on the installed Droid pins
+its version in `droid-version`; commit it. The Linux hosts run `ovrdroid sync` on a timer, which
+installs that pinned version with the pushed patch set. Run `bun run probe builds` before pushing a
+patch change: a patch that fits only one platform breaks that host's sync.
 
 ## Findings and measuring
 

@@ -1,4 +1,5 @@
-import { chmodSync, existsSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { cacheDir } from '../paths.ts';
 
@@ -29,6 +30,16 @@ export function parseVersion(body: string): string {
     throw new Error(`not a Droid version: ${JSON.stringify(version)}`);
   }
   return version;
+}
+
+export const PINNED_VERSION_FILE = path.join(import.meta.dir, '..', '..', 'droid-version');
+
+export function readPinnedVersion(): string {
+  return parseVersion(readFileSync(PINNED_VERSION_FILE, 'utf-8'));
+}
+
+export function pinVersion(version: string): void {
+  writeFileSync(PINNED_VERSION_FILE, `${version}\n`);
 }
 
 export function sha256Of(bytes: Uint8Array | ArrayBuffer): string {
