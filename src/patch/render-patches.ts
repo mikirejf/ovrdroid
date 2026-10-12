@@ -3,7 +3,9 @@ import { highlightPatches } from './highlight-patches.ts';
 import { inkFramePatches } from './ink-frame-patches.ts';
 import type { Patch } from './patches.ts';
 import { renderProfilePatches } from './render-profile-patches.ts';
+import { rerenderPatches } from './rerender-patches.ts';
 import { rootRenderPatches } from './root-render-patches.ts';
+import { shimmerPatches } from './shimmer-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
 
 export const MAIN_MARKDOWN_SCOPE = 'main';
@@ -17,6 +19,8 @@ export const renderPatches: readonly Patch[] = [
   ...highlightPatches,
   ...codeCopyPatches,
   ...rootRenderPatches,
+  ...shimmerPatches,
+  ...rerenderPatches,
   ...renderProfilePatches,
   {
     name: 'resume-expand-once',

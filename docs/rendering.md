@@ -73,6 +73,73 @@ fresh callback. A no-op setState still re-ran the root. This doubled root render
 `decomp-miss-cache`. `getDecompSessionType` re-read and zod-parsed the session file on every root
 render in a non-mission session. That cost about 0.8ms each time.
 
+`ink-colorize-shared` and `shimmer-one-string`. A pending tool shows its name in a shimmer. Stock
+drew it as one Ink `Text` per letter, each with its own colour, about 8 times a second. The shimmer
+now builds one string, colouring each letter with Ink's own `Text` colour step (the first patch
+shares that step as `globalThis.$ODcolorize`), and the parent `Text bold` draws it. Ink applies each
+child's colour and joins the results, so the screen text is the same. Measured on a pending
+`Execute sleep 14` from a local stub model, in a 6s window, n=10 paired, load about 5, control = the
+same build without the two patches:
+
+| Count                 | Control | Patched | Paired difference             |
+| :-------------------- | ------: | ------: | :---------------------------- |
+| `Text` renders        |   395.0 |    54.9 | -340.1 (CI +-9.0)             |
+| All component renders |   501.2 |   157.7 | -343.5 (CI +-16.2)            |
+| Shimmer renders       |    48.0 |    47.9 | -0.1, same                    |
+| Commits               |    49.0 |    48.9 | -0.1, same                    |
+| Frames written        |    50.7 |    50.6 | -0.1, same                    |
+| `onRender` ms         |    37.4 |    31.9 | -5.5 (CI +-3.4)               |
+| React self ms         |    10.0 |     9.4 | -0.6 (CI +-1.2), not resolved |
+
+The saving is the 7 letter renders of "Execute" on each of the 48 ticks. Commits and frames do not
+change, because the shimmer still repaints on every tick. `probe renders <binary> -s tool`
+reproduces it: the stub model answers the first request with that tool call. A rerun gave Text
+renders 391 → 55 and commits 49 → 49, median of 10.
+
+The real-use render logs (`probe renders-log`, 2 days, 99 processes, 17.0M renders) pointed at the
+next set. 29% of all renders had nothing changed but the parent.
+
+`pr-state-same-skip`. The PR service polls every 60s and always publishes a new flat state object,
+so the root re-rendered once a minute per process: 19,090 footer `prState` changes in 21,297
+process-minutes, about 17% of all root renders. It now skips a state equal field by field.
+
+`footer-memo` and `footer-memo-key`. The footer was not memoized and re-rendered with every root
+render; 69k of its 220k logged renders had nothing changed. It is now memoized with a one-level
+compare, because its call site passes fresh but equal objects (`prState` under 60 columns,
+`droidsHint`). The footer reads two settings during render. `/settings` is a pane that unmounts the
+footer, so it stays correct; a model switch or an outside settings edit would not, so the call site
+also passes a key built from the token-usage text and the Nerd Font setting. The status line, the
+background-tasks label and the migration label take a plain memo.
+
+`chat-input-stable` and `chat-input-stable-use`. The main chat input re-rendered on every root
+render, because seven callback props were fresh each time. A wrapper passes fixed stand-ins that
+call the latest callback, and renders a memoized input.
+
+`model-cycle-memo-key`. The model-cycle `useMemo` keyed on a fresh array and recomputed on every
+root render; it now keys on the joined model ids.
+
+`tool-progress-sanitize-cache`. A tool row re-sanitized every progress update on every render, O(N²)
+over one long command. Each sanitized update is cached per update object. No probe produces tool
+progress, so the hit rate is not measured.
+
+Measured with `probe renders`, n=6 paired, alternated order, load 3-23, control = the shipped set
+without these seven:
+
+| Scenario | Count              | Control | Patched | Paired difference               |
+| :------- | :----------------- | ------: | ------: | :------------------------------ |
+| stream   | Chat input renders |    37.5 |     3.3 | -34.2 (CI +-2.8)                |
+| stream   | Footer renders     |    42.5 |    11.5 | -31.0 (CI +-1.8)                |
+| stream   | All renders        |    2927 |    2327 | -599 (CI +-78)                  |
+| stream   | Nothing-changed    |     572 |     269 | -303 (CI +-17)                  |
+| stream   | `onRender` ms      |   178.4 |   170.0 | -8.3 (CI +-73), not resolved    |
+| resume   | Nothing-changed    |     145 |      81 | -64 (CI +-14)                   |
+| resume   | `onRender` ms      |   257.1 |   246.5 | -10.6 (CI +-17.6), not resolved |
+| menu     | `onRender` ms      |    19.5 |    15.7 | -3.8 (CI +-0.9)                 |
+
+Root renders do not move in these scenarios (stream 36.8 → 37.0): the PR poll does not fire inside a
+short window. Typing does not move either, because the shipped set already keeps the root still per
+key.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)
@@ -122,9 +189,13 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
   per-file handles (20ms → 0.4ms in a spike).
 - The per-delta stream notification path is about 14% of streaming CPU. It does a `structuredClone`,
   two zod parses and an OpenTelemetry span per text delta. I did not trace it to its receivers.
-- The model-cycle `useMemo` has a fresh array as a dependency, so it recomputes on every root
-  render.
-- The prompt input re-renders on every keystroke because its parent passes fresh `onSubmit`,
-  `onInputChange` and `onCursorPositionChange` callbacks each render.
-- The spinner (125ms ticker) and the stream throttle (100ms) run on separate timers.
+- The spinner (125ms ticker) and the stream throttle (100ms) run on separate timers. All spinners
+  and shimmers already share the one 125ms timer.
+- About 76% of root renders in the logs come from the message store snapshot. Its key is the store's
+  `version`, which every event raises (metadata, settings, todos, working state), so `MessageList`
+  gets a new `groupedMessages` even when no message changed. Keying the snapshot on transcript
+  events only would cut that, but a message change sent without `message_thread_updated` would leave
+  the transcript stale. Not measured.
+- Tool progress is coalesced at 50ms (`COALESCED_NOTIFY_FALLBACK_MS`). 100ms would halve root
+  renders during fast progress, with progress shown up to 50ms later.
 - `getDecompMissionId()` has the same uncached summary read that `decomp-miss-cache` fixed.
