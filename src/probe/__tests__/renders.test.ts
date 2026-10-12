@@ -3,18 +3,11 @@ import { describe, expect, test } from 'bun:test';
 import type { App } from '../../binary/graph.ts';
 import { EMBED_PREFIX } from '../../binary/graph.ts';
 import { busiestProcess } from '../counters.ts';
-import type { CommitLine, Location, RenderTuple } from '../renders.ts';
-import {
-  formatComponent,
-  formatWindow,
-  parseRenders,
-  placeSource,
-  placeSources,
-  renderWindow,
-  renderWindows,
-  summariseWindows,
-  typesOf,
-} from '../renders.ts';
+import { parseRenders } from '../renders-parse.ts';
+import type { Location } from '../renders-print.ts';
+import { formatComponent, formatWindow, placeSource, placeSources } from '../renders-print.ts';
+import type { CommitLine, RenderTuple } from '../renders.ts';
+import { emptyTally, renderWindow, renderWindows, summariseWindows, typesOf } from '../renders.ts';
 
 const APP = 'function App(){return h(Main)}';
 const LIST = 'function yc(A){return A.items.map(Row)}';
@@ -80,7 +73,7 @@ describe('reading the render file', () => {
 
   test('collects each type description from whichever line first carried it', () => {
     const types = typesOf(STREAM);
-    expect(types.get(LATE_ID)).toEqual({ name: 'Late', source: LATE });
+    expect(types.get(LATE_ID)).toEqual({ name: 'Late', source: LATE, hookLabels: {} });
     expect(types.size).toBe(5);
   });
 });
@@ -92,16 +85,21 @@ describe('a render window', () => {
     expect(window.renderMs).toBe(4);
     expect(window.walkMs).toBe(1);
     expect(window.components.get(LIST_ID)).toEqual({
+      ...emptyTally(),
       renders: 2,
       selfMs: 10,
       reasons: { props: 2, state: 1 },
       props: { items: 2, width: 1 },
+      activityRenders: { unknown: 2 },
+      activityMs: { unknown: 10 },
     });
     expect(window.components.get(ROW_ID)).toEqual({
+      ...emptyTally(),
       renders: 3,
       selfMs: 3,
       reasons: { parent: 3 },
-      props: {},
+      activityRenders: { unknown: 3 },
+      activityMs: { unknown: 3 },
     });
     expect(window.components.has(APP_ID)).toBe(false);
   });
@@ -269,6 +267,52 @@ describe('the printed list', () => {
     const lines = formatWindow(summary, places, 1);
     expect(lines).toHaveLength(3);
     expect(lines[2]).toStartWith('  1. yc (chunk-a.js:12): 2 renders');
+  });
+
+  test('a line carrying activity, hooks and a snapshot cause reads back, and a bad cause drops it', () => {
+    const line = commit(10, [[APP_ID, 1, 'state', [], [3], ['metadata_updated', 1]]], {
+      activity: 'streaming',
+      hookTypes: [[APP_ID, 3, 'messages', '()=>m']],
+    });
+    expect(parseRenders(text([line]))).toEqual([line]);
+    const bad = { ...line, renders: [[APP_ID, 1, 'state', [], [3], ['metadata_updated']]] };
+    expect(parseRenders(JSON.stringify(bad))).toEqual([]);
+  });
+
+  test('a window tallies activities, hooks and snapshot causes, and labels hooks from any line', () => {
+    const lines: CommitLine[] = [
+      commit(10, [[APP_ID, 1, 'mount']], {
+        activity: 'idle',
+        types: [[APP_ID, 'App', APP]],
+      }),
+      commit(20, [[APP_ID, 2, 'state', [], [3], ['metadata_updated', 1]]], {
+        activity: 'streaming',
+        hookTypes: [[APP_ID, 3, 'messages', '()=>m']],
+      }),
+      commit(30, [[APP_ID, 4, 'state', [], [3, 5], ['message_thread_updated', 0]]], {
+        activity: 'streaming',
+      }),
+    ];
+    const window = renderWindow(lines, { from: 0, to: 100 });
+    expect(Object.fromEntries(window.activities)).toEqual({
+      idle: { commits: 1, renderMs: 2, renders: 1 },
+      streaming: { commits: 2, renderMs: 4, renders: 2 },
+    });
+    expect(window.components.get(APP_ID)).toMatchObject({
+      hooks: { 3: 2, 5: 1 },
+      snapshots: { metadata_updated: 1, message_thread_updated: 1 },
+      sameSnapshots: { metadata_updated: 1, message_thread_updated: 0 },
+      activityRenders: { idle: 1, streaming: 2 },
+    });
+    const [app] = summariseWindows('stream', [window]).components;
+    expect(app?.hookLabels).toEqual({ 3: ['messages', '()=>m'] });
+    const printed = formatWindow(summariseWindows('stream', [window]), new Map(), 1);
+    expect(printed[2]).toBe(
+      'commits by what Droid was doing: streaming 2 (67%) with 4.0ms of render time and 2 component renders; idle 1 (33%) with 2.0ms of render time and 1 component render',
+    );
+    expect(printed[5]).toBe(
+      '     state hooks that changed, by place in the hook list: hook 3 (the message snapshot, a useSyncExternalStore reading "()=>m", not found in the bundle) 2; hook 5 (not described) 1',
+    );
   });
 
   test('says plainly when a window rendered nothing', () => {

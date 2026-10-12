@@ -1,50 +1,71 @@
-import type { App } from '../binary/graph.ts';
 import { quantile } from './ab.ts';
 import type { Span } from './counters.ts';
-import { fieldsOf, hasNumbers, parseJsonLines } from './fields.ts';
-import { findPlaces, moduleHolding } from './search.ts';
 
 const MEDIAN = 0.5;
-const PERCENT = 100;
-const SHOWN_PROPS = 3;
 
 export const NOTHING_CHANGED = 'parent';
-const REASON_JOIN = '+';
+export const REASON_JOIN = '+';
+export const UNKNOWN_ACTIVITY = 'unknown';
+
+export type SnapshotCause = readonly [causes: string, same: number];
 
 export type RenderTuple = readonly [
   id: number,
   selfMs: number,
   reason: string,
   changedProps?: readonly string[],
+  hooks?: readonly number[],
+  snapshot?: SnapshotCause,
 ];
 
 export type TypeEntry = readonly [id: number, name: string, source: string];
+
+export type HookLabel = readonly [kind: string, detail: string];
+
+export type HookType = readonly [id: number, index: number, kind: string, detail: string];
 
 export interface CommitLine {
   t: number;
   pid: number;
   renderMs: number;
   walkMs: number;
+  activity?: string;
   renders: readonly RenderTuple[];
   types?: readonly TypeEntry[];
+  hookTypes?: readonly HookType[];
 }
 
 interface ComponentType {
   name: string;
   source: string;
+  hookLabels: Record<string, HookLabel>;
 }
 
-interface ComponentTally {
+export interface ComponentTally {
   renders: number;
   selfMs: number;
   reasons: Record<string, number>;
   props: Record<string, number>;
+  hooks: Record<string, number>;
+  snapshots: Record<string, number>;
+  sameSnapshots: Record<string, number>;
+  activityRenders: Record<string, number>;
+  activityMs: Record<string, number>;
 }
+
+export interface ActivityTally {
+  commits: number;
+  renderMs: number;
+  renders: number;
+}
+
+export type Activities = Map<string, ActivityTally>;
 
 export interface RenderWindow {
   commits: number;
   renderMs: number;
   walkMs: number;
+  activities: Activities;
   components: ReadonlyMap<number, ComponentTally>;
   types: ReadonlyMap<number, ComponentType>;
 }
@@ -53,7 +74,7 @@ export interface ComponentSummary extends ComponentTally, ComponentType {
   copies: number;
 }
 
-interface WindowSummary {
+export interface WindowSummary {
   name: string;
   runs: number;
   commits: number;
@@ -61,89 +82,86 @@ interface WindowSummary {
   unchanged: number;
   renderMs: number;
   walkMs: number;
+  activities: Activities;
   components: ComponentSummary[];
 }
 
-export interface Location {
-  place: string;
-  others: number;
-}
-
-function isList(value: unknown): value is readonly unknown[] {
-  return Array.isArray(value);
-}
-
-function isStringList(value: unknown): value is readonly string[] {
-  return isList(value) && value.every((entry) => typeof entry === 'string');
-}
-
-function isRenderTuple(value: unknown): value is RenderTuple {
-  if (!isList(value) || value.length < 3 || value.length > 4) {
-    return false;
-  }
-  const [id, selfMs, reason, keys] = value;
-  return (
-    Number.isInteger(id) &&
-    typeof selfMs === 'number' &&
-    typeof reason === 'string' &&
-    (keys === undefined || isStringList(keys))
-  );
-}
-
-function isTypeEntry(value: unknown): value is TypeEntry {
-  if (!isList(value) || value.length !== 3) {
-    return false;
-  }
-  const [id, name, source] = value;
-  return Number.isInteger(id) && typeof name === 'string' && typeof source === 'string';
-}
-
-function isCommitLine(value: unknown): value is CommitLine {
-  const fields = fieldsOf(value);
-  const renders = fields.get('renders');
-  const types = fields.get('types');
-  return (
-    hasNumbers(fields, ['t', 'pid', 'renderMs', 'walkMs']) &&
-    isList(renders) &&
-    renders.every((entry) => isRenderTuple(entry)) &&
-    (types === undefined || (isList(types) && types.every((entry) => isTypeEntry(entry))))
-  );
-}
-
-export function parseRenders(text: string): CommitLine[] {
-  return parseJsonLines(text, isCommitLine);
-}
-
 export function typesOf(lines: readonly CommitLine[]): Map<number, ComponentType> {
-  return new Map(
-    lines.flatMap((line) => line.types ?? []).map(([id, name, source]) => [id, { name, source }]),
+  const types = new Map<number, ComponentType>(
+    lines
+      .flatMap((line) => line.types ?? [])
+      .map(([id, name, source]) => [id, { name, source, hookLabels: {} }]),
   );
+  for (const [id, index, kind, detail] of lines.flatMap((line) => line.hookTypes ?? [])) {
+    const type = types.get(id);
+    if (type !== undefined) {
+      type.hookLabels[index] = [kind, detail];
+    }
+  }
+  return types;
 }
 
 export function emptyTally(): ComponentTally {
-  return { renders: 0, selfMs: 0, reasons: {}, props: {} };
+  return {
+    renders: 0,
+    selfMs: 0,
+    reasons: {},
+    props: {},
+    hooks: {},
+    snapshots: {},
+    sameSnapshots: {},
+    activityRenders: {},
+    activityMs: {},
+  };
 }
 
-function bump(counts: Record<string, number>, key: string, by = 1): void {
+function bump(counts: Record<string, number>, key: string | number, by = 1): void {
   counts[key] = (counts[key] ?? 0) + by;
+}
+
+function addCounts(target: Record<string, number>, source: Record<string, number>): void {
+  for (const [key, value] of Object.entries(source)) {
+    bump(target, key, value);
+  }
 }
 
 export function unchangedOf(entry: { reasons: Record<string, number> }): number {
   return entry.reasons[NOTHING_CHANGED] ?? 0;
 }
 
-function tally(components: Map<number, ComponentTally>, render: RenderTuple): void {
-  const [id, selfMs, reason, keys = []] = render;
+function tally(
+  components: Map<number, ComponentTally>,
+  render: RenderTuple,
+  activity: string,
+): void {
+  const [id, selfMs, reason, keys = [], hooks = [], snapshot] = render;
   const entry = components.get(id) ?? emptyTally();
   components.set(id, entry);
   entry.renders += 1;
   entry.selfMs += selfMs;
+  bump(entry.activityRenders, activity);
+  bump(entry.activityMs, activity, selfMs);
   for (const part of reason.split(REASON_JOIN)) {
     bump(entry.reasons, part);
   }
   for (const key of keys) {
     bump(entry.props, key);
   }
+  for (const index of hooks) {
+    bump(entry.hooks, index);
+  }
+  if (snapshot !== undefined) {
+    bump(entry.snapshots, snapshot[0]);
+    bump(entry.sameSnapshots, snapshot[0], snapshot[1]);
+  }
+}
+
+export function addActivity(target: Activities, name: string, entry: ActivityTally): void {
+  const found = target.get(name) ?? { commits: 0, renderMs: 0, renders: 0 };
+  target.set(name, found);
+  found.commits += entry.commits;
+  found.renderMs += entry.renderMs;
+  found.renders += entry.renders;
 }
 
 export function renderWindow(
@@ -153,18 +171,26 @@ export function renderWindow(
 ): RenderWindow {
   const inside = lines.filter((line) => line.t >= from && line.t <= to);
   const components = new Map<number, ComponentTally>();
+  const activities: Activities = new Map();
   for (const line of inside) {
+    const activity = line.activity ?? UNKNOWN_ACTIVITY;
+    addActivity(activities, activity, {
+      commits: 1,
+      renderMs: line.renderMs,
+      renders: line.renders.length,
+    });
     for (const render of line.renders) {
       if (!types.has(render[0])) {
         throw new Error(`a render names component type ${render[0]}, which no line described`);
       }
-      tally(components, render);
+      tally(components, render, activity);
     }
   }
   return {
     commits: inside.length,
     renderMs: inside.reduce((sum, line) => sum + line.renderMs, 0),
     walkMs: inside.reduce((sum, line) => sum + line.walkMs, 0),
+    activities,
     components,
     types,
   };
@@ -183,17 +209,25 @@ export function renderWindows(
 interface SourceTally {
   name: string;
   copies: number;
+  hookLabels: Record<string, HookLabel>;
   tally: ComponentTally;
 }
+
+const COUNT_FIELDS = [
+  'reasons',
+  'props',
+  'hooks',
+  'snapshots',
+  'sameSnapshots',
+  'activityRenders',
+  'activityMs',
+] as const;
 
 export function addInto(target: ComponentTally, entry: ComponentTally): void {
   target.renders += entry.renders;
   target.selfMs += entry.selfMs;
-  for (const [key, value] of Object.entries(entry.reasons)) {
-    bump(target.reasons, key, value);
-  }
-  for (const [key, value] of Object.entries(entry.props)) {
-    bump(target.props, key, value);
+  for (const field of COUNT_FIELDS) {
+    addCounts(target[field], entry[field]);
   }
 }
 
@@ -204,9 +238,15 @@ function bySource(window: RenderWindow): Map<string, SourceTally> {
     if (type === undefined) {
       throw new Error(`component type ${id} has no description`);
     }
-    const found = sources.get(type.source) ?? { name: type.name, copies: 0, tally: emptyTally() };
+    const found = sources.get(type.source) ?? {
+      name: type.name,
+      copies: 0,
+      hookLabels: {},
+      tally: emptyTally(),
+    };
     sources.set(type.source, found);
     found.copies += 1;
+    Object.assign(found.hookLabels, type.hookLabels);
     addInto(found.tally, entry);
   }
   return sources;
@@ -236,17 +276,47 @@ function summariseComponent(
   runs: readonly ReadonlyMap<string, SourceTally>[],
 ): ComponentSummary {
   const found = runs.map((run) => run.get(source));
-  const name = found.find((entry) => entry !== undefined)?.name ?? '';
   const tallies = found.map((entry) => entry?.tally ?? emptyTally());
+  const hookLabels: Record<string, HookLabel> = {};
+  for (const entry of found) {
+    Object.assign(hookLabels, entry?.hookLabels);
+  }
+  const counts = (field: (typeof COUNT_FIELDS)[number]): Record<string, number> =>
+    medianCounts(tallies.map((entry) => entry[field]));
   return {
-    name,
+    name: found.find((entry) => entry !== undefined)?.name ?? '',
     source,
+    hookLabels,
     copies: median(found.map((entry) => entry?.copies ?? 0)),
     renders: median(tallies.map((entry) => entry.renders)),
     selfMs: median(tallies.map((entry) => entry.selfMs)),
-    reasons: medianCounts(tallies.map((entry) => entry.reasons)),
-    props: medianCounts(tallies.map((entry) => entry.props)),
+    reasons: counts('reasons'),
+    props: counts('props'),
+    hooks: counts('hooks'),
+    snapshots: counts('snapshots'),
+    sameSnapshots: counts('sameSnapshots'),
+    activityRenders: counts('activityRenders'),
+    activityMs: counts('activityMs'),
   };
+}
+
+function medianActivities(windows: readonly RenderWindow[]): Activities {
+  const names = new Set(windows.flatMap((window) => [...window.activities.keys()]));
+  return new Map(
+    [...names].map((name) => {
+      const entries = windows.map(
+        (window) => window.activities.get(name) ?? { commits: 0, renderMs: 0, renders: 0 },
+      );
+      return [
+        name,
+        {
+          commits: median(entries.map((entry) => entry.commits)),
+          renderMs: median(entries.map((entry) => entry.renderMs)),
+          renders: median(entries.map((entry) => entry.renders)),
+        },
+      ];
+    }),
+  );
 }
 
 export function summariseWindows(name: string, windows: readonly RenderWindow[]): WindowSummary {
@@ -268,127 +338,7 @@ export function summariseWindows(name: string, windows: readonly RenderWindow[])
     unchanged: median(counted.map((entry) => entry.unchanged)),
     renderMs: median(windows.map((window) => window.renderMs)),
     walkMs: median(windows.map((window) => window.walkMs)),
+    activities: medianActivities(windows),
     components,
   };
-}
-
-function lineAt(text: string, index: number): number {
-  let line = 1;
-  for (let at = text.indexOf('\n'); at !== -1 && at < index; at = text.indexOf('\n', at + 1)) {
-    line += 1;
-  }
-  return line;
-}
-
-export function placeSource(app: App, source: string): Location | undefined {
-  const [first, ...others] = findPlaces(app, source, 0).places;
-  const holder = moduleHolding(app, source);
-  if (first === undefined || holder === undefined) {
-    return undefined;
-  }
-  return { place: `${first.module}:${lineAt(holder.text, first.at)}`, others: others.length };
-}
-
-export function placeSources(
-  app: App,
-  sources: Iterable<string>,
-): Map<string, Location | undefined> {
-  return new Map([...new Set(sources)].map((source) => [source, placeSource(app, source)]));
-}
-
-export function amount(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
-export function plural(count: number, word: string, words = `${word}s`): string {
-  return `${amount(count)} ${count === 1 ? word : words}`;
-}
-
-export function ms(value: number): string {
-  return `${value.toFixed(1)}ms`;
-}
-
-export function share(part: number, whole: number): string {
-  return whole === 0 ? '0%' : `${Math.round((part / whole) * PERCENT)}%`;
-}
-
-function where(source: string, places: ReadonlyMap<string, Location | undefined>): string {
-  const location = places.get(source);
-  if (location === undefined) {
-    return 'not found in the bundle';
-  }
-  if (location.others === 0) {
-    return location.place;
-  }
-  return `${location.place}, or one of ${location.others} other places with the same code`;
-}
-
-function ranked(counts: Record<string, number>): [string, number][] {
-  return Object.entries(counts)
-    .filter(([, value]) => value > 0)
-    .toSorted((a, b) => b[1] - a[1]);
-}
-
-function causes(entry: ComponentSummary): string {
-  return ranked(entry.reasons)
-    .map(([reason, value]) => {
-      if (reason !== 'props') {
-        return `${reason} ${amount(value)}`;
-      }
-      const keys = ranked(entry.props)
-        .slice(0, SHOWN_PROPS)
-        .map(([key, times]) => `${key} ${amount(times)}`);
-      return `props ${amount(value)}${keys.length > 0 ? ` (${keys.join(', ')})` : ''}`;
-    })
-    .join(', ');
-}
-
-export function formatComponent(
-  entry: ComponentSummary,
-  places: ReadonlyMap<string, Location | undefined>,
-): string {
-  const unchanged = unchangedOf(entry);
-  const copies =
-    entry.copies > 1
-      ? `; ${amount(entry.copies)} separate functions with this code rendered, so the component is created anew`
-      : '';
-  return `${entry.name} (${where(entry.source, places)}): ${plural(entry.renders, 'render')}, ${amount(unchanged)} (${share(unchanged, entry.renders)}) with nothing changed but the parent, ${ms(entry.selfMs)} self; causes: ${causes(entry)}${copies}`;
-}
-
-export function formatUnchanged(
-  summary: { unchanged: number; renders: number },
-  subject: string,
-  verb: string,
-): string {
-  return `${amount(summary.unchanged)} ${subject} (${share(summary.unchanged, summary.renders)}) ${verb} nothing changed: the parent rendered and props, state and context stayed equal`;
-}
-
-export function formatCost(summary: { renderMs: number; walkMs: number }): string {
-  return `React measured ${ms(summary.renderMs)} of render time; walking the tree to record it cost ${ms(summary.walkMs)} more`;
-}
-
-export function formatRanked(
-  components: readonly ComponentSummary[],
-  places: ReadonlyMap<string, Location | undefined>,
-  top: number,
-): string[] {
-  return components
-    .slice(0, top)
-    .map((entry, index) => `  ${index + 1}. ${formatComponent(entry, places)}`);
-}
-
-export function formatWindow(
-  summary: WindowSummary,
-  places: ReadonlyMap<string, Location | undefined>,
-  top: number,
-): string[] {
-  const head = `${summary.name}: median of ${plural(summary.runs, 'run')}, ${amount(summary.commits)} commits, ${amount(summary.renders)} component renders`;
-  if (summary.renders === 0) {
-    return [`${head}; nothing rendered`];
-  }
-  return [
-    `${head}, ${formatUnchanged(summary, 'of them', 'with')}`,
-    formatCost(summary),
-    ...formatRanked(summary.components, places, top),
-  ];
 }

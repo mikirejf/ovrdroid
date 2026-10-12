@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { RenderTuple, TypeEntry } from '../../probe/renders.ts';
-import { RENDER_WALK, SOURCE_CHARS } from '../render-profile-patches.ts';
+import { SOURCE_CHARS } from '../render-profile-patches.ts';
 import { payloadFunction } from './payload.ts';
 import type { Fiber } from './render-fibers.ts';
 import {
@@ -16,44 +15,24 @@ import {
   SIMPLE_MEMO,
   withChildren,
 } from './render-fibers.ts';
+import type { HookState } from './render-walker.ts';
+import { newWalker, updated } from './render-walker.ts';
 
 type Row = [string, number, string, (readonly string[])?];
-
-interface Walked {
-  renders: RenderTuple[];
-  refs: TypeEntry[];
-  types: TypeEntry[];
-}
-
-type Walker = (current: Fiber) => Walked;
-
-function updated(name: string, prev: Partial<Fiber>, next: Partial<Fiber>): Fiber {
-  const type = named(name);
-  const before = fiber(FUNCTION, type, prev);
-  return fiber(FUNCTION, type, { flags: PERFORMED_WORK, ...next, alternate: before });
-}
-
-function newWalker(): Walker {
-  return payloadFunction<[], () => Walker>([], `return ${RENDER_WALK}`)()();
-}
 
 function walk(current: Fiber): Row[] {
   const walked = newWalker()(current);
   const names = new Map(walked.types.map(([id, name]) => [id, name]));
   return walked.renders.map(([id, selfMs, reason, keys]): Row => {
     const name = names.get(id) ?? 'undescribed';
-    return keys === undefined ? [name, selfMs, reason] : [name, selfMs, reason, keys];
+    return keys === undefined || keys.length === 0
+      ? [name, selfMs, reason]
+      : [name, selfMs, reason, keys];
   });
 }
 
 function Real(): number {
   return 1;
-}
-
-interface HookState {
-  memoizedState: string | number | readonly number[];
-  queue: object | null;
-  next?: HookState | null;
 }
 
 function hook(state: HookState): HookState {

@@ -2,13 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
-import { readApp } from '../binary/graph.ts';
 import { hasErrorCode, say } from '../cli.ts';
 import { RENDERS_DIR } from '../patch/render-profile-patches.ts';
 import type { DayFile } from './renders-log.ts';
 import { formatLog, parseDayFile, recentDays, sumDays } from './renders-log.ts';
-import type { Location } from './renders.ts';
-import { placeSources } from './renders.ts';
+import { ACTIVITY_MEANING, placeShown } from './renders-print.ts';
 
 export const DEFAULT_DAYS = 7;
 
@@ -58,16 +56,11 @@ export function rendersLog(options: RendersLogOptions): void {
   say(
     'self time is what React measured inside a component minus its children, on the profiling React build, so it is slower than stock; compare components with each other',
   );
-  const places =
-    summary.commits === 0
-      ? new Map<string, Location | undefined>()
-      : placeSources(
-          readApp(readFileSync(options.binary)),
-          summary.components.slice(0, options.top).map((entry) => entry.source),
-        );
+  const places = placeShown(options.binary, [summary.components], options.top);
   say(
     `each place is where the component's code sits among the modules of ${options.binary}; read them with probe extract ${options.binary}`,
   );
+  say(ACTIVITY_MEANING);
   say('');
   for (const line of formatLog(summary, places, options.top)) {
     say(line);

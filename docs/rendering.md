@@ -140,6 +140,22 @@ Root renders do not move in these scenarios (stream 36.8 → 37.0): the PR poll 
 short window. Typing does not move either, because the shipped set already keeps the root still per
 key.
 
+`progress-notify-100ms`. The session store coalesces coarse events (tool progress, tool input) on a
+50ms timer, because Bun has no `requestAnimationFrame`. It is now 100ms, the same as the text stream
+throttle. Not measured: no probe produces tool progress.
+
+The render recorder also logs three things the totals could not answer:
+
+- Why the message snapshot changed: the store event types that raised `version` since the snapshot
+  before, and how many changes carried no message event and held the same messages by a cheap check.
+- Which root state hooks changed, by hook index, labelled by hook kind and the store it reads.
+- What Droid was doing at each commit: typing (a key in the last 500ms), streaming, tool, working or
+  idle.
+
+The extra walk costs about 0.7 points of React render time (stream, 2.6% → 3.3%). On the stream
+scenario, 4 of 36 snapshot changes came with no message event, and all 4 held the same messages.
+Real use with tools and todos is the open question; read it with `probe renders-log`.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)
@@ -196,6 +212,4 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
   gets a new `groupedMessages` even when no message changed. Keying the snapshot on transcript
   events only would cut that, but a message change sent without `message_thread_updated` would leave
   the transcript stale. Not measured.
-- Tool progress is coalesced at 50ms (`COALESCED_NOTIFY_FALLBACK_MS`). 100ms would halve root
-  renders during fast progress, with progress shown up to 50ms later.
 - `getDecompMissionId()` has the same uncached summary read that `decomp-miss-cache` fixed.

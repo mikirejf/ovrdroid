@@ -5,9 +5,10 @@ import path from 'node:path';
 
 import type { DayFile } from '../../probe/renders-log.ts';
 import { parseDayFile } from '../../probe/renders-log.ts';
-import { parseRenders } from '../../probe/renders.ts';
+import { parseRenders } from '../../probe/renders-parse.ts';
 import { CONFIG_FILE } from '../ovrdroid-config.ts';
 import {
+  MESSAGES_HOOK,
   RENDER_GATE,
   RENDER_HOOK,
   RENDERS_DIR,
@@ -17,7 +18,7 @@ import {
 } from '../render-profile-patches.ts';
 import { payloadFunction, restoreEnv } from './payload.ts';
 import type { Fiber } from './render-fibers.ts';
-import { fiber, FUNCTION, root } from './render-fibers.ts';
+import { fiber, FUNCTION, PERFORMED_WORK, root } from './render-fibers.ts';
 
 const HOME_VARIABLE = 'FACTORY_HOME_OVERRIDE';
 const saved = { probe: Bun.env[RENDERS_VARIABLE], home: Bun.env[HOME_VARIABLE] };
@@ -27,6 +28,70 @@ interface Hook {
   inject: () => number;
   onCommitFiberRoot: (id: number, fiberRoot: { current: Fiber }) => void;
   flush: () => void;
+  cause: (store: FakeStore, type: string) => void;
+  snapshot: (messages: readonly Message[], store: FakeStore) => void;
+  typed: () => void;
+  working: (manager: SessionManager, state: string) => void;
+}
+
+interface FakeStore {
+  version: number;
+  getVersion: () => number;
+  getStreamingVersion: () => number;
+}
+
+interface SessionManager {
+  session: string;
+}
+
+interface Message {
+  id: string;
+  content: readonly string[];
+}
+
+interface MessageHook {
+  memoizedState: readonly Message[];
+  queue: { value: null; getSnapshot: () => readonly Message[] };
+  next: null;
+}
+
+function fakeStore(): FakeStore {
+  const store: FakeStore = {
+    version: 0,
+    getVersion: () => store.version,
+    getStreamingVersion: () => 0,
+  };
+  return store;
+}
+
+function messageRoot(
+  type: () => number,
+  previous: readonly Message[],
+  next: readonly Message[],
+): Fiber {
+  const read = { value: null, getSnapshot: () => next };
+  const list = (value: readonly Message[]): MessageHook => ({
+    memoizedState: value,
+    queue: read,
+    next: null,
+  });
+  return fiber(FUNCTION, type, {
+    flags: PERFORMED_WORK,
+    actualDuration: 2,
+    alternate: fiber(FUNCTION, type, { memoizedState: list(previous) }),
+    memoizedState: list(next),
+  });
+}
+
+function settingsChange(hook: Hook | undefined, type: () => number): Fiber {
+  const store = fakeStore();
+  const before: Message[] = [{ id: 'a', content: [] }];
+  const after: Message[] = [{ id: 'a', content: [] }];
+  hook?.snapshot(before, store);
+  store.version += 1;
+  hook?.cause(store, 'settings_updated');
+  hook?.snapshot(after, store);
+  return messageRoot(type, before, after);
 }
 
 function ignore(): void {}
@@ -141,7 +206,15 @@ describe('the gate at the start of the reconciler module', () => {
 
   test('a hook that is already there is left alone', () => {
     writeConfig({ renders: true });
-    const existing: Hook = { inject: () => 0, onCommitFiberRoot: ignore, flush: ignore };
+    const existing: Hook = {
+      inject: () => 0,
+      onCommitFiberRoot: ignore,
+      flush: ignore,
+      cause: ignore,
+      snapshot: ignore,
+      typed: ignore,
+      working: ignore,
+    };
     Object.defineProperty(globalThis, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
       value: existing,
       configurable: true,
@@ -165,6 +238,24 @@ describe('the probe sink', () => {
     expect(line?.types?.map(([id, name]) => [id, name])).toEqual([[1, 'Row']]);
     hook?.flush();
     expect(fs.existsSync(path.join(factory(), RENDERS_DIR))).toBe(false);
+  });
+
+  test('each line says what Droid was doing, and describes a changed hook once', () => {
+    const file = path.join(home, 'renders.jsonl');
+    Bun.env[RENDERS_VARIABLE] = file;
+    const hook = startReconciler();
+    const type = component('0');
+    hook?.working({ session: 'main' }, 'executing_tool');
+    commit(hook, [settingsChange(hook, type)]);
+    commit(hook, [settingsChange(hook, type)]);
+
+    const [first, second] = parseRenders(fs.readFileSync(file, 'utf-8'));
+    expect(first?.activity).toBe('tool');
+    expect(first?.renders).toEqual([[1, 2, 'state', [], [0], ['settings_updated', 1]]]);
+    expect(first?.hookTypes?.map(([id, index, kind]) => [id, index, kind])).toEqual([
+      [1, 0, MESSAGES_HOOK],
+    ]);
+    expect(second?.hookTypes).toBeUndefined();
   });
 });
 
@@ -225,6 +316,44 @@ describe('the daily sink', () => {
     expect(dayFile('2026-10-11').commits).toBe(2);
     expect(dayFile('2026-10-12').commits).toBe(1);
     expect(dayFile('2026-10-12').components[0]?.renders).toBe(1);
+  });
+
+  test('sums commits and renders per activity, for the day and per component', () => {
+    const now = spyOn(performance, 'now').mockReturnValue(1000);
+    spyOn(Date, 'now').mockReturnValue(NOON);
+    writeConfig({ renders: true });
+    const hook = startReconciler();
+    const row = component('1');
+    hook?.typed();
+    commit(hook, [fiber(FUNCTION, row, { actualDuration: 2 })]);
+    now.mockReturnValue(5000);
+    hook?.working({ session: 'main' }, 'streaming_assistant_message');
+    commit(hook, [fiber(FUNCTION, row, { actualDuration: 3 })]);
+    commit(hook, [fiber(FUNCTION, row, { actualDuration: 1 })]);
+    hook?.flush();
+
+    const written = dayFile('2026-10-11');
+    expect(written.activities).toEqual({
+      typing: { commits: 1, renderMs: 0, renders: 1 },
+      streaming: { commits: 2, renderMs: 0, renders: 2 },
+    });
+    expect(written.components[0]?.activities).toEqual({ typing: [1, 2], streaming: [2, 4] });
+  });
+
+  test('counts changed hooks with their labels, and message snapshot changes by cause', () => {
+    spyOn(Date, 'now').mockReturnValue(NOON);
+    writeConfig({ renders: true });
+    const hook = startReconciler();
+    const type = component('0');
+    commit(hook, [settingsChange(hook, type)]);
+    commit(hook, [settingsChange(hook, type)]);
+    hook?.flush();
+
+    const [app] = dayFile('2026-10-11').components;
+    expect(app?.hooks).toEqual({ 0: 2 });
+    expect(app?.hookLabels?.[0]?.[0]).toBe(MESSAGES_HOOK);
+    expect(app?.snapshots).toEqual({ settings_updated: 2 });
+    expect(app?.sameSnapshots).toEqual({ settings_updated: 2 });
   });
 });
 

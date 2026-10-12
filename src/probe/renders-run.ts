@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-
-import { readApp } from '../binary/graph.ts';
 import type { RunOptions } from '../cli.ts';
 import { say } from '../cli.ts';
 import { RENDERS_VARIABLE } from '../patch/render-profile-patches.ts';
@@ -9,14 +6,10 @@ import { fileRecorder } from './counter-file.ts';
 import { DEFAULT_KEYS, measureTyping } from './counters-run.ts';
 import { busiestProcess } from './counters.ts';
 import { DEFAULT_PENDING, measurePending } from './pending.ts';
+import { parseRenders } from './renders-parse.ts';
+import { ACTIVITY_MEANING, formatWindow, placeShown } from './renders-print.ts';
 import type { RenderWindow } from './renders.ts';
-import {
-  formatWindow,
-  parseRenders,
-  placeSources,
-  renderWindows,
-  summariseWindows,
-} from './renders.ts';
+import { renderWindows, summariseWindows } from './renders.ts';
 import { DEFAULT_TURNS } from './resume-fixture.ts';
 import { measureResume } from './resume.ts';
 import { DEFAULT_PLAN, measureStream } from './stream.ts';
@@ -106,15 +99,15 @@ export async function renders(binary: string, options: RendersOptions): Promise<
   }
 
   const summaries = [...windows].map(([name, runs]) => summariseWindows(name, runs));
-  const places = placeSources(
-    readApp(readFileSync(binary)),
-    summaries.flatMap((summary) =>
-      summary.components.slice(0, options.top).map((entry) => entry.source),
-    ),
+  const places = placeShown(
+    binary,
+    summaries.map((summary) => summary.components),
+    options.top,
   );
   say(
     `each place is where the component's code sits among the binary's own modules, found by its text; read them with probe extract ${binary}`,
   );
+  say(ACTIVITY_MEANING);
   for (const summary of summaries) {
     say('');
     for (const line of formatWindow(summary, places, options.top)) {
