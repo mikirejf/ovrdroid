@@ -30,6 +30,7 @@ import {
   ttl,
 } from './cache-report.ts';
 import { bodies, modules, trace } from './capture-report.ts';
+import { codeCopy, COPY_CHUNK_CHARS, COPY_GAP_MS } from './code-copy.ts';
 import { cpu } from './cpu-report.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
@@ -47,6 +48,9 @@ import {
 } from './speed-report.ts';
 
 const AB_RUNS = 30;
+const COPY_COLS = 80;
+const COPY_ROWS = 30;
+const COPY_RESIZE_COLS = 100;
 const KEYS_RUNS = 3;
 const TOP_MODULES = 20;
 const DEFAULT_CHURN: ChurnKind = 'startup';
@@ -243,6 +247,20 @@ program
   .option('--yes', 'actually send, and spend the quota', false)
   .option('--out <file>', 'where every send is appended', DEFAULT_QUOTA_RUNS)
   .action(guard(quota));
+
+program
+  .command('code-copy')
+  .description(
+    'reply with a shell command longer than the terminal is wide, then resize: does the command reach the terminal as one unbroken run, so selecting and copying it pastes into a shell whole?',
+  )
+  .argument('<binary>')
+  .option('--cols <n>', 'terminal width', count, COPY_COLS)
+  .option('--rows <n>', 'terminal height', count, COPY_ROWS)
+  .option('--resize-to <n>', 'width to resize to after the reply', count, COPY_RESIZE_COLS)
+  .option('--chunk <n>', 'chars per streamed delta', count, COPY_CHUNK_CHARS)
+  .option('-g, --gap-ms <ms>', 'pause between deltas', count, COPY_GAP_MS)
+  .option('--dump <prefix>', 'also write the raw bytes to <prefix>.reply and <prefix>.resize')
+  .action(guard(codeCopy));
 
 program
   .command('cpu')
