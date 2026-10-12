@@ -104,8 +104,8 @@ function event(data: StreamEvent): string {
   return `event: ${data.type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export function streamEvents(deltas: readonly string[]): string[] {
-  return [
+function opening(block: Json): string {
+  return (
     event({
       type: 'message_start',
       message: {
@@ -118,12 +118,25 @@ export function streamEvents(deltas: readonly string[]): string[] {
         stop_sequence: null,
         usage: { input_tokens: 1, output_tokens: 1 },
       },
+    }) + event({ type: 'content_block_start', index: 0, content_block: block })
+  );
+}
+
+function closing(stopReason: string, outputTokens: number): string {
+  return (
+    event({ type: 'content_block_stop', index: 0 }) +
+    event({
+      type: 'message_delta',
+      delta: { stop_reason: stopReason, stop_sequence: null },
+      usage: { output_tokens: outputTokens },
     }) +
-      event({
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      }),
+    event({ type: 'message_stop' })
+  );
+}
+
+export function streamEvents(deltas: readonly string[]): string[] {
+  return [
+    opening({ type: 'text', text: '' }),
     ...deltas.map((text) =>
       event({
         type: 'content_block_delta',
@@ -131,13 +144,24 @@ export function streamEvents(deltas: readonly string[]): string[] {
         delta: { type: 'text_delta', text },
       }),
     ),
-    event({ type: 'content_block_stop', index: 0 }) +
-      event({
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn', stop_sequence: null },
-        usage: { output_tokens: deltas.length },
-      }) +
-      event({ type: 'message_stop' }),
+    closing('end_turn', deltas.length),
+  ];
+}
+
+export interface ToolCall {
+  name: string;
+  input: Record<string, Json>;
+}
+
+export function toolEvents(call: ToolCall): string[] {
+  return [
+    opening({ type: 'tool_use', id: 'toolu_stub', name: call.name, input: {} }),
+    event({
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'input_json_delta', partial_json: JSON.stringify(call.input) },
+    }),
+    closing('tool_use', 1),
   ];
 }
 
@@ -178,12 +202,14 @@ export interface StubModel {
   stop: () => Promise<void>;
 }
 
-export function startStubModel(plan: ReplyPlan): StubModel {
+export function startStubModel(plan: ReplyPlan, firstCall?: ToolCall): StubModel {
   const encoder = new TextEncoder();
-  const events = streamEvents(pieces(replyText(plan.chars), plan.chunk));
+  const replyEvents = streamEvents(pieces(replyText(plan.chars), plan.chunk));
+  const toolCallEvents = firstCall === undefined ? undefined : toolEvents(firstCall);
   let waiting = Promise.withResolvers<StubStream>();
+  let requests = 0;
 
-  const replyBody = () =>
+  const replyBody = (events: readonly string[]) =>
     new ReadableStream<Uint8Array>({
       async start(controller) {
         const startedAt = performance.now();
@@ -209,7 +235,9 @@ export function startStubModel(plan: ReplyPlan): StubModel {
       if (request.method !== 'POST' || !new URL(request.url).pathname.endsWith('/messages')) {
         return new Response('not found', { status: 404 });
       }
-      return new Response(replyBody(), { headers: { 'content-type': 'text/event-stream' } });
+      requests += 1;
+      const events = requests === 1 && toolCallEvents !== undefined ? toolCallEvents : replyEvents;
+      return new Response(replyBody(events), { headers: { 'content-type': 'text/event-stream' } });
     },
   });
 

@@ -8,6 +8,7 @@ import type { Recorder } from './counter-file.ts';
 import { fileRecorder } from './counter-file.ts';
 import { DEFAULT_KEYS, measureTyping } from './counters-run.ts';
 import { busiestProcess } from './counters.ts';
+import { DEFAULT_PENDING, measurePending } from './pending.ts';
 import type { RenderWindow } from './renders.ts';
 import {
   formatWindow,
@@ -60,6 +61,10 @@ const SCENARIOS = {
   typing: {
     describe: `typing: 2s idle, ${DEFAULT_KEYS} typed keys, then the slash menu`,
     measure: async (binary) => await measureTyping(binary, DEFAULT_KEYS, renderRecorder),
+  },
+  tool: {
+    describe: `tool: a tool call that stays pending, after ${DEFAULT_PENDING.leadInMs}ms, for ${DEFAULT_PENDING.windowMs}ms`,
+    measure: async (binary) => await measurePending(binary, DEFAULT_PENDING, renderRecorder),
   },
 } satisfies Record<string, Scenario>;
 

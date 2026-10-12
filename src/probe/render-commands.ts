@@ -28,7 +28,7 @@ export function registerRenderCommands(program: Command): void {
   program
     .command('renders')
     .description(
-      'which React components render while Droid streams a reply, reopens a long session, resizes and takes typing, how long each takes on its own, and why it rendered; works on any build carrying the shipped patch set, which records into $OD_RENDERS',
+      'which React components render while Droid streams a reply, reopens a long session, resizes, takes typing and waits on a pending tool, how long each takes on its own, and why it rendered; works on any build carrying the shipped patch set, which records into $OD_RENDERS',
     )
     .argument('<binary>')
     .option('-r, --runs <n>', 'runs per scenario', count, RENDERS_RUNS)

@@ -7,6 +7,7 @@ import {
   streamEvents,
   STUB_END,
   stubSettings,
+  toolEvents,
 } from '../stub-model.ts';
 
 interface Delta {
@@ -95,7 +96,39 @@ describe('streamEvents', () => {
   });
 });
 
+describe('toolEvents', () => {
+  test('sends one tool call whose input arrives as JSON and ends the turn on tool_use', () => {
+    const events = toolEvents({ name: 'Execute', input: { command: 'sleep 9' } });
+    const joined = events.join('');
+    expect(joined).toContain('"type":"tool_use"');
+    expect(joined).toContain('"name":"Execute"');
+    expect(joined).toContain('"stop_reason":"tool_use"');
+
+    const delta = dataOf(joined).find((data) => data.type === 'content_block_delta');
+    expect(JSON.stringify(delta)).toContain(
+      JSON.stringify(JSON.stringify({ command: 'sleep 9' })).slice(1, -1),
+    );
+  });
+});
+
 describe('startStubModel', () => {
+  test('answers the first request with the tool call and later ones with the reply', async () => {
+    const stub = startStubModel(
+      { chars: 20, chunk: 10, gapMs: 0 },
+      { name: 'Execute', input: { command: 'sleep 9' } },
+    );
+    try {
+      const ask = async () => {
+        const response = await fetch(`${stub.url}/v1/messages`, { method: 'POST', body: '{}' });
+        return await response.text();
+      };
+      expect(await ask()).toContain('"type":"tool_use"');
+      expect(textOf(await ask())).toBe(replyText(20));
+    } finally {
+      await stub.stop();
+    }
+  });
+
   test('streams the whole reply over HTTP and reports when it finished', async () => {
     const stub = startStubModel({ chars: 300, chunk: 40, gapMs: 0 });
     try {
