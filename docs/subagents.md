@@ -84,6 +84,37 @@ completions older than 48h are not replayed. With the store already small, an A/
 lag difference (n=2 per arm). The patches keep the store from growing back. They are not a measured
 speed-up.
 
+## Shipped: nested subagents in the TUI
+
+Measured on 0.238.0 with a level 1 droid that launches a level 2 droid running four `sleep 8` calls.
+
+The TUI already holds a grandchild's messages. A `child_session_available` notification arrives on
+the child's session, and `handleChildSessionAvailable` registers and hydrates the grandchild the
+same way it does a direct child. The task ledger (`lp`, `hn`, `Ol`) is a file every Droid reads, so
+it knows the grandchild too. Stock just never drew it: the Task row looks the child up under the
+current session, `cE` drops the tool use id, and the Task box is clamped to `height:2`.
+
+`nested-subagent-ui-patches.ts`:
+
+- The child's latest Task step reads `↳ <type> "<description>"`, with one more line under it that
+  carries the grandchild's latest step, then `Done (N tool uses · Xs)`. It nests down to level 3.
+- The Task box grows from 2 rows to at most 4 (`minHeight:2,maxHeight:4`). Without that the nested
+  line renders but stays hidden. A long header that wraps now shows its second line, where stock
+  clipped it.
+- The detailed view (Ctrl+O) reads the child's steps live from the session store. Stock read the
+  tool's progress updates, which stayed empty for a foreground Task, so stock showed
+  `Initializing...` for the whole run. A Task step there lists the grandchild's steps 4 columns in.
+- `N background agents running` counts every running descendant once. It walks the sessions and the
+  ledger breadth first from the current session, and a visited set stops a lineage cycle. It read 2
+  while the grandchild ran, 1 after it ended, then went away.
+
+The `(N) sub-agents running` panel above the footer lists running sessions from the session store.
+Stock listed direct children only, so a foreground child that had launched a grandchild read `(1)`.
+It now walks the descendants depth first, so the same run read `(2)`. When opened with ↓, each
+nested row sits 2 spaces under its running parent, and Enter opens its details as it does for a
+direct child. A running child under a finished parent moves up a level. The panel ignores `Task`
+tool executions, as stock does, because each Task already appears as its child session.
+
 ## Null: the memory left after subagents
 
 After 6 subagents ended, the parent's footprint stayed ~80 to 170MB higher. A heap snapshot (which
