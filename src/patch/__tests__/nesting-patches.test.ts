@@ -320,17 +320,21 @@ describe('the per-daemon cap comes from the user settings file', () => {
   });
 });
 
-const { patchedText } = shipped(nestingPatches);
+const { patchedText, rebasedNamed } = shipped(nestingPatches);
+
+const FLAG_READ = /[\w$]+\([\w$]+\.NestedTaskDelegation\)/u;
 
 describe.skipIf(stockDroid === undefined)('the shipped binary', () => {
   test('reads the NestedTaskDelegation flag before patching and never after', () => {
-    expect(stockText).toContain('M.NestedTaskDelegation)');
-    expect(patchedText).not.toMatch(/U\([\w$]+\.NestedTaskDelegation\)/u);
+    expect(stockText).toMatch(FLAG_READ);
+    expect(patchedText).not.toMatch(FLAG_READ);
   });
 
   test('records the launched droid maxDepth in the ledger and always admits through it', () => {
-    expect(patchedText).toContain('completionEvidenceVersion:1,maxDepth:');
-    expect(patchedText).not.toContain('else G=await Qz(K)}');
+    const ledger = rebasedNamed('nesting-ledger-records-max-depth');
+    expect(ledger.find).toContain('else ');
+    expect(patchedText).not.toContain(ledger.find);
+    expect(patchedText).toContain(ledger.replace);
   });
 
   test('raises the lineage ceiling', () => {

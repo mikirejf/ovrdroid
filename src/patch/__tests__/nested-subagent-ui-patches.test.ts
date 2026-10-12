@@ -312,14 +312,21 @@ describe.skipIf(stockDroid === undefined)('the shipped binary', () => {
   });
 
   test('the detailed view formats every step through the stock switch, rendered live', () => {
-    expect(patchedText).toContain('function $ODstep(oe,re){let le=null;switch(oe.type){');
-    expect(patchedText).not.toContain('default:break}if(le)j.push(le)});let Z=j.length');
-    expect(patchedText).toContain('children:!q?t($ODDetailSteps,{input:f,toolUseId:$ODtid,');
+    const step = rebasedNamed('nested-subagent-ui-detail-step');
+    const returns = rebasedNamed('nested-subagent-ui-detail-step-returns');
+    const live = rebasedNamed('nested-subagent-ui-detail-live-steps');
+    expect(step.replace).toContain('function $ODstep(');
+    expect(live.replace).toContain('t($ODDetailSteps,{input:');
+    expect(patchedText).toContain(step.replace);
+    expect(patchedText).not.toContain(returns.find);
+    expect(patchedText).toContain(returns.replace);
+    expect(patchedText).toContain(live.replace);
   });
 
   test('a Task block may grow to one line per nesting level', () => {
-    expect(patchedText).toContain(
-      `return Q(t(c,{minHeight:2,maxHeight:${TASK_BOX_MAX_ROWS},overflow:"hidden",children:X}))`,
-    );
+    const box = rebasedNamed('nested-subagent-ui-compact-box-grows');
+    expect(box.replace).toContain(`{minHeight:2,maxHeight:${TASK_BOX_MAX_ROWS},overflow:"hidden",`);
+    expect(patchedText).not.toContain(box.find);
+    expect(patchedText).toContain(box.replace);
   });
 });

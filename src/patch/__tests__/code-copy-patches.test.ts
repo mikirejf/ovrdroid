@@ -171,6 +171,31 @@ function functionTail(text: string, from: number): string {
   throw new Error('the Text component never closes');
 }
 
+const INK_TEXT = 'ink-text';
+
+function elementBuilder(source: string): string {
+  const call = /(?<builder>[\w$]+)\("ink-text",/u.exec(source)?.groups?.['builder'];
+  if (call === undefined) {
+    throw new Error('the Text component builds no ink-text element');
+  }
+  return call;
+}
+
+function nested(type: string | Tag, props: Props, ...children: Node[]): Node {
+  return children.length === 0 ? { type, props } : { type, props: { ...props, children } };
+}
+
+function inkText(node: Node): Node {
+  if (node.type === INK_TEXT) {
+    return node;
+  }
+  const [child] = kids(node);
+  if (child === undefined) {
+    throw new Error('the Text component renders no ink-text element');
+  }
+  return inkText(child);
+}
+
 function patchedText(): (props: Props, provided?: string) => TextRun {
   const rebase = rebasedNamed(rebases, 'code-copy-text-wrap-context');
   const module = (STOCK ?? []).find((entry) => entry.text.includes(rebase.find));
@@ -186,7 +211,7 @@ function patchedText(): (props: Props, provided?: string) => TextRun {
   let provided: string | undefined;
   let hooks = 0;
   const text = payloadFunction<unknown[], (props: Props) => Node>(
-    [name('Ct'), name('Be'), name('Wn'), name('Dg'), name('sn'), 'globalThis'],
+    [name('Ct'), name('Be'), name('Wn'), name('Dg'), elementBuilder(source), 'globalThis'],
     `${source};return ${name('o')}`,
   )(
     (initial: unknown): Context => ({ initial, Provider: {} }),
@@ -198,13 +223,13 @@ function patchedText(): (props: Props, provided?: string) => TextRun {
     },
     screenReader,
     background,
-    element,
+    nested,
     shared,
   );
   return (props, wrap) => {
     provided = wrap;
     hooks = 0;
-    const node = text({ children: 'echo hi', ...props });
+    const node = inkText(text({ children: 'echo hi', ...props }));
     return { textWrap: node.props.style?.textWrap, hooks };
   };
 }

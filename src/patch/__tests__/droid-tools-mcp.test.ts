@@ -86,12 +86,11 @@ const build = payloadFunction<
     () => { getAllTools: () => Tool[] },
     typeof serverMatch,
     (servers: string[]) => string[],
-    Tool,
     (list: string[]) => Normalized,
   ],
   DroidTools
 >(
-  ['Ye', 'J4', 'rn', 'Tr', '$ODnormalize'],
+  ['Ye', 'J4', 'rn', '$ODnormalize'],
   `return class{${DROID_TOOLS_METHOD}` +
     'static expandTools($ODo){return["stock:"+String($ODo.tools)]}' +
     'static normalizeTools($ODl){return $ODnormalize($ODl)}}',
@@ -107,7 +106,6 @@ function toolsFor(registry: readonly Tool[] = REGISTRY): DroidTools {
         all,
         servers.map((serverName) => ({ serverName })),
       ).map((tool) => idOf(tool)),
-    builtIn('ToolSearch'),
     normalizerFor(all),
   );
 }
@@ -309,5 +307,10 @@ describe.skipIf(stockDroid === undefined)('the copied parser still matches the s
       true,
     );
     expect([...stockText.matchAll(pattern)]).toHaveLength(1);
+  });
+
+  test('the payload names the tool search tool by the name the shipped one has', () => {
+    expect(DROID_TOOLS_METHOD).toContain('$ODids.add("ToolSearch")');
+    expect(stockText.split('id:"tool-search-cli",llmId:"ToolSearch"')).toHaveLength(2);
   });
 });

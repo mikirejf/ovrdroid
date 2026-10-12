@@ -81,7 +81,7 @@ export const DROID_TOOLS_METHOD =
   'let $ODservers=$ODdroid.metadata.mcpServers,' +
   '$ODmcp=$ODservers===void 0?$ODall.filter(($ODt)=>$ODt.isMcpTool).map($ODid):rn($ODservers),' +
   '$ODids=new Set([...this.normalizeTools($ODplain,$ODmodel).resolved,...$ODmcp,...$ODextra]);' +
-  'if($ODall.some(($ODt)=>$ODt.deferred&&$ODids.has($ODid($ODt))))$ODids.add(Tr.llmId);' +
+  'if($ODall.some(($ODt)=>$ODt.deferred&&$ODids.has($ODid($ODt))))$ODids.add("ToolSearch");' +
   'return[...$ODids]}';
 
 const FINAL_MODEL = '$ODtoolModel??(F||"inherit")';
@@ -118,7 +118,6 @@ export const subagentLaunchPatches: readonly Patch[] = [
     find: STOCK_READ_ONLY_CHECK,
     lookups: [
       'function rn(e){let r=Ye();return J4(r.getAllTools(),e.map((t)=>({serverName:t}))).map((t)=>t.llmId||t.id)}',
-      'r.add(Ul.id),r.add(ea.id),r.add(Wo.id),r.add(Tr.id),r.add(Cu.id),r.delete(no.id)',
     ],
     replace: `${DROID_TOOLS_METHOD}${STOCK_READ_ONLY_CHECK}`,
   },
