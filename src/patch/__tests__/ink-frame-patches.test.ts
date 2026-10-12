@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 
 import { inkFramePatches, SHARED_CACHE_LINES, WRAP_CACHE_ENTRIES } from '../ink-frame-patches.ts';
 import { applies } from '../rebase.ts';
-import { blockEnd } from '../tokens.ts';
 import { moduleHolding, rebased, renamed, sourceApp, STOCK, textOf } from './ink-frame-harness.ts';
 import type { Char, Style } from './ink-frame-tokenizer.ts';
 import {
@@ -18,9 +17,9 @@ import {
   tokenizers,
 } from './ink-frame-tokenizer.ts';
 import { FRAMES, wrappers } from './ink-frame-wrap.ts';
-import { payloadFunction } from './payload.ts';
+import { closureOf } from './module-closure.ts';
 import type { Stand } from './session-mention-harness.ts';
-import { scoped, scopeOver } from './session-mention-harness.ts';
+import { evaluateProgram } from './stream-render-harness.ts';
 
 interface Caches {
   styledChars: Map<string, Stand>;
@@ -122,13 +121,12 @@ describe.skipIf(STOCK === undefined)('ink-style-diff-same-skip', () => {
 function outputClass(): new () => { caches: Caches } {
   const rebase = rebased('ink-output-caches-shared');
   const text = textOf(sourceApp(), moduleHolding(sourceApp(), rebase.find));
-  const open = text.indexOf(`class ${renamed(rebase, 'BC')}{`);
-  const declaration = text.slice(open, blockEnd(text, text.indexOf('{', open)) + 1);
-  const program = `(()=>{${declaration};class $ODholder{${rebase.replace}};return $ODholder})()`;
-  return payloadFunction<[ReturnType<typeof scopeOver>], new () => { caches: Caches }>(
-    ['$ODscope'],
-    scoped(program),
-  )(scopeOver(new Map<string, Stand>()));
+  return evaluateProgram<{ $ODholder: new () => { caches: Caches } }>({
+    moduleText: text,
+    source: `${closureOf(text, [renamed(rebase, 'BC')])};class $ODholder{${rebase.replace}}`,
+    returns: ['$ODholder'],
+    overrides: new Map(),
+  }).$ODholder;
 }
 
 describe.skipIf(STOCK === undefined)('ink-output-caches-shared', () => {

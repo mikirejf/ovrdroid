@@ -47,9 +47,8 @@ export const wideTerminalPatches: readonly Patch[] = [
   },
   {
     name: 'wide-terminal-layout-width',
-    find: 'calculateLayout=()=>{let t=this.getTerminalWidth();this.rootNode.yogaNode.setWidth(t)',
-    replace:
-      'calculateLayout=()=>{let t=this.getTerminalWidth();this.rootNode.yogaNode.setWidth(globalThis.__odBoxWidth(t))',
+    find: '.columns;e.setWidth(i),e.calculateLayout(',
+    replace: '.columns;e.setWidth(globalThis.__odBoxWidth(i)),e.calculateLayout(',
   },
   {
     name: 'wide-terminal-size-hook',

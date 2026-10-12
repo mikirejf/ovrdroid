@@ -18,7 +18,7 @@ const INCREMENTS = [
   ['counter-root', 'globalThis.$ODc.root++;'],
   ['counter-message-list', 'globalThis.$ODc.list++;'],
   ['counter-markdown', 'globalThis.$ODc&&globalThis.$ODc.md++;'],
-  ['counter-frame-build', 'globalThis.$ODc.build++,globalThis.$ODc.frameMs+=s-e;'],
+  ['counter-frame-build', 'globalThis.$ODc.build++,globalThis.$ODc.frameMs+=Q-e;'],
 ] as const;
 
 const SLOW_PATCH_MS = 60_000;

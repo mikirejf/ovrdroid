@@ -1,6 +1,7 @@
 import type { App } from '../../binary/graph.ts';
 import { blockEnd } from '../tokens.ts';
 import { moduleHolding, sourceApp, textOf } from './ink-frame-harness.ts';
+import { closureOf } from './module-closure.ts';
 import type { Stand } from './session-mention-harness.ts';
 import type { Plain } from './stream-render-harness.ts';
 import {
@@ -155,29 +156,12 @@ export interface GridOptions {
   blank?: (cell: Cell) => Cell;
 }
 
-const GRID_CLASS = /class (?<name>\w+)\{width;height;operations=\[\];caches=new \w+;/u;
-const CACHE_CLASS = /class \w+\{widths=new Map;blockWidths=new Map;/u;
-const WIDTH_CALL =
-  /getStringWidth\(\w+\)\{let \w+=this\.widths\.get\(\w+\);if\(\w+===void 0\)\w+=(?<name>\w+)\(/u;
-const CLIP_CALL = /return (?<name>\w+)\(\w+,\w+,\w+\)\}\)/u;
+const GRID_CLASS = /class (?<name>\w+)\{operations=\[\];caches=new \w+;width;height;/u;
 const BLANK = '{type:"char",value:" ",fullWidth:!1,styles:[]}';
-const WIDE_FROM = 0x2e_80;
-
-function stubWidth(text: string): number {
-  return Array.from(text).reduce(
-    (width, character) => width + ((character.codePointAt(0) ?? 0) >= WIDE_FROM ? 2 : 1),
-    0,
-  );
-}
-
-function stubClip(text: string, start: number, end: number): string {
-  return Array.from(text).slice(start, end).join('');
-}
 
 function gridIn(text: string, options: GridOptions): GridClass {
   const className = matched(text, GRID_CLASS);
-  const classOpen = text.indexOf('{', indexOfPattern(text, GRID_CLASS));
-  let source = text.slice(indexOfPattern(text, CACHE_CLASS), blockEnd(text, classOpen) + 1);
+  let source = closureOf(text, [className]);
   if (options.blank !== undefined) {
     source = source.replace(`$ODblank=${BLANK}`, `$ODblank=$ODmake(${BLANK})`);
   }
@@ -185,11 +169,7 @@ function gridIn(text: string, options: GridOptions): GridClass {
     moduleText: text,
     source,
     returns: [className],
-    overrides: new Map<string, Stand>([
-      [matched(source, WIDTH_CALL), stubWidth],
-      [matched(source, CLIP_CALL), stubClip],
-      ['$ODmake', options.blank],
-    ]),
+    overrides: new Map<string, Stand>([['$ODmake', options.blank]]),
   })[className];
   if (loaded === undefined) {
     throw new Error('the Output class did not load');

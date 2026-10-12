@@ -21,24 +21,35 @@ interface World {
 
 const SESSION_MODEL = 'custom:proxy:opus';
 const STOCK_FALLBACK = 'claude-haiku-4-5-20251001';
+const STOCK_TRIES = 2;
 
-function titleModelIn(world: World): string {
+function titleModelsIn(world: World): string {
   const settings = {
     settings: { general: { sessionTitleModel: world.setting } },
     getCustomModels: () => world.customIds.map((id) => ({ id })),
     validateModelAccess: (id: string) => ({ allowed: !(world.blockedIds ?? []).includes(id) }),
   };
   const builtInAllowed = (id: string) => world.builtInAllowed.includes(id);
-  const stockTee = (options: { fallback: () => string }) => ({
-    modelId: world.sessionModel ?? options.fallback(),
-  });
+  const stockPick = (options: { fallback: () => string }) =>
+    world.sessionModel === undefined
+      ? { modelId: options.fallback() }
+      : { modelId: world.sessionModel, customModel: { id: world.sessionModel } };
   return payloadFunction<
-    [typeof builtInAllowed, () => typeof settings, typeof stockTee, string[]],
+    [typeof builtInAllowed, () => typeof settings, typeof stockPick, string[]],
     string
   >(
-    ['qi', 'f', 'Tee', 'qU'],
-    `${PATCH.replace}if(v)return v;return"${STOCK_FALLBACK}"}});return u`,
-  )(builtInAllowed, () => settings, stockTee, [STOCK_FALLBACK]);
+    ['ba', 'C', 'dRe', 'u$'],
+    `${PATCH.replace}let[D]=f;if(D)return D;return"${STOCK_FALLBACK}"}});` +
+      `return(g||f.length===0?[p]:f.slice(0,${STOCK_TRIES})).join(",")`,
+  )(builtInAllowed, () => settings, stockPick, [STOCK_FALLBACK, 'gpt-6-sol']);
+}
+
+function titleModelIn(world: World): string {
+  const [first] = titleModelsIn(world).split(',');
+  if (first === undefined) {
+    throw new Error('the title generator tried no model');
+  }
+  return first;
 }
 
 const CUSTOM_LUNA = 'custom:proxy:luna';
@@ -85,6 +96,18 @@ describe('the title model setting', () => {
   test('reaches the stock preferred model when the session runs a built-in model', () => {
     expect(titleModelIn({ ...OPEN, setting: 'nothing', sessionModel: undefined })).toBe(
       STOCK_FALLBACK,
+    );
+  });
+
+  test('tries only the chosen model, not the stock list after it', () => {
+    expect(titleModelsIn({ ...OPEN, setting: CUSTOM_SOL, sessionModel: undefined })).toBe(
+      CUSTOM_SOL,
+    );
+  });
+
+  test('keeps the stock list of models to try when the setting names no usable model', () => {
+    expect(titleModelsIn({ ...OPEN, setting: 'nothing', sessionModel: undefined })).toBe(
+      `${STOCK_FALLBACK},gpt-6-sol`,
     );
   });
 });

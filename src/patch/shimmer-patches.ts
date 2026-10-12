@@ -4,7 +4,7 @@ export const shimmerPatches: readonly Patch[] = [
   {
     name: 'ink-colorize-shared',
     find: 'function a({color:r,backgroundColor:l,dimColor:f=!1,',
-    lookups: ['if(r)H=ls(H,r,"foreground")'],
+    lookups: ['if(f)H=ck.dim(H);if(H=ls(H,r,"foreground"),'],
     replace:
       'globalThis.$ODcolorize=($ODtext,$ODcolor)=>ls($ODtext,$ODcolor,"foreground");' +
       'function a({color:r,backgroundColor:l,dimColor:f=!1,',

@@ -99,7 +99,7 @@ export const patches: readonly Patch[] = [
   {
     name: 'model-alias-lookup-set',
     find: 'if(o in Mn)return o;if(Object.values(Mn).includes(o))return o;return}',
-    lookups: ['function yt(o,t,i){if(ti(o))return oi(ke[o],t,i);let s=Kt[o];if(s)return s;if(o in'],
+    lookups: ['return yt(a)==="gpt-6-astra"}'],
     replace:
       'if(o in Mn)return o;if((yt.$o!==Mn&&(yt.$o=Mn,yt.$s=new Set(Object.values(Mn))),yt.$s).has(o))return o;return}',
   },
@@ -114,12 +114,12 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'app-display-width-grapheme-memo',
-    find: 's={ambiguousAsWide:!e};for(let{segment:u}of W.segment(o)){if(I(u))continue;if(x.test(u)){r+=2;continue}let f=D(u).codePointAt(0);r+=v0(f,s),r+=P(u,s)}return r}var',
+    find: 's={ambiguousAsWide:!e};for(let{segment:u}of W.segment(o)){if(I(u))continue;if(x.test(u)){r+=2;continue}let f=D(u).codePointAt(0);r+=v0(f,s),r+=P(u,s)}return r}var Z=8,',
     lookups: [
       'function HB(n,i={}){if(typeof n!=="string"||n.length===0)return 0;let{ambiguousIsNarrow:e=',
     ],
     replace:
-      's={ambiguousAsWide:!e},$ODcells=e?(HB.$n??=new Map):(HB.$w??=new Map);for(let{segment:u}of W.segment(o)){let $ODw=$ODcells.get(u);if($ODw===void 0){if(I(u))$ODw=0;else if(x.test(u))$ODw=2;else{let f=D(u).codePointAt(0);$ODw=v0(f,s)+P(u,s)}if($ODcells.size<2e4)$ODcells.set(u,$ODw)}r+=$ODw}return r}var',
+      's={ambiguousAsWide:!e},$ODcells=e?(HB.$n??=new Map):(HB.$w??=new Map);for(let{segment:u}of W.segment(o)){let $ODw=$ODcells.get(u);if($ODw===void 0){if(I(u))$ODw=0;else if(x.test(u))$ODw=2;else{let f=D(u).codePointAt(0);$ODw=v0(f,s)+P(u,s)}if($ODcells.size<2e4)$ODcells.set(u,$ODw)}r+=$ODw}return r}var Z=8,',
   },
   ...turnClockPatches,
   ...subagentSoundPatches,
@@ -160,13 +160,6 @@ export const patches: readonly Patch[] = [
       'awaitMcpReadinessBeforeAgentTurnIfEnabled(e){this.refreshMcpListeners();' +
       'if(this.ideInitPromise){let $ODtimer;await Promise.race([this.ideInitPromise.catch(()=>{}),new Promise(($ODdone)=>{$ODtimer=setTimeout($ODdone,5000);$ODtimer.unref?.()})]);clearTimeout($ODtimer)}' +
       'if(!this.isBlockOnMcpLoadEnabled())return;',
-  },
-  {
-    name: 'slash-command-keeps-typed-input',
-    find: 'let Dn=Po.slice(1),Gn=await vn.execute(Dn,gi);if(Gn.handled){if(typeof Gn.insertText==="string")return wi(Gn.insertText),"accepted";wi("");',
-    lookups: ['ss=O(null),Is=O(_??"")'],
-    replace:
-      'let Dn=Po.slice(1),$ODi=Is.current,Gn=await vn.execute(Dn,gi);if(Gn.handled){if(typeof Gn.insertText==="string")return wi(Gn.insertText),"accepted";if(Is.current===$ODi)wi("");',
   },
   {
     name: 'new-session-loads-in-background',

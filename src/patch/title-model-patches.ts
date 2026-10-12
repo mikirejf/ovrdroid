@@ -6,8 +6,8 @@ export const DEFAULT_TITLE_MODEL = 'gpt-6-luna';
 export const titleModelPatches: readonly Patch[] = [
   {
     name: 'session-title-model-setting',
-    find: 'let{modelId:u}=Tee({fallback:()=>{let v=qU.find(qi);',
-    lookups: ['let y=f().getFirstAllowedModel((I)=>!ct(I))??Er();'],
-    replace: `let $ODwant=f().settings.general?.${TITLE_MODEL_SETTING}??"${DEFAULT_TITLE_MODEL}",$ODmodel=(f().getCustomModels().some(($ODcustom)=>$ODcustom.id===$ODwant)&&f().validateModelAccess($ODwant).allowed)||qi($ODwant)?$ODwant:void 0,{modelId:u}=$ODmodel?{modelId:$ODmodel}:Tee({fallback:()=>{let v=qU.find(qi);`,
+    find: 'let f=u$.filter(ba),{modelId:p,customModel:g}=dRe({fallback:()=>{',
+    lookups: ['let E=C().getFirstAllowedModel((O)=>!at(O))??Oi();'],
+    replace: `let $ODwant=C().settings.general?.${TITLE_MODEL_SETTING}??"${DEFAULT_TITLE_MODEL}",$ODmodel=(C().getCustomModels().some(($ODcustom)=>$ODcustom.id===$ODwant)&&C().validateModelAccess($ODwant).allowed)||ba($ODwant)?$ODwant:void 0,f=$ODmodel?[$ODmodel]:u$.filter(ba),{modelId:p,customModel:g}=$ODmodel?{modelId:$ODmodel}:dRe({fallback:()=>{`,
   },
 ];

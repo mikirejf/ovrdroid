@@ -69,6 +69,7 @@ const REQUIRE_CALL = /import\.meta\.require\(/gu;
 const HIGHLIGHT_CHUNK = /import\.meta\.require\("(?<chunk>[^"]+)"\)/u;
 const HELPER_IMPORT = /import\{(?<first>\w+),(?<second>\w+)\}from"[^"]+";/u;
 const DEFAULT_EXPORT = /export\{(?<local>\w+) as default\};/u;
+const LINE_KEY = /function \w+\(\w+,\w+,\w+\)\{let \w+=\(\w+\)=>\{let \w+=0;/u;
 
 export function rebased(name: string): Rebase {
   const found = rebases.find((rebase) => rebase.name === name);
@@ -139,7 +140,10 @@ function highlighterIn(text: string): Highlighter {
     },
   };
   const themes = { getSyntaxColors: () => SYNTAX_COLORS[palette.active] };
-  const start = text.indexOf('function ho(');
+  const start = LINE_KEY.exec(text)?.index;
+  if (start === undefined) {
+    throw new Error('the module no longer starts with the line key function');
+  }
   const code = evaluateProgram<Pick<Highlighter, 'highlight' | 'ansi' | 'diffLine'>>({
     moduleText: text,
     source: text

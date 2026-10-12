@@ -1,4 +1,3 @@
-import type { Rebase } from '../rebase.ts';
 import {
   moduleHolding,
   patchedApp,
@@ -7,8 +6,8 @@ import {
   sourceApp,
   textOf,
 } from './ink-frame-harness.ts';
-import { payloadFunction } from './payload.ts';
-import type { Stand } from './session-mention-harness.ts';
+import { closureOf, declarationAround } from './module-closure.ts';
+import { evaluateProgram } from './stream-render-harness.ts';
 
 export interface Style {
   code: string;
@@ -38,47 +37,42 @@ export interface Tokenizers {
   patchedCode: Tokenizer;
 }
 
-const LEADING_IMPORT = /^\/\/ @bun @bytecode\nimport\{(?<names>[^}]*)\}from"[^"]*";/u;
-const TRAILING_EXPORT = /export\{(?<names>[^}]*)\};/u;
+const TO_CHARS = /function (?<name>\w+)\(\w+\)\{let \w+=\[\],\w+=\[\];for\(let \w+ of \w+\)if\(/u;
+const TOKENIZE = /function (?<name>\w+)\(\w+,\w+=Number\.POSITIVE_INFINITY\)/u;
 
-function escapePattern(text: string): string {
-  return text.replaceAll(/[$.*+?()[\]{}|\\^]/gu, String.raw`\$&`);
-}
-
-function exportedAs(body: string, names: readonly string[], declaration: string): string {
-  const found = names.find((name) =>
-    new RegExp(`function ${escapePattern(name)}${declaration}`, 'u').test(body),
-  );
+function functionNamed(text: string, pattern: RegExp): string {
+  const found = pattern.exec(text)?.groups?.['name'];
   if (found === undefined) {
-    throw new Error('the tokenizer export is not where the tests expect it');
+    throw new Error(`${pattern.source} matches nothing in the Ink module`);
   }
   return found;
 }
 
-function loadTokenizer(text: string, rebase: Rebase): Tokenizer {
-  const imported = LEADING_IMPORT.exec(text)?.groups?.['names']?.split(',') ?? [];
-  const exported = TRAILING_EXPORT.exec(text)?.groups?.['names']?.split(',') ?? [];
-  const body = text.replace(LEADING_IMPORT, '').replace(TRAILING_EXPORT, '');
-  const cP = exportedAs(body, exported, String.raw`\(\w+\)\{let \w+="";for`);
-  const sP = exportedAs(body, exported, String.raw`\(\w+\)\{let \w+=\[\],\w+=\[\];for`);
-  const lP = exportedAs(body, exported, String.raw`\(\w+,\w+=Number\.POSITIVE_INFINITY\)`);
-  const f = renamed(rebase, 'f');
-  const h = renamed(rebase, 'h');
-  const load = payloadFunction<Stand[], Tokenizer>(
-    imported,
-    `${body};return {cP:${cP},sP:${sP},lP:${lP},f:${f},h:${h}}`,
-  );
-  return load(...imported.map(() => () => false));
+function loadTokenizer(text: string, names: Record<keyof Tokenizer, string>): Tokenizer {
+  return evaluateProgram<Tokenizer>({
+    moduleText: text,
+    source: closureOf(text, Object.values(names)),
+    returns: Object.entries(names).map(([key, name]) => `${key}:${name}`),
+    overrides: new Map(),
+  });
 }
 
 let loaded: Tokenizers | undefined;
 
 export function tokenizers(): Tokenizers {
   const rebase = rebased('ink-style-diff-same-skip');
-  const name = moduleHolding(sourceApp(), rebase.find);
+  const module = moduleHolding(sourceApp(), rebase.find);
+  const stock = textOf(sourceApp(), module);
+  const names = {
+    cP: declarationAround(stock, stock.indexOf(rebase.find)),
+    sP: functionNamed(stock, TO_CHARS),
+    lP: functionNamed(stock, TOKENIZE),
+    f: renamed(rebase, 'f'),
+    h: renamed(rebase, 'h'),
+  };
   loaded ??= {
-    stockCode: loadTokenizer(textOf(sourceApp(), name), rebase),
-    patchedCode: loadTokenizer(textOf(patchedApp(), name), rebase),
+    stockCode: loadTokenizer(stock, names),
+    patchedCode: loadTokenizer(textOf(patchedApp(), module), names),
   };
   return loaded;
 }

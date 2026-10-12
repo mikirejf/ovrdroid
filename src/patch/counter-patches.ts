@@ -27,16 +27,17 @@ export const counterPatches: readonly Patch[] = [
   },
   {
     name: 'counter-commit',
-    find: 'resetAfterCommit(e){if(typeof e.onComputeLayout==="function")',
-    replace:
-      'resetAfterCommit(e){globalThis.$ODc.commit++;if(typeof e.onComputeLayout==="function")',
+    find: 'resetAfterCommit(e){let i=',
+    replace: 'resetAfterCommit(e){globalThis.$ODc.commit++;let i=',
   },
   {
     name: 'counter-frame-build',
-    find: 'this.writeFrame(i);let s=performance.now();',
-    lookups: ['onRender=()=>{if(this.hasPendingThrottledRender=!1,this.isUnmounted)return;let e='],
+    find: 'this.renderFrame(i,l,r);let Q=performance.now();',
+    lookups: [
+      'if(this.lastOutputHeight===0&&this.lastOutput!==""&&!this.isUnmounting)this.lastOutputToRender="";let e=performance.now(),',
+    ],
     replace:
-      'this.writeFrame(i);let s=performance.now();globalThis.$ODc.build++,globalThis.$ODc.frameMs+=s-e;',
+      'this.renderFrame(i,l,r);let Q=performance.now();globalThis.$ODc.build++,globalThis.$ODc.frameMs+=Q-e;',
   },
   {
     name: 'counter-root',
