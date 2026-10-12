@@ -37,6 +37,12 @@ no SIGWINCH.
 written, milliseconds inside `onRender`, root and message list renders, markdown parses and bytes.
 The build samples the counts to `$OD_COUNTERS` every 200ms. Counts resolve where wall time cannot.
 
+`probe readable <binary> -o <dir>` writes every module as readable React in about 15s. It restores
+React's hooks and APIs, Ink's `Box`/`Text`/`Static`, JSX, and component and hook names in the form
+the React Compiler accepts (components start A-Z, custom hooks `useX`). Local names stay minified.
+It is for reading only: patches still target the minified code. Point it at the stock backup to read
+stock names.
+
 `pairedStats` changed too. It uses Student t for n of 31 or less, and it refuses to resolve n
 below 2. The old z of 1.96 let two identical copies look different at n=2.
 
@@ -89,6 +95,16 @@ The output was equivalent, but it saved only about 0.3ms per key at about 110 co
 matching accepts nearly every description for a short query, so scoring dominates. I dropped it as
 not worth the code.
 
+React Compiler (babel-plugin-react-compiler 1.0.0, Droid 0.238.0 stock). The compiled build paints,
+renders code blocks and runs every `probe renders` scenario without a hook error, but renders barely
+move: stream 2980 → 2758-2897, resume, resize, typing and menu within noise. It compiled 222
+functions in 7 modules and skipped 103. The hot components are the skipped ones: the root,
+`MessageList` and the chat view write `ref.current` during render, which the compiler rejects ("This
+value cannot be modified", 73 of 82 in the main chunk), and try/finally blocks are not supported.
+Components without hooks are never compiled, because infer mode needs a hook call or JSX syntax. The
+step adds about 15s to the build and 0.16% to the binary. Not shipped, and the build step was
+removed.
+
 React concurrency is still a loss. See [react-concurrency.md](react-concurrency.md).
 
 ## Open items
@@ -108,5 +124,7 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
   two zod parses and an OpenTelemetry span per text delta. I did not trace it to its receivers.
 - The model-cycle `useMemo` has a fresh array as a dependency, so it recomputes on every root
   render.
+- The prompt input re-renders on every keystroke because its parent passes fresh `onSubmit`,
+  `onInputChange` and `onCursorPositionChange` callbacks each render.
 - The spinner (125ms ticker) and the stream throttle (100ms) run on separate timers.
 - `getDecompMissionId()` has the same uncached summary read that `decomp-miss-cache` fixed.

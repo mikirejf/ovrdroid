@@ -29,6 +29,10 @@
   },
   "devDependencies": {
     "@arx1/devkit": "^0.7.2",
+    "@babel/generator": "^8.0.6",
+    "@babel/parser": "^8.0.7",
+    "@babel/traverse": "^8.0.7",
+    "@babel/types": "^8.0.6",
     "@commitlint/cli": "^21.0.0",
     "@types/bun": "^1.3.4",
     "jscpd": "^5.1.0",

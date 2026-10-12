@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 
 import { count, guard } from '../cli.ts';
 import { hooks } from './hooks.ts';
+import { readable } from './readable-report.ts';
 import { anchors, builds, extract, grep, hub, names } from './release-report.ts';
 
 const CONTEXT_SPAN = 200;
@@ -13,6 +14,15 @@ export function registerReleaseCommands(program: Command): void {
     .argument('<binary>')
     .requiredOption('-o, --out <dir>', 'where to write the modules')
     .action(guard(extract));
+
+  program
+    .command('readable')
+    .description(
+      'write every app module of a binary as readable JSX: React hooks, Ink components and named components get their real names back, jsx calls become JSX; for reading, not for patching',
+    )
+    .argument('<binary>')
+    .requiredOption('-o, --out <dir>', 'where to write the readable modules')
+    .action(guard(readable));
 
   program
     .command('anchors')
