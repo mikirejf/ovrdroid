@@ -14,6 +14,7 @@ interface FakeDroid {
 
 interface FakeTools {
   expandTools: (options: { tools: string[] | 'read-only' | undefined; model: string }) => string[];
+  $ODdroidTools: (droid: FakeDroid, model: string) => string[];
   usesReadOnlyPolicy: (tools: unknown) => boolean;
 }
 
@@ -60,11 +61,13 @@ function expandedFor(tools: string[] | 'read-only' | undefined, model: string): 
 }
 
 function toolsOf(events: string[]): FakeTools {
+  const expandTools: FakeTools['expandTools'] = ({ tools, model }) => {
+    events.push(`expand:${model}`);
+    return expandedFor(tools, model);
+  };
   return {
-    expandTools: ({ tools, model }) => {
-      events.push(`expand:${model}`);
-      return expandedFor(tools, model);
-    },
+    expandTools,
+    $ODdroidTools: (droid, model) => expandTools({ tools: droid.metadata.tools, model }),
     usesReadOnlyPolicy: (tools) => tools === 'read-only',
   };
 }
