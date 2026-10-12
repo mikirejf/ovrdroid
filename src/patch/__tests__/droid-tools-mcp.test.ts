@@ -152,7 +152,7 @@ describe('a tools list gains the MCP tools the droid names', () => {
   });
 
   test('an MCP:<server>/<tool> entry adds that one tool', () => {
-    const tools = resolve(['Read', 'MCP:chrome-devtools/click']);
+    const tools = resolve(['Read', 'MCP:chrome-devtools/click'], []);
     expect(tools).toContain('chrome-devtools___click');
     expect(tools).not.toContain('chrome-devtools___navigate_page');
   });
@@ -172,21 +172,45 @@ describe('ToolSearch follows the deferred tools', () => {
   });
 
   test('a list with no deferred tool gets no ToolSearch it did not ask for', () => {
-    expect(resolve(['Read'])).not.toContain('ToolSearch');
+    expect(resolve(['Read'], [])).not.toContain('ToolSearch');
+  });
+});
+
+describe('a tools list with no mcpServers field keeps every MCP tool', () => {
+  test('every MCP tool and ToolSearch join the list', () => {
+    expect(resolve(['Read', 'ToolSearch']).toSorted()).toEqual(
+      ['Read', 'ToolSearch', HIDDEN, ...CHROME_IDS].toSorted(),
+    );
+  });
+
+  test('the deferred MCP tools bring ToolSearch', () => {
+    expect(resolve(['Read'])).toContain('ToolSearch');
+  });
+
+  test('an empty mcpServers list keeps every MCP tool out', () => {
+    expect(resolve(['Read', 'ToolSearch'], []).toSorted()).toEqual(
+      ['Read', 'ToolSearch', HIDDEN].toSorted(),
+    );
+  });
+
+  test('a named server limits the list to its own tools', () => {
+    const registry = [...REGISTRY, mcpTool('other', 'x')];
+    const named = resolve(['Read'], ['chrome-devtools'], registry);
+    expect(missingFrom(named, CHROME_IDS)).toEqual([]);
+    expect(named).not.toContain('other___x');
+    const unnamed = resolve(['Read'], undefined, registry);
+    expect(missingFrom(unnamed, [...CHROME_IDS, 'other___x'])).toEqual([]);
   });
 });
 
 describe('a server that is not there is skipped quietly', () => {
   test.each([
     ['mcpServers', ['Read'], ['no-such-server']],
-    ['an MCP:<server> entry', ['Read', 'MCP:no-such-server'], undefined],
-    ['an MCP:<server>/<tool> entry', ['Read', 'MCP:no-such-server/click'], undefined],
-    ['an <server>___<tool> name', ['Read', 'no-such-server___click'], undefined],
+    ['an MCP:<server> entry', ['Read', 'MCP:no-such-server'], []],
+    ['an MCP:<server>/<tool> entry', ['Read', 'MCP:no-such-server/click'], []],
+    ['an <server>___<tool> name', ['Read', 'no-such-server___click'], []],
   ] as const)('via %s', (_label, tools, servers) => {
-    expect(resolve([...tools], servers === undefined ? undefined : [...servers])).toEqual([
-      'Read',
-      HIDDEN,
-    ]);
+    expect(resolve([...tools], [...servers])).toEqual(['Read', HIDDEN]);
   });
 
   test('a configured server whose tools have not loaded yet counts as not there', () => {

@@ -78,7 +78,9 @@ export const DROID_TOOLS_METHOD =
   'if($ODmalformed.length)$ODproblems.push("MCP entries it cannot read (write MCP:<server> or MCP:<server>/<tool>): "+$ODmalformed.join(", "));' +
   'if($ODabsent.length)$ODproblems.push("MCP tools their running server does not have: "+$ODabsent.join(", "));' +
   'if($ODproblems.length)throw Error(\'Droid "\'+$ODdroid.metadata.name+\'" lists \'+$ODproblems.join("; ")+".");' +
-  'let $ODids=new Set([...this.normalizeTools($ODplain,$ODmodel).resolved,...rn($ODdroid.metadata.mcpServers??[]),...$ODextra]);' +
+  'let $ODservers=$ODdroid.metadata.mcpServers,' +
+  '$ODmcp=$ODservers===void 0?$ODall.filter(($ODt)=>$ODt.isMcpTool).map($ODid):rn($ODservers),' +
+  '$ODids=new Set([...this.normalizeTools($ODplain,$ODmodel).resolved,...$ODmcp,...$ODextra]);' +
   'if($ODall.some(($ODt)=>$ODt.deferred&&$ODids.has($ODid($ODt))))$ODids.add(Tr.llmId);' +
   'return[...$ODids]}';
 
