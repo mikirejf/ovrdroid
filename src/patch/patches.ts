@@ -2,12 +2,12 @@ import { agentPatches } from './agent-patches.ts';
 import { askUserPatches } from './askuser-patches.ts';
 import { compactionPatches } from './compaction-patches.ts';
 import { denylistPatches } from './denylist-patches.ts';
+import { footerPatches } from './footer-patches.ts';
 import { logoPatches } from './logo.ts';
 import { mcpIdlePatches } from './mcp-idle-patches.ts';
 import { sessionPatches } from './session-patches.ts';
 import { shieldPatches } from './shield-patches.ts';
 import { subagentSoundPatches } from './subagent-sound-patches.ts';
-import { turnClockPatches } from './turn-clock-patches.ts';
 import { updateNoticePatches } from './update-notice-patches.ts';
 import { usagePatches } from './usage-patches.ts';
 import { warmerPatches } from './warmer-patches.ts';
@@ -121,7 +121,7 @@ export const patches: readonly Patch[] = [
     replace:
       's={ambiguousAsWide:!e},$ODcells=e?(HB.$n??=new Map):(HB.$w??=new Map);for(let{segment:u}of W.segment(o)){let $ODw=$ODcells.get(u);if($ODw===void 0){if(I(u))$ODw=0;else if(x.test(u))$ODw=2;else{let f=D(u).codePointAt(0);$ODw=v0(f,s)+P(u,s)}if($ODcells.size<2e4)$ODcells.set(u,$ODw)}r+=$ODw}return r}var Z=8,',
   },
-  ...turnClockPatches,
+  ...footerPatches,
   ...subagentSoundPatches,
   ...updateNoticePatches,
   {

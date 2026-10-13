@@ -48,6 +48,7 @@ type Bindings = [
   (target: Part[], parts: Part[], separator?: string) => void,
   (callback: () => void, delay: number) => Timer,
   (timer: Timer) => void,
+  () => { refresh: () => void },
 ];
 
 function inserted(patch: Patch): string {
@@ -67,7 +68,7 @@ const STATE = patchNamed(patches, 'turn-clock-state').replace;
 const TRACK_AND_TICK = inserted(patchNamed(patches, 'turn-clock-track'));
 const PARTS = patchNamed(patches, 'turn-clock-parts').replace;
 
-const BINDINGS = ['A', 'v', 'L', 'rt', 'sd', 'setTimeout', 'clearTimeout'];
+const BINDINGS = ['A', 'v', 'L', 'rt', 'sd', 'setTimeout', 'clearTimeout', 'Hp'];
 
 const HELP = 'sd(Ie,[rt("? for help",{color:o.text.muted})]," ");';
 
@@ -76,6 +77,7 @@ const COMPONENT = `${STATE}$end=0;return function Footer(F,B,o,fe){let Ie=[];${T
 export class FooterWorld {
   readonly timers: Timer[] = [];
   bracket: string | null = null;
+  prRefreshes = 0;
   private status = 'idle';
   private counters: number[] = [];
   private committed: Committed[] = [];
@@ -118,6 +120,11 @@ export class FooterWorld {
       (timer) => {
         timer.active = false;
       },
+      () => ({
+        refresh: () => {
+          this.prRefreshes += 1;
+        },
+      }),
     );
   }
 

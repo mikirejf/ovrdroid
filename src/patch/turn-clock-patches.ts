@@ -22,7 +22,7 @@ const TURN_CLOCK_TICK =
 const TURN_CLOCK_TRACK =
   'let $ODbusy=B!=="idle";' +
   'if($ODc.session!==F)$ODc.session=F,$ODc.sent=0,$ODc.done=0,$ODc.busy=$ODbusy;' +
-  'else if($ODbusy!==$ODc.busy)$ODc.busy=$ODbusy,$ODbusy?$ODc.sent=$ODt(F):$ODc.done=$ODt(F);';
+  'else if($ODbusy!==$ODc.busy)$ODc.busy=$ODbusy,$ODbusy?$ODc.sent=$ODt(F):($ODc.done=$ODt(F),queueMicrotask(()=>Hp().refresh()));';
 
 const TURN_CLOCK_PARTS =
   'let $ODago=[];if($ODlast||$ODcat){' +
@@ -49,6 +49,7 @@ export const turnClockPatches: readonly Patch[] = [
       'let fe=rue({statusState:B,sessionId:F,',
       'K]=A(()=>{if(z.sessionId!==null&&',
       'v(()=>()=>{let ',
+      'Hp(),Q=W.subscribe(X),Y=setInterval(()=>{W.refresh()},',
     ],
     replace: `droidsHint:me,remoteDroidLocation:pe}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let fe=rue(`,
   },
