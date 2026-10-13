@@ -142,11 +142,27 @@ export const PATCHED_RUNNING_COUNT =
 
 const STOCK_RUNNING_TASKS = 'function oRe(e,t){return v6(e,t).filter((o)=>o.status==="running")}';
 
+const STOCK_LEDGER_CHILD_LOOP =
+  'for(let l of Ol(t)){let u=l.childSessionId;if(o.has(u)||a.has(u))continue;' +
+  'if(hn(u)?.taskInvocationId!==l.taskInvocationId)continue;let d=e.getSubagentInvocationSummary(u);' +
+  'if(d&&!Ri(d.status))continue;';
+
 export const PATCHED_RUNNING_TASKS =
-  'function oRe(e,t){let $ODall=v6(e),$ODout=[],$ODseen=new Set([t]),' +
-  '$ODwalk=($ODp,$ODd)=>{for(let o of $ODall){if(o.parentSessionId!==$ODp||$ODseen.has(o.taskId))continue;' +
+  'function oRe(e,t){let $ODall=v6(e),$ODloaded=new Set,$ODout=[],$ODseen=new Set([t]);' +
+  'for(let $ODid of e.getAllSessionIds()){let $ODstore=e.getSessionManager($ODid)?.getStore();' +
+  'if($ODstore&&!$ODstore.getDecompSessionType())$ODloaded.add($ODid)}' +
+  'let $ODwalk=($ODp,$ODd)=>{for(let o of $ODall){if(o.parentSessionId!==$ODp||$ODseen.has(o.taskId))continue;' +
   '$ODseen.add(o.taskId);let $ODon=o.status==="running";if($ODon)$ODout.push({...o,nestDepth:$ODd});' +
-  '$ODwalk(o.taskId,$ODon?$ODd+1:$ODd)}};$ODwalk(t,0);return $ODout}';
+  '$ODwalk(o.taskId,$ODon?$ODd+1:$ODd)}' +
+  'for(let $ODledger of Ol($ODp)){let $ODid=$ODledger.childSessionId;' +
+  'if($ODloaded.has($ODid)||$ODseen.has($ODid))continue;' +
+  'if(hn($ODid)?.taskInvocationId!==$ODledger.taskInvocationId)continue;$ODseen.add($ODid);' +
+  'let $ODsummary=e.getSubagentInvocationSummary($ODid),$ODon=!$ODsummary||Ri($ODsummary.status);' +
+  'if($ODon)$ODout.push({taskId:$ODid,sessionId:$ODid,parentSessionId:$ODp,toolCallId:$ODledger.parentToolUseId,' +
+  'status:"running",subagentType:$ODledger.subagentType||$ODsummary?.subagentType||void 0,' +
+  'description:$ODledger.description||$ODsummary?.description||void 0,' +
+  'startTime:$ODledger.createdAt,nestDepth:$ODd});' +
+  '$ODwalk($ODid,$ODon?$ODd+1:$ODd)}};$ODwalk(t,0);return $ODout}';
 
 const STOCK_PANEL_ITEM =
   'label:oe.subagentType??"sub-agent",detail:oe.description??"",sessionId:oe.sessionId,';
@@ -228,6 +244,7 @@ export const nestedSubagentUiPatches: readonly Patch[] = [
   {
     name: 'nested-subagent-ui-panel-lists-descendants',
     find: STOCK_RUNNING_TASKS,
+    lookups: [STOCK_LEDGER_CHILD_LOOP],
     replace: PATCHED_RUNNING_TASKS,
   },
   {

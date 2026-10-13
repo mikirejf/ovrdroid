@@ -6,11 +6,12 @@ import {
   NESTS,
   nestedSubagentUiPatches,
   PATCHED_RUNNING_COUNT,
-  PATCHED_RUNNING_TASKS,
   TASK_BOX_MAX_ROWS,
   TASK_NAME,
 } from '../nested-subagent-ui-patches.ts';
 import { applies } from '../rebase.ts';
+import type { PanelTask } from './panel-list.ts';
+import { panelUnder } from './panel-list.ts';
 import { describeStrayNames, payloadFunction } from './payload.ts';
 import { shipped, stockDroid } from './stock-scanner.ts';
 
@@ -243,30 +244,6 @@ describe('the running-subagent counter counts every descendant once', () => {
     expect(runningUnder(world, 'coder')).toBe(1);
   });
 });
-
-interface PanelTask {
-  taskId: string;
-  parentSessionId: string;
-  status: string;
-}
-
-interface PanelRow {
-  taskId: string;
-  nestDepth: number;
-}
-
-function panelUnder(tasks: readonly PanelTask[], root: string): string[] {
-  const list = payloadFunction<
-    [(manager: null, parent?: string) => readonly PanelTask[]],
-    (manager: null, root: string) => PanelRow[]
-  >(
-    ['v6'],
-    `${PATCHED_RUNNING_TASKS};return oRe`,
-  )((_manager, parent) =>
-    parent === undefined ? tasks : tasks.filter((entry) => entry.parentSessionId === parent),
-  );
-  return list(null, root).map((row) => `${'  '.repeat(row.nestDepth)}${row.taskId}`);
-}
 
 function task(taskId: string, parentSessionId: string, status = 'running'): PanelTask {
   return { taskId, parentSessionId, status };
