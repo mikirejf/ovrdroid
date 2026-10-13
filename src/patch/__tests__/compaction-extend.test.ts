@@ -29,11 +29,12 @@ type Extension = Message[] | string;
 
 interface Published {
   snapshot: (sessionId: string) => Snapshot | undefined;
-  send: () => string;
+  send: (core: null, request: Partial<Snapshot>) => Promise<string>;
   extend: (snapshot: Snapshot, unseen: readonly Message[], text: string) => Extension;
 }
 
 const EXPORTS = patchNamed(compactionPatches, 'compaction-reuse-exports').replace;
+const SEND = patchNamed(compactionPatches, 'compaction-reuse-send').replace;
 const EXTENDER = patchNamed(compactionPatches, 'compaction-reuse-extender').replace;
 const INSTRUCTION = `You are the summarizer.\n\n${SUMMARIZE_LINE}`;
 const BREAKPOINT = { type: 'ephemeral' };
@@ -55,7 +56,7 @@ const LAST_REPLY = textMessage('last-reply', 'assistant');
 function publish(): Published {
   return payloadFunction<[], Published>(
     [],
-    `var zh=new Map,eN=240000;function Jte(){return"sender"}${EXPORTS}return globalThis.${REUSE_GLOBAL}`,
+    `var zh=new Map,eN=240000;${SEND}return"sender"}${EXPORTS}return globalThis.${REUSE_GLOBAL}`,
   )();
 }
 
@@ -92,10 +93,10 @@ afterEach(() => {
 });
 
 describe('compaction-reuse-exports', () => {
-  test('publishes the snapshot reader and the one-shot sender', () => {
+  test('publishes the snapshot reader and the one-shot sender', async () => {
     const published = publish();
     expect(published.snapshot('none')).toBeUndefined();
-    expect(published.send()).toBe('sender');
+    expect(await published.send(null, {})).toBe('sender');
   });
 
   test('extends the snapshot history with every message the snapshot missed', () => {

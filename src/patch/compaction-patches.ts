@@ -64,12 +64,16 @@ export const compactionPatches: readonly Patch[] = [
   {
     name: 'compaction-reuse-exports',
     find: 'function h4(t,o=eN){let i=zh.get(t);if(!i)return;if(Date.now()-i.capturedAt>o)return;return i}',
-    lookups: [
-      'async function Jte(t,{systemMessage:o,preparedHistory:i,instruction:c,...l}){let g=Date.now(),',
-    ],
     replace:
       'function h4(t,o=eN){let i=zh.get(t);if(!i)return;if(Date.now()-i.capturedAt>o)return;return i}' +
-      `globalThis.${REUSE_GLOBAL}={snapshot:h4,send:Jte,extend:${EXTEND}};`,
+      `Object.assign(globalThis.${REUSE_GLOBAL}??={},{snapshot:h4,extend:${EXTEND}});`,
+  },
+  {
+    name: 'compaction-reuse-send',
+    find: 'async function Jte(t,{systemMessage:o,preparedHistory:i,instruction:c,...l}){',
+    replace:
+      `(globalThis.${REUSE_GLOBAL}??={}).send=Jte;` +
+      'async function Jte(t,{systemMessage:o,preparedHistory:i,instruction:c,...l}){',
   },
   {
     name: 'compaction-reuse-extender',
