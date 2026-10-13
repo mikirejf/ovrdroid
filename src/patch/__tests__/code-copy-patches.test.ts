@@ -1,8 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
-import { CODE_COPY_GLOBAL, codeCopyPatches, UNWRAP_KEY, UNWRAPPED } from '../code-copy-patches.ts';
+import {
+  CODE_COPY_GLOBAL,
+  codeCopyPatches,
+  NO_BREAK_SPACE,
+  UNWRAP_KEY,
+  UNWRAPPED,
+} from '../code-copy-patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
+import { inlineCodeParagraph } from './code-copy-paragraph.ts';
 import { STOCK } from './ink-frame-harness.ts';
 import { describeStrayNames, patchNamed, payloadFunction, rebasedNamed } from './payload.ts';
 
@@ -233,6 +240,24 @@ function patchedText(): (props: Props, provided?: string) => TextRun {
     return { textWrap: node.props.style?.textWrap, hooks };
   };
 }
+
+const COMMAND = 'git push --no-verify -u origin devkit-run3';
+
+describe.skipIf(STOCK === undefined)('inline code in a paragraph', () => {
+  const { stock, patched } = inlineCodeParagraph(COMMAND, 45);
+
+  test('control: stock Droid breaks the command at a space', () => {
+    expect(stock.some((line) => line.includes(COMMAND))).toBe(false);
+  });
+
+  test('moves the whole command to the next line', () => {
+    expect(patched.map((line) => line.trimEnd())).toEqual(['You run', `${COMMAND}.`]);
+  });
+
+  test('prints plain spaces, so a copy pastes into a shell', () => {
+    expect(patched.join('\n')).not.toContain(NO_BREAK_SPACE);
+  });
+});
 
 describe.skipIf(STOCK === undefined)('the patched Text component', () => {
   test.each(codeCopyPatches.map((patch) => [patch.name] as const))(

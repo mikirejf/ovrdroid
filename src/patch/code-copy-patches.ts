@@ -22,7 +22,26 @@ const FLAT_BLOCK = `if(A.${UNWRAP_KEY})return l(c,{flexDirection:"column",width:
 const MESSAGE_MARKDOWN =
   'f.messageType==="markdown"?t(Da,{maxWidth:y,color:f.role==="assistant"?a.markdown.heading:f.role==="tool"?a.toolName:q,children:Q})';
 
+export const NO_BREAK_SPACE = '\u00A0';
+
+const NO_BREAK_SPACE_ESCAPE = String.raw`"\xa0"`;
+
 export const codeCopyPatches: readonly Patch[] = [
+  {
+    name: 'code-copy-inline-code-joined',
+    find: 'case"inlineCode":f.segment(rt(F.value,',
+    replace: `case"inlineCode":f.segment(rt(F.value.replaceAll(" ",${NO_BREAK_SPACE_ESCAPE}),`,
+  },
+  {
+    name: 'code-copy-no-break-space-joins-words',
+    find: 'function z(n){return/\\s/.test(n.text)}',
+    replace: `function z(n){return n.text!==${NO_BREAK_SPACE_ESCAPE}&&/\\s/.test(n.text)}`,
+  },
+  {
+    name: 'code-copy-no-break-space-printed-plain',
+    find: 'e+=l.text,r=l.style,i=l.url}',
+    replace: `e+=l.text.replaceAll(${NO_BREAK_SPACE_ESCAPE}," "),r=l.style,i=l.url}`,
+  },
   {
     name: 'code-copy-text-wrap-context',
     find: `function o({${TEXT_PROPS}wrap:p="wrap",${TEXT_TAIL}`,

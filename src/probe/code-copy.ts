@@ -3,26 +3,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { say } from '../cli.ts';
+import {
+  COPY_COMMAND,
+  copyReply,
+  INLINE_REPLY_COMMAND,
+  INLINE_RESIZE_COMMAND,
+} from './code-copy-reply.ts';
 import type { CodeCopyReading } from './code-copy-report.ts';
-import { describeCodeCopy, readCodeCopy } from './code-copy-report.ts';
+import { describeCodeCopy, describeInlineCode, readCodeCopy } from './code-copy-report.ts';
 import { dies, launchEnv, PAINT_MARKER, PAINT_TIMEOUT_MS, probeAnswerer, race } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
 import { ENTER, SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import { pieces, streamEvents, stubSettings } from './stub-model.ts';
-
-export const COPY_COMMAND =
-  'curl -fsSL "https://downloads.example.com/releases/v2.14.3/tool-darwin-arm64.tar.gz?channel=stable&mirror=eu-west" -o /tmp/tool.tgz && tar --wildcards -xzf /tmp/tool.tgz "*/bin/tool" -C ~/.local/bin';
-
-export const COPY_REPLY = [
-  'Run this to install it:',
-  '',
-  '```sh',
-  COPY_COMMAND,
-  'tool --version',
-  '```',
-  '',
-  'That puts the binary on your PATH.',
-].join('\n');
 
 const PROMPT = 'Show me the install command.';
 export const COPY_CHUNK_CHARS = 40;
@@ -121,7 +113,11 @@ export async function captureCodeCopy(
   binary: string,
   options: CodeCopyOptions,
 ): Promise<CodeCopyCapture> {
-  const server = serveReply(COPY_REPLY, options.chunk, options.gapMs);
+  const server = serveReply(
+    copyReply(options.cols, options.resizeTo),
+    options.chunk,
+    options.gapMs,
+  );
   const dir = mkdtempSync(path.join(tmpdir(), 'ovrdroid-code-copy-'));
   const settings = path.join(dir, 'settings.json');
   writeFileSync(settings, JSON.stringify(stubSettings(server.url)));
@@ -180,12 +176,16 @@ export async function captureCodeCopy(
 export interface CodeCopyResult {
   reply: CodeCopyReading;
   resize: CodeCopyReading;
+  inlineReply: CodeCopyReading;
+  inlineResize: CodeCopyReading;
 }
 
 export function readCapture(capture: CodeCopyCapture): CodeCopyResult {
   return {
     reply: readCodeCopy(capture.reply, COPY_COMMAND),
     resize: readCodeCopy(capture.resize, COPY_COMMAND),
+    inlineReply: readCodeCopy(capture.reply, INLINE_REPLY_COMMAND),
+    inlineResize: readCodeCopy(capture.resize, INLINE_RESIZE_COMMAND),
   };
 }
 
@@ -195,7 +195,7 @@ export interface CodeCopyCommandOptions extends CodeCopyOptions {
 
 export async function codeCopy(binary: string, options: CodeCopyCommandOptions): Promise<void> {
   say(
-    `a stub model replies with a ${COPY_COMMAND.length}-char shell command in a terminal ${options.cols} columns wide, then the terminal resizes to ${options.resizeTo}`,
+    `a stub model replies with a ${COPY_COMMAND.length}-char shell command in a code block, and with two shorter commands written as inline code in a sentence, placed so each one crosses the end of a line, in a terminal ${options.cols} columns wide, then the terminal resizes to ${options.resizeTo}`,
   );
   const capture = await captureCodeCopy(binary, options);
   if (options.dump !== undefined) {
@@ -206,7 +206,16 @@ export async function codeCopy(binary: string, options: CodeCopyCommandOptions):
   const result = readCapture(capture);
   say(describeCodeCopy(result.reply, COPY_COMMAND, 'after the reply'));
   say(describeCodeCopy(result.resize, COPY_COMMAND, `after the resize to ${options.resizeTo}`));
-  if (!result.reply.lastIntact || !result.resize.lastIntact) {
+  say(describeInlineCode(result.inlineReply, INLINE_REPLY_COMMAND, 'after the reply'));
+  say(
+    describeInlineCode(
+      result.inlineResize,
+      INLINE_RESIZE_COMMAND,
+      `after the resize to ${options.resizeTo}`,
+    ),
+  );
+  const readings = [result.reply, result.resize, result.inlineReply, result.inlineResize];
+  if (!readings.every((reading) => reading.lastIntact)) {
     process.exitCode = 1;
   }
 }

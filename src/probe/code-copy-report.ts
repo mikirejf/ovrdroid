@@ -19,7 +19,7 @@ export function withoutStyles(raw: string): string {
 }
 
 function shown(text: string): string {
-  return JSON.stringify(text.slice(0, GAP_SHOWN)).slice(1, -1);
+  return JSON.stringify(text.slice(0, GAP_SHOWN)).slice(1, -1).replaceAll('\u00A0', '\\u00a0');
 }
 
 function intactCopies(text: string, command: string): number {
@@ -65,4 +65,18 @@ export function describeCodeCopy(reading: CodeCopyReading, command: string, when
     return `${when}: the last copy of the ${command.length}-char command is one unbroken run of bytes, so the terminal wraps it and a copy joins the rows (${reading.intactCopies} unbroken copies in all)`;
   }
   return `${when}: the last copy breaks after ${reading.brokenAfter} of ${command.length} chars, where Droid wrote "${reading.gap}", so a copy carries that break into the shell`;
+}
+
+export function describeInlineCode(
+  reading: CodeCopyReading,
+  command: string,
+  when: string,
+): string {
+  if (!reading.printed) {
+    return `${when}: Droid never printed the inline command`;
+  }
+  if (reading.lastIntact) {
+    return `${when}: the ${command.length}-char inline command sits on one line with plain spaces, so a copy pastes into a shell whole`;
+  }
+  return `${when}: the inline command breaks after ${reading.brokenAfter} of ${command.length} chars, where Droid wrote "${reading.gap}" instead of a plain space, so a copy carries that into the shell`;
 }
