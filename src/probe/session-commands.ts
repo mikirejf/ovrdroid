@@ -5,6 +5,7 @@ import { DEFAULT_SESSIONS, DEFAULT_SINCE_DAYS, external } from './external-repor
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
+  DEFAULT_REWIND_TIMEOUT_S,
   DEFAULT_SETTLE_S,
   envPair,
   FIRST_SEND_PROMPT,
@@ -12,6 +13,7 @@ import {
   highlight,
   mcpChildren,
   notice,
+  rewind,
 } from './session-report.ts';
 import { sessions, waitMs } from './sessions-report.ts';
 import { DEFAULT_OPENS, DEFAULT_RUNS, DEFAULT_WAIT_MS } from './sessions.ts';
@@ -82,6 +84,25 @@ export function registerSessionCommands(program: Command): void {
     .option('--cwd <dir>', 'directory to start Droid in', process.cwd())
     .option('--type <droid>', 'subagent type to launch', DEFAULT_NOTICE_TYPE)
     .action(guard(notice));
+
+  program
+    .command('rewind')
+    .description(
+      'rewind past a turn while background agents run: does a running agent whose call the rewind kept move to the new chat, and does one whose call it cut stay with the old chat?',
+    )
+    .argument('<binary>')
+    .option(
+      '--cwd <dir>',
+      'directory to start Droid in; Droid must already trust it',
+      process.cwd(),
+    )
+    .option(
+      '--timeout <seconds>',
+      'how long to wait for the held agents to finish and report',
+      count,
+      DEFAULT_REWIND_TIMEOUT_S,
+    )
+    .action(guard(rewind));
 
   program
     .command('clear')

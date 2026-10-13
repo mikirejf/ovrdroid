@@ -26,6 +26,8 @@ export const FACTORY_LOGS = path.join(FACTORY, 'logs');
 
 export const FACTORY_SESSIONS = path.join(FACTORY, 'sessions');
 
+export const FACTORY_TASK_INVOCATIONS = path.join(FACTORY, 'state', 'task-invocations.json');
+
 export const OVRDROID_LOGS = path.join(OVRDROID, 'logs');
 
 export function ovrdroidFile(name: string): string {

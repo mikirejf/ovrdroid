@@ -93,7 +93,7 @@ export function pieces(text: string, size: number): string[] {
   return result;
 }
 
-type Json = string | number | null | readonly Json[] | { readonly [key: string]: Json };
+type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json };
 
 interface StreamEvent {
   readonly type: string;
@@ -151,11 +151,12 @@ export function streamEvents(deltas: readonly string[]): string[] {
 export interface ToolCall {
   name: string;
   input: Record<string, Json>;
+  id?: string;
 }
 
 export function toolEvents(call: ToolCall): string[] {
   return [
-    opening({ type: 'tool_use', id: 'toolu_stub', name: call.name, input: {} }),
+    opening({ type: 'tool_use', id: call.id ?? 'toolu_stub', name: call.name, input: {} }),
     event({
       type: 'content_block_delta',
       index: 0,

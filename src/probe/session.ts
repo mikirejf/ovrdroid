@@ -12,6 +12,7 @@ import {
   TERMINAL_SIZE,
 } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
+import { TerminalScreen } from './terminal-screen.ts';
 
 const FRAME_END = '\u001B[?2026l';
 const PASTE_START = '\u001B[200~';
@@ -44,6 +45,7 @@ export interface SessionOptions {
   collect?: boolean;
   cwd?: string;
   args?: readonly string[];
+  screen?: boolean;
 }
 
 export const SETTLE_MS = 3000;
@@ -58,6 +60,7 @@ export interface Session {
   mark: () => undefined;
   resize: (cols: number, rows: number) => undefined;
   frames: () => readonly Frame[];
+  screen: () => string[];
   bytes: () => number;
   close: () => Promise<void>;
 }
@@ -90,6 +93,10 @@ export async function openSession(binary: string, options: SessionOptions = {}):
   let lastOutputAt = performance.now();
   let collected: Frame[] = [];
   let written = 0;
+  const screen =
+    options.screen === true
+      ? new TerminalScreen(TERMINAL_SIZE.cols, TERMINAL_SIZE.rows)
+      : undefined;
 
   const terminal = new Bun.Terminal({
     ...TERMINAL_SIZE,
@@ -101,6 +108,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
       }
       written += chunk.byteLength;
       lastOutputAt = performance.now();
+      screen?.feed(text);
       if (options.collect === false) {
         return;
       }
@@ -179,9 +187,11 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     },
     resize(cols: number, rows: number): undefined {
       terminal.resize(cols, rows);
+      screen?.resize(cols, rows);
       process.kill(child.pid, 'SIGWINCH');
     },
     frames: () => collected,
+    screen: () => screen?.lines() ?? [],
     bytes: () => written,
     pid: child.pid,
     startedAt,

@@ -115,6 +115,34 @@ nested row sits 2 spaces under its running parent, and Enter opens its details a
 direct child. A running child under a finished parent moves up a level. The panel ignores `Task`
 tool executions, as stock does, because each Task already appears as its child session.
 
+## Shipped: running agents follow a rewind
+
+Measured on 0.240.0 with `probe rewind`, which holds two background agents in a stub model while it
+rewinds past the second one's turn.
+
+A rewind forks the chat into a new session. Stock left every running background agent with the old
+session. The new chat's footer showed no running agent, `TaskOutput` said `No task found`, and the
+completion notice and token count went to the old session, which nobody had open any more. Droid
+runs the TUI, its sessions and their subagents in one process, so no part of it held a stale id: the
+task store (`~/.factory/state/task-invocations.json`) still named the old session as the parent.
+
+`rewind-patches.ts` hands the agents over in `handleExecuteRewind`, the one place every rewind runs:
+
+1. It moves the store records whose agent still runs in the background and whose Task call the new
+   transcript kept. A call the rewind cut away stays with the old session.
+2. It tracks the child again under the new session, so the completion notice goes there.
+3. It points the child's `subagent` tag at the new session through `updateSessionSettings`. The
+   child's `session_start` line keeps the old id. Droid reads the parent from the store first, and
+   the store keeps a record for 48 hours after the task ends.
+
+The TUI drops the child's session state when it switches to the new chat. So `TaskOutput` now loads
+a running background child of its own session when it finds no state for it. Stock had the same gap
+after any resume while a child ran.
+
+Patched, the probe saw: footer `1 background agent running`, `TaskOutput` answered
+`Status: running`, the notice and the token count landed in the new chat, and the cut agent stayed
+with the old chat. Stock failed the first three.
+
 ## Null: the memory left after subagents
 
 After 6 subagents ended, the parent's footprint stayed ~80 to 170MB higher. A heap snapshot (which
@@ -134,6 +162,8 @@ All live in `src/probe/`:
   cost. `probe subagents-read <dir>` turns the output into the tables above.
 - `probe heapdiff <a> <b>` compares two heap snapshots.
 - `probe census` lists every process by footprint and finds orphans.
+- `probe rewind <binary>` rewinds while background agents run and says which chat each one belongs
+  to afterwards. It needs a folder Droid already trusts (`--cwd`, default the current one).
 
 ## What fills the machine
 

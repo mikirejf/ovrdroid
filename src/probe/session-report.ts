@@ -9,9 +9,13 @@ import type { LaunchEnv } from './launch.ts';
 import { countMcpChildren, describeMcpChildren } from './mcp-children.ts';
 import type { NoticeOptions } from './notice.ts';
 import { describeNotice, noticeLostReport, runNotice } from './notice.ts';
+import { describeRewind, readRewind, rewindVerdicts } from './rewind-report.ts';
+import type { RewindOptions } from './rewind.ts';
+import { runRewind } from './rewind.ts';
 
 export { FIRST_SEND_PROMPT } from './first-send.ts';
 export { DEFAULT_NOTICE_TYPE } from './notice.ts';
+export { DEFAULT_REWIND_TIMEOUT_S } from './rewind.ts';
 export { shield } from './shield-report.ts';
 export { DEFAULT_SETTLE_S, envPair } from './mcp-children.ts';
 
@@ -35,6 +39,14 @@ export async function notice(binary: string, options: NoticeOptions): Promise<vo
   const reading = await runNotice(binary, options);
   say(describeNotice(reading));
   if (noticeLostReport(reading)) {
+    process.exitCode = 1;
+  }
+}
+
+export async function rewind(binary: string, options: RewindOptions): Promise<void> {
+  const verdicts = rewindVerdicts(readRewind(await runRewind(binary, options)));
+  say(describeRewind(verdicts));
+  if (verdicts.some((verdict) => !verdict.pass)) {
     process.exitCode = 1;
   }
 }
