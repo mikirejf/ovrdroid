@@ -156,6 +156,21 @@ The extra walk costs about 0.7 points of React render time (stream, 2.6% → 3.3
 scenario, 4 of 36 snapshot changes came with no message event, and all 4 held the same messages.
 Real use with tools and todos is the open question; read it with `probe renders-log`.
 
+Copying commands (`code-copy-*` in `src/patch/code-copy-patches.ts`, checked by `probe code-copy`).
+A terminal copy carries every newline Droid wrote, so a command split by word wrap pastes broken.
+Code block lines and inline code now print as one unbroken run; the terminal soft-wraps a run wider
+than the screen, and a copy joins those rows. Inline code spaces become U+00A0 so Droid's own
+markdown wrapper keeps the span whole, and they print back as plain spaces. A word wider than the
+line goes on its own line unbroken (transcript paragraphs only; table cells keep hard breaks). Text
+with no spaces, such as CJK, now counts as one word and moves whole to its own line.
+
+The redraw stays clean (0.239.0): finished text goes to Ink's static output, written once at full
+width and never erased. The live area clips each line at the terminal width, so a streaming long
+command shows cut at the edge (20 live frames at 80 columns) and appears whole once its block
+commits. The row count in the erase step always matches, and the screen equals a full repaint.
+
+The system prompt also asks the model to put commands in fenced code blocks.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)

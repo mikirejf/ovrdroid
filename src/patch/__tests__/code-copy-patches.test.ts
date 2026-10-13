@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
+import { patchSource } from '../../binary/apply.ts';
+import { joinApp } from '../../binary/graph.ts';
 import {
   CODE_COPY_GLOBAL,
   codeCopyPatches,
+  COPY_PROMPT_LINE,
   NO_BREAK_SPACE,
   UNWRAP_KEY,
   UNWRAPPED,
@@ -10,7 +13,7 @@ import {
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { inlineCodeParagraph } from './code-copy-paragraph.ts';
-import { STOCK } from './ink-frame-harness.ts';
+import { sourceApp, STOCK } from './ink-frame-harness.ts';
 import { describeStrayNames, patchNamed, payloadFunction, rebasedNamed } from './payload.ts';
 
 describeStrayNames(codeCopyPatches);
@@ -247,15 +250,96 @@ describe.skipIf(STOCK === undefined)('inline code in a paragraph', () => {
   const { stock, patched } = inlineCodeParagraph(COMMAND, 45);
 
   test('control: stock Droid breaks the command at a space', () => {
-    expect(stock.some((line) => line.includes(COMMAND))).toBe(false);
+    expect(stock.lines.some((line) => line.includes(COMMAND))).toBe(false);
   });
 
   test('moves the whole command to the next line', () => {
-    expect(patched.map((line) => line.trimEnd())).toEqual(['You run', `${COMMAND}.`]);
+    expect(patched.lines.map((line) => line.trimEnd())).toEqual(['You run', `${COMMAND}.`]);
   });
 
   test('prints plain spaces, so a copy pastes into a shell', () => {
-    expect(patched.join('\n')).not.toContain(NO_BREAK_SPACE);
+    expect(patched.lines.join('\n')).not.toContain(NO_BREAK_SPACE);
+  });
+
+  test('tells the Text to leave the lines alone', () => {
+    expect(patched.wrap).toBe(UNWRAPPED);
+  });
+});
+
+const LONG_COMMAND =
+  'docker run --rm -it -v "$PWD":/work -w /work -e TOKEN=abc123 node:22 bash -lc "npm ci && npm test" --network host';
+
+describe.skipIf(STOCK === undefined)('inline code wider than the whole line', () => {
+  const width = 40;
+  const { stock, patched } = inlineCodeParagraph(LONG_COMMAND, width, { tail: ' when done.' });
+
+  test('control: stock Droid breaks the command into rows', () => {
+    expect(LONG_COMMAND.length).toBeGreaterThan(width * 2);
+    expect(stock.lines.some((line) => line.includes(LONG_COMMAND))).toBe(false);
+    expect(stock.lines.every((line) => Bun.stringWidth(line) <= width)).toBe(true);
+  });
+
+  test('prints the whole command on one line with plain spaces', () => {
+    expect(patched.lines.map((line) => line.trimEnd())).toEqual([
+      'You run',
+      LONG_COMMAND,
+      'when done.',
+    ]);
+  });
+
+  test('tells the Text to leave the long line alone, so Ink does not break it again', () => {
+    expect(patched.wrap).toBe(UNWRAPPED);
+  });
+
+  test('moves the command off a line that already holds words', () => {
+    const [first] = inlineCodeParagraph(LONG_COMMAND, width, { tail: '' }).patched.lines;
+    expect(first?.trimEnd()).toBe('You run');
+  });
+
+  test('keeps the stock wrapping outside the transcript', () => {
+    const outside = inlineCodeParagraph(LONG_COMMAND, width, { unwrapCode: false });
+    expect(outside.patched.wrap).toBeUndefined();
+    expect(outside.patched.lines.every((line) => Bun.stringWidth(line) <= width)).toBe(true);
+  });
+});
+
+function communications(source: string): string[] {
+  return [...source.matchAll(/`# Communication\n[^`]*`(?:\+"[^"]*"\+`[^`]*`)?/gu)].map(
+    ([template]) => payloadFunction<[], string>([], `return ${template}`)(),
+  );
+}
+
+describe.skipIf(STOCK === undefined)('the system prompt', () => {
+  const patched = joinApp(
+    patchSource(sourceApp(), [
+      patchNamed(codeCopyPatches, 'code-copy-prompt-short'),
+      patchNamed(codeCopyPatches, 'code-copy-prompt-long'),
+    ]),
+  );
+  const stockPrompt = joinApp(sourceApp());
+  const requested = 'No emojis unless requested.\n';
+
+  test('both Communication variants say the line right after the formatting rule', () => {
+    const prompts = communications(patched);
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(`${requested}${COPY_PROMPT_LINE}\n- Use a comma`);
+    }
+  });
+
+  test('control: stock Droid has both variants and neither carries the line', () => {
+    const prompts = communications(stockPrompt);
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(requested);
+      expect(prompt).not.toContain(COPY_PROMPT_LINE);
+    }
+  });
+
+  test('the line is the exact text the model reads', () => {
+    expect(COPY_PROMPT_LINE).toBe(
+      '- Put any command the user may copy and run in a fenced code block, not as inline code in a sentence, so a terminal copy pastes it whole.',
+    );
   });
 });
 

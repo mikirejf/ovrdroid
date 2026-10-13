@@ -15,12 +15,19 @@ interface MarkdownNode {
   value: string;
 }
 
+interface RenderConfig {
+  maxWidth: number;
+  colors: Record<string, string>;
+  unwrapCode: boolean;
+}
+
 interface RenderContext {
-  config: { maxWidth: number; colors: Record<string, string> };
+  config: RenderConfig;
 }
 
 interface TextProps {
   children: string;
+  wrap?: string;
 }
 
 interface TextElement {
@@ -34,9 +41,14 @@ interface LineBuilder {
   rt: Stand;
 }
 
+export interface Paragraph {
+  lines: string[];
+  wrap: string | undefined;
+}
+
 export interface Paragraphs {
-  stock: string[];
-  patched: string[];
+  stock: Paragraph;
+  patched: Paragraph;
 }
 
 function uncolored(): StringConstructor {
@@ -74,19 +86,29 @@ function rendererIn(app: App): Renderer {
   }).tS;
 }
 
-function paragraphLines(app: App, markdown: MarkdownNode[], width: number): string[] {
-  const context = { config: { maxWidth: width, colors: MARKDOWN_COLORS } };
-  return rendererIn(app)(markdown, context, 'paragraph').props.children.split('\n');
+function paragraphIn(app: App, markdown: MarkdownNode[], config: RenderConfig): Paragraph {
+  const { children, wrap } = rendererIn(app)(markdown, { config }, 'paragraph').props;
+  return { lines: children.split('\n'), wrap };
 }
 
-export function inlineCodeParagraph(command: string, width: number): Paragraphs {
+export interface ParagraphOptions {
+  unwrapCode?: boolean;
+  tail?: string;
+}
+
+export function inlineCodeParagraph(
+  command: string,
+  width: number,
+  { unwrapCode = true, tail = '.' }: ParagraphOptions = {},
+): Paragraphs {
   const markdown: MarkdownNode[] = [
     { type: 'text', value: 'You run ' },
     { type: 'inlineCode', value: command },
-    { type: 'text', value: '.' },
+    { type: 'text', value: tail },
   ];
+  const config = { maxWidth: width, colors: MARKDOWN_COLORS, unwrapCode };
   return {
-    stock: paragraphLines(sourceApp(), markdown, width),
-    patched: paragraphLines(patchSource(sourceApp(), codeCopyPatches), markdown, width),
+    stock: paragraphIn(sourceApp(), markdown, config),
+    patched: paragraphIn(patchSource(sourceApp(), codeCopyPatches), markdown, config),
   };
 }

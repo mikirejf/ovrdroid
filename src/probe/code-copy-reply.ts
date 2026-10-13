@@ -5,6 +5,12 @@ export const INLINE_REPLY_COMMAND = 'git push --no-verify -u origin devkit-run3'
 
 export const INLINE_RESIZE_COMMAND = 'docker run --rm -it -v "$PWD":/work -w /work node:22 bash';
 
+export const INLINE_LONG_COMMAND =
+  'make -C /srv/payments release && kubectl -n payments rollout restart deployment/checkout-api && kubectl -n payments get pods';
+
+const LONG_TAIL =
+  ' to roll it out. The restart takes a few minutes, so keep the status open while the new pods start, warm their caches and pass their health checks, and only then tell the team that the release is live for everyone.';
+
 const LEAD_WORDS = ['then', 'run', 'this', 'command', 'here', 'and', 'check', 'the', 'result'];
 
 const OVERSHOOT = 10;
@@ -22,6 +28,10 @@ export function inlineParagraph(command: string, width: number): string {
   return `${lead}\`${command}\` when done.`;
 }
 
+export function longInlineParagraph(command: string): string {
+  return `Last, run \`${command}\`${LONG_TAIL}`;
+}
+
 export function copyReply(cols: number, resizeTo: number): string {
   return [
     'Run this to install it:',
@@ -36,5 +46,7 @@ export function copyReply(cols: number, resizeTo: number): string {
     inlineParagraph(INLINE_REPLY_COMMAND, cols),
     '',
     inlineParagraph(INLINE_RESIZE_COMMAND, resizeTo),
+    '',
+    longInlineParagraph(INLINE_LONG_COMMAND),
   ].join('\n');
 }

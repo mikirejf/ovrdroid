@@ -26,7 +26,68 @@ export const NO_BREAK_SPACE = '\u00A0';
 
 const NO_BREAK_SPACE_ESCAPE = String.raw`"\xa0"`;
 
+export const COPY_PROMPT_LINE =
+  '- Put any command the user may copy and run in a fenced code block, not as inline code in a sentence, so a terminal copy pastes it whole.';
+
+const PROMPT_EXPRESSION = `\n\`+${JSON.stringify(COPY_PROMPT_LINE)}+\``;
+
+const COMMUNICATION_HEAD =
+  '- Before a long-running step, post one brief progress note. Do not interrupt short work or recap after every tool call.\n- Name what a tool accomplished, not the tool. Include identifiers only when the user is working with them.\n- Format only when structure carries meaning. No emojis unless requested.';
+
+const SHORT_COMMUNICATION =
+  '# Communication\n- In final responses, lead with the outcome, then include only what the user needs to understand or verify it.\n';
+
+const LONG_COMMUNICATION = '- Use short sentences. Keep each paragraph focused on one topic.\n';
+
+const WRAP_LINES_HEAD =
+  'function H(n,t){let e=Math.max(1,Math.floor(t)),r=[],i=[],o=0,l=()=>{r.push(i),i=[],o=0};for(let a of G(n)){let c=a.length>0&&!z(a[0]),u=h(a),s=a,m=u;while(s.length>0){let f=e-o;if(f<=0){l();continue}if(m<=f){i.push(...s),o+=m,s=[],m=0;continue}if(c&&u<=e&&o>0){l();continue}';
+
+const WRAP_LINES_WHOLE = WRAP_LINES_HEAD.replace('function H(n,t){', 'function H(n,t,$ODwhole){')
+  .replace(
+    'if(f<=0){l();continue}',
+    'if(f<0&&$ODwhole&&!c){s=[],m=0;continue}if(f<=0){l();continue}',
+  )
+  .replace('if(m<=f){', 'if(m<=f||$ODwhole&&c&&!o){')
+  .replace('if(c&&u<=e&&o>0)', 'if(c&&(u<=e||$ODwhole)&&o>0)');
+
+const WRAP_ENTRY =
+  'function VH(n,t){let e=Math.max(1,Math.floor(t)),r=k(n);if(h(r)<=e)return[B(r)];return H(k(n,void 0,!0),e).map(B)}';
+
+const PARAGRAPH_TEXT =
+  'function Ik(f,v,k){let A=v.config.maxWidth??rse,P=f.flatMap((O)=>VH(O,A));return t(o,{italic:v.config.italic,children:P.join(`\n`)||" "},k)}';
+
 export const codeCopyPatches: readonly Patch[] = [
+  {
+    name: 'code-copy-prompt-short',
+    find: `${SHORT_COMMUNICATION}${COMMUNICATION_HEAD}`,
+    replace: `${SHORT_COMMUNICATION}${COMMUNICATION_HEAD}${PROMPT_EXPRESSION}`,
+  },
+  {
+    name: 'code-copy-prompt-long',
+    find: `${LONG_COMMUNICATION}${COMMUNICATION_HEAD}`,
+    replace: `${LONG_COMMUNICATION}${COMMUNICATION_HEAD}${PROMPT_EXPRESSION}`,
+  },
+  {
+    name: 'code-copy-long-word-whole',
+    find: WRAP_LINES_HEAD,
+    replace: WRAP_LINES_WHOLE,
+  },
+  {
+    name: 'code-copy-long-word-entry',
+    find: WRAP_ENTRY,
+    replace: WRAP_ENTRY.replace('function VH(n,t){', 'function VH(n,t,$ODwhole){').replace(
+      'H(k(n,void 0,!0),e)',
+      'H(k(n,void 0,!0),e,$ODwhole)',
+    ),
+  },
+  {
+    name: 'code-copy-paragraph-text-unwrapped',
+    find: PARAGRAPH_TEXT,
+    replace: PARAGRAPH_TEXT.replace('VH(O,A)', `VH(O,A,v.config.${UNWRAP_KEY})`).replace(
+      'italic:v.config.italic,',
+      `italic:v.config.italic,wrap:v.config.${UNWRAP_KEY}?"${UNWRAPPED}":void 0,`,
+    ),
+  },
   {
     name: 'code-copy-inline-code-joined',
     find: 'case"inlineCode":f.segment(rt(F.value,',
