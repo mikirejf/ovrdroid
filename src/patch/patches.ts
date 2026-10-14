@@ -79,17 +79,6 @@ export const patches: readonly Patch[] = [
     replace: 'var x=3000,H=2000,M=1e4,R=10,A=250',
   },
   {
-    name: 'session-index-atomic-save',
-    find: 'ss.writeFileSync(this.cachePath,JSON.stringify(this.state,null,2)),tT(this.cachePath)',
-    replace:
-      'let $ODtmp=this.cachePath+"."+process.pid+".tmp";try{ss.writeFileSync($ODtmp,JSON.stringify(this.state,null,2)),tT($ODtmp),ss.renameSync($ODtmp,this.cachePath)}finally{ss.rmSync($ODtmp,{force:!0})}',
-  },
-  {
-    name: 'session-index-heal-unreadable',
-    find: 'this.state=om(this.sessionsDir),this.loadFailed=!0}',
-    replace: 'this.state=om(this.sessionsDir)}',
-  },
-  {
     name: 'zod-v3-lazy-bound-methods',
     find: `constructor(t){this.spa=this.safeParseAsync,this._def=t,${CONSTRUCTOR_BINDS.map(
       (name) => `this.${name}=this.${name}.bind(this),`,

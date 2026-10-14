@@ -97,7 +97,7 @@ export const subagentLaunchPatches: readonly Patch[] = [
   {
     name: 'skill-name-is-its-slug',
     find: SKILL_NAME_FIELD,
-    lookups: ['!Lt(t.name))a.push("Skill name must contain at least one letter or number")'],
+    lookups: ['let r=Lt(s.metadata.name);if(r&&f.has(r))continue;'],
     replace:
       'g={name:typeof c.name==="string"?Lt(c.name):c.name,description:c.description,license:c.license,',
   },

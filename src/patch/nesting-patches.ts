@@ -49,7 +49,7 @@ const PATCHED_DAEMON_SLOT =
   `return this.droidRegistry.reserveTaskSubagentSlot($ODnestCap($ODs?.maxActiveTaskSubagentsPerDaemon,${DEFAULT_SUBAGENTS_PER_DAEMON}))}`;
 
 const STOCK_LEDGER_ADMISSION =
-  'completionEvidenceVersion:1};if(U(M.NestedTaskDelegation))G=await _Re(K,o6());else G=await Qz(K)}';
+  'completionEvidenceVersion:x?iJ:1};if(U(M.NestedTaskDelegation))G=await _Re(K,o6());else G=await Qz(K)}';
 
 const TASK_CONFIG_TAIL =
   'structuredOutputFormat:t.outputFormat}}static async listAvailableSubagents(){';
@@ -86,7 +86,8 @@ export const nestingPatches: readonly Patch[] = [
     lookups: [
       'E=t,T=lp({parentSessionId:g,parentToolUseId:f}),v=pp(o,a),R=t.isResume?hn(t.sessionId):void 0',
     ],
-    replace: 'completionEvidenceVersion:1,maxDepth:E.maxDepth??R?.maxDepth};G=await _Re(K,o6())}',
+    replace:
+      'completionEvidenceVersion:x?iJ:1,maxDepth:E.maxDepth??R?.maxDepth};G=await _Re(K,o6())}',
   },
   {
     name: 'nesting-daemon-cap-from-settings',

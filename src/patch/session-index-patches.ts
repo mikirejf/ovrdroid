@@ -17,11 +17,6 @@ const CAPPED_ROWS =
 
 export const sessionIndexPatches: readonly Patch[] = [
   {
-    name: 'session-index-only',
-    find: 'function w0(){return Q(K.SessionIndexOnly)}',
-    replace: 'function w0(){return!0}',
-  },
-  {
     name: 'session-list-cache',
     find: `listSessions(p){try{return ${QUERY_ROWS}}${AFTER_LIST}`,
     replace:
@@ -33,20 +28,20 @@ export const sessionIndexPatches: readonly Patch[] = [
   },
   {
     name: 'session-list-cap-request',
-    find: 'maxOtherSessions:E4,includeArchived:!0},i=await this.getCachedNonEmptySessions(o);',
-    replace: `maxOtherSessions:E4,includeArchived:!0},i=await this.getCachedNonEmptySessions({...o,$ODcap:E4*${PICKER_ROW_FACTOR}});`,
+    find: 'async getSessionsForSelector(t){return await this.getAllNonEmptySessions({currentCwd:t,fetchOutsideCWD:!0,maxOtherSessions:eK,includeArchived:!0})}',
+    replace: `async getSessionsForSelector(t){return await this.getAllNonEmptySessions({currentCwd:t,fetchOutsideCWD:!0,maxOtherSessions:eK,includeArchived:!0,$ODcap:eK*${PICKER_ROW_FACTOR}})}`,
   },
   {
     name: 'session-list-cap-options',
-    find: 'async getCachedSessions(t){let{currentCwd:o,fetchOutsideCWD:i=!1,maxOtherSessions:c,includeArchived:l=!1}=t||{},g={currentCwd:o,fetchOutsideCWD:i,includeArchived:l}',
+    find: 'async getAllSessions(t){let{currentCwd:o,fetchOutsideCWD:a=!1,maxOtherSessions:c,includeArchived:l=!1}=t||{},p={currentCwd:o,fetchOutsideCWD:a,includeArchived:l}',
     replace:
-      'async getCachedSessions(t){let{currentCwd:o,fetchOutsideCWD:i=!1,maxOtherSessions:c,includeArchived:l=!1}=t||{},g={currentCwd:o,fetchOutsideCWD:i,includeArchived:l,$ODcap:t?.$ODcap?{limit:t.$ODcap,cwd:o}:void 0}',
+      'async getAllSessions(t){let{currentCwd:o,fetchOutsideCWD:a=!1,maxOtherSessions:c,includeArchived:l=!1}=t||{},p={currentCwd:o,fetchOutsideCWD:a,includeArchived:l,$ODcap:t?.$ODcap?{limit:t.$ODcap,cwd:o}:void 0}',
   },
   {
     name: 'session-list-cap-listing',
-    find: 'async function iE(t,i){let r=performance.now(),o=await As(_t(t),r);if(o===void 0)return;let u=qp(t.sessionsDir),f=new Set(',
+    find: 'async function hj(t,o){let a=performance.now(),c=await Xs(_a(t),a),u=ZI(t.sessionsDir),l=new Set(',
     replace:
-      'async function iE(t,i){let r=performance.now(),o=await As(_t(t,i.$ODcap),r);if(o===void 0)return;let u=qp(t.sessionsDir),f=new Set(',
+      'async function hj(t,o){let a=performance.now(),c=await Xs(_a(t,o.$ODcap),a),u=ZI(t.sessionsDir),l=new Set(',
   },
   {
     name: 'session-list-cap-store',

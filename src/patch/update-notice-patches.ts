@@ -20,7 +20,7 @@ const UPDATE_FILE_WRITER =
 const UPDATE_FILE_READER =
   `function ${UPDATE_FILE_READER_NAME}(){` +
   `try{let $ODver=JSON.parse(require("fs").readFileSync(${UPDATE_FILE_PATH},"utf8")).version;` +
-  'return typeof $ODver==="string"&&$ODver!==Hs()?$ODver:null}catch{return null}}';
+  'return typeof $ODver==="string"&&$ODver!==e0()?$ODver:null}catch{return null}}';
 
 const UPDATE_HEADER_LINE =
   `if(${UPDATE_LOCAL}){` +
@@ -45,9 +45,9 @@ export const updateNoticePatches: readonly Patch[] = [
   },
   {
     name: 'update-notice-reader',
-    find: 'function $D({width:t,height:e,r}){',
-    lookups: ['E=Hs(),C=!'],
-    replace: `${UPDATE_FILE_READER}function $D({width:t,height:e,r}){`,
+    find: 'function u5({width:e,height:t,t:n}){',
+    lookups: ['v=e0(),A=!'],
+    replace: `${UPDATE_FILE_READER}function u5({width:e,height:t,t:n}){`,
   },
   {
     name: 'update-notice-header-room',

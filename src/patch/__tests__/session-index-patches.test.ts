@@ -3,11 +3,6 @@ import { describe, expect, test } from 'bun:test';
 import { PICKER_ROW_FACTOR, sessionIndexPatches } from '../session-index-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
-test('the SQLite-only session index is always on', () => {
-  const { replace } = patchNamed(sessionIndexPatches, 'session-index-only');
-  expect(payloadFunction<[], () => boolean>([], `${replace};return w0`)()()).toBe(true);
-});
-
 interface Cap {
   limit: number;
   cwd?: string;
@@ -154,18 +149,18 @@ describe('a capped listing reads only the newest rows and the current project', 
 describe('the picker passes its row cap down to the store', () => {
   test('getSessionsForSelector asks for a multiple of the rows it keeps', () => {
     expect(patchNamed(sessionIndexPatches, 'session-list-cap-request').replace).toContain(
-      `{...o,$ODcap:E4*${PICKER_ROW_FACTOR}}`,
+      `includeArchived:!0,$ODcap:eK*${PICKER_ROW_FACTOR}}`,
     );
   });
 
-  test('getCachedSessions turns the cap into a limit and the current project', () => {
+  test('getAllSessions turns the cap into a limit and the current project', () => {
     const { replace } = patchNamed(sessionIndexPatches, 'session-list-cap-options');
     expect(replace).toContain('$ODcap:t?.$ODcap?{limit:t.$ODcap,cwd:o}:void 0');
   });
 
   test('the listing hands the cap to the store request', () => {
     expect(patchNamed(sessionIndexPatches, 'session-list-cap-listing').replace).toContain(
-      '_t(t,i.$ODcap)',
+      '_a(t,o.$ODcap)',
     );
     expect(patchNamed(sessionIndexPatches, 'session-list-cap-store').replace).toContain(
       'airgapEnabled:o.airgapEnabled===!0,$ODcap}',

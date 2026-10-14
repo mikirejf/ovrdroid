@@ -67,7 +67,7 @@ const COPY_CONFIG = { [UNWRAP_KEY]: true };
 function codeBlock(config: { [UNWRAP_KEY]?: boolean }): Node {
   const patch = patchNamed(codeCopyPatches, 'code-copy-block-unwrapped');
   return payloadFunction<unknown[], Node>(
-    ['l', 'c', 't', 'o', 'a', 'A', 'D', 'O', 'E', 'bse', 'globalThis'],
+    ['l', 'c', 't', 'o', 'a', 'A', 'D', 'O', 'E', 'bse', 'uS', 'globalThis'],
     patch.replace.slice(0, -1),
   )(
     element,
@@ -80,6 +80,7 @@ function codeBlock(config: { [UNWRAP_KEY]?: boolean }): Node {
     'echo hi',
     'block-key',
     () => CODE,
+    2,
     { [CODE_COPY_GLOBAL]: { wrap: { Provider: PROVIDER } } },
   );
 }

@@ -15,7 +15,7 @@ const TEXT_TAIL =
 const LABEL =
   'A.showCodeLanguage&&D?t(c,{children:t(o,{color:a.text.muted,italic:!0,children:D})}):null';
 
-const STOCK_BLOCK = `return l(c,{flexDirection:"column",borderLeft:!0,borderColor:a.text.muted,width:A.maxWidth,children:[${LABEL},t(c,{paddingLeft:2,width:"100%",children:bse(O,A,D)})]},E)}`;
+const STOCK_BLOCK = `return l(c,{flexDirection:"column",borderLeft:!0,borderColor:a.text.muted,width:A.maxWidth,children:[${LABEL},t(c,{paddingLeft:uS,width:"100%",children:bse(O,A,D)})]},E)}`;
 
 const FLAT_BLOCK = `if(A.${UNWRAP_KEY})return l(c,{flexDirection:"column",width:A.maxWidth,children:[${LABEL},t(globalThis.${CODE_COPY_GLOBAL}.wrap.Provider,{value:"${UNWRAPPED}",children:t(c,{flexDirection:"column",width:"100%",children:bse(O,A,D)})})]},E);`;
 
@@ -53,8 +53,11 @@ const WRAP_LINES_WHOLE = WRAP_LINES_HEAD.replace('function H(n,t){', 'function H
 const WRAP_ENTRY =
   'function VH(n,t){let e=Math.max(1,Math.floor(t)),r=k(n);if(h(r)<=e)return[B(r)];return H(k(n,void 0,!0),e).map(B)}';
 
+const PARAGRAPH_LINES =
+  'function dS(f,w){let v=w.config.maxWidth??Pse;return f.flatMap((k)=>FO(k,v))}';
+
 const PARAGRAPH_TEXT =
-  'function Ik(f,v,k){let A=v.config.maxWidth??rse,P=f.flatMap((O)=>VH(O,A));return t(o,{italic:v.config.italic,children:P.join(`\n`)||" "},k)}';
+  'function HM(f,w,v){let k=dS(f,w);return t(o,{italic:w.config.italic,children:k.join(`\n`)||" "},v)}';
 
 export const codeCopyPatches: readonly Patch[] = [
   {
@@ -81,11 +84,16 @@ export const codeCopyPatches: readonly Patch[] = [
     ),
   },
   {
+    name: 'code-copy-paragraph-lines-unwrapped',
+    find: PARAGRAPH_LINES,
+    replace: PARAGRAPH_LINES.replace('FO(k,v)', `FO(k,v,w.config.${UNWRAP_KEY})`),
+  },
+  {
     name: 'code-copy-paragraph-text-unwrapped',
     find: PARAGRAPH_TEXT,
-    replace: PARAGRAPH_TEXT.replace('VH(O,A)', `VH(O,A,v.config.${UNWRAP_KEY})`).replace(
-      'italic:v.config.italic,',
-      `italic:v.config.italic,wrap:v.config.${UNWRAP_KEY}?"${UNWRAPPED}":void 0,`,
+    replace: PARAGRAPH_TEXT.replace(
+      'italic:w.config.italic,',
+      `italic:w.config.italic,wrap:w.config.${UNWRAP_KEY}?"${UNWRAPPED}":void 0,`,
     ),
   },
   {

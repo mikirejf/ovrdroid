@@ -105,7 +105,7 @@ function rendererIn(app: App): Renderer {
   const segmentRebase = rebasedNamed(rebases, 'code-copy-inline-code-joined');
   const paragraphRebase = rebasedNamed(rebases, 'code-copy-paragraph-text-unwrapped');
   const text = textOf(app, moduleHolding(sourceApp(), segmentRebase.find));
-  const paragraph = stockName(paragraphRebase, 'Ik');
+  const paragraph = stockName(paragraphRebase, 'HM');
   const flow = new RegExp(
     String.raw`function (?<flow>${ID})\(${ID},${ID},${ID},${ID}=\{\}\)\{let ${ID}=new ${ID}\(!0\);return ${ID}\(${ID},${ID},${ID},${ID}\),${escaped(paragraph)}\(`,
     'u',
