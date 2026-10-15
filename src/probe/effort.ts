@@ -1,7 +1,7 @@
 import type { Frame, Session } from './session.ts';
 import { ENTER, openClearMenu, openSession, openSettledSession } from './session.ts';
 
-const CYCLE_EFFORT = '\t';
+export const CYCLE_EFFORT = '\t';
 const POLL_MS = 50;
 const LABEL_TIMEOUT_MS = 15_000;
 const QUIET_MS = 3000;

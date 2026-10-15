@@ -9,7 +9,7 @@ import { parseLog, summariseLogs } from './logs.ts';
 export const DEFAULT_LOG_SOURCE = FACTORY_LOGS;
 export const DEFAULT_LOG_STORE = OVRDROID_LOGS;
 
-const LIVE_LOG = 'droid-log-single.log';
+export const LIVE_LOG = 'droid-log-single.log';
 const MISSING = -1;
 
 export interface LogsOptions {

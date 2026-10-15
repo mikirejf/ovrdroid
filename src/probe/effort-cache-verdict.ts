@@ -11,11 +11,13 @@ export interface Outcomes {
   switches: readonly { name: SendName; usage: Usage }[];
 }
 
-function kept(usage: Usage, cached: number): boolean {
+type CacheCounts = Pick<Usage, 'cacheRead' | 'cacheWrite'>;
+
+export function kept(usage: CacheCounts, cached: number): boolean {
   return usage.cacheRead >= cached * KEPT_SHARE;
 }
 
-function ruling(name: SendName, usage: Usage, cached: number): string {
+export function ruling(name: string, usage: CacheCounts, cached: number): string {
   const read = whole(usage.cacheRead);
   if (kept(usage, cached)) {
     return `${name} kept the cache: read ${read} of ${whole(cached)} cached tokens`;

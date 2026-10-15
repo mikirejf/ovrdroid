@@ -5,6 +5,8 @@ import {
   childOf,
   finalReply,
   parentOf,
+  replyCount,
+  replyEfforts,
   toolResultCount,
   turnEnded,
 } from '../live-transcript.ts';
@@ -24,6 +26,7 @@ interface Message {
   role: string;
   content: Block[];
   visibility?: string;
+  reasoningEffort?: string;
 }
 
 function header(id: string, caller?: string): string {
@@ -39,6 +42,11 @@ function message(role: string, content: Block[], visibility?: string): string {
   if (visibility !== undefined) {
     body.visibility = visibility;
   }
+  return JSON.stringify({ type: 'message', message: body });
+}
+
+function reply(content: Block[], reasoningEffort: string): string {
+  const body: Message = { role: 'assistant', content, reasoningEffort };
   return JSON.stringify({ type: 'message', message: body });
 }
 
@@ -88,6 +96,45 @@ describe('turnEnded tells a finished reply from a pause between tool calls', () 
       message('user', [], 'user_only'),
     );
     expect(turnEnded(done)).toBe(true);
+  });
+});
+
+describe('replyCount counts finished text replies, with or without tools', () => {
+  test('it counts assistant text messages that call no tool', () => {
+    const body = transcript(
+      header('p'),
+      message('user', [text('one')]),
+      message('assistant', [text('one')]),
+      message('user', [text('two')]),
+      message('assistant', [text('working'), toolUse]),
+      message('assistant', [text('two')]),
+      message('user', [], 'user_only'),
+    );
+    expect(replyCount(body)).toBe(2);
+  });
+
+  test('it counts nothing while the assistant has not answered', () => {
+    expect(replyCount(transcript(header('p'), message('user', [text('go')])))).toBe(0);
+  });
+});
+
+describe('replyEfforts reads the effort each finished reply ran at', () => {
+  test('it lists one effort per text reply, skipping tool-call messages', () => {
+    const body = transcript(
+      header('p'),
+      message('user', [text('one')]),
+      reply([text('one')], 'high'),
+      message('user', [text('two')]),
+      reply([text('working'), toolUse], 'xhigh'),
+      reply([text('two')], 'medium'),
+    );
+    expect(replyEfforts(body)).toEqual(['high', 'medium']);
+  });
+
+  test('a reply without the field reads as an empty string', () => {
+    expect(replyEfforts(transcript(header('p'), message('assistant', [text('one')])))).toEqual([
+      '',
+    ]);
   });
 });
 

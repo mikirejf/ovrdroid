@@ -32,6 +32,14 @@ import {
 import { bodies, modules, trace } from './capture-report.ts';
 import { codeCopy, COPY_CHUNK_CHARS, COPY_GAP_MS } from './code-copy.ts';
 import { cpu } from './cpu-report.ts';
+import {
+  DEFAULT_SWITCH_FROM,
+  DEFAULT_SWITCH_MODEL,
+  DEFAULT_SWITCH_RUNS,
+  DEFAULT_SWITCH_TIMEOUT,
+  DEFAULT_SWITCH_TO,
+  effortSwitch,
+} from './effort-switch.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
@@ -234,6 +242,20 @@ program
   )
   .option('--out <file>', 'where every send is appended', DEFAULT_EFFORT_RUNS)
   .action(guard(effortCache));
+
+program
+  .command('effort-switch')
+  .description(
+    'press Tab to change reasoning effort mid-conversation in a real Droid session: does the next request still read the prompt cache?',
+  )
+  .argument('<binary>')
+  .option('-m, --model <id>', 'customModels entry to run the session on', DEFAULT_SWITCH_MODEL)
+  .option('--from <effort>', 'effort the session starts at', DEFAULT_SWITCH_FROM)
+  .option('--to <effort>', 'status-line label to reach by pressing Tab', DEFAULT_SWITCH_TO)
+  .option('--timeout <s>', 'seconds to wait for each turn', count, DEFAULT_SWITCH_TIMEOUT)
+  .option('--yes', 'actually run, and spend the tokens', false)
+  .option('--out <file>', 'where every run is appended', DEFAULT_SWITCH_RUNS)
+  .action(guard(effortSwitch));
 
 program
   .command('quota')

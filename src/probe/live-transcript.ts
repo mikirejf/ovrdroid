@@ -12,6 +12,7 @@ interface Turn {
   text: string;
   toolUses: number;
   toolResults: number;
+  effort: string;
 }
 
 function turnOf(line: string): Turn | undefined {
@@ -36,6 +37,7 @@ function turnOf(line: string): Turn | undefined {
             .join(''),
     toolUses: ofKind('tool_use').length,
     toolResults: ofKind('tool_result').length,
+    effort: worded(message, 'reasoningEffort'),
   };
 }
 
@@ -63,6 +65,20 @@ export function turnEnded(text: string): boolean {
     last.toolUses === 0 &&
     turns.some((turn) => turn.toolResults > 0)
   );
+}
+
+function repliesOf(text: string): Turn[] {
+  return turnsOf(text).filter(
+    (turn) => turn.role === 'assistant' && turn.text.trim() !== '' && turn.toolUses === 0,
+  );
+}
+
+export function replyCount(text: string): number {
+  return repliesOf(text).length;
+}
+
+export function replyEfforts(text: string): string[] {
+  return repliesOf(text).map((reply) => reply.effort);
 }
 
 export function finalReply(text: string): string {

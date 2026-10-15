@@ -62,7 +62,12 @@ was dropped ([first-message.md](first-message.md)).
   tool loaded mid-session still busts.
 - These Droid events are suspected busts and were never measured one by one: a skill activating
   (depends on where its text lands), compaction (now reads the cache, see
-  [cache-patches.md](cache-patches.md)), an effort change, a pasted image, a fork, a spec-mode
-  toggle. Reopened sessions are measured in [cache-reopens.md](cache-reopens.md). `probe busts` can
-  split by event once the log carries prefix identity.
+  [cache-patches.md](cache-patches.md)), a pasted image, a fork, a spec-mode toggle. Reopened
+  sessions are measured in [cache-reopens.md](cache-reopens.md). `probe busts` can split by event
+  once the log carries prefix identity.
+- An effort change mid-conversation does not bust. `probe effort-switch <binary> --yes` presses Tab
+  in a real session and reads the cache numbers Droid logs. On Droid 0.242.0, `sonnet-5-5` through
+  DroidProxy, High to Medium (the transcript confirms the reply ran at `medium`): the turn after the
+  switch read 25,001 of 25,001 cached tokens and wrote 23, with no not-append-only warning. One run,
+  one model, one direction; Opus and thinking off are not measured.
 - The 57.4M of ordinary incremental writes are new tails, not waste.

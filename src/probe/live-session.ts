@@ -41,6 +41,7 @@ export interface LiveOptions {
   effort: string;
   args?: readonly string[];
   env?: LaunchEnv;
+  collect?: boolean;
 }
 
 export async function openLiveSession(binary: string, options: LiveOptions): Promise<Session> {
@@ -55,7 +56,7 @@ export async function openLiveSession(binary: string, options: LiveOptions): Pro
   return await openSession(binary, {
     cwd: options.cwd,
     args: options.args ?? [],
-    collect: false,
+    collect: options.collect ?? false,
     env: { ...options.env, FACTORY_RUNTIME_SETTINGS_PATH: settingsFile },
   });
 }
