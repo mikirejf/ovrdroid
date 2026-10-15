@@ -143,6 +143,9 @@ procedure, from triage through the proof on a copy, is [`UPDATING.md`](UPDATING.
 parser and the rebuild carry over, unless every patch goes missing at once, which means the module
 layout moved.
 
+Every update ends by adding its general lessons on workflow and technique to this skill, with
+nothing tied to one release. See step 7 of `UPDATING.md`.
+
 ## Adding a feature, not just deleting work
 
 A patch that adds UI is held to the same bar as a startup patch: prove it costs nothing, against a

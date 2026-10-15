@@ -18,7 +18,8 @@ it blocks every push until the drift is fixed. Start here.
 Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints and renders a code
 block, `probe ab` against the stock copy shows it is **never slower**, and `probe builds` is clean
 for every platform. Faster is not the bar: as Droid moves its own waits after paint, the paint gap
-shrinks toward zero, and an interval that straddles zero at `-r 24` is a pass.
+shrinks toward zero, and an interval that straddles zero at `-r 24` is a pass. Then record what
+you learned (step 7).
 
 Expect the hand half to cluster: most of it is usually one or two sites Droid **rewrote** rather
 than renamed.
@@ -106,8 +107,28 @@ Fix by reason:
   last group: rename them `$OD…` rather than lookup them.
 - `collides`: two names in `replace` land on one name on this build, so a lookup or `find` is
   capturing the wrong binding for one of them. Step 3, settle by role.
-- `no-lookup`: the lookup snippet is not unique in the module. Widen it, or pick a different use
-  of the same binding.
+- `no-lookup` with several matches: the lookup snippet is not unique in the module. Widen it, or
+  pick a different use of the same binding.
+- `no-lookup` with no match: usually only the snippet's **surroundings** moved, not the binding it
+  captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
+  the names the `replace` uses plus just enough text to match once in its module. A lookup only
+  captures names, so every character past that can drift.
+
+To find **which** lookup broke (the report names only the patch), feed each one to
+`probe grep $STOCK`. Grep only its stable part: names longer than 3 characters, dotted properties,
+strings. The lookup is written in one build's short names, so a literal grep of the whole snippet
+can miss on a build where it would still match. The lookup that comes back with no place, or with
+several in the `find`'s chunk, is the broken one. When even the stable part finds nothing, shrink
+it further (one property like `modelContent:`) and read every place it prints. The new form of
+the line is one of them. `probe grep` counts across all modules, but a lookup is matched only in
+the `find`'s module, so "2 places across 2 modules" can still be fine for a lookup. Check the chunk
+names.
+
+When the `find` still matches and only a lookup broke, the code the patch rewrites is usually
+unchanged. Do not port anything. Still read the patched site in the new extraction for two things:
+upstream may now do what the payload adds, and the change around the binding may break something
+the payload assumes about it. For example, a payload that reassigns a binding needs it to stay in
+a `let`, not move into a `const`.
 
 If **every** patch is missing at once, the drift is structural, not cosmetic: the module layout
 changed under the harness, as when Droid went from one module to hundreds of split chunks. Check
@@ -343,3 +364,14 @@ after the copy passes both: `bun run ovrdroid update`, then push to main.
 
 `src/patch/__tests__/stock-source.test.ts` reruns the rebase of every patch against the host's
 stock binary, so it goes red the moment Droid updates underneath.
+
+## 7. Record what you learned
+
+Before you commit, add to this skill whatever the update taught you about the **workflow and the
+techniques**: a way to find a broken site faster, a check that caught a mistake, a step the guide
+was missing, a probe that answered a question. Put each lesson where the next agent will look for
+it, usually beside the drift reason or step it belongs to.
+
+Write the lesson so it holds for any release. Leave out version numbers, minified names, and the
+code that moved this time; those belong in the commit message. If nothing new came up, add
+nothing. Commit the skill change with the patch fix.
