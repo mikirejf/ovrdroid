@@ -108,11 +108,103 @@ The first attempt:
    `tool_choice`, because that would change the request head.
 3. Checks the abort signal first. The helper drops the aborted flag, and an aborted Responses stream
    can return partial text that would be saved as the summary.
-4. Accepts a reply with text and no tool call. Every other outcome falls back to the stock request
-   once. An abort is never turned into a fallback.
+4. Accepts a reply that has text, calls no tool and is a summary (see below). Every other outcome
+   falls back to the stock request once. An abort is never turned into a fallback.
 
 Each outcome logs a `cache-usage.jsonl` line with `compact` set to `reuse`, `reuse-extended`,
-`no-snapshot`, `other-model`, `prefix-mismatch`, `unseen-messages`, `tool-call`, `empty` or `error`.
+`no-snapshot`, `other-model`, `prefix-mismatch`, `unseen-messages`, `tool-call`, `empty`,
+`not-summary` or `error`. A `not-summary` line also keeps the first 600 characters of the rejected
+reply as `head`, so a real refusal can be read later; Droid's own logs never hold that text.
+
+### A reply that is not a summary
+
+Haiku 5.5 subagents often answer the summary request with a refusal or with their final task report.
+A reply counts as a summary only when it names at least three of the stock section headings
+(`SUMMARY_SECTIONS` in `src/patch/summary-format.ts`). Any other reply logs `not-summary` and falls
+back to the stock request. The payload builds its check from the same constants as `isSummary`, so
+the rule has one source. The stock request's own reply is not checked.
+
+`probe summaries` runs the check over every stored summary. Since 2026-10-11 it flags 37 of 398,
+every one from the reuse path and from a Haiku subagent. A heading written as a bullet
+(`• Approach`) counts, because one real replayed summary used that style.
+
+### Why Haiku refuses, measured on 0.242.0
+
+`probe compaction-rebuild` rebuilds a past compaction request from the session file. It reproduced
+four captured requests byte for byte and the fifth up to one cache mark. `probe compaction-replay`
+sends a request again as captured (reuse), as stock would build it (stock), and with another wording
+(alt). Haiku 5.5 through DroidProxy:
+
+1. Five ordinary compactions from a live grunt run: reuse wrote a summary 30 of 30 times, stock 30
+   of 30.
+2. Six rebuilt grunt refusals: only one still refused on replay, and it refused 13 of 26 times on
+   reuse. Eight of those also called a tool to keep working.
+3. Stock refused 0 of 56 times across the six cases. It wrote its own layout 21 times, once spent
+   the whole output cap on thinking and returned nothing, and several times told the files the grunt
+   had read as if they were the session's own threads.
+4. An alt wording that calls the summary a step in the task, without "do not mention it", refused 2
+   of 26 times on the refusing case.
+
+On reuse the request arrives as one more user message inside the grunt's working conversation, and
+Haiku sometimes sets it aside to keep working. Stock sends the summarizer prompt as the system
+prompt and the conversation as quoted text, so there is no task to go back to.
+
+### Claude models get the ask without "so do not mention it", measured on 0.242.0
+
+`probe compaction-variants` replays each rebuilt case under one change at a time and prices every
+reply with the cache the arm's first request met (stock is priced cold, as in a real session).
+`probe compaction-reasons` sorts the refusals by the reason Haiku's thinking gives. Haiku 5.5
+through DroidProxy, on the refusing case, 40 runs per arm:
+
+| ask                                            |  refused | 95% range | $ per compaction |
+| ---------------------------------------------- | -------: | --------: | ---------------: |
+| as shipped before (reuse)                      | 19 of 40 |    33-63% |          $0.0134 |
+| without "so do not mention it" (no-mention)    |  0 of 40 |      0-9% |          $0.0038 |
+| without the "system request" claim             | 12 of 40 |    18-45% |          $0.0096 |
+| as a mid-conversation system message, no tools |  0 of 40 |      0-9% |          $0.0039 |
+| stock                                          |  0 of 40 |      0-9% |          $0.0219 |
+
+1. The clause "so do not mention it" causes the refusals; the "system request" claim does not (p =
+   0.17 against as shipped). Most refusals say the task comes first. One says outright: "Your
+   request asks me to hide that I'm making it, and I'd rather not do that."
+2. On the five cases that did not refuse, no-mention also refused 0 of 40, read 99% from cache and
+   cost $0.0046 against $0.0051.
+3. The system message refused 4 of 40 there, three of them empty replies that spent the whole output
+   cap on thinking. Its first request missed the cache on four of the five cases (29% read), and it
+   cannot follow an assistant turn, so `/compress` after a reply returns 400. It was dropped.
+4. The 84-file digest task, run live on Haiku and graded by `probe digest-grade` against a key
+   computed from the files: no-mention 5.22 of 6 and as shipped 5.14 over 15 runs each (p = 0.73),
+   stock 4.82 over 5. The fallback caught 1 non-summary in 58 no-mention compactions and 2 in 53 as
+   shipped; nothing stored was a refusal.
+5. Sonnet 5.5 and Opus 5.5 reuse requests captured live: no-mention wrote a summary 10 of 10 times
+   each. Its summaries ran 124 output tokens longer on Sonnet and 43 on Opus (means of 10). The
+   replayed old wording also read its own ask from cache, which a real compaction cannot, so the
+   replay cost gap ($0.0224 against $0.0180 on Sonnet) overstates the difference.
+6. Live, both wordings read 99.2-99.3% from cache on a `reuse` compaction and about 72% on a
+   `reuse-extended` one. The extended request must also send the tool results that arrived after the
+   last request, which were never cached, so 95% holds only for the plain path.
+
+`compaction-reuse-prefix` sends the no-mention line when the model id matches
+`claude|haiku|sonnet|opus` (Droid's own test for Anthropic model names) and the old line to every
+other model, which was not measured. The fallback stays for both.
+
+### A subagent's summary carries its parent's brief
+
+The parent reads only a subagent's final reply, and the subagent's own summary loses the task it was
+given. `compaction-parent-brief` appends to the summary the summarizer returns, after the todos, on
+the reuse path and the stock path alike:
+
+1. A lead line, the parent's task word for word (the first user text block that is not a
+   `<system-reminder>`), and a fixed note that the parent never saw the summary.
+2. The note alone when no such block exists.
+
+Three live grunt runs on 0.242.0 compacted 13 times between them, all on reuse. Each stored summary
+ended with the note, and each next request carried the lead, the Task prompt word for word and the
+note.
+
+A main session has no calling session, so its summary is returned as stock returns it. If reading
+the session fails, the summary is returned without the brief, because losing the compaction is worse
+than losing the brief.
 
 ### Messages the snapshot missed
 
