@@ -103,3 +103,9 @@ Two identical binaries, interleaved, differ by a standard deviation of ~126ms on
   script.
 - `DROID_PROFILE=1` recorded zero `ink-render` events in every run. Do not trust it for render
   counts until someone finds out why.
+- A probe that types into a session must start it in a trusted folder. A fresh folder under
+  `$TMPDIR` (`/var/folders/...`) makes Droid show the "Trust this folder" dialog, which swallows the
+  first prompt, and the probe then waits for a reply that never starts. `/tmp` is trusted in
+  `~/.factory/settings.json`, so `withLiveDir` in `src/probe/live-session.ts` makes its folders
+  there. Measured on 0.242.0: a prompt pasted into a `$TMPDIR` folder was never submitted, and the
+  same prompt in a `/tmp` folder was answered in 9s.

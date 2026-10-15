@@ -15,6 +15,7 @@ export interface MessagesReply {
   usage: Usage;
   headers: Headers;
   content: unknown[];
+  stopReason: string;
 }
 
 const CLI_PROXY_API_DIR = path.join(homedir(), '.cli-proxy-api');
@@ -64,5 +65,5 @@ export async function postMessages(call: MessagesCall): Promise<MessagesReply> {
   if (!Array.isArray(content)) {
     throw new TypeError('the response carried no content array');
   }
-  return { usage, headers: response.headers, content };
+  return { usage, headers: response.headers, content, stopReason: worded(fields, 'stop_reason') };
 }

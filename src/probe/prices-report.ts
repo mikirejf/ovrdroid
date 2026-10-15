@@ -1,6 +1,6 @@
 import { fail, isoDate, say } from '../cli.ts';
 import { cacheDir } from '../paths.ts';
-import type { Catalog } from './prices.ts';
+import type { Catalog, ModelPrice } from './prices.ts';
 import { formatPrices, parseCatalog, resolvePrices } from './prices.ts';
 import { readCustomModels } from './settings.ts';
 
@@ -50,6 +50,15 @@ async function loadCatalog(refresh: boolean): Promise<LoadedCatalog> {
     from: held === undefined ? 'the network' : 'cache',
     at: isoDate(file.lastModified),
   };
+}
+
+export async function modelPrice(droidId: string): Promise<ModelPrice> {
+  const [{ catalog }, customModels] = await Promise.all([loadCatalog(false), readCustomModels()]);
+  const [price] = resolvePrices(catalog, [droidId], customModels).priced;
+  if (price === undefined) {
+    throw new Error(`no price known for ${droidId}; try \`probe prices --refresh ${droidId}\``);
+  }
+  return price;
 }
 
 export async function prices(ids: string[], options: PricesOptions): Promise<void> {

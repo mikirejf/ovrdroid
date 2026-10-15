@@ -1,7 +1,18 @@
 import type { Command } from 'commander';
 
-import { count, guard } from '../cli.ts';
+import { choice, count, countOrZero, guard } from '../cli.ts';
+import { compactionFallback, DEFAULT_FALLBACK_TIMEOUT_S } from './compaction-fallback.ts';
+import { registerCompactionReadCommands } from './compaction-read-commands.ts';
+import { compactionRebuild } from './compaction-rebuild.ts';
+import type { Arm } from './compaction-replay-plan.ts';
+import { ARMS } from './compaction-replay-plan.ts';
+import {
+  compactionReplay,
+  DEFAULT_REPLAY_PARALLEL,
+  DEFAULT_REPLAY_RUNS,
+} from './compaction-replay.ts';
 import { DEFAULT_SESSIONS, DEFAULT_SINCE_DAYS, external } from './external-report.ts';
+import { PROBE_MODEL } from './launch.ts';
 import {
   clear,
   DEFAULT_NOTICE_TYPE,
@@ -17,6 +28,12 @@ import {
 } from './session-report.ts';
 import { sessions, waitMs } from './sessions-report.ts';
 import { DEFAULT_OPENS, DEFAULT_RUNS, DEFAULT_WAIT_MS } from './sessions.ts';
+import {
+  DEFAULT_SUMMARIES_SESSIONS,
+  DEFAULT_SUMMARIES_USAGE,
+  sinceDate,
+  summaries,
+} from './summaries.ts';
 
 export function registerSessionCommands(program: Command): void {
   program
@@ -60,6 +77,102 @@ export function registerSessionCommands(program: Command): void {
     .option('--sessions <dir>', 'where Droid keeps its session transcripts', DEFAULT_SESSIONS)
     .option('--json', 'print the counts as JSON', false)
     .action(guard(external));
+
+  program
+    .command('summaries')
+    .description(
+      'which stored compaction summaries are not real summaries, and on which compaction path did each one come out',
+    )
+    .option(
+      '--sessions <dir>',
+      'where Droid keeps its session transcripts',
+      DEFAULT_SUMMARIES_SESSIONS,
+    )
+    .option(
+      '--usage <file>',
+      'per-request cache usage log that holds the compact rows',
+      DEFAULT_SUMMARIES_USAGE,
+    )
+    .option(
+      '--since <date>',
+      'only compactions at or after this date, such as 2026-10-11',
+      sinceDate,
+    )
+    .action(guard(summaries));
+
+  program
+    .command('compaction-replay')
+    .description(
+      'MAKES REAL MODEL CALLS: send recorded compaction requests again, as captured (reuse path), with one wording change each, as a system message, and rebuilt the stock way: which asks avoid refusals and still read the prompt cache? Prints the `compaction-variants` report at the end',
+    )
+    .argument('<bodies>', 'bodies file written by a `probe build --bodies` binary')
+    .option('-r, --runs <n>', 'replies to ask for, per arm per row', count, DEFAULT_REPLAY_RUNS)
+    .option(
+      '--arms <names...>',
+      `arms to send (default: ${ARMS.join(', ')})`,
+      (raw: string, previous: Arm[]) => [...previous, choice(ARMS)(raw)],
+      [],
+    )
+    .option(
+      '--rows <indexes...>',
+      '0-based line numbers of the compaction rows to replay (default: every one)',
+      (raw: string, previous: number[]) => [...previous, countOrZero(raw)],
+      [],
+    )
+    .option('--parallel <n>', 'requests in flight at once', count, DEFAULT_REPLAY_PARALLEL)
+    .option(
+      '--model-id <id>',
+      'customModels id whose endpoint and key carry the requests, and whose prices the report uses; bodies keep their captured model',
+      PROBE_MODEL,
+    )
+    .option('-o, --out <dir>', 'where each reply is written as JSON (default: a new /tmp folder)')
+    .action(guard(compactionReplay));
+
+  registerCompactionReadCommands(program);
+
+  program
+    .command('compaction-fallback')
+    .description(
+      'MAKES REAL MODEL CALLS: when the model refuses the reuse compaction request, does the patched Droid reject that reply, fall back to the stock summarizer, and store a real summary? A relay forces the refusal',
+    )
+    .argument('<binary>')
+    .option(
+      '--cwd <dir>',
+      'directory to start Droid in; Droid must already trust it',
+      process.cwd(),
+    )
+    .option(
+      '--timeout <seconds>',
+      'how long to wait for the compaction to store a summary',
+      count,
+      DEFAULT_FALLBACK_TIMEOUT_S,
+    )
+    .option('--reply <file>', 'text file whose contents replace the canned refusal')
+    .action(guard(compactionFallback));
+
+  program
+    .command('compaction-rebuild')
+    .description(
+      'rebuild the compaction request Droid sent for a past compaction, from the session transcript, as a bodies row: can a compaction that refused with no captured request be replayed with `compaction-replay`?',
+    )
+    .argument('<session>', 'session transcript (.jsonl path) or session id')
+    .requiredOption(
+      '--template <bodies>',
+      'bodies file with a captured first compaction and a later one, which supply the system prompt, tools, settings and final instruction',
+    )
+    .option(
+      '--compaction <n...>',
+      '1-based compactions to rebuild (default: every one)',
+      (raw: string, previous: number[]) => [...previous, count(raw)],
+      [],
+    )
+    .option(
+      '--with-last-turn',
+      "keep the agent's last turn before the compaction record; by default it is left out, because the summary request usually ran before that turn finished",
+      false,
+    )
+    .option('-o, --out <file>', 'write the rows here instead of to stdout')
+    .action(guard(compactionRebuild));
 
   program
     .command('mcp-children')

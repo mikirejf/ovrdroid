@@ -8,6 +8,7 @@ import { FACTORY_DROIDS, FACTORY_SESSIONS, FACTORY_TASK_INVOCATIONS } from '../p
 import { makeTempDir } from '../temp.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import { sessionFolderName } from './ledger.ts';
+import { poll } from './poll.ts';
 import type {
   ChatFiles,
   RewindEvidence,
@@ -36,7 +37,6 @@ const MENU_SETTLE_MS = 400;
 const QUIET_MS = 1500;
 const QUIET_TIMEOUT_MS = 20_000;
 const STEP_TIMEOUT_MS = 30_000;
-const POLL_MS = 250;
 const FOOTER_ROWS = 15;
 const HELD: readonly TaskTag[] = ['kept', 'cut'];
 const ACTIVE = new Set(['pending', 'running']);
@@ -168,18 +168,6 @@ function forkOf(folder: string, oldChat: string): string | undefined {
     }
   }
   return undefined;
-}
-
-async function poll<T>(read: () => T | undefined, timeoutMs: number): Promise<T | undefined> {
-  const deadline = performance.now() + timeoutMs;
-  for (;;) {
-    const value = read();
-    if (value !== undefined || performance.now() > deadline) {
-      return value;
-    }
-    // oxlint-disable-next-line no-await-in-loop
-    await delay(POLL_MS);
-  }
 }
 
 async function waitFor<T>(what: string, read: () => T | undefined, timeoutMs: number): Promise<T> {

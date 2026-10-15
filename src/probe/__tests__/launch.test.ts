@@ -148,12 +148,16 @@ describe('launchEnv', () => {
     }
   });
 
-  test('points Droid at a runtime settings file that turns every sound off and logs its sessions', async () => {
+  test('points Droid at a runtime settings file that turns every sound off, talks to Haiku through DroidProxy and logs its sessions', async () => {
     const file = launchEnv()['FACTORY_RUNTIME_SETTINGS_PATH'];
     expect(file).toBe(PROBE_SETTINGS_FILE);
     const written: unknown = await Bun.file(PROBE_SETTINGS_FILE).json();
     expect(written).toEqual(PROBE_SETTINGS);
-    expect(PROBE_SETTINGS).toMatchObject({ completionSound: 'off', awaitingInputSound: 'off' });
+    expect(PROBE_SETTINGS).toMatchObject({
+      completionSound: 'off',
+      awaitingInputSound: 'off',
+      sessionDefaultSettings: { model: 'custom:droidproxy:haiku-5-5' },
+    });
     expect(Object.keys(PROBE_SETTINGS.hooks)).toEqual(['SessionStart', 'SessionEnd']);
   });
 

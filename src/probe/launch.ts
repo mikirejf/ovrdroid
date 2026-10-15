@@ -19,10 +19,12 @@ const INJECTED_PREFIXES = ['FACTORY_', 'DROID_', 'HERDR_'];
 const AUTO_UPDATE = 'FACTORY_DROID_AUTO_UPDATE_ENABLED';
 const RUNTIME_SETTINGS = 'FACTORY_RUNTIME_SETTINGS_PATH';
 export const PROBE_SETTINGS_FILE = ovrdroidFile('probe-settings.json');
+export const PROBE_MODEL = 'custom:droidproxy:haiku-5-5';
 export const PROBE_SETTINGS = {
   completionSound: 'off',
   awaitingInputSound: 'off',
   hooks: ledgerHooks(),
+  sessionDefaultSettings: { model: PROBE_MODEL, reasoningEffort: 'medium' },
 };
 const WINDOW = 64;
 
