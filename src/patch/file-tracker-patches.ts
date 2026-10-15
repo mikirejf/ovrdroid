@@ -123,7 +123,7 @@ const FOLD_NOTES =
   'z=$ODfold(z,$ODshown);' +
   're!==void 0&&(re=$ODfold(re,$ODshown))}';
 
-const MODEL_CONTENT_BINDING = 'let{content:z,modelContent:re}=await this.raceToolWithBatchAbort(';
+const MODEL_CONTENT_BINDING = '{content:z,modelContent:re}=await this.raceToolWithBatchAbort(';
 
 export const fileTrackerPatches: readonly Patch[] = [
   {

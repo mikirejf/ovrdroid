@@ -24,7 +24,7 @@ const FORK =
   '{preserveCurrentSession:!0,extraTags:[{name:m6,metadata:{[Aye]:l}}]});';
 
 const FORK_LOOKUPS = [
-  'hT().recoverParentBackgroundChildren(t,Cq,{reconcileStale:!1})',
+  'hT().recoverParentBackgroundChildren(t,Cq,{reconcileStale:N().reachesHostingDaemon()})',
   'await N().close(),this.ideInitPromise',
   'h(d,"[JsonRpc] Failed to execute rewind")',
 ];
