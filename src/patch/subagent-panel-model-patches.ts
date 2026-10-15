@@ -1,16 +1,19 @@
 import type { Patch } from './patches.ts';
 
-export const MODEL_LABEL_OF =
-  '($ODstore)=>{let $ODmodel=$ODstore?.getModelId();if(!$ODmodel)return;' +
-  'let $ODname=ue($ODmodel).shortDisplayName,$ODeffort=$ODstore.getReasoningEffort();' +
+const MODEL_LABEL_OF =
+  '($ODmodel,$ODeffort)=>{if(!$ODmodel)return;let $ODname=ue($ODmodel).shortDisplayName;' +
   `return $ODeffort?\`\${$ODname} (\${ti($ODeffort)})\`:$ODname}`;
+
+export const ITEM_MODEL_LABEL =
+  `(($ODstore)=>(${MODEL_LABEL_OF})($ODstore?$ODstore.getModelId():ee.model,$ODstore?$ODstore.getReasoningEffort():ee.reasoningEffort))` +
+  '(ee.sessionId?K.getSessionManager(ee.sessionId)?.getStore():void 0)';
 
 const STOCK_ITEM_TAIL =
   'startTime:ee.startTime,progressUpdates:gq({sessionStateManager:K,taskId:ee.taskId})})}';
 
 const PATCHED_ITEM_TAIL =
   'startTime:ee.startTime,progressUpdates:gq({sessionStateManager:K,taskId:ee.taskId}),' +
-  `modelLabel:(${MODEL_LABEL_OF})(ee.sessionId?K.getSessionManager(ee.sessionId)?.getStore():void 0)})}`;
+  `modelLabel:${ITEM_MODEL_LABEL}})}`;
 
 const STOCK_MAIN_MODEL_LABEL =
   'function Vye(f){let{mainModel:w,mainReasoningEffort:v}=f;if(!w||!v)return;' +

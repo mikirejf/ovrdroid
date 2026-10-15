@@ -1,7 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
-import type { PanelLedgerEntry, PanelTask } from './panel-list.ts';
-import { panelRowsUnder, panelUnder } from './panel-list.ts';
+import type { PanelLedgerEntry, PanelRow, PanelTask } from './panel-list.ts';
+import { panelLister, panelRowsUnder, panelUnder } from './panel-list.ts';
 
 function task(taskId: string, parentSessionId: string, status = 'running'): PanelTask {
   return { taskId, parentSessionId, status };
@@ -29,6 +32,10 @@ function worldOf(ledger: readonly PanelLedgerEntry[]) {
       ledger.map((row) => [row.childSessionId, row.taskInvocationId]),
     ),
   };
+}
+
+function modelOf(row: PanelRow | undefined): (string | undefined)[] {
+  return [row?.model, row?.reasoningEffort];
 }
 
 const finished = { status: 'completed', subagentType: 'x', description: 'y' };
@@ -121,5 +128,55 @@ describe('the sub-agent panel lists running children that are not loaded in the 
   test('a ledger cycle lists each child once', () => {
     const world = worldOf([entry('a', 'main'), entry('b', 'a'), entry('a', 'b')]);
     expect(panelUnder([], 'main', world)).toEqual(['a', '  b']);
+  });
+});
+
+describe('a ledger-only child carries the model saved in its settings file', () => {
+  let sessionsDir: string;
+
+  beforeEach(() => {
+    sessionsDir = mkdtempSync(path.join(tmpdir(), 'panel-settings-'));
+  });
+
+  afterEach(() => {
+    rmSync(sessionsDir, { recursive: true, force: true });
+  });
+
+  const saveSettings = (id: string, settings: string): void => {
+    writeFileSync(path.join(sessionsDir, `${id}.settings.json`), settings);
+  };
+
+  const saved = JSON.stringify({ model: 'opus-5-5', reasoningEffort: 'high', tags: [] });
+
+  test('the row gets the model and effort from the settings file', () => {
+    saveSettings('far', saved);
+    const [row] = panelRowsUnder([], 'main', { ...worldOf([entry('far', 'main')]), sessionsDir });
+    expect(modelOf(row)).toEqual(['opus-5-5', 'high']);
+  });
+
+  test('a missing settings file leaves the row without a model', () => {
+    const [row] = panelRowsUnder([], 'main', { ...worldOf([entry('far', 'main')]), sessionsDir });
+    expect(row?.taskId).toBe('far');
+    expect(modelOf(row)).toEqual([undefined, undefined]);
+  });
+
+  test('a broken settings file leaves the row without a model', () => {
+    saveSettings('far', '{"model":');
+    const [row] = panelRowsUnder([], 'main', { ...worldOf([entry('far', 'main')]), sessionsDir });
+    expect(modelOf(row)).toEqual([undefined, undefined]);
+  });
+
+  test('a child the app cannot find on disk leaves the row without a model', () => {
+    const [row] = panelRowsUnder([], 'main', worldOf([entry('far', 'main')]));
+    expect(modelOf(row)).toEqual([undefined, undefined]);
+  });
+
+  test('a saved model is read once, and a file written later is still picked up', () => {
+    const list = panelLister([], { ...worldOf([entry('far', 'main')]), sessionsDir });
+    expect(modelOf(list('main')[0])).toEqual([undefined, undefined]);
+    saveSettings('far', saved);
+    expect(modelOf(list('main')[0])).toEqual(['opus-5-5', 'high']);
+    rmSync(path.join(sessionsDir, 'far.settings.json'));
+    expect(modelOf(list('main')[0])).toEqual(['opus-5-5', 'high']);
   });
 });

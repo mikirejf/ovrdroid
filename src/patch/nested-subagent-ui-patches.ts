@@ -147,6 +147,16 @@ const STOCK_LEDGER_CHILD_LOOP =
   'if(hn(u)?.taskInvocationId!==l.taskInvocationId)continue;let d=e.getSubagentInvocationSummary(u);' +
   'if(d&&!Ri(d.status))continue;';
 
+const STOCK_SESSION_SERVICE =
+  'let D=p();return await qI({sessionId:F.parentSessionId,transcriptPath:F.parentTranscriptPath??D.getSessionTranscriptPath(';
+
+const SAVED_MODEL =
+  'var $ODsavedModels=new Map;function $ODsavedModel($ODid){let $ODhit=$ODsavedModels.get($ODid);if($ODhit)return $ODhit;' +
+  'try{let $ODpath=p().findSessionSettingsPath($ODid,!0),' +
+  '$ODs=$ODpath?JSON.parse(require("fs").readFileSync($ODpath,"utf8")):void 0;' +
+  'if(!$ODs?.model)return;$ODhit={model:$ODs.model,reasoningEffort:$ODs.reasoningEffort};' +
+  '$ODsavedModels.set($ODid,$ODhit);return $ODhit}catch{}}';
+
 export const PATCHED_RUNNING_TASKS =
   'function oRe(e,t){let $ODall=v6(e),$ODloaded=new Set,$ODout=[],$ODseen=new Set([t]);' +
   'for(let $ODid of e.getAllSessionIds()){let $ODstore=e.getSessionManager($ODid)?.getStore();' +
@@ -161,8 +171,8 @@ export const PATCHED_RUNNING_TASKS =
   'if($ODon)$ODout.push({taskId:$ODid,sessionId:$ODid,parentSessionId:$ODp,toolCallId:$ODledger.parentToolUseId,' +
   'status:"running",subagentType:$ODledger.subagentType||$ODsummary?.subagentType||void 0,' +
   'description:$ODledger.description||$ODsummary?.description||void 0,' +
-  'startTime:$ODledger.createdAt,nestDepth:$ODd});' +
-  '$ODwalk($ODid,$ODon?$ODd+1:$ODd)}};$ODwalk(t,0);return $ODout}';
+  'startTime:$ODledger.createdAt,nestDepth:$ODd,...$ODsavedModel($ODid)});' +
+  `$ODwalk($ODid,$ODon?$ODd+1:$ODd)}};$ODwalk(t,0);return $ODout}${SAVED_MODEL}`;
 
 const STOCK_PANEL_ITEM =
   'label:oe.subagentType??"sub-agent",detail:oe.description??"",sessionId:oe.sessionId,';
@@ -244,7 +254,7 @@ export const nestedSubagentUiPatches: readonly Patch[] = [
   {
     name: 'nested-subagent-ui-panel-lists-descendants',
     find: STOCK_RUNNING_TASKS,
-    lookups: [STOCK_LEDGER_CHILD_LOOP],
+    lookups: [STOCK_LEDGER_CHILD_LOOP, STOCK_SESSION_SERVICE],
     replace: PATCHED_RUNNING_TASKS,
   },
   {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { applies } from '../rebase.ts';
-import { MODEL_LABEL_OF, subagentPanelModelPatches } from '../subagent-panel-model-patches.ts';
+import { ITEM_MODEL_LABEL, subagentPanelModelPatches } from '../subagent-panel-model-patches.ts';
 import { describeStrayNames, payloadFunction } from './payload.ts';
 import { shipped, stockDroid } from './stock-scanner.ts';
 
@@ -12,7 +12,17 @@ interface Store {
   getReasoningEffort: () => string | undefined;
 }
 
-type LabelOf = (store: Store | null) => string | undefined;
+interface Item {
+  sessionId?: string;
+  model?: string;
+  reasoningEffort?: string;
+}
+
+interface SessionStateManager {
+  getSessionManager: (id: string) => { getStore: () => Store } | undefined;
+}
+
+type ItemLabel = (item: Item) => string | undefined;
 
 const SHORT_NAMES = new Map([
   ['opus-5-5', 'Opus 5.5'],
@@ -23,16 +33,29 @@ const EFFORT_LABELS = new Map([
   ['xhigh', 'Extra High'],
 ]);
 
-const labelOf = payloadFunction<
-  [(id: string) => { shortDisplayName: string }, (effort: string) => string],
-  LabelOf
->(['ue', 'ti'], `return ${MODEL_LABEL_OF}`)(
-  (id) => ({ shortDisplayName: SHORT_NAMES.get(id) ?? id }),
-  (effort) => EFFORT_LABELS.get(effort) ?? effort,
-);
-
 function storeOf(modelId: string | null, effort?: string): Store {
   return { getModelId: () => modelId ?? undefined, getReasoningEffort: () => effort };
+}
+
+function itemLabelOver(stores: Record<string, Store>): ItemLabel {
+  const manager: SessionStateManager = {
+    getSessionManager: (id) => {
+      const store = stores[id];
+      return store === undefined ? undefined : { getStore: () => store };
+    },
+  };
+  return payloadFunction<
+    [(id: string) => { shortDisplayName: string }, (effort: string) => string, SessionStateManager],
+    ItemLabel
+  >(['ue', 'ti', 'K'], `return (ee)=>${ITEM_MODEL_LABEL}`)(
+    (id) => ({ shortDisplayName: SHORT_NAMES.get(id) ?? id }),
+    (effort) => EFFORT_LABELS.get(effort) ?? effort,
+    manager,
+  );
+}
+
+function labelOf(store: Store | null): string | undefined {
+  return itemLabelOver(store === null ? {} : { child: store })({ sessionId: 'child' });
 }
 
 describe('the panel names the model and effort a sub-agent runs on', () => {
@@ -52,8 +75,26 @@ describe('the panel names the model and effort a sub-agent runs on', () => {
     expect(labelOf(storeOf(null, 'high'))).toBeUndefined();
   });
 
-  test('a sub-agent with no session store shows nothing', () => {
+  test('a sub-agent with no session store and no saved model shows nothing', () => {
     expect(labelOf(null)).toBeUndefined();
+  });
+
+  test('a sub-agent with no session store shows the model saved on its row', () => {
+    const label = itemLabelOver({})({
+      sessionId: 'child',
+      model: 'opus-5-5',
+      reasoningEffort: 'high',
+    });
+    expect(label).toBe('Opus 5.5 (High)');
+  });
+
+  test('a loaded store wins over the model saved on the row', () => {
+    const label = itemLabelOver({ child: storeOf('haiku-5-5', 'xhigh') })({
+      sessionId: 'child',
+      model: 'opus-5-5',
+      reasoningEffort: 'high',
+    });
+    expect(label).toBe('Haiku 5.5 (Extra High)');
   });
 });
 

@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { PATCHED_RUNNING_TASKS } from '../nested-subagent-ui-patches.ts';
 import { payloadFunction } from './payload.ts';
 
@@ -17,6 +20,8 @@ export interface PanelRow {
   description?: string;
   startTime?: number;
   nestDepth: number;
+  model?: string;
+  reasoningEffort?: string;
 }
 
 export interface PanelLedgerEntry {
@@ -40,6 +45,7 @@ export interface PanelWorld {
   ledger?: readonly PanelLedgerEntry[];
   invocations?: Readonly<Record<string, string>>;
   summaries?: Readonly<Record<string, PanelSummary>>;
+  sessionsDir?: string;
 }
 
 interface Manager {
@@ -50,14 +56,24 @@ interface Manager {
   getSubagentInvocationSummary: (id: string) => PanelSummary | undefined;
 }
 
+interface SessionService {
+  findSessionSettingsPath: (id: string, searchAllProjects: boolean) => string | null;
+}
+
 type RunningTasks = (manager: Manager, root: string) => PanelRow[];
 
-export function panelRowsUnder(
+export function panelLister(
   tasks: readonly PanelTask[],
-  root: string,
   world: PanelWorld = {},
-): PanelRow[] {
+): (root: string) => PanelRow[] {
   const ledger = world.ledger ?? [];
+  const { sessionsDir } = world;
+  const service: SessionService = {
+    findSessionSettingsPath: (id, searchAllProjects) =>
+      sessionsDir !== undefined && searchAllProjects
+        ? path.join(sessionsDir, `${id}.settings.json`)
+        : null,
+  };
   const decomp = new Set(world.decomp);
   const manager: Manager = {
     getAllSessionIds: () => tasks.map((entry) => entry.taskId),
@@ -72,9 +88,11 @@ export function panelRowsUnder(
       (parent: string) => readonly PanelLedgerEntry[],
       (child: string) => { taskInvocationId: string } | undefined,
       (status: string) => boolean,
+      () => SessionService,
+      (name: 'fs') => typeof fs,
     ],
     RunningTasks
-  >(['v6', 'Ol', 'hn', 'Ri'], `${PATCHED_RUNNING_TASKS};return oRe`)(
+  >(['v6', 'Ol', 'hn', 'Ri', 'p', 'require'], `${PATCHED_RUNNING_TASKS};return oRe`)(
     (_manager, parent) =>
       parent === undefined ? tasks : tasks.filter((entry) => entry.parentSessionId === parent),
     (parent) => ledger.filter((entry) => entry.parentSessionId === parent),
@@ -83,8 +101,18 @@ export function panelRowsUnder(
       return taskInvocationId === undefined ? undefined : { taskInvocationId };
     },
     (status) => status === 'running' || status === 'pending',
+    () => service,
+    () => fs,
   );
-  return list(manager, root);
+  return (root) => list(manager, root);
+}
+
+export function panelRowsUnder(
+  tasks: readonly PanelTask[],
+  root: string,
+  world?: PanelWorld,
+): PanelRow[] {
+  return panelLister(tasks, world)(root);
 }
 
 export function panelUnder(
