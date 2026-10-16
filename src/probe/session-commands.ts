@@ -103,7 +103,7 @@ export function registerSessionCommands(program: Command): void {
   program
     .command('compaction-replay')
     .description(
-      'MAKES REAL MODEL CALLS: send recorded compaction requests again, as captured (reuse path), with one wording change each, as a system message, and rebuilt the stock way: which asks avoid refusals and still read the prompt cache? Prints the `compaction-variants` report at the end',
+      'MAKES REAL MODEL CALLS: send recorded compaction requests again, as captured (reuse path), with one wording change each, as a system message, and rebuilt the stock way: which asks avoid refusals and still read the prompt cache? Replays Messages bodies (Claude models) and Responses bodies (custom GPT models; reuse, no-mention and no-claim arms only). Prints the `compaction-variants` report at the end',
     )
     .argument('<bodies>', 'bodies file written by a `probe build --bodies` binary')
     .option('-r, --runs <n>', 'replies to ask for, per arm per row', count, DEFAULT_REPLAY_RUNS)

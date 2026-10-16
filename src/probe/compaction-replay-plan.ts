@@ -1,6 +1,7 @@
 import type { BodyRow, JsonObject } from './bodies.ts';
 import { parseBodies } from './bodies.ts';
 import {
+  bodyFormat,
   compactionKind,
   INLINE_TOOLS_BETA,
   noClaimBody,
@@ -10,6 +11,8 @@ import {
 } from './compaction-replay-bodies.ts';
 
 export const ARMS = ['reuse', 'no-mention', 'no-claim', 'system', 'stock'] as const;
+
+const RESPONSES_ARMS = ['reuse', 'no-mention', 'no-claim'] as const;
 
 export type Arm = (typeof ARMS)[number] | 'stock-captured';
 
@@ -97,8 +100,18 @@ function jobOf(slot: Slot, body: JsonObject, headers: Record<string, string>): R
   return { ...slot, body: { ...body, stream: false }, headers };
 }
 
-function armsOf(entry: IndexedRow, wanted: readonly Arm[]): Arm[] {
-  return compactionKind(entry.row.body) === 'stock' ? ['stock-captured'] : [...wanted];
+function armsOf(entry: IndexedRow, wanted: readonly Arm[] | undefined): Arm[] {
+  if (compactionKind(entry.row.body) === 'stock') {
+    return ['stock-captured'];
+  }
+  if (bodyFormat(entry.row.body) !== 'responses') {
+    return [...(wanted ?? ARMS)];
+  }
+  const unsupported = wanted?.find((arm) => !RESPONSES_ARMS.some((known) => known === arm));
+  if (unsupported !== undefined) {
+    throw new Error(`row ${entry.index}: the ${unsupported} arm needs a Messages-format body`);
+  }
+  return [...(wanted ?? RESPONSES_ARMS)];
 }
 
 function rotated<T>(items: readonly T[], by: number): T[] {
@@ -121,7 +134,7 @@ export function planJobs(rows: readonly IndexedRow[], options: PlanOptions): Rep
   if (picked.length === 0) {
     throw new Error('the file holds no compaction request');
   }
-  const wanted = options.arms ?? ARMS;
+  const wanted = options.arms;
   const warmups = picked.map((entry) => {
     const arm = compactionKind(entry.row.body) === 'stock' ? 'stock-captured' : 'reuse';
     return jobOf({ row: entry.index, arm, run: 0, warm: true }, entry.row.body, {});

@@ -24,6 +24,8 @@ interface ProxyCredentials {
 
 export type Credentials = DirectCredentials | ProxyCredentials;
 
+const OPENAI = 'openai';
+
 function endpointOf(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/u, '').replace(/\/v1$/u, '')}/v1/messages`;
 }
@@ -38,16 +40,26 @@ async function readDirectCredentials(model: string): Promise<DirectCredentials> 
   };
 }
 
-async function readProxyCredentials(droidId: string): Promise<ProxyCredentials> {
+interface CustomModel {
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+}
+
+async function readCustomModel(
+  droidId: string,
+  provider: string,
+  api: string,
+): Promise<CustomModel> {
   const entries = entriesOf(await settingsFields(), 'customModels');
   const entry = entries.find((fields) => worded(fields, 'id') === droidId);
   if (entry === undefined) {
     throw new Error(`${droidId} is not a customModels entry in ${FACTORY_SETTINGS}`);
   }
 
-  const provider = worded(entry, 'provider');
-  if (provider !== ANTHROPIC) {
-    throw new Error(`${droidId} is a ${provider} model; this probe speaks the Anthropic API only`);
+  const found = worded(entry, 'provider');
+  if (found !== provider) {
+    throw new Error(`${droidId} is a ${found} model; this probe speaks the ${api} API only`);
   }
 
   const model = worded(entry, 'model');
@@ -56,12 +68,32 @@ async function readProxyCredentials(droidId: string): Promise<ProxyCredentials> 
     throw new Error(`${droidId} has no model or apiKey in ${FACTORY_SETTINGS}`);
   }
 
+  return { model, apiKey, baseUrl: worded(entry, 'baseUrl') };
+}
+
+async function readProxyCredentials(droidId: string): Promise<ProxyCredentials> {
+  const { model, apiKey, baseUrl } = await readCustomModel(droidId, ANTHROPIC, 'Anthropic');
   return {
     route: 'proxy',
     model,
-    endpoint: endpointOf(worded(entry, 'baseUrl')),
+    endpoint: endpointOf(baseUrl),
     headers: apiKeyHeaders(apiKey),
     leadText: undefined,
+  };
+}
+
+export interface ResponsesCredentials {
+  model: string;
+  endpoint: string;
+  headers: RequestHeaders;
+}
+
+export async function readResponsesCredentials(droidId: string): Promise<ResponsesCredentials> {
+  const { model, apiKey, baseUrl } = await readCustomModel(droidId, OPENAI, 'OpenAI Responses');
+  return {
+    model,
+    endpoint: `${baseUrl.replace(/\/+$/u, '')}/responses`,
+    headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
   };
 }
 

@@ -50,6 +50,27 @@ export function reuseBody(custom = '', messages = reuseMessages(custom)): JsonOb
   };
 }
 
+export function responsesInput(custom = ''): JsonObject[] {
+  return [
+    { role: 'user', content: [{ type: 'input_text', text: 'Fix the parser.' }] },
+    { type: 'function_call', call_id: 'c1', name: 'Read', arguments: '{"file":"a.ts"}' },
+    { type: 'function_call_output', call_id: 'c1', output: 'contents' },
+    { role: 'user', content: [{ type: 'input_text', text: askText(custom) }] },
+  ];
+}
+
+export function responsesBody(custom = '', input = responsesInput(custom)): JsonObject {
+  return {
+    model: 'gpt-x',
+    instructions: 'You are Droid.',
+    store: false,
+    stream: true,
+    tools: [{ type: 'function', name: 'Read' }],
+    prompt_cache_key: 'key',
+    input,
+  };
+}
+
 export function stockCaptured(): JsonObject {
   return {
     model: 'model-x',

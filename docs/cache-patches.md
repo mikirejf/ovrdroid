@@ -188,6 +188,19 @@ through DroidProxy, on the refusing case, 40 runs per arm:
 `claude|haiku|sonnet|opus` (Droid's own test for Anthropic model names) and the old line to every
 other model, which was not measured. The fallback stays for both.
 
+### GPT keeps the old ask, measured on 0.242.0
+
+GPT 6 Luna through DroidProxy. I captured one reuse compaction live with
+`probe compaction-capture --model-id custom:droidproxy:gpt-6-luna`: a main session that read 8
+digest files, then `/compress`. I replayed it 40 times per arm. As shipped (reuse) wrote a summary
+40 of 40 times, and no-mention wrote one 40 of 40 times. There were no tool calls and no empty
+replies, and both arms read 100% of the input from cache.
+
+This was an ordinary main-session case, not a subagent in the middle of a task like Haiku's
+refusals. It shows that Luna does not need the change. It does not show that Luna never refuses
+there. `compaction-replay` reads the Responses-format bodies that Droid sends to GPT models for
+this, and replays only the reuse, no-mention and no-claim arms for them.
+
 ### A subagent's summary carries its parent's brief
 
 The parent reads only a subagent's final reply, and the subagent's own summary loses the task it was

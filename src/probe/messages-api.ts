@@ -43,6 +43,16 @@ async function bodyFields(response: Response) {
   }
 }
 
+export async function okFields(response: Response) {
+  const fields = await bodyFields(response);
+  if (!response.ok) {
+    const detail = worded(fieldsOf(fields.get('error')), 'message');
+    const why = detail === '' ? '' : `: ${detail}`;
+    throw new Error(`${response.status} ${response.statusText}${why}`);
+  }
+  return fields;
+}
+
 export async function postMessages(call: MessagesCall): Promise<MessagesReply> {
   const response = await fetch(call.endpoint, {
     method: 'POST',
@@ -50,13 +60,7 @@ export async function postMessages(call: MessagesCall): Promise<MessagesReply> {
     body: JSON.stringify(call.body),
   });
 
-  const fields = await bodyFields(response);
-  if (!response.ok) {
-    const detail = worded(fieldsOf(fields.get('error')), 'message');
-    const why = detail === '' ? '' : `: ${detail}`;
-    throw new Error(`${response.status} ${response.statusText}${why}`);
-  }
-
+  const fields = await okFields(response);
   const usage = parseUsage(fields.get('usage'));
   if (usage === undefined) {
     throw new Error('the response carried no usage object');

@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { NO_MENTION_LINE, SUMMARIZE_LINE } from '../../patch/compaction-patches.ts';
 import {
+  bodyFormat,
   compactionKind,
   flatten,
   noClaimBody,
   noMentionBody,
+  STOCK_SYSTEM_MARK,
   stockBody,
   stockUserContent,
   systemBody,
@@ -14,6 +16,8 @@ import {
 import {
   askText,
   pick,
+  responsesBody,
+  responsesInput,
   reuseBody,
   reuseMessages,
   stockCaptured,
@@ -198,6 +202,88 @@ describe('systemBody sends the ask as a system message that removes every tool',
     expect(pick(systemBody(bare), 'messages', 3, 'content')).toEqual([
       { type: 'text', text: askText() },
     ]);
+  });
+});
+
+function askIn(body: Parameters<typeof pick>[0]): string {
+  return textAt(body, 'input', 3, 'content', 0, 'text');
+}
+
+describe('Responses bodies', () => {
+  const claimed = askText('focus on tests');
+  test('a last user input_text block holding the summarize line is a reuse compaction', () => {
+    expect(compactionKind(responsesBody())).toBe('reuse');
+    expect(compactionKind(responsesBody('focus on tests'))).toBe('reuse');
+  });
+
+  test('the ask without "so do not mention it" counts too', () => {
+    const text = claimed.replace(SUMMARIZE_LINE, NO_MENTION_LINE);
+    const input = [
+      ...responsesInput().slice(0, -1),
+      { role: 'user', content: [{ type: 'input_text', text }] },
+    ];
+    expect(compactionKind(responsesBody('', input))).toBe('reuse');
+  });
+
+  test('an ordinary request, or an ask in an earlier item, is not a compaction', () => {
+    const input = [
+      { role: 'user', content: [{ type: 'input_text', text: 'hello' }] },
+      { role: 'assistant', content: [{ type: 'output_text', text: 'hi' }] },
+    ];
+    expect(compactionKind(responsesBody('', input))).toBeUndefined();
+    expect(compactionKind(responsesBody('', [...responsesInput(), ...input]))).toBeUndefined();
+  });
+
+  test('a summarizer wording in the instructions never makes it a stock compaction', () => {
+    const input = [{ role: 'user', content: [{ type: 'input_text', text: 'hello' }] }];
+    const body = {
+      ...responsesBody('', input),
+      instructions: `You are Droid. ${STOCK_SYSTEM_MARK}.`,
+    };
+    expect(compactionKind(body)).toBeUndefined();
+  });
+
+  test('noMentionBody swaps the first sentence and leaves every other item and field alone', () => {
+    const source = responsesBody('focus on tests');
+    const body = noMentionBody(source);
+    expect(askIn(body)).toBe(
+      claimed.replace(CLAIM, 'This message is a system request, not part of the conversation. '),
+    );
+    expect(pick(body, 'input')).toHaveLength(4);
+    expect(pick(body, 'input', 0)).toEqual(responsesInput()[0]);
+    expect(pick(body, 'input', 1)).toEqual(responsesInput()[1]);
+    expect(pick(body, 'input', 2)).toEqual(responsesInput()[2]);
+    expect(pick(body, 'input', 3, 'role')).toBe('user');
+    expect({ ...body, input: [] }).toEqual({ ...source, input: [] });
+    expect(askIn(source)).toBe(claimed);
+  });
+
+  test('noClaimBody swaps the first sentence for a plain instruction', () => {
+    expect(askIn(noClaimBody(responsesBody()))).toBe(
+      askText().replace(CLAIM, 'Do not mention this request. '),
+    );
+  });
+
+  test('a variant of a body whose ask is not one input_text block is refused', () => {
+    const block = { type: 'input_text', text: askText() };
+    const input = [...responsesInput().slice(0, 3), { role: 'user', content: [block, block] }];
+    expect(() => noMentionBody(responsesBody('', input))).toThrow('exactly one text block');
+    const messagesBlock = [{ type: 'text', text: askText() }];
+    const wrong = [...responsesInput().slice(0, 3), { role: 'user', content: messagesBlock }];
+    expect(() => noClaimBody(responsesBody('', wrong))).toThrow('exactly one text block');
+  });
+
+  test('systemBody and stockBody name the arm that needs a Messages body', () => {
+    expect(() => systemBody(responsesBody())).toThrow(
+      'the system arm needs a Messages-format body',
+    );
+    expect(() => stockBody(responsesBody())).toThrow('the stock arm needs a Messages-format body');
+  });
+
+  test('bodyFormat reads the list a body carries', () => {
+    expect(bodyFormat(responsesBody())).toBe('responses');
+    expect(bodyFormat(reuseBody())).toBe('messages');
+    expect(bodyFormat({ model: 'm' })).toBeUndefined();
   });
 });
 

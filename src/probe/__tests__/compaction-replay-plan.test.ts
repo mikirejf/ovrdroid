@@ -3,7 +3,13 @@ import { describe, expect, test } from 'bun:test';
 import type { JsonObject } from '../bodies.ts';
 import { INLINE_TOOLS_BETA } from '../compaction-replay-bodies.ts';
 import { ARMS, compactionRows, isArm, planJobs } from '../compaction-replay-plan.ts';
-import { askText, pick, reuseBody, stockCaptured } from './compaction-replay-harness.ts';
+import {
+  askText,
+  pick,
+  responsesBody,
+  reuseBody,
+  stockCaptured,
+} from './compaction-replay-harness.ts';
 
 const PLAIN: JsonObject = { model: 'm', system: [], messages: [] };
 
@@ -122,6 +128,53 @@ describe('planJobs picks rows and arms', () => {
     expect(() => planJobs(compactionRows(line(odd)), { runs: 1, arms: ['system'] })).toThrow(
       'exactly one text block',
     );
+  });
+});
+
+function except(body: JsonObject, ...keys: string[]): JsonObject {
+  return Object.fromEntries(Object.entries(body).filter(([name]) => !keys.includes(name)));
+}
+
+describe('planJobs with a Responses row', () => {
+  const rows = compactionRows([line(PLAIN), line(responsesBody())].join('\n'));
+
+  test('by default the row gets reuse, no-mention and no-claim and no Messages-only arm', () => {
+    const { jobs } = planJobs(rows, { runs: 1 });
+    expect(jobs.map((job) => job.arm).toSorted()).toEqual(['no-claim', 'no-mention', 'reuse']);
+  });
+
+  test('--arms limits the arms to those that work', () => {
+    const { jobs } = planJobs(rows, { runs: 2, arms: ['no-mention'] });
+    expect(jobs.map((job) => `${job.arm}:${job.run}`)).toEqual(['no-mention:1', 'no-mention:2']);
+  });
+
+  test('--arms system or stock fails the plan and names the Messages-format body', () => {
+    for (const arm of ['system', 'stock'] as const) {
+      expect(() => planJobs(rows, { runs: 1, arms: ['reuse', arm] })).toThrow(
+        `row 1: the ${arm} arm needs a Messages-format body`,
+      );
+    }
+  });
+
+  test('the warm-up and the reuse arm send the recorded input, without streaming', () => {
+    const plan = planJobs(rows, { runs: 1 });
+    const reuse = plan.jobs.find((job) => job.arm === 'reuse');
+    expect(plan.warmups.map((job) => job.arm)).toEqual(['reuse']);
+    expect(except(reuse?.body ?? {}, 'stream')).toEqual(except(responsesBody(), 'stream'));
+    expect(plan.warmups[0]?.body['stream']).toBe(false);
+    expect(reuse?.headers).toEqual({});
+  });
+
+  test('the other arms change only the last input item', () => {
+    const { jobs } = planJobs(rows, { runs: 1 });
+    for (const job of jobs.filter((entry) => entry.arm !== 'reuse')) {
+      expect(pick(job.body, 'input', 3, 'content', 0, 'text')).not.toBe(askText());
+      expect(except(job.body, 'input', 'stream')).toEqual(
+        except(responsesBody(), 'input', 'stream'),
+      );
+      expect(job.body['stream']).toBe(false);
+      expect(pick(job.body, 'input')).toHaveLength(4);
+    }
   });
 });
 

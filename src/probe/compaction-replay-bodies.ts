@@ -7,6 +7,17 @@ import type { Json, JsonObject } from './bodies.ts';
 import { fieldsOf, worded } from './fields.ts';
 
 export type CompactionKind = 'reuse' | 'stock';
+export type BodyFormat = 'messages' | 'responses';
+
+interface Layout {
+  list: string;
+  text: string;
+}
+
+const LAYOUTS: Record<BodyFormat, Layout> = {
+  messages: { list: 'messages', text: 'text' },
+  responses: { list: 'input', text: 'input_text' },
+};
 
 interface Ask {
   summarizer: string;
@@ -38,14 +49,26 @@ function asList(value: Json | undefined): readonly Json[] {
   return isList(value) ? value : [];
 }
 
+export function bodyFormat(body: JsonObject): BodyFormat | undefined {
+  if (Array.isArray(body['input'])) {
+    return 'responses';
+  }
+  return Array.isArray(body['messages']) ? 'messages' : undefined;
+}
+
+function layoutOf(body: JsonObject): Layout {
+  return LAYOUTS[bodyFormat(body) ?? 'messages'];
+}
+
 function lastMessage(body: JsonObject): JsonObject | undefined {
-  const last = asList(body['messages']).at(-1);
+  const last = asList(body[layoutOf(body).list]).at(-1);
   return isRecord(last) ? last : undefined;
 }
 
-function lastTextIndex(message: JsonObject): number {
+function lastTextIndex(body: JsonObject, message: JsonObject): number {
+  const { text } = layoutOf(body);
   return asList(message['content']).findLastIndex(
-    (block) => worded(fieldsOf(block), 'type') === 'text',
+    (block) => worded(fieldsOf(block), 'type') === text,
   );
 }
 
@@ -58,7 +81,7 @@ function lastText(body: JsonObject): string | undefined {
   if (typeof content === 'string') {
     return content;
   }
-  const at = lastTextIndex(message);
+  const at = lastTextIndex(body, message);
   return at === -1 ? undefined : worded(fieldsOf(asList(content)[at]), 'text');
 }
 
@@ -93,6 +116,9 @@ export function compactionKind(body: JsonObject): CompactionKind | undefined {
   if (askOf(body) !== undefined) {
     return 'reuse';
   }
+  if (bodyFormat(body) === 'responses') {
+    return undefined;
+  }
   return JSON.stringify(body['system'] ?? null).includes(STOCK_SYSTEM_MARK) ? 'stock' : undefined;
 }
 
@@ -104,7 +130,7 @@ function askBlock(body: JsonObject): JsonObject {
     message?.['role'] !== 'user' ||
     blocks.length !== 1 ||
     !isRecord(only) ||
-    worded(fieldsOf(only), 'type') !== 'text'
+    worded(fieldsOf(only), 'type') !== layoutOf(body).text
   ) {
     throw new Error('the last message is not a user message with exactly one text block');
   }
@@ -124,13 +150,20 @@ function withAskText(body: JsonObject, from: string, to: string): JsonObject {
   if (!text.includes(from)) {
     throw new Error(`the ask does not hold the sentence to change: ${from}`);
   }
+  const { list } = layoutOf(body);
   return {
     ...body,
-    messages: [
-      ...asList(body['messages']).slice(0, -1),
-      { role: 'user', content: [{ ...block, text: text.replace(from, () => to) }] },
+    [list]: [
+      ...asList(body[list]).slice(0, -1),
+      { ...lastMessage(body), content: [{ ...block, text: text.replace(from, () => to) }] },
     ],
   };
+}
+
+function messagesOnly(body: JsonObject, arm: string): void {
+  if (bodyFormat(body) === 'responses') {
+    throw new Error(`the ${arm} arm needs a Messages-format body, not a Responses one`);
+  }
 }
 
 export function noMentionBody(body: JsonObject): JsonObject {
@@ -146,6 +179,7 @@ function toolNames(body: JsonObject): string[] {
 }
 
 export function systemBody(body: JsonObject): JsonObject {
+  messagesOnly(body, 'system');
   const text = askBlockText(body);
   const removals = toolNames(body).map((name) => ({
     type: 'tool_removal',
@@ -229,6 +263,7 @@ export function stockUserContent(transcript: string, custom: string): string {
 }
 
 export function stockBody(body: JsonObject): JsonObject {
+  messagesOnly(body, 'stock');
   const { summarizer, custom } = askOrThrow(body);
   const transcript = flatten(asList(body['messages']).slice(0, -1));
   const kept = Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'tools'));
