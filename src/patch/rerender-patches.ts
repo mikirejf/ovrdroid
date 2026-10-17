@@ -25,7 +25,7 @@ const SAME_PROPS =
 
 const FOOTER_KEY =
   'function $ODfootKey($ODusage){' +
-  'return(C().getShowTokenUsageIndicator()&&$ODusage>0?sue($ODusage):"")+"|"+C().getNerdFont()}';
+  'return(C().getShowTokenUsageIndicator()&&$ODusage>0?Mhe($ODusage):"")+"|"+C().getNerdFont()}';
 
 const CHAT_INPUT_WRAPPER =
   'var $ODHm=SA(Hc);' +
@@ -40,7 +40,7 @@ const CHAT_INPUT_WRAPPER =
   'return t($ODHm,$ODn)}';
 
 const FOOTER_CALL =
-  't(F7,{width:Wa,chatDraftEmpty:rn&&!Kl(Lo),timerState:he,statusState:Fi,sessionId:Ws,lastTokenUsage:Bv,';
+  't(EB,{width:Na,chatDraftEmpty:m6,timerState:pe,statusState:is,sessionId:Oa,lastTokenUsage:qD,';
 
 const PROGRESS_UPDATES =
   '_e=j?.map(($t)=>({...$t,text:$e($t.text),error:$e($t.error),details:$e($t.details),valueSnippet:$e($t.valueSnippet),fullOutput:$e($t.fullOutput),parameters:Ee($t.parameters)}))';
@@ -48,34 +48,33 @@ const PROGRESS_UPDATES =
 export const rerenderPatches: readonly Patch[] = [
   {
     name: 'pr-state-same-skip',
-    find: 'publish(t){return this.setState(t),t}setState(t){this.state=t,this.emitStateChange()}',
+    find: 'publish(t,s){return this.state=t,this.stateCwd=s,this.emitStateChange(),t}',
     replace:
-      'publish(t){return this.setState(t),t}' +
-      'setState(t){let $ODo=this.state,$ODk=Object.keys(t);' +
-      'if($ODk.length===Object.keys($ODo).length&&$ODk.every(($ODj)=>Object.hasOwn($ODo,$ODj)&&t[$ODj]===$ODo[$ODj]))return;' +
-      'this.state=t,this.emitStateChange()}',
+      'publish(t,s){let $ODo=this.state,$ODk=Object.keys(t);this.stateCwd=s;' +
+      'if($ODk.length===Object.keys($ODo).length&&$ODk.every(($ODj)=>Object.hasOwn($ODo,$ODj)&&t[$ODj]===$ODo[$ODj]))return t;' +
+      'return this.state=t,this.emitStateChange(),t}',
   },
   {
     name: 'footer-memo',
-    find: 'o4.displayName="MessageList";',
+    find: 'cP.displayName="MessageList";',
     lookups: [
-      'var o4=SA(({groupedMessages:f,',
-      'function F7({width:f,chatDraftEmpty:y,timerState:E,',
-      'function FV({sessionId:f,modelId:y,reasoningEffort:E,width:A,lastTokenUsage:D,prState:O}){',
-      'function sae({processCount:f,agentCount:y}){',
-      'function LW({sessionId:f,width:y}){let{t:E}=J();if(!F2(',
-      'function sue(f){if(f===null||f===0)return null;',
-      're=C().getShowTokenUsageIndicator()&&E!==null',
+      'var cP=dp(({groupedMessages:f,',
+      'function EB({width:f,chatDraftEmpty:y,timerState:',
+      'function ZG({sessionId:f,modelId:y,reasoningEffort:S,width:x,lastTokenUsage:w,prState:I}){',
+      'function pme({processCount:f}){',
+      'function ZK({sessionId:f,width:y}){let{t:S}=Q();if(!Sk(',
+      'function Mhe(f){if(f===null||f===0)return null;',
+      'oe=C().getShowTokenUsageIndicator()&&',
     ],
     replace:
-      'o4.displayName="MessageList";' +
+      'cP.displayName="MessageList";' +
       `${SAME_FLAT_OBJECT}${SAME_PROPS}${FOOTER_KEY}` +
-      'F7=SA(F7,$ODpropsEq);FV=SA(FV);sae=SA(sae);LW=SA(LW);',
+      'EB=dp(EB,$ODpropsEq);ZG=dp(ZG);pme=dp(pme);ZK=dp(ZK);',
   },
   {
     name: 'footer-memo-key',
     find: FOOTER_CALL,
-    replace: `${FOOTER_CALL}$ODfresh:$ODfootKey(Bv),`,
+    replace: `${FOOTER_CALL}$ODfresh:$ODfootKey(qD),`,
   },
   {
     name: 'chat-input-stable',

@@ -15,7 +15,7 @@ function replacementOf(name: string): string {
 const ROOT_OR_HOME = replacementOf('denylist-root-home-whole-argument');
 const ABSOLUTE_PATH = replacementOf('denylist-absolute-path-whole-argument');
 
-const STOCK_ARGUMENT_END = `let r=(c)=>c.includes("/")?"([\\\\s;&|)\`/]+|$)":"([\\\\s;&|)\`]+|$)";`;
+const STOCK_ARGUMENT_END = `let r=(c)=>c.includes("/")?"(?:[\\\\s;&|)\`/]|$)":"(?:[\\\\s;&|)\`]|$)";`;
 
 function buildTail(): Tail {
   // SAFETY: the body is both patch payloads in the if/else-if chain the shipped

@@ -40,15 +40,11 @@ const SHORT_COMMUNICATION =
 const LONG_COMMUNICATION = '- Use short sentences. Keep each paragraph focused on one topic.\n';
 
 const WRAP_LINES_HEAD =
-  'function H(n,t){let e=Math.max(1,Math.floor(t)),r=[],i=[],o=0,l=()=>{r.push(i),i=[],o=0};for(let a of G(n)){let c=a.length>0&&!z(a[0]),u=h(a),s=a,m=u;while(s.length>0){let f=e-o;if(f<=0){l();continue}if(m<=f){i.push(...s),o+=m,s=[],m=0;continue}if(c&&u<=e&&o>0){l();continue}';
+  'function P(n,t){let e=Math.max(1,Math.floor(t)),r=[],i=[],o=0,l=()=>{r.push(i),i=[],o=0};for(let s of G(n)){let c=s.length>0&&!z(s[0]),u=h(s),a=s,m=u;while(a.length>0){let d=e-o;if(m<=d){i.push(...a),o+=m,a=[],m=0;continue}if(!c){let{slice:g}=E(a,d);i.push(...g),o+=h(g);break}if(d<=0){l();continue}if(u<=e&&o>0){l();continue}';
 
-const WRAP_LINES_WHOLE = WRAP_LINES_HEAD.replace('function H(n,t){', 'function H(n,t,$ODwhole){')
-  .replace(
-    'if(f<=0){l();continue}',
-    'if(f<0&&$ODwhole&&!c){s=[],m=0;continue}if(f<=0){l();continue}',
-  )
-  .replace('if(m<=f){', 'if(m<=f||$ODwhole&&c&&!o){')
-  .replace('if(c&&u<=e&&o>0)', 'if(c&&(u<=e||$ODwhole)&&o>0)');
+const WRAP_LINES_WHOLE = WRAP_LINES_HEAD.replace('function P(n,t){', 'function P(n,t,$ODwhole){')
+  .replace('if(m<=d){', 'if(m<=d||$ODwhole&&c&&!o){')
+  .replace('if(u<=e&&o>0)', 'if((u<=e||$ODwhole)&&o>0)');
 
 const WRAP_ENTRY =
   'function VH(n,t){let e=Math.max(1,Math.floor(t)),r=k(n);if(h(r)<=e)return[B(r)];return H(k(n,void 0,!0),e).map(B)}';

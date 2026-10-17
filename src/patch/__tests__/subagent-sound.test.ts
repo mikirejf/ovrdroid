@@ -15,8 +15,8 @@ import {
 const TRIGGER_STOCK =
   'v(()=>{if(!Bn)return;return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee()})},[Bn]);';
 
-const RUNNING_COUNT_STOCK =
-  'function Q0e(y){let E=P().getSessionStateManager(),A=()=>y?IZ(E,y):0,D=A();return D}';
+const AGENT_LIST_STOCK =
+  'class pZ{ssm=P().getSessionStateManager();read(){let f=this.sessionId&&Ome(this.ssm,this.sessionId),y=f?qme(this.ssm,f):[];this.agents=y}}';
 
 const trigger = patched(TRIGGER_STOCK, 'turn-end-reports-running-subagents');
 
@@ -36,7 +36,11 @@ interface Sessions {
   subscribeToSessionNotifications: (id: string, next: Listener) => Cleanup;
 }
 
-type CountRunning = (manager: StateManager, id: string) => number;
+interface Agent {
+  status: 'running' | 'idle';
+}
+
+type ListAgents = (manager: StateManager, id: string) => Agent[];
 
 type Cleanup = () => null;
 
@@ -52,7 +56,7 @@ interface TriggerHarness {
 
 const SESSION = 'session-1';
 
-function triggerHarness(running: number): TriggerHarness {
+function triggerHarness(agents: Agent[]): TriggerHarness {
   const calls: boolean[] = [];
   let listener: Listener | undefined;
   const manager: StateManager = { name: 'state manager' };
@@ -63,19 +67,19 @@ function triggerHarness(running: number): TriggerHarness {
       return () => null;
     },
   };
-  const countRunning: CountRunning = (given, id) => {
+  const listAgents: ListAgents = (given, id) => {
     expect(given).toBe(manager);
     expect(id).toBe(SESSION);
-    return running;
+    return agents;
   };
   const report = (busy: boolean): null => {
     calls.push(busy);
     return null;
   };
-  payloadFunction<[typeof runEffect, () => Sessions, CountRunning, typeof report, string], null>(
-    ['v', 'P', 'IZ', 'oee', 'Bn'],
+  payloadFunction<[typeof runEffect, () => Sessions, ListAgents, typeof report, string], null>(
+    ['v', 'P', 'qme', 'oee', 'Bn'],
     trigger,
-  )(runEffect, () => sessions, countRunning, report, SESSION);
+  )(runEffect, () => sessions, listAgents, report, SESSION);
   return {
     fire: (note) => {
       listener?.(note);
@@ -119,20 +123,26 @@ describe('the completion callback chooses the sound', () => {
 });
 
 describe('the turn-end trigger reports whether subagents run', () => {
-  test('a finished turn with running subagents passes true', () => {
-    const { fire, calls } = triggerHarness(2);
+  test('a finished turn with a running subagent passes true', () => {
+    const { fire, calls } = triggerHarness([{ status: 'idle' }, { status: 'running' }]);
     fire({ type: 'agent_turn_completed' });
     expect(calls).toEqual([true]);
   });
 
   test('a finished turn with no subagents passes false', () => {
-    const { fire, calls } = triggerHarness(0);
+    const { fire, calls } = triggerHarness([]);
+    fire({ type: 'agent_turn_completed' });
+    expect(calls).toEqual([false]);
+  });
+
+  test('a finished turn whose subagents are all idle passes false', () => {
+    const { fire, calls } = triggerHarness([{ status: 'idle' }, { status: 'idle' }]);
     fire({ type: 'agent_turn_completed' });
     expect(calls).toEqual([false]);
   });
 
   test('a cancelled turn and other notifications stay silent', () => {
-    const { fire, calls } = triggerHarness(2);
+    const { fire, calls } = triggerHarness([{ status: 'running' }]);
     fire({ type: 'agent_turn_completed', reason: 'cancelled' });
     fire({ type: 'metadata_updated' });
     expect(calls).toEqual([]);
@@ -157,13 +167,13 @@ describe('the registry forwards its argument', () => {
 });
 
 interface Names {
-  count: string;
+  list: string;
   session: string;
   state: string;
   fire: string;
 }
 
-function chunks({ count, session, state, fire }: Names): string[] {
+function chunks({ list, session, state, fire }: Names): string[] {
   return [
     REGISTRY_STOCK.replaceAll('oee', fire),
     CALLBACK_STOCK,
@@ -171,15 +181,15 @@ function chunks({ count, session, state, fire }: Names): string[] {
       TRIGGER_STOCK.replaceAll('Bn', session)
         .replaceAll('oee', fire)
         .replaceAll('P()', `${state}()`),
-      RUNNING_COUNT_STOCK.replaceAll('IZ', count).replaceAll('P()', `${state}()`),
+      AGENT_LIST_STOCK.replaceAll('qme', list).replaceAll('P()', `${state}()`),
     ].join(''),
   ];
 }
 
 describe('the patches fit a build with other minified names', () => {
   const NAMESETS: Names[] = [
-    { count: 'IZ', session: 'Bn', state: 'P', fire: 'oee' },
-    { count: 'Qx', session: 'Wq', state: 'Rj', fire: 'mmk' },
+    { list: 'qme', session: 'Bn', state: 'P', fire: 'oee' },
+    { list: 'Qx', session: 'Wq', state: 'Rj', fire: 'mmk' },
   ];
 
   const subset = patches.filter((patch) => patch.name.startsWith('turn-end-'));
@@ -191,11 +201,11 @@ describe('the patches fit a build with other minified names', () => {
     );
   });
 
-  test('the renamed trigger calls the renamed counter', () => {
+  test('the renamed trigger calls the renamed agent list', () => {
     const rebase = rebaseAll(
       subset,
-      chunks({ count: 'Qx', session: 'Wq', state: 'Rj', fire: 'mmk' }),
+      chunks({ list: 'Qx', session: 'Wq', state: 'Rj', fire: 'mmk' }),
     ).find((entry) => entry.name === 'turn-end-reports-running-subagents');
-    expect(rebase?.replace).toContain('mmk(Qx(Rj().getSessionStateManager(),Wq)>0)');
+    expect(rebase?.replace).toContain('mmk(Qx(Rj().getSessionStateManager(),Wq).some(');
   });
 });

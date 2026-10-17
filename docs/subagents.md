@@ -104,16 +104,10 @@ current session, `cE` drops the tool use id, and the Task box is clamped to `hei
 - The detailed view (Ctrl+O) reads the child's steps live from the session store. Stock read the
   tool's progress updates, which stayed empty for a foreground Task, so stock showed
   `Initializing...` for the whole run. A Task step there lists the grandchild's steps 4 columns in.
-- `N background agents running` counts every running descendant once. It walks the sessions and the
-  ledger breadth first from the current session, and a visited set stops a lineage cycle. It read 2
-  while the grandchild ran, 1 after it ended, then went away.
-
-The `(N) sub-agents running` panel above the footer lists running sessions from the session store.
-Stock listed direct children only, so a foreground child that had launched a grandchild read `(1)`.
-It now walks the descendants depth first, so the same run read `(2)`. When opened with ↓, each
-nested row sits 2 spaces under its running parent, and Enter opens its details as it does for a
-direct child. A running child under a finished parent moves up a level. The panel ignores `Task`
-tool executions, as stock does, because each Task already appears as its child session.
+  Droid 0.244.0 took sub-agents out of the background-tasks panel and dropped its
+  `N background agents running` counter. Sub-agents now show in the droids view, which already nests
+  them under their parent, so the patches that counted descendants, listed them in the panel and
+  labelled each with its model were deleted.
 
 ## Shipped: running agents follow a rewind
 

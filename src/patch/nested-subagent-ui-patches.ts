@@ -123,68 +123,6 @@ const STOCK_DETAIL_OUTPUT =
 const PATCHED_DETAIL_OUTPUT =
   'children:!q?t($ODDetailSteps,{input:f,toolUseId:$ODtid,progressUpdates:A,step:$ODstep}):';
 
-const STOCK_RUNNING_COUNT =
-  'function aRe(e,t){let o=new Set,r=0;for(let l of e.getAllSessionIds()){let u=e.getSessionManager(l)?.getStore();' +
-  'if(!u||u.getDecompSessionType())continue;if(o.add(l),Jt(u,l)===t&&Gt(u,l).status==="running")r+=1}' +
-  'let a=new Set;for(let l of Ol(t)){let u=l.childSessionId;if(o.has(u)||a.has(u))continue;' +
-  'if(hn(u)?.taskInvocationId!==l.taskInvocationId)continue;let d=e.getSubagentInvocationSummary(u);' +
-  'if(d&&!Ri(d.status))continue;a.add(u),r+=1}return r}';
-
-export const PATCHED_RUNNING_COUNT =
-  'function aRe(e,t){let o=new Set,r=0,$ODkids=new Map;for(let l of e.getAllSessionIds()){let u=e.getSessionManager(l)?.getStore();' +
-  'if(!u||u.getDecompSessionType())continue;o.add(l);let $ODp=Jt(u,l);if(!$ODp)continue;' +
-  'let $ODk=$ODkids.get($ODp);if(!$ODk)$ODkids.set($ODp,$ODk=[]);$ODk.push([l,u])}' +
-  'let a=new Set([t]),$ODq=[t];while($ODq.length>0){let $ODs=$ODq.shift();' +
-  'for(let[l,u]of $ODkids.get($ODs)??[]){if(a.has(l))continue;a.add(l),$ODq.push(l);if(Gt(u,l).status==="running")r+=1}' +
-  'for(let l of Ol($ODs)){let u=l.childSessionId;if(o.has(u)||a.has(u))continue;' +
-  'if(hn(u)?.taskInvocationId!==l.taskInvocationId)continue;a.add(u),$ODq.push(u);let d=e.getSubagentInvocationSummary(u);' +
-  'if(d&&!Ri(d.status))continue;r+=1}}return r}';
-
-const STOCK_RUNNING_TASKS = 'function oRe(e,t){return v6(e,t).filter((o)=>o.status==="running")}';
-
-const STOCK_LEDGER_CHILD_LOOP =
-  'for(let l of Ol(t)){let u=l.childSessionId;if(o.has(u)||a.has(u))continue;' +
-  'if(hn(u)?.taskInvocationId!==l.taskInvocationId)continue;let d=e.getSubagentInvocationSummary(u);' +
-  'if(d&&!Ri(d.status))continue;';
-
-const STOCK_SESSION_SERVICE =
-  'let D=p();return await qI({sessionId:F.parentSessionId,transcriptPath:F.parentTranscriptPath??D.getSessionTranscriptPath(';
-
-const SAVED_MODEL =
-  'var $ODsavedModels=new Map;function $ODsavedModel($ODid){let $ODhit=$ODsavedModels.get($ODid);if($ODhit)return $ODhit;' +
-  'try{let $ODpath=p().findSessionSettingsPath($ODid,!0),' +
-  '$ODs=$ODpath?JSON.parse(require("fs").readFileSync($ODpath,"utf8")):void 0;' +
-  'if(!$ODs?.model)return;$ODhit={model:$ODs.model,reasoningEffort:$ODs.reasoningEffort};' +
-  '$ODsavedModels.set($ODid,$ODhit);return $ODhit}catch{}}';
-
-export const PATCHED_RUNNING_TASKS =
-  'function oRe(e,t){let $ODall=v6(e),$ODloaded=new Set,$ODout=[],$ODseen=new Set([t]);' +
-  'for(let $ODid of e.getAllSessionIds()){let $ODstore=e.getSessionManager($ODid)?.getStore();' +
-  'if($ODstore&&!$ODstore.getDecompSessionType())$ODloaded.add($ODid)}' +
-  'let $ODwalk=($ODp,$ODd)=>{for(let o of $ODall){if(o.parentSessionId!==$ODp||$ODseen.has(o.taskId))continue;' +
-  '$ODseen.add(o.taskId);let $ODon=o.status==="running";if($ODon)$ODout.push({...o,nestDepth:$ODd});' +
-  '$ODwalk(o.taskId,$ODon?$ODd+1:$ODd)}' +
-  'for(let $ODledger of Ol($ODp)){let $ODid=$ODledger.childSessionId;' +
-  'if($ODloaded.has($ODid)||$ODseen.has($ODid))continue;' +
-  'if(hn($ODid)?.taskInvocationId!==$ODledger.taskInvocationId)continue;$ODseen.add($ODid);' +
-  'let $ODsummary=e.getSubagentInvocationSummary($ODid),$ODon=!$ODsummary||Ri($ODsummary.status);' +
-  'if($ODon)$ODout.push({taskId:$ODid,sessionId:$ODid,parentSessionId:$ODp,toolCallId:$ODledger.parentToolUseId,' +
-  'status:"running",subagentType:$ODledger.subagentType||$ODsummary?.subagentType||void 0,' +
-  'description:$ODledger.description||$ODsummary?.description||void 0,' +
-  'startTime:$ODledger.createdAt,nestDepth:$ODd,...$ODsavedModel($ODid)});' +
-  `$ODwalk($ODid,$ODon?$ODd+1:$ODd)}};$ODwalk(t,0);return $ODout}${SAVED_MODEL}`;
-
-const STOCK_PANEL_ITEM =
-  'label:oe.subagentType??"sub-agent",detail:oe.description??"",sessionId:oe.sessionId,';
-
-const STOCK_PANEL_ROW = `$e=rO(\`\${ke}\${OL(me.label)}\${Ee}\${Ie}\`,O-6)`;
-
-export const PANEL_INDENT = 2;
-
-const PATCHED_PANEL_ROW =
-  `$e=" ".repeat(${PANEL_INDENT}*(me.nestDepth??0))+` +
-  `rO(\`\${ke}\${OL(me.label)}\${Ee}\${Ie}\`,O-6-${PANEL_INDENT}*(me.nestDepth??0))`;
-
 export const nestedSubagentUiPatches: readonly Patch[] = [
   {
     name: 'nested-subagent-ui-task-call-carries-id',
@@ -245,26 +183,5 @@ export const nestedSubagentUiPatches: readonly Patch[] = [
     find: STOCK_DETAIL_OUTPUT,
     lookups: [STOCK_DETAIL_ARGS],
     replace: PATCHED_DETAIL_OUTPUT,
-  },
-  {
-    name: 'nested-subagent-ui-counter-counts-descendants',
-    find: STOCK_RUNNING_COUNT,
-    replace: PATCHED_RUNNING_COUNT,
-  },
-  {
-    name: 'nested-subagent-ui-panel-lists-descendants',
-    find: STOCK_RUNNING_TASKS,
-    lookups: [STOCK_LEDGER_CHILD_LOOP, STOCK_SESSION_SERVICE],
-    replace: PATCHED_RUNNING_TASKS,
-  },
-  {
-    name: 'nested-subagent-ui-panel-item-depth',
-    find: STOCK_PANEL_ITEM,
-    replace: `${STOCK_PANEL_ITEM}nestDepth:oe.nestDepth,`,
-  },
-  {
-    name: 'nested-subagent-ui-panel-row-indent',
-    find: STOCK_PANEL_ROW,
-    replace: PATCHED_PANEL_ROW,
   },
 ];

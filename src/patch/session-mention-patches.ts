@@ -130,7 +130,7 @@ export const sessionMentionPatches: readonly Patch[] = [
     find: 'static isInPathContext({text:y,cursorPosition:E}){return uu.extractPathQuery({text:y,cursorPosition:E})!==null}}',
     lookups: [
       UU_LOOKUP,
-      'children:bt.title?ZT(bt.title):oe("sessions.untitled")',
+      'children:bt.cwd?ZT(bt.cwd):""',
       'Pe=be?Li(be,Math.max(0,Le-_e)):void 0',
       'let{slice:U}=Ar(D,F-QS.length);',
     ],
@@ -152,7 +152,7 @@ export const sessionMentionPatches: readonly Patch[] = [
   },
   {
     name: 'session-mention-suggest',
-    find: `${SUGGESTIONS_CLOSED},En([]),Qt(!1)},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe,Ko])`,
+    find: `${SUGGESTIONS_CLOSED},En([]),Qt(!1)},[zi,Ma,Ba,Mt,qt,Zt.status,Nn,_e,Pe,Ko])`,
     lookups: [
       CALLBACK_START,
       UU_LOOKUP,
@@ -186,7 +186,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       '$ODload.then(($ODpool)=>{if(Ba.$ODload!==$ODload)return;let $ODfresh=Ba.$ODpool!==$ODpool;Ba.$ODpool=$ODpool;' +
       'if($ODseq===Po.current)$ODshow($ODpool);if($ODfresh)$ODscan($ODpool)},' +
       '($ODe)=>{if(Ba.$ODload===$ODload)Ba.$ODload=void 0;h($ODe,"Failed to load sessions for the # picker")})' +
-      '},[zi,Ma,Ba,Mt,qt,Zt.status,_e,Pe,Ko])',
+      '},[zi,Ma,Ba,Mt,qt,Zt.status,Nn,_e,Pe,Ko])',
   },
   {
     name: 'session-mention-escape',

@@ -34,11 +34,11 @@ export interface MarkdownOptions {
 
 type Parser = (source: string, options: Stand) => Stand;
 
-const MATH_EXTENSION = /function \w+\(\)\{return\{enter:\{mathFlow:/u;
-const JSON_RENDER_TAGS = /var \w+="<json-render",\w+="<\/json-render>";/u;
-const PARSE_FUNCTION = /function (?<name>\w+)\(\w+\)\{let(?:\{completedOffsets:| \$ODmemo=)/u;
-const CUT_FUNCTION = /function (?<name>\w+)\(\w+,\w+\)\{let \w+=\w+\.length>0\?/u;
-const PARSER_CALL = /unfinishedDisplayOffset:\w+\}=\w+\(\w+\),\w+=(?<name>\w+)\(/u;
+const MATH_EXTENSION = /function [\w$]+\(\)\{return\{enter:\{mathFlow:/u;
+const JSON_RENDER_TAGS = /var [\w$]+="<json-render",[\w$]+="<\/json-render>";/u;
+const PARSE_FUNCTION = /function (?<name>[\w$]+)\([\w$]+\)\{let(?:\{completedOffsets:| \$ODmemo=)/u;
+const CUT_FUNCTION = /function (?<name>[\w$]+)\([\w$]+,[\w$]+\)\{let [\w$]+=[\w$]+\.length>0\?/u;
+const PARSER_CALL = /unfinishedDisplayOffset:[\w$]+\}=[\w$]+\([\w$]+\),[\w$]+=(?<name>[\w$]+)\(/u;
 const GUARD_RESULT = /let \$ODresult=\$ODparse\((?<input>\w+)\)/u;
 
 function isParser(value: Stand): value is Parser {
@@ -156,7 +156,7 @@ export interface GridOptions {
   blank?: (cell: Cell) => Cell;
 }
 
-const GRID_CLASS = /class (?<name>\w+)\{operations=\[\];caches=new \w+;width;height;/u;
+const GRID_CLASS = /class (?<name>[\w$]+)\{operations=\[\];caches=new [\w$]+;width;height;/u;
 const BLANK = '{type:"char",value:" ",fullWidth:!1,styles:[]}';
 
 function gridIn(text: string, options: GridOptions): GridClass {

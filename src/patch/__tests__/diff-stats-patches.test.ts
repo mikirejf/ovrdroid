@@ -13,7 +13,7 @@ interface Run {
   stderr: string;
 }
 
-type Runner = (command: string, args: string[]) => Run;
+type Runner = (cwd: string, command: string, args: string[]) => Run;
 
 interface Stats {
   additions?: number;
@@ -28,11 +28,16 @@ interface PrState extends Stats {
   prNumber?: string;
 }
 
+interface Outcome {
+  status: 'error' | 'absent';
+}
+
 interface Service {
   published: State[];
-  failing: boolean;
-  run: () => Promise<void>;
-  $ODstats: () => Promise<Stats>;
+  pendingDetection: object | null;
+  stale: State | null;
+  applyOutcome: (cwd: string, outcome: Outcome) => State | Promise<State>;
+  $ODstats: (cwd: string) => Promise<Stats>;
 }
 
 type ServiceClass = new () => Service;
@@ -56,13 +61,17 @@ const GIT_ENV = {
 
 const DETECTION = patchNamed(diffStatsPatches, 'diff-stats-without-pr');
 const DISPLAY = patchNamed(diffStatsPatches, 'diff-stats-footer-without-pr');
-const METHOD_START = 'async $ODstats(){';
-const METHOD_END = 'takeStaleFound(){';
-const SERVICE_FIELDS = 'published=[];failing=!1;publish(s){this.published.push(s);return s}';
+const METHOD_START = 'async $ODstats(';
+const METHOD_END = 'takeStaleFound(';
+const SERVICE_FIELDS =
+  'state={status:"idle"};stateCwd=null;pendingDetection=null;lastFound=null;lookupFailing=!1;stale=null;published=[];' +
+  'publish(t,s){this.state=t;this.stateCwd=s;this.published.push(t);return t}';
+const APPLY_OUTCOME = `applyOutcome(t,s){switch(s.status){case"error":${DETECTION.replace}t){return this.stale}`;
+const CWD = '/repo';
 const THEME = { gitAdditions: 'green', gitDeletions: 'red' };
 
 function diffSays(stdout: string | null): Runner {
-  return (_command, args) =>
+  return (_cwd, _command, args) =>
     stdout !== null && args[0] === 'diff'
       ? { ok: true, stdout, stderr: '' }
       : { ok: false, stdout: '', stderr: 'fatal' };
@@ -81,14 +90,12 @@ function git(cwd: string, ...args: string[]): string {
   return done.stdout.toString().trim();
 }
 
-function runnerIn(cwd: string): Runner {
-  return (command, args) => {
-    const done = Bun.spawnSync([command, ...args], { cwd, env: GIT_ENV });
-    return {
-      ok: done.exitCode === 0,
-      stdout: done.stdout.toString().trim(),
-      stderr: done.stderr.toString().trim(),
-    };
+function runInCwd(cwd: string, command: string, args: string[]): Run {
+  const done = Bun.spawnSync([command, ...args], { cwd, env: GIT_ENV });
+  return {
+    ok: done.exitCode === 0,
+    stdout: done.stdout.toString().trim(),
+    stderr: done.stderr.toString().trim(),
   };
 }
 
@@ -115,11 +122,11 @@ function repoWithOrigin(root: string): string {
 }
 
 function serviceOver(runner: Runner, methods: string): Service {
-  const build = payloadFunction<[Runner], ServiceClass>(
-    ['l'],
+  const build = payloadFunction<[Runner, (value: never) => never], ServiceClass>(
+    ['f', 're'],
     `return class{${SERVICE_FIELDS}${methods}}`,
   );
-  const Class = build(runner);
+  const Class = build(runner, (value) => value);
   return new Class();
 }
 
@@ -128,13 +135,12 @@ async function statsIn(cwd: string): Promise<Stats> {
     DETECTION.replace.indexOf(METHOD_START),
     DETECTION.replace.lastIndexOf(METHOD_END),
   );
-  return await serviceOver(runnerIn(cwd), method).$ODstats();
+  return await serviceOver(runInCwd, method).$ODstats(cwd);
 }
 
 async function published(runner: Runner, failing: boolean): Promise<State[]> {
-  const service = serviceOver(runner, `async run(){if(this.failing){${DETECTION.replace}}`);
-  service.failing = failing;
-  await service.run();
+  const service = serviceOver(runner, APPLY_OUTCOME);
+  await service.applyOutcome(CWD, { status: failing ? 'error' : 'absent' });
   return service.published;
 }
 
@@ -243,6 +249,42 @@ describe('what the service publishes when no PR is found', () => {
     expect(await published(ONE_ADDED, false)).toEqual([
       { status: 'not-found', additions: 1, deletions: 0 },
     ]);
+  });
+
+  test('git runs in the folder the lookup was for', async () => {
+    const folders: string[] = [];
+    const runner: Runner = (cwd, command, args) => {
+      folders.push(cwd);
+      return FAKE_STATS(cwd, command, args);
+    };
+    await published(runner, false);
+
+    expect(new Set(folders)).toEqual(new Set([CWD]));
+  });
+
+  test('a failed lookup that keeps a recent PR publishes that PR without running git', async () => {
+    const calls: string[][] = [];
+    const runner: Runner = (cwd, command, args) => {
+      calls.push(args);
+      return FAKE_STATS(cwd, command, args);
+    };
+    const service = serviceOver(runner, APPLY_OUTCOME);
+    const recent = { status: 'found', prUrl: 'u', prNumber: '7', additions: 9, deletions: 1 };
+    service.stale = recent;
+    await service.applyOutcome(CWD, { status: 'error' });
+
+    expect(service.published).toEqual([recent]);
+    expect(calls).toEqual([]);
+  });
+
+  test('a lookup overtaken by a newer one while counting publishes nothing', async () => {
+    const service = serviceOver(FAKE_STATS, APPLY_OUTCOME);
+    service.pendingDetection = {};
+    const outcome = service.applyOutcome(CWD, { status: 'absent' });
+    service.pendingDetection = {};
+    await outcome;
+
+    expect(service.published).toEqual([]);
   });
 });
 

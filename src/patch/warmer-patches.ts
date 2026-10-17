@@ -88,23 +88,14 @@ export const warmerPatches: readonly Patch[] = [
     replace: 'function mY(t){$ODWc(t),Qh.delete(t)}var V5=',
   },
   {
-    name: 'cache-warm-max-tokens',
-    find: 'maxOutputTokens:fe.maxOutputTokens}:void 0,conversationHistory:ae,baseParams:Hs',
-    lookups: [
-      'hasProviderRotation:!1})},on=async({conversationHistory:ae,systemMessage:ye,callbacks:pe,sessionId:Se,assistantMessageId:De,recordProviderAttempt:Ge,recordUpstreamRequestId:dt,allowContextLimitS3Logging:mt,maxTokensOverride:Mt,',
-    ],
-    replace:
-      'maxOutputTokens:Mt===void 0?fe.maxOutputTokens:void 0}:void 0,conversationHistory:ae,baseParams:Hs',
-  },
-  {
     name: 'cache-warm-child-count',
-    find: 'function xz({sessionStateManager:e,taskId:t,afterMessageId:o}){',
+    find: 'function Nme({sessionStateManager:e,taskId:t,afterMessageId:s}){',
     lookups: [
-      'o.status==="running")}function vz(e,t){let o=new Set,i=0;',
-      'async queueParentMessage(e){return await Ht({client:L(),',
+      'function qme(a,b){let c=new Map;for(let d of DE(b)){',
+      'async queueParentMessage(e){return await bE({client:N(),',
     ],
     replace:
-      'globalThis.__odKids=($ODsid)=>vz(L().getSessionStateManager(),$ODsid);' +
-      'function xz({sessionStateManager:e,taskId:t,afterMessageId:o}){',
+      'globalThis.__odKids=($ODsid)=>qme(N().getSessionStateManager(),$ODsid).filter(($ODkid)=>$ODkid.status==="running").length;' +
+      'function Nme({sessionStateManager:e,taskId:t,afterMessageId:s}){',
   },
 ];

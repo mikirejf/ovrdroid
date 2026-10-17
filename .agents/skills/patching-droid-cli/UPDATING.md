@@ -167,6 +167,15 @@ then read the stock code around where it was (step 2's extractions, side by side
 - **Droid now persists what the payload caches.** Before re-anchoring a patch that keeps its own
   file or state, check whether stock now stores the same thing, and under which conditions.
 
+- **The fix may be older than this release.** A patch can keep matching after upstream fixed the
+  problem some other way, and then do nothing until a neighbouring edit finally makes it go
+  `missing`. Read the stock code for what it does now, not just the diff since the last release.
+
+When you delete a patch, check its **companion** patches in the same file too. A patch that still
+matches can be dead: it styled rows of a list upstream removed, and the code it hooks is now shared
+by other rows that never carry its field. A clean `rebased` says nothing about whether anything
+still reaches the payload.
+
 Delete obsolete patches together with their tests. Record the evidence (the absent literal, the new
 code) in the commit, because a deleted patch leaves no other trace.
 
@@ -298,6 +307,8 @@ platforms. Write any new one the same way:
 - Take a stock name from a patch's rebased `find` rather than writing the letter: count
   `rebase.find` from `rebaseAll`, never a raw `PATCH.find`, which is in one platform's names; and
   read a captured binding with `renamed(rebase)` (`session-mention-keys.ts`).
+- Match a minified name with `[\w$]+`, never `\w+`: the minifier hands out `$`-prefixed names, and
+  a regex that skips them breaks the release it first picks one.
 - Compare a stock piece with `holePattern`, which ignores minified names (`stock-source.test.ts`).
 - A test that writes a chunk to `/tmp` and imports it must write the chunk's whole import closure,
   with `/$bunfs/root/` rewritten to `./`, or it fails with `Cannot find module`.
@@ -311,6 +322,15 @@ These tests read the **host's installed** build (or its `.orig`). Until the host
 release they test the old one, so before the real install they fail for patches you already fixed,
 and they cannot see the new release at all. Expect that. The order is: copy passes step 6's probes,
 `ovrdroid update` for real, then `bun test` must be fully green.
+
+To run them against the new release before installing it, point `HOME` at a scratch directory
+whose `.local/bin/droid` is a copy of the new stock binary, and run the tests for the patches you
+changed there.
+
+When several people or agents fix drift in parallel, a test that applies only its own file's
+patches (`rebaseAll` on that list, not the whole set) keeps working while the other files are
+still mid-edit. A deleted patch file breaks every probe until the list that imports it is fixed,
+so delete the import in the same change.
 
 ## 5. Install the new release on a copy
 

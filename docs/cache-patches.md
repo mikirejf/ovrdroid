@@ -76,9 +76,10 @@ What a warm must match, each found by a capture that failed:
    the tool-search resolver and sent 17 plain tools, while the real turn sent 50 entries. Building
    the warm with `createLLMStreamingCore`, the agent loop's own client, fixed it.
 3. **`max_tokens:1`.** On Claude the thinking-config builder overwrote the warm's override with the
-   model's `maxOutputTokens` (128,000). `cache-warm-max-tokens` passes `maxOutputTokens` only when
-   the caller set no override. Anthropic accepts `max_tokens:1` with adaptive thinking. Live on
-   `sonnet-5-5`, both warms read 20,798 and wrote 0, and the parent's next request read 20,798.
+   model's `maxOutputTokens` (128,000). Since 0.242.0 stock clamps the override to that limit
+   instead, so the warm's 1 token survives without a patch. Anthropic accepts `max_tokens:1` with
+   adaptive thinking. Live on `sonnet-5-5`, both warms read 20,798 and wrote 0, and the parent's
+   next request read 20,798.
 
 The warmer fires at 45 minutes on Anthropic ([cache-lifetime.md](cache-lifetime.md) says why).
 `OVRDROID_WARM_DELAY_MS` overrides the delay for tests.

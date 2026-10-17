@@ -87,8 +87,9 @@ interface Flat {
 
 interface PrService {
   state: Flat;
+  stateCwd: string | null;
   emitted: number;
-  publish: (state: Flat) => Flat;
+  publish: (state: Flat, cwd?: string) => Flat;
 }
 
 type PrServiceClass = new () => PrService;
@@ -96,7 +97,7 @@ type PrServiceClass = new () => PrService;
 function prServiceWith(methods: string): PrServiceClass {
   return payloadFunction<[], PrServiceClass>(
     [],
-    `return class{state={status:"idle"};emitted=0;${methods}emitStateChange(){this.emitted+=1}}`,
+    `return class{state={status:"idle"};stateCwd=null;emitted=0;${methods}emitStateChange(){this.emitted+=1}}`,
   )();
 }
 
@@ -146,6 +147,14 @@ describe('pr-state-same-skip', () => {
     service.publish({ status: 'found', prUrl: undefined });
     service.publish({ status: 'found', additions: undefined });
     expect(service.emitted).toBe(2);
+  });
+
+  test('an equal state from another directory still records the directory', () => {
+    const service = new Patched();
+    service.publish({ status: 'not-found' }, '/a');
+    service.publish({ status: 'not-found' }, '/b');
+    expect(service.emitted).toBe(1);
+    expect(service.stateCwd).toBe('/b');
   });
 
   test('publish still returns the state it was given', () => {

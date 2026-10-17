@@ -17,9 +17,9 @@ export const subagentSoundPatches: readonly Patch[] = [
   {
     name: 'turn-end-reports-running-subagents',
     find: 'return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee()})}',
-    lookups: ['let E=P().getSessionStateManager(),A=()=>y?IZ(E,y):0'],
+    lookups: ['?qme(this.ssm,f):[]'],
     replace:
-      'return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee(IZ(P().getSessionStateManager(),Bn)>0)})}',
+      'return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee(qme(P().getSessionStateManager(),Bn).some(($ODagent)=>$ODagent.status==="running"))})}',
   },
   {
     name: 'turn-end-sound-waits-for-subagents',

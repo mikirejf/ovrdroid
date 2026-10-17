@@ -144,9 +144,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'gate-first-turn-on-ide-connect',
-    find: 'awaitMcpReadinessBeforeAgentTurnIfEnabled(e){if(this.refreshMcpListeners(),!this.isBlockOnMcpLoadEnabled())return;',
+    find: 'if(this.refreshMcpListeners(),!this.isBlockOnMcpLoadEnabled())return;',
     replace:
-      'awaitMcpReadinessBeforeAgentTurnIfEnabled(e){this.refreshMcpListeners();' +
+      'this.refreshMcpListeners();' +
       'if(this.ideInitPromise){let $ODtimer;await Promise.race([this.ideInitPromise.catch(()=>{}),new Promise(($ODdone)=>{$ODtimer=setTimeout($ODdone,5000);$ODtimer.unref?.()})]);clearTimeout($ODtimer)}' +
       'if(!this.isBlockOnMcpLoadEnabled())return;',
   },
@@ -170,7 +170,7 @@ export const patches: readonly Patch[] = [
     find: 'U=await t.loadSession(e.sessionId,x),H=Number(',
     lookups: [
       'zi=me({name:"SessionController",lifecycle:"agent",create:()=>new se});function _n(){let Wz=_e(zi);',
-      'C().validateModelAccess(',
+      'getCustomModels(){return C().getCustomModels()}',
     ],
     replace: 'U=(_e(zi)&&await C().initialize(),await t.loadSession(e.sessionId,x)),H=Number(',
   },

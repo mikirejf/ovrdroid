@@ -11,6 +11,7 @@ export const SERVER = 'chrome-devtools';
 export const HOME = '/home/tester';
 export const FIRST_PID = 4100;
 const MINUTE = 60_000;
+const TEARDOWN_BOUND_MS = 7000;
 
 export interface Tool {
   name: string;
@@ -133,7 +134,7 @@ const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdl
   .replace(STOCK_PID_HELPERS, '');
 
 const BINDINGS =
-  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH'.split(
+  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH l0e'.split(
     ' ',
   );
 
@@ -230,6 +231,7 @@ export class HubWorld {
       async (pending: Promise<void>) => {
         await pending;
       },
+      TEARDOWN_BOUND_MS,
     );
     this.hub = new Hub({
       userMcpConfigs: configs ?? { [SERVER]: STDIO_CONFIG },

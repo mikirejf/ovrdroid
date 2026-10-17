@@ -14,10 +14,15 @@ interface PrState {
   additions?: number | undefined;
 }
 
+interface PullRequest {
+  kind: string;
+  state: PrState;
+}
+
 interface FooterProps {
   width?: number;
   statusState?: string;
-  prState?: PrState;
+  pullRequest?: PullRequest | null;
   droidsHint?: Hint | undefined;
   onNothing?: () => number;
   ideState?: { file: { name: string } };
@@ -36,10 +41,10 @@ interface Memoed {
 }
 
 interface Footer {
-  F7: Memoed;
-  FV: Memoed;
-  sae: Memoed;
-  LW: Memoed;
+  EB: Memoed;
+  ZG: Memoed;
+  pme: Memoed;
+  ZK: Memoed;
   footKey: (usage: number | null | undefined) => string;
 }
 
@@ -67,8 +72,8 @@ function footerWith(settings: Settings, percentCalls: number[]): Footer {
     return `${usage}%`;
   };
   return payloadFunction<[object, typeof memo, typeof reader, typeof percent], Footer>(
-    ['o4', 'SA', 'C', 'sue'],
-    `let F7=()=>"footer",FV=()=>"status line",sae=()=>"tasks",LW=()=>"migration";${patchNamed(rerenderPatches, 'footer-memo').replace};return{F7,FV,sae,LW,footKey:$ODfootKey}`,
+    ['cP', 'dp', 'C', 'Mhe'],
+    `let EB=()=>"footer",ZG=()=>"status line",pme=()=>"tasks",ZK=()=>"migration";${patchNamed(rerenderPatches, 'footer-memo').replace};return{EB,ZG,pme,ZK,footKey:$ODfootKey}`,
   )({}, memo, reader, percent);
 }
 
@@ -80,6 +85,7 @@ function compareOf(memoed: Memoed): Compare {
 }
 
 const DROIDS: Hint = { canOpen: true, attentionCount: 2 };
+const PR: PrState = { status: 'found', prUrl: 'u', additions: 1 };
 function NOTHING(): number {
   return 0;
 }
@@ -88,7 +94,7 @@ function propsOf(extra: FooterProps = {}): FooterProps {
   return {
     width: 120,
     statusState: 'idle',
-    prState: { status: 'found', prUrl: 'u', additions: 1 },
+    pullRequest: { kind: 'branch', state: PR },
     droidsHint: DROIDS,
     onNothing: NOTHING,
     ...extra,
@@ -97,17 +103,17 @@ function propsOf(extra: FooterProps = {}): FooterProps {
 
 describe('footer-memo', () => {
   const footer = footerWith({ tokenUsage: false, nerdFont: false }, []);
-  const same = compareOf(footer.F7);
+  const same = compareOf(footer.EB);
 
   test('the footer is wrapped with a compare, and the three labels with plain memo', () => {
-    expect(footer.F7.render()).toBe('footer');
-    expect(footer.F7.compare).toBeDefined();
-    for (const label of [footer.FV, footer.sae, footer.LW]) {
+    expect(footer.EB.render()).toBe('footer');
+    expect(footer.EB.compare).toBeDefined();
+    for (const label of [footer.ZG, footer.pme, footer.ZK]) {
       expect(label.compare).toBeUndefined();
     }
-    expect(footer.FV.render()).toBe('status line');
-    expect(footer.sae.render()).toBe('tasks');
-    expect(footer.LW.render()).toBe('migration');
+    expect(footer.ZG.render()).toBe('status line');
+    expect(footer.pme.render()).toBe('tasks');
+    expect(footer.ZK.render()).toBe('migration');
   });
 
   test('the same props are equal', () => {
@@ -116,12 +122,17 @@ describe('footer-memo', () => {
     expect(same(one, { ...one })).toBe(true);
   });
 
-  test('a fresh flat object with the same fields is equal, so the idle and hint objects do not rerender', () => {
+  test('a fresh flat object with the same fields is equal, so the pull request and hint objects do not rerender', () => {
     const after = propsOf({
-      prState: { status: 'found', prUrl: 'u', additions: 1 },
+      pullRequest: { kind: 'branch', state: PR },
       droidsHint: { canOpen: true, attentionCount: 2 },
     });
     expect(same(propsOf(), after)).toBe(true);
+  });
+
+  test('a pull request wrapping a fresh copy of the same state is different, so the service must keep its state', () => {
+    const after = propsOf({ pullRequest: { kind: 'branch', state: { ...PR } } });
+    expect(same(propsOf(), after)).toBe(false);
   });
 
   test('a changed scalar is different', () => {
@@ -132,9 +143,7 @@ describe('footer-memo', () => {
 
   test('a changed field inside a flat object is different', () => {
     const before = propsOf();
-    expect(
-      same(before, { ...before, prState: { status: 'found', prUrl: 'u', additions: 2 } }),
-    ).toBe(false);
+    expect(same(before, { ...before, pullRequest: { kind: 'session', state: PR } })).toBe(false);
     expect(same(before, { ...before, droidsHint: { canOpen: true, attentionCount: 3 } })).toBe(
       false,
     );
@@ -213,6 +222,6 @@ describe('footer-memo-key', () => {
   test('adds the key to the footer props and nothing else', () => {
     const patch = patchNamed(rerenderPatches, 'footer-memo-key');
     expect(patch.replace.startsWith(patch.find)).toBe(true);
-    expect(patch.replace.slice(patch.find.length)).toBe('$ODfresh:$ODfootKey(Bv),');
+    expect(patch.replace.slice(patch.find.length)).toBe('$ODfresh:$ODfootKey(qD),');
   });
 });
