@@ -25,7 +25,7 @@ const SESSION_INDEX = path.join(FACTORY, 'cache', 'session-index', 'index.db');
 const BUSY_TIMEOUT_MS = 5000;
 const EXIT_GRACE_MS = 10_000;
 const INTERRUPTED_EXIT_CODE = 130;
-export const START_HOOK_BOUND_MS = 5000;
+export const START_HOOK_BOUND_MS = 15_000;
 const START_HOOK_POLL_MS = 50;
 
 type Child = Bun.Subprocess;

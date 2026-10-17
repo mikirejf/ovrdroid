@@ -144,9 +144,10 @@ describe('missingHookMessage', () => {
   test('says what failed, the likely causes, and where a session may remain', () => {
     const message = missingHookMessage('/home/me/.factory/sessions/-tmp-x', 5000);
     expect(message).toContain(
-      "Droid ran neither the probe's SessionStart nor its SessionEnd hook within 5000ms",
+      "Droid ran neither the probe's SessionStart nor its SessionEnd hook within 5000ms,",
     );
     expect(message).toContain('cannot identify and delete');
+    expect(message).toContain('had not started its session yet');
     expect(message).toContain('"hooksDisabled": true');
     expect(message).toContain('"allowManagedHooksOnly": true');
     expect(message).toContain('may remain in /home/me/.factory/sessions/-tmp-x');

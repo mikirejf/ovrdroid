@@ -99,9 +99,11 @@ export function sessionFolderName(realCwd: string): string {
 
 export function missingHookMessage(folder: string, boundMs: number): string {
   return [
-    `Droid ran neither the probe's SessionStart nor its SessionEnd hook within ${boundMs}ms of starting its session,`,
+    `Droid ran neither the probe's SessionStart nor its SessionEnd hook within ${boundMs}ms,`,
     'so the probe cannot identify and delete the sessions this run created.',
-    'Likely causes: hooks are disabled ("hooksDisabled": true in a hooks.json or settings.json),',
+    'Likely causes: Droid had not started its session yet. It paints the input box first and starts',
+    'the session afterwards, which takes seconds longer when other Droids or builds load the machine.',
+    'Or hooks are disabled ("hooksDisabled": true in a hooks.json or settings.json),',
     'or your organization allows managed hooks only ("allowManagedHooksOnly": true).',
     `A session from this run may remain in ${folder}`,
   ].join('\n');
