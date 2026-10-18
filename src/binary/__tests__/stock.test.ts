@@ -6,6 +6,7 @@ import type { Patch } from '../../patch/patches.ts';
 import { markerStatement } from '../../patch/patches.ts';
 import { backupPath } from '../../paths.ts';
 import { makeTempDir } from '../../temp.ts';
+import { BUILD_BUN_VERSION } from '../bun.ts';
 import { stockFrom } from '../stock.ts';
 import { build, entry } from './binary.ts';
 
@@ -14,9 +15,10 @@ const older: readonly Patch[] = [{ name: 'timeout', find: 'wait(150)', replace: 
 
 const STOCK_SOURCE = 'wait(150);done();';
 const PATCHED_SOURCE = `${STOCK_SOURCE}${markerStatement(older)}`;
+const APPLIED_SOURCE = `wait(30);done();${markerStatement(list)}`;
 
-function droidReporting(version: string, source: string): Uint8Array {
-  const script = Buffer.from(`#!/bin/sh\necho ${version}\nexit 0\n`);
+function droidReporting(version: string, source: string, bun = '0.0.0'): Uint8Array {
+  const script = Buffer.from(`#!/bin/sh\n# Bun v${bun}\necho ${version}\nexit 0\n`);
   return build([{ ...entry, source }], 0, script);
 }
 
@@ -72,5 +74,19 @@ describe('stockFrom', () => {
 
     expect(stocked?.origin).toBe(target);
     expect(readFileSync(backup).equals(Buffer.from(stock))).toBe(true);
+  });
+
+  test('leaves a target alone when it carries this patch set built on the pinned Bun', () => {
+    install(target, droidReporting('0.228.0', APPLIED_SOURCE, BUILD_BUN_VERSION));
+
+    expect(stockFrom(target, list)).toBeUndefined();
+  });
+
+  test('rebuilds from the backup when this patch set was built on another Bun', () => {
+    const stock = droidReporting('0.228.0', STOCK_SOURCE);
+    install(target, droidReporting('0.228.0', APPLIED_SOURCE, '0.0.1'));
+    install(backup, stock);
+
+    expect(stockFrom(target, list)?.origin).toBe(backup);
   });
 });

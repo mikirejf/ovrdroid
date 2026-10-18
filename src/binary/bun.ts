@@ -19,7 +19,7 @@ function assetName(): string {
   throw new Error(`no Bun build for ${host}`);
 }
 
-export const BUILD_BUN_VERSION = '1.4.2';
+export const BUILD_BUN_VERSION = '1.4.3';
 
 export function embeddedBunVersion(bytes: Uint8Array): string {
   const buffer = bufferOf(bytes);

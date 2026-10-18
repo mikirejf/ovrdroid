@@ -4,7 +4,7 @@ import { hasErrorCode, kilobytes, messageOf, say } from '../cli.ts';
 import type { Patch } from '../patch/patches.ts';
 import { backupPath } from '../paths.ts';
 import { describeStatus, statusOf } from './apply.ts';
-import { embeddedBunVersion, reportedVersion } from './bun.ts';
+import { BUILD_BUN_VERSION, embeddedBunVersion, reportedVersion } from './bun.ts';
 import type { App } from './graph.ts';
 import { appBytes, readApp } from './graph.ts';
 
@@ -64,13 +64,13 @@ export function stockFrom(target: string, list: readonly Patch[]): Stock | undef
   const installed = readStock(target);
   const current = statusOf(installed.app, list);
 
-  if (current.kind === 'applied') {
+  if (current.kind === 'applied' && embeddedBunVersion(installed.bytes) === BUILD_BUN_VERSION) {
     return undefined;
   }
   if (current.kind === 'missing') {
     throw new Error(`markers not found (Droid version drift): ${current.names.join(', ')}`);
   }
-  if (current.kind === 'stale') {
+  if (current.kind === 'stale' || current.kind === 'applied') {
     const restored = readBackup(backup);
     assertSameVersion(backup, target);
     say(`starting from stock backup ${backup}`);
