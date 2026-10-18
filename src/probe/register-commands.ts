@@ -7,12 +7,14 @@ import { registerExecCommands } from './exec-commands.ts';
 import { registerReleaseCommands } from './release-commands.ts';
 import { registerRenderCommands } from './render-commands.ts';
 import { registerResourceCommands } from './resource-commands.ts';
+import { registerRosterViewCommand } from './roster-view-command.ts';
 import { registerSessionCommands } from './session-commands.ts';
 import { registerTypingCommand } from './typing-command.ts';
 
 export function registerCommands(program: Command): void {
   registerExecCommands(program);
   registerSessionCommands(program);
+  registerRosterViewCommand(program);
   registerReleaseCommands(program);
   registerRenderCommands(program);
   registerResourceCommands(program);

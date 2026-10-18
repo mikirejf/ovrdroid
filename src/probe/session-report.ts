@@ -1,6 +1,9 @@
 import { say } from '../cli.ts';
 import { readMcpConfig } from '../doctor/read.ts';
 import { FACTORY_MCP, INSTALLED_DROID } from '../paths.ts';
+import { busyVerdicts, describeVerdicts } from './busy-signal-report.ts';
+import type { BusySignalOptions } from './busy-signal.ts';
+import { runBusySignal, saveEvidence, STUB_MODEL_NAME } from './busy-signal.ts';
 import { clearWhileTyping, describeClear } from './clear.ts';
 import type { FirstSendOptions } from './first-send.ts';
 import { describeFirstSend, sendFirstMessage } from './first-send.ts';
@@ -15,7 +18,13 @@ import { runRewind } from './rewind.ts';
 
 export { FIRST_SEND_PROMPT } from './first-send.ts';
 export { DEFAULT_NOTICE_TYPE } from './notice.ts';
+export { DEFAULT_BUSY_TIMEOUT_S } from './busy-signal.ts';
 export { DEFAULT_REWIND_TIMEOUT_S } from './rewind.ts';
+
+export interface BusySignalCommand extends Omit<BusySignalOptions, 'switchSession'> {
+  view: boolean;
+  skipSwitch: boolean;
+}
 export { shield } from './shield-report.ts';
 export { DEFAULT_SETTLE_S, envPair } from './mcp-children.ts';
 
@@ -46,6 +55,20 @@ export async function notice(binary: string, options: NoticeOptions): Promise<vo
 export async function rewind(binary: string, options: RewindOptions): Promise<void> {
   const verdicts = rewindVerdicts(readRewind(await runRewind(binary, options)));
   say(describeRewind(verdicts));
+  if (verdicts.some((verdict) => !verdict.pass)) {
+    process.exitCode = 1;
+  }
+}
+
+export async function busySignal(binary: string, options: BusySignalCommand): Promise<void> {
+  const evidence = await runBusySignal(binary, { ...options, switchSession: !options.skipSwitch });
+  if (options.out !== undefined) {
+    for (const file of saveEvidence(evidence, options.out)) {
+      say(`saved ${file}`);
+    }
+  }
+  const verdicts = busyVerdicts(evidence, STUB_MODEL_NAME, { requireView: options.view });
+  say(describeVerdicts(verdicts));
   if (verdicts.some((verdict) => !verdict.pass)) {
     process.exitCode = 1;
   }

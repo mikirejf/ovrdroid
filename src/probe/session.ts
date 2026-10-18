@@ -46,6 +46,7 @@ export interface SessionOptions {
   cwd?: string;
   args?: readonly string[];
   screen?: boolean;
+  onData?: (text: string) => undefined;
 }
 
 export const SETTLE_MS = 3000;
@@ -56,6 +57,7 @@ export interface Session {
   startedAt: number;
   type: (text: string) => Promise<void>;
   paste: (text: string) => undefined;
+  press: (sequence: string) => undefined;
   quiet: (quietMs: number, timeoutMs: number) => Promise<void>;
   mark: () => undefined;
   resize: (cols: number, rows: number) => undefined;
@@ -109,6 +111,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
       written += chunk.byteLength;
       lastOutputAt = performance.now();
       screen?.feed(text);
+      options.onData?.(text);
       if (options.collect === false) {
         return;
       }
@@ -171,6 +174,9 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     },
     paste(text: string): undefined {
       terminal.write(PASTE_START + text + PASTE_END);
+    },
+    press(sequence: string): undefined {
+      terminal.write(sequence);
     },
     async quiet(quietMs: number, timeoutMs: number): Promise<void> {
       const deadline = performance.now() + timeoutMs;

@@ -28,8 +28,8 @@ import type { Session } from './session.ts';
 import { ENTER, openSettledSession } from './session.ts';
 import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
 
-const DROID_TYPE = 'ovrdroid-rewind-probe';
-const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Says hi for the rewind probe.\nmodel: inherit\n---\nSay hi.\n`;
+export const DROID_TYPE = 'ovrdroid-rewind-probe';
+export const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Says hi for the rewind probe.\nmodel: inherit\n---\nSay hi.\n`;
 const REWIND_COMMAND = '/rewind-conversation';
 const BACKSPACE = '\u007F';
 const CLEAR_KEYS = 30;
@@ -54,7 +54,7 @@ export interface RewindOptions {
   timeout: number;
 }
 
-interface Stub {
+export interface Stub {
   url: string;
   release: () => void;
   stop: () => Promise<void>;
@@ -83,7 +83,7 @@ function eventsFor(answer: StubAnswer, callId: (tag: string) => string): string[
   return streamEvents([answer.kind === 'child' ? 'hi' : 'ok']);
 }
 
-function startStub(callId: (tag: string) => string): Stub {
+export function startStub(callId: (tag: string) => string): Stub {
   const held = Promise.withResolvers<boolean>();
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -170,7 +170,11 @@ function forkOf(folder: string, oldChat: string): string | undefined {
   return undefined;
 }
 
-async function waitFor<T>(what: string, read: () => T | undefined, timeoutMs: number): Promise<T> {
+export async function waitFor<T>(
+  what: string,
+  read: () => T | undefined,
+  timeoutMs: number,
+): Promise<T> {
   const value = await poll(read, timeoutMs);
   if (value === undefined) {
     throw new Error(`${what} within ${timeoutMs / MS_PER_SECOND}s`);
@@ -178,12 +182,12 @@ async function waitFor<T>(what: string, read: () => T | undefined, timeoutMs: nu
   return value;
 }
 
-async function send(session: Session, text: string): Promise<void> {
+export async function send(session: Session, text: string): Promise<void> {
   await session.type(text);
   await session.type(ENTER);
 }
 
-async function settle(session: Session): Promise<void> {
+export async function settle(session: Session): Promise<void> {
   await session.quiet(QUIET_MS, QUIET_TIMEOUT_MS);
 }
 

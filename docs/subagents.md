@@ -105,9 +105,36 @@ current session, `cE` drops the tool use id, and the Task box is clamped to `hei
   tool's progress updates, which stayed empty for a foreground Task, so stock showed
   `Initializing...` for the whole run. A Task step there lists the grandchild's steps 4 columns in.
   Droid 0.244.0 took sub-agents out of the background-tasks panel and dropped its
-  `N background agents running` counter. Sub-agents now show in the droids view, which already nests
-  them under their parent, so the patches that counted descendants, listed them in the panel and
-  labelled each with its model were deleted.
+  `N background agents running` counter, so the patches that counted descendants, listed them in the
+  panel and labelled each with its model were deleted.
+
+## Shipped: model and nesting in the 0.244 sub-agent lists
+
+0.244.0 shows sub-agents in two places. The session roster opens with ↓ from the
+` N droid working   ↓ to view` line under the prompt. The droids view opens with Alt+S, but only
+when the `droids_view` feature flag is on, and it is off on our account. Both draw rows with the
+same renderer, and neither shows a model.
+
+The roster lists only direct children: `qme` reads the parent's task invocations and its subagent
+sessions, and the roster builder sets `parentSessionId:null` on every node, so nothing nests.
+
+`session-roster-patches.ts` walks `qme` down the tree with a cycle guard, gives each node its real
+parent, and expands nested nodes by default; Left collapses one and the roster remembers it.
+`droids-view-patches.ts` adds a `model (effort)` chip to the shared row and fills it from the loaded
+store, or from the session's saved settings file when it is not loaded. `probe roster-view` checks a
+level 2 droid shows indented under level 1 with both chips, with the flag off.
+
+## Shipped: Herdr sees a busy pane in every view
+
+Herdr marks a pane working by matching screen text, and 0.242's `(N) sub-agents running` line is
+gone. Screen text cannot cover the ↓ roster, Ctrl+O or the droids view anyway. Stock's own OSC 9;4
+progress writer is dead in 0.244: the agent runs in an in-process scope whose stdout is a no-op.
+
+`busy-signal-patches.ts` writes `ESC ]9;4;3` from the UI while the current session's turn runs or
+any of its sub-agents runs, under Herdr or Ghostty, and `ESC ]9;4;0` 1.5s after both go idle. The
+delay hides the 0.5s idle gap when a sub-agent finishes and the parent wakes, which would otherwise
+play Herdr's done sound. The dotfiles' Herdr `droid.toml` matches `^4;3` on `osc_progress` below the
+blocker rules. `probe busy-signal` records the payload timeline.
 
 ## Shipped: running agents follow a rewind
 

@@ -15,9 +15,11 @@ import { DEFAULT_SESSIONS, DEFAULT_SINCE_DAYS, external } from './external-repor
 import { PROBE_MODEL } from './launch.ts';
 import {
   clear,
+  DEFAULT_BUSY_TIMEOUT_S,
   DEFAULT_NOTICE_TYPE,
   DEFAULT_REWIND_TIMEOUT_S,
   DEFAULT_SETTLE_S,
+  busySignal,
   envPair,
   FIRST_SEND_PROMPT,
   firstSend,
@@ -216,6 +218,27 @@ export function registerSessionCommands(program: Command): void {
       DEFAULT_REWIND_TIMEOUT_S,
     )
     .action(guard(rewind));
+
+  program
+    .command('busy-signal')
+    .description(
+      'launch with HERDR_ENV=1 and hold a background sub-agent in a stub model: does the OSC 9;4 progress stay at 3 (busy) from the turn through the sub-agent and the droids view (Alt+S), reach 0 once it finishes, on a session switch and at exit, and does the droids view show the model chip?',
+    )
+    .argument('<binary>')
+    .option(
+      '--cwd <dir>',
+      'directory to start Droid in; Droid must already trust it',
+      process.cwd(),
+    )
+    .option('--timeout <seconds>', 'how long to wait for each step', count, DEFAULT_BUSY_TIMEOUT_S)
+    .option('--out <dir>', 'save the payload timeline and the droids-view screen in this directory')
+    .option('--view', 'fail when the droids view does not open', false)
+    .option(
+      '--skip-switch',
+      'skip the extra launches: switching session with /new and quitting, both while a sub-agent runs',
+      false,
+    )
+    .action(guard(busySignal));
 
   program
     .command('clear')
