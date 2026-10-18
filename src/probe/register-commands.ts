@@ -8,6 +8,7 @@ import { registerReleaseCommands } from './release-commands.ts';
 import { registerRenderCommands } from './render-commands.ts';
 import { registerResourceCommands } from './resource-commands.ts';
 import { registerSessionCommands } from './session-commands.ts';
+import { registerTypingCommand } from './typing-command.ts';
 
 export function registerCommands(program: Command): void {
   registerExecCommands(program);
@@ -18,4 +19,5 @@ export function registerCommands(program: Command): void {
   registerCensusCommand(program);
   registerDigestCommands(program);
   registerCompactionLiveCommands(program);
+  registerTypingCommand(program);
 }
