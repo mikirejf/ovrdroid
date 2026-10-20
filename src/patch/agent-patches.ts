@@ -7,6 +7,7 @@ import type { Patch } from './patches.ts';
 import { renderPatches } from './render-patches.ts';
 import { subagentPatches } from './subagent-patches.ts';
 import { taskStorePatches } from './task-store-patches.ts';
+import { toolSurfacePatches } from './tool-surface-patches.ts';
 import { wideTerminalPatches } from './wide-terminal-patches.ts';
 
 export const agentPatches: readonly Patch[] = [
@@ -19,4 +20,5 @@ export const agentPatches: readonly Patch[] = [
   ...subagentPatches,
   ...contextRulesPatches,
   ...guidelineSymlinkPatches,
+  ...toolSurfacePatches,
 ];
