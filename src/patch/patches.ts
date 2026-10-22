@@ -67,6 +67,14 @@ const LAZY_SET =
 
 const LAZY_ACCESSORS = `static{let $ODp=this.prototype,${OWN_METHOD},$ODlazy=($ODo,$ODk,$ODfn)=>Object.defineProperty($ODo,$ODk,{configurable:!0,${LAZY_GET},${LAZY_SET}});${JSON.stringify(LAZY_METHODS)}.forEach(($ODk)=>$ODlazy($ODp,$ODk,$ODp[$ODk])),$ODlazy($ODp,"spa",$ODp.safeParseAsync)}`;
 
+export const NO_PAINT_FALLBACK_MS = 2500;
+
+const MARK_PAINTED =
+  'if(!globalThis.$ODpainted)globalThis.$ODpainted=!0,' +
+  'setTimeout(()=>{for(let $ODgo of globalThis.$ODafterPaint?.splice(0)??[])$ODgo()},0)';
+
+const SHELL_FRAME_WRITE = `n=r.write(\`\${je.SYNC_OUTPUT_START}\${t}\${e}\${je.SYNC_OUTPUT_END}\`);`;
+
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
@@ -122,7 +130,22 @@ export const patches: readonly Patch[] = [
     name: 'settings-watch-after-paint',
     find: 'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,',
     replace:
-      'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0,setTimeout(()=>this.$ODwatch(),400).unref?.()}$ODwatch(){if(!this.watchingEnabled)return;this.watchingEnabled=!0,',
+      'enableWatching(){if(this.watchingEnabled)return;this.watchingEnabled=!0;' +
+      'let $ODgen=this.$ODgen=(this.$ODgen??0)+1,$ODdone=!1,' +
+      '$ODgo=()=>{if($ODdone||this.$ODgen!==$ODgen)return;$ODdone=!0,this.$ODwatch()};' +
+      'if(globalThis.$ODpainted)return $ODgo();' +
+      `(globalThis.$ODafterPaint??=[]).push($ODgo),setTimeout($ODgo,${NO_PAINT_FALLBACK_MS}).unref?.()}` +
+      '$ODwatch(){if(!this.watchingEnabled)return;this.watchingEnabled=!0,',
+  },
+  {
+    name: 'settings-watch-after-paint-shell',
+    find: `${SHELL_FRAME_WRITE}if(d=!1,s=0,m=!0,`,
+    replace: `${SHELL_FRAME_WRITE}${MARK_PAINTED};if(d=!1,s=0,m=!0,`,
+  },
+  {
+    name: 'settings-watch-after-paint-ink',
+    find: 'renderInteractiveFrame(e,i,l,r){let E=l!=="",',
+    replace: `renderInteractiveFrame(e,i,l,r){if(this.options.stdout===process.stdout)${MARK_PAINTED};let E=l!=="",`,
   },
   {
     name: 'draft-dismiss-no-rerender',
