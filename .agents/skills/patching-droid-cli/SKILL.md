@@ -64,10 +64,9 @@ So patches are ordinary text edits of any length on the extracted source, and th
    `/$bunfs/root/…` literal names a record the binary carries.
 6. **Re-sign** with `codesign --force --sign -` on macOS. Skip this and macOS kills the process with
    SIGKILL at launch. Linux builds skip this step.
-7. **Prove it before installing.** `--version` must match stock, the copy must paint in a PTY
-   (`probe ab`), and it must render a code block (`probe highlight`). A `--version` that passes
-   says nothing about the chunks or the sidecars, and a paint says nothing about chunks loaded
-   later.
+7. **Prove it before installing.** `--version` must match stock, and the update gate
+   (`ovrdroid gate`, run by `update` and `apply`) must pass on the build. A `--version` that
+   passes says nothing about the chunks or the sidecars.
 
 Transplanting rebuilt regions into the stock binary in place was the old path. It fails silently
 on a Bun version mismatch (the runtime rejects the cache and parses source, +326ms) and cannot
@@ -134,7 +133,7 @@ read a whole region rather than query it. Keep the previous release's extraction
 ## After a Droid update
 
 `ovrdroid update` installs Factory's newest release (`factory-cli/LATEST`) for the host,
-verifies its sha256, and applies. A release that only renames is absorbed by the rebase. Otherwise
+verifies its sha256, applies, and runs the gate on the build before it replaces anything. A release that only renames is absorbed by the rebase. Otherwise
 `update` reports `markers not found (Droid version drift): <name> (<reason>)` and leaves the
 installed Droid as it was, so `status` still says `applied` for the old release. `probe builds`
 shows the drift for every platform from cached stock downloads. Before fixing a stuck patch, check whether the new

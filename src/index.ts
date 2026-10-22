@@ -1,25 +1,22 @@
 #!/usr/bin/env bun
-import { copyFileSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
 
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
-import { patchSource } from './binary/apply.ts';
-import { reportedVersion } from './binary/bun.ts';
 import {
-  cacheStock,
   latestVersion,
   parseVersion,
   PINNED_VERSION_FILE,
   pinVersion,
   readPinnedVersion,
 } from './binary/droid-release.ts';
-import { rebuildInto } from './binary/rebuild.ts';
-import type { Stock } from './binary/stock.ts';
-import { describeTarget, readStock, stockFrom } from './binary/stock.ts';
+import { describeTarget } from './binary/stock.ts';
 import { guard, kilobytes, quitOnBrokenPipe, say } from './cli.ts';
 import { doctorTargets, runDoctor, runDoctorFix } from './doctor/doctor.ts';
-import { installHooks, installSubagentSound } from './hooks/hooks.ts';
+import { assertGatedNow, gate } from './gate/command.ts';
+import { installHooks } from './hooks/hooks.ts';
+import { applyTo, GATED_HERE, install } from './install.ts';
 import { patches } from './patch/patches.ts';
 import { backupPath, INSTALLED_DROID } from './paths.ts';
 
@@ -32,54 +29,14 @@ interface DoctorOptions {
   project: string;
 }
 
-function temporaryPath(target: string): string {
-  return `${target}.tmp`;
-}
-
 function status(options: Options): void {
   for (const line of describeTarget(options.target, patches)) {
     say(line);
   }
 }
 
-async function installPatched(target: string, stocked: Stock): Promise<void> {
-  const { bytes: stock, app, origin } = stocked;
-
-  const expected = reportedVersion(origin);
-  if (expected === '') {
-    throw new Error(`cannot read version from ${origin}`);
-  }
-  const patched = patchSource(app, patches);
-  say(`patched source: ${patches.length} patches plus marker`);
-
-  const temporary = temporaryPath(target);
-  try {
-    await rebuildInto(stock, patched, temporary);
-
-    const reported = reportedVersion(temporary);
-    if (reported !== expected) {
-      throw new Error(`patched binary reports ${reported || 'nothing'}, expected ${expected}`);
-    }
-
-    renameSync(temporary, target);
-    say(`verified ${reported} and installed to ${target}`);
-    say(`installed sound ${installSubagentSound()}`);
-    runDoctor(doctorTargets(process.cwd()));
-  } finally {
-    rmSync(temporary, { force: true });
-  }
-}
-
 async function apply(options: Options): Promise<void> {
-  const { target } = options;
-  const stocked = stockFrom(target, patches);
-
-  if (stocked === undefined) {
-    say('already applied');
-    runDoctor(doctorTargets(process.cwd()));
-    return;
-  }
-  await installPatched(target, stocked);
+  await applyTo(options.target, GATED_HERE);
 }
 
 async function hooks(): Promise<void> {
@@ -88,33 +45,20 @@ async function hooks(): Promise<void> {
   }
 }
 
-async function install(version: string, target: string): Promise<void> {
-  if (reportedVersion(target) === version) {
-    say(`already on ${version}`);
-    await apply({ target });
-    return;
-  }
-  const { binary } = await cacheStock(version, `${process.platform}-${process.arch}`);
-  const reported = reportedVersion(binary);
-  if (reported !== version) {
-    throw new Error(`downloaded Droid reports ${reported || 'nothing'}, expected ${version}`);
-  }
-  await installPatched(target, readStock(binary));
-  copyFileSync(binary, backupPath(target));
-  say(`updated to ${version}, stock saved to ${backupPath(target)}`);
-}
-
 async function update(wanted: string | undefined, options: Options): Promise<void> {
   const version = wanted === undefined ? await latestVersion() : parseVersion(wanted);
-  await install(version, options.target);
+  await install(version, options.target, GATED_HERE);
   if (options.target === INSTALLED_DROID) {
+    assertGatedNow(version);
     pinVersion(version);
     say(`pinned ${version} in ${PINNED_VERSION_FILE}; push it and the Linux hosts follow`);
   }
 }
 
 async function sync(options: Options): Promise<void> {
-  await install(readPinnedVersion(), options.target);
+  const version = readPinnedVersion();
+  assertGatedNow(version);
+  await install(version, options.target, false);
 }
 
 function doctor(options: DoctorOptions): void {
@@ -171,6 +115,20 @@ program
   )
   .option(...targetOption)
   .action(guard(sync));
+
+program
+  .command('gate')
+  .description(
+    'run every behavioural check on a patched build against its stock build, and write gate-pass.json when all pass; update and apply run it before they install, sync and the pre-push hook refuse a pin it never passed',
+  )
+  .option(...targetOption)
+  .option('--stock <path>', 'stock Droid the target was built from (default: the target .orig)')
+  .option(
+    '--check-stamp',
+    'run nothing: fail unless gate-pass.json covers the pinned droid-version and the current patch set',
+    false,
+  )
+  .action(guard(gate));
 
 program
   .command('hooks')

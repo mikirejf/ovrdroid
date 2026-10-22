@@ -155,6 +155,26 @@ its version in `droid-version`; commit it. The Linux hosts run `ovrdroid sync` o
 installs that pinned version with the pushed patch set. Run `bun run probe builds` before pushing a
 patch change: a patch that fits only one platform breaks that host's sync.
 
+## Update gate
+
+After every update the gate must pass on the build. It runs the after-update checks listed in
+`src/gate/checks.ts`: the build basics (`verify`, `probe builds`, `bun test`) and the probes for
+what costs time or tokens: speed against stock, prompt cache, compaction, MCP servers, sub-agents,
+and what the model is sent. Every other probe is optional; run it when a change touches its area.
+Only a check in one of those areas joins the gate.
+
+`ovrdroid gate --target <patched> --stock <stock>` (defaults: the installed Droid and its `.orig`)
+writes each check's output to `~/.cache/ovrdroid/gate/<version>-<patch digest>/<check>.log`. A check
+is a command whose exit code is the verdict. Timing checks run one at a time and fail only when the
+build is slower than stock with confidence and by more than the measure's floor (`docs/method.md`).
+Checks that run side by side must not share state.
+
+When every check passes the gate writes `gate-pass.json` (Droid version, patch digest, Bun version,
+platform, time, check names); commit it with `droid-version`. `update` and `apply` run the gate
+before they replace anything and skip it when the stamp already covers the same Droid version, patch
+digest and Bun version. `sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pin
+the stamp does not cover.
+
 ## Findings and measuring
 
 Measured findings live in `docs/`, one file per question: startup, typing, idle, prompt cache and

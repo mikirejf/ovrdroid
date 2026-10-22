@@ -1,0 +1,29 @@
+{
+  "droidVersion": "0.245.0",
+  "patchDigest": "efe6bd2c1631",
+  "bunVersion": "1.4.3",
+  "platform": "darwin-arm64",
+  "passedAt": "2026-10-21T09:50:39.201Z",
+  "checks": [
+    "verify",
+    "builds",
+    "test",
+    "digest-run",
+    "warm",
+    "effort-switch",
+    "cachekey",
+    "bodies-build",
+    "tool-surface",
+    "effort-clear",
+    "rewind",
+    "notice",
+    "mcp-children",
+    "compaction-fallback",
+    "effort",
+    "ab",
+    "typing-start",
+    "keys",
+    "resume",
+    "stream"
+  ]
+}

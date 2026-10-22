@@ -9,3 +9,5 @@ pre-push:
   jobs:
     - name: builds
       run: '{run} probe builds'
+    - name: gate-stamp
+      run: '{run} ovrdroid gate --check-stamp'

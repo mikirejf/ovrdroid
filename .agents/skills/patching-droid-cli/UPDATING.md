@@ -15,11 +15,12 @@ patch set does not fit, `update` stops with the drift list and leaves the instal
 timer, which installs the version `update` pinned in `droid-version` on the Mac. The pre-push hook runs `probe builds` against the same newest release, so
 it blocks every push until the drift is fixed. Start here.
 
-Done when `apply` on a `/tmp` copy prints `applied <digest>`, that copy paints and renders a code
-block, `probe ab` against the stock copy shows it is **never slower**, and `probe builds` is clean
-for every platform. Faster is not the bar: as Droid moves its own waits after paint, the paint gap
-shrinks toward zero, and an interval that straddles zero at `-r 24` is a pass. Then record what
-you learned (step 7).
+Done when the gate passes for the new release. The gate (`ovrdroid gate`, run for you by `update`
+and `apply`) covers speed against stock (`probe ab` never slower), prompt cache, compaction, MCP
+servers, sub-agents, the tools sent to the model, and `probe builds` for every platform. Faster is
+not the bar: as Droid moves its own waits after paint, the paint gap shrinks toward zero, and an
+interval that straddles zero at `-r 24` is a pass. Then record what you learned (step 7) and
+commit `droid-version` and `gate-pass.json` together with the patch changes.
 
 Expect the hand half to cluster: most of it is usually one or two sites Droid **rewrote** rather
 than renamed.
@@ -325,9 +326,16 @@ release they test the old one, so before the real install they fail for patches 
 and they cannot see the new release at all. Expect that. The order is: copy passes step 6's probes,
 `ovrdroid update` for real, then `bun test` must be fully green.
 
-To run them against the new release before installing it, point `HOME` at a scratch directory
+The gate's `test` check automates this: it runs `bun test` with `HOME` pointed at a scratch
+directory holding the target and its stock as `.local/bin/droid` and `droid.orig`, so the tests see
+the new release before it is installed. By hand, do the same: point `HOME` at a scratch directory
 whose `.local/bin/droid` is a copy of the new stock binary, and run the tests for the patches you
 changed there.
+
+When a patched method's stock text changes but the patch still applies, the payload may silently
+drop the new upstream behaviour. `stock-source.test.ts` and `probe hub` flag it, and the gate's
+`test` check runs them against the new release, so read a red there as a payload to update, not
+noise.
 
 When several people or agents fix drift in parallel, a test that applies only its own file's
 patches (`rebaseAll` on that list, not the whole set) keeps working while the other files are
@@ -345,33 +353,46 @@ bun run ovrdroid update --target /tmp/droid-test   # installs the newest release
 `ovrdroid update` installs Factory's newest release for the host (darwin-arm64 or linux-x64) and
 checks its sha256 before applying. A target that does not exist yet counts as not on that release,
 so a fresh `/tmp` path runs the same install-then-apply path every machine runs.
-Then prove it, below, and push. The real `ovrdroid update` pins the new version in `droid-version`;
-push that file too. Within 15 minutes each Linux host pulls ovrdroid and runs `ovrdroid sync`, which
-installs the pinned version. A patch set that fits only one platform makes that step fail, and the host keeps its current Droid. `probe builds` is the
-gate that catches it.
+Before it finishes, `update` builds to `<target>.tmp` and runs the gate on that build. A failure
+leaves the target, its `.orig` and `droid-version` untouched, deletes the build, and prints which
+check failed and where its log is (`~/.cache/ovrdroid/gate/<version>-<digest>/<check>.log`).
+Then prove it, below, and push. The real `ovrdroid update` pins the new version in `droid-version`
+only when `gate-pass.json` covers that version and the current patch set; push both files. The
+stamp key is the Droid version, the patch digest and the Bun version (`BUILD_BUN_VERSION`). Within
+15 minutes each Linux host pulls ovrdroid and runs `ovrdroid sync`, which runs no probes and
+refuses a pin the stamp does not cover. Otherwise it installs the pinned version. A patch set that
+fits only one platform makes that step fail, and the host keeps its current Droid. The `builds`
+check catches it, and the pre-push hook (`ovrdroid gate --check-stamp`) blocks a push without a
+covering stamp.
 
 ## 6. Prove it
 
+The gate runs the after-update checks for you: `update --target /tmp/droid-test` already ran it, so
+a copy that finished installing has passed them. The list is `src/gate/checks.ts`.
+
 ```bash
-bun run verify
 bun run ovrdroid status --target /tmp/droid-test     # applied <digest>
-bun run probe ab -r 24 /tmp/droid-test.orig /tmp/droid-test   # .orig is the stock the update installed
-bun run probe highlight /tmp/droid-test              # rendered a highlighted code block
-bun run probe mcp-children /tmp/droid-test           # stdio servers dormant, when an mcp-idle patch moved
-bun run probe builds                                 # the newest release, every platform
-bun run ovrdroid update                              # only now, the real install
+bun run ovrdroid update                              # only now, the real install; the stamp from the copy run covers it, so the gate is skipped
 bun test                                             # green against the installed new release
 ```
 
-Pick extra probes by what moved: `mcp-children` for the MCP patches, `effort` for the effort
-label, `clear` and `first-send` for the session patches, and `ttl` and `effort-cache` for the
-cache warmer (those two send real requests through DroidProxy). `probe --help` lists them.
-
-Stock paint has outliers several times the median, so `-r 8` rarely resolves anything; start at 24.
+On a FAIL, read that check's log under `~/.cache/ovrdroid/gate/<version>-<digest>/`. While fixing,
+rerun just that probe by hand instead of the whole gate: `bun run probe <name> <binary>`
+(`probe --help` lists them). Stock paint has outliers several times the median, so `probe ab` at
+`-r 8` rarely resolves anything; the gate uses 24.
 
 When a probe fails on the **stock** binary, the probe's model of Droid drifted, not your patches.
 Fix the probe in `src/probe/` with a test, then rerun. When Droid started exiting 130 on Ctrl-C,
 `probe ab` read it as a crash until the probe learned that exit code.
+
+A failing gate check can be the check, not Droid. Before fixing a patch, run the probe on stock and
+on the previous release's patched build. A check that fails on both was drifted or broken: a footer
+string Droid dropped a release earlier, a wait that returned on the launch result instead of the
+completion notice, a cache rule stricter than Droid's own tail churn, a probe that sent a settings
+`${VAR}` api key literally. Fix the probe, with a test, before touching a patch.
+
+Probes that read `~/.factory/settings.json` must expand `${VAR}` references the way Droid does
+(`expandEnv` in `src/probe/credentials.ts`).
 
 No gate looks at the screen. A patch that paints (header lines, logo accents, footer text) can
 build, pass every probe, and draw nothing or draw in the wrong place. Launch the copy and look.
@@ -380,12 +401,26 @@ build, pass every probe, and draw nothing or draw in the wrong place. Launch the
 `bun build failed` as a patch bug and not a harness one. `--version` proves nothing: it skips the
 app. `probe ab` launches the binary in a PTY and waits for the input box, so a rebuild that boots
 and then dies shows up as a timeout there.
-`probe highlight` asks the model for a code block, which is the first thing that loads a chunk
-by name at runtime; a chunk that fell out of the graph crashes there and nowhere earlier. Only
-after the copy passes both: `bun run ovrdroid update`, then push to main.
+Only after the copy passes the gate: `bun run ovrdroid update`, then push to main with
+`droid-version` and `gate-pass.json`.
 
 `src/patch/__tests__/stock-source.test.ts` reruns the rebase of every patch against the host's
 stock binary, so it goes red the moment Droid updates underneath.
+
+### Adding a check to the gate
+
+A new behaviour probe joins the gate by an entry in `src/gate/checks.ts`. It must:
+
+- cover speed, prompt cache, compaction, MCP servers, sub-agents or token cost; anything else stays
+  an optional probe;
+- exit non-zero exactly when the behaviour is broken, decided by a pure verdict function that has
+  a test;
+- fail, not pass, when the run could not exercise the behaviour (the feature never appeared, the
+  session never started): a probe that cannot see the behaviour has proven nothing;
+- run on Haiku (`PROBE_MODEL`) when it spends tokens, unless the behaviour is specific to a model
+  family.
+
+Leave out probes that only measure or query an API.
 
 ## 7. Record what you learned
 
