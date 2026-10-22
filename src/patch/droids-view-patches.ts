@@ -14,14 +14,11 @@ const STOCK_SETTINGS_LISTENER =
 const PATCHED_SETTINGS_LISTENER =
   '(t,{sessionId:o})=>{if(this.adoptChild(o)||this.refresh(o)||t==="settings_updated"&&this.records.has(o))this.schedulePublish(!0)}';
 
-const STOCK_CHIPS =
-  'me=[L&&Z.mission?.kind==="orchestrator"&&u().t("common:droidsView.missionLead"),' +
-  'U&&u().t("common:droidsView.onScreen")].filter(Boolean)';
+const STOCK_CHIPS = `Ie=W?\`\${kT}\${h().t("common:droidsView.onScreen")}\`:""`;
 
 const PATCHED_CHIPS =
-  'me=[L&&Z.mission?.kind==="orchestrator"&&u().t("common:droidsView.missionLead"),' +
-  'Z.model&&(Re(Z.model).shortDisplayName||Z.model)+(Z.reasoningEffort?" ("+ai(Z.reasoningEffort)+")":""),' +
-  'U&&u().t("common:droidsView.onScreen")].filter(Boolean)';
+  'Ie=[te.model&&(de(te.model).shortDisplayName||te.model)+(te.reasoningEffort?" ("+mr(te.reasoningEffort)+")":""),' +
+  `W&&h().t("common:droidsView.onScreen")].filter(Boolean).map(($ODchip)=>\`\${kT}\${$ODchip}\`).join("")`;
 
 export const droidsViewPatches: readonly Patch[] = [
   {
@@ -40,7 +37,7 @@ export const droidsViewPatches: readonly Patch[] = [
   {
     name: 'droids-view-row-model-chip',
     find: STOCK_CHIPS,
-    lookups: ['let x=Re(y).shortDisplayName,w=ai(S);return'],
+    lookups: ['{droid:te}=q,re=goe(te)', 'let v=de(y).shortDisplayName,M=mr(S);return'],
     replace: PATCHED_CHIPS,
   },
 ];

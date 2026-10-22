@@ -46,9 +46,9 @@ export const counterPatches: readonly Patch[] = [
   },
   {
     name: 'counter-message-list',
-    find: 'liveTailMaxRows:Z,onStaticEpochReset:Q})=>{let X=B(()=>cye(f,j),[f,j]),',
+    find: 'onStaticEpochReset:Y,activeMachineId:ee,activeMachineName:te})=>{',
     replace:
-      'liveTailMaxRows:Z,onStaticEpochReset:Q})=>{globalThis.$ODc.list++;let X=B(()=>cye(f,j),[f,j]),',
+      'onStaticEpochReset:Y,activeMachineId:ee,activeMachineName:te})=>{globalThis.$ODc.list++;',
   },
   {
     name: 'counter-markdown',

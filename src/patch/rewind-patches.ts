@@ -25,7 +25,7 @@ const FORK =
 const FORK_LOOKUPS = [
   'hT().recoverParentBackgroundChildren(t,Cq,{reconcileStale:N().reachesHostingDaemon()})',
   'await N().close(),this.ideInitPromise',
-  'h(d,"[JsonRpc] Failed to execute rewind")',
+  'h(d,"[Daemon] JSON-RPC failed to execute rewind")',
 ];
 
 export const KEPT_TOOL_CALLS =

@@ -49,7 +49,8 @@ const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
 const LINE_MATCHER =
   /function (?<name>[\w$]+)\(\w+\)\{let \w+=\w+\.replace\(\w+,\(\w+\)=>" "\.repeat\(/u;
 
-const REDACTOR = /function [\w$]+\(\w+\)\{if\(!\w+\)return\{success:!0,value:\w+\};try\{/u;
+const REDACTOR =
+  /function [\w$]+\([\w$]+,[\w$]+=\{\}\)\{try\{let [\w$]+=typeof [\w$]+==="function"\?[\w$]+\(\):[\w$]+;if\(typeof [\w$]+!=="string"\)return\{success:!1\};/u;
 
 export function scannerText(app: App): string {
   const module = app.find((candidate) => candidate.text.includes(SCANNER_ANCHOR));

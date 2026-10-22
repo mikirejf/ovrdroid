@@ -80,6 +80,12 @@ in.
 The drift list is usually shared by both platforms. When it is, fix it against one build and let
 `probe builds` prove the other.
 
+When many patches across unrelated areas drift at once, look for a **reworded log prefix** before
+anything else. Upstream renaming a module's log tag (`[Foo] …` to `[Bar] …`) breaks every `find`
+and lookup that quotes one of its messages, while the code beside them is unchanged. `probe grep`
+the message without its prefix: the new wording is the single hit, and the fix is a string edit in
+`find`, `replace` and lookups alike, so payload log lines keep matching stock's format.
+
 Fix by reason:
 
 - `missing`: first ask whether the patch is still needed (step 3 opens with that). If it is, the
@@ -121,7 +127,11 @@ strings. The lookup is written in one build's short names, so a literal grep of 
 can miss on a build where it would still match. The lookup that comes back with no place, or with
 several in the `find`'s chunk, is the broken one. When even the stable part finds nothing, shrink
 it further (one property like `modelContent:`) and read every place it prints. The new form of
-the line is one of them. `probe grep` counts across all modules, but a lookup is matched only in
+the line is one of them.
+
+When you rewrite a lookup, prefer one that captures its binding from a structural use (a call
+shape, a property chain) over one that quotes a log message: log text is reworded more often than
+code. `probe grep` counts across all modules, but a lookup is matched only in
 the `find`'s module, so "2 places across 2 modules" can still be fine for a lookup. Check the chunk
 names.
 
@@ -224,6 +234,11 @@ captures it from a use with the shape of that role. Two letters can trade roles 
 `useEffect` moves from `D` to `I` while a prop moves from `I` to `D`. A lookup written from the
 role survives that; a name carried over by hand does not.
 
+Feed `names` the **rebased** `find` from `probe anchors --json`, not the source `find`, which is
+in another build's names and finds no module. It reports a function's own parameters and names
+bound by destructuring (`{key:X}=hook()`) as an unrelated same-letter definition, or as free.
+Settle those from the `find` itself: if the `find` binds the name, it is the right one.
+
 This is also the trap that makes eyeballing wrong. A name carried over by hand can resolve in the
 new build to unrelated code in a different chunk (a wordmark name that became a markdown regex), so
 it compiles, ships, and draws garbage. `names` says which one you have.
@@ -318,6 +333,11 @@ platforms. Write any new one the same way:
 - A test that cuts a function body out of its module must also carry the module-level `var`s the
   body uses (`scanner-source.ts` prepends every `var NAME="…"`), or the evaluation throws
   `… is not defined`.
+- Assert a patch landed by its rebased `replace` (`rebasedNamed(name).replace`), never by a
+  literal in one build's names: `toContain('toolUseId:a.id')` fails on the first rename.
+- A test that runs a payload with a copied stock tail can close the function right after the
+  patched expression and return the value under test, rather than faking the I/O that upstream
+  keeps adding to the body.
 - The 400-line lint limit applies to test harnesses too. Move a helper into its own file
   (`mcp-fake-fs.ts`, `scanner-source.ts`) instead of trimming code.
 
@@ -331,6 +351,10 @@ directory holding the target and its stock as `.local/bin/droid` and `droid.orig
 the new release before it is installed. By hand, do the same: point `HOME` at a scratch directory
 whose `.local/bin/droid` is a copy of the new stock binary, and run the tests for the patches you
 changed there.
+
+`bun test` can exit 1 with `0 fail`: a stock-reading helper that throws while a file loads shows
+up as `N errors` and `# Unhandled error between tests`, and that file's tests never run. Search
+the output for that header, not only for `(fail)`.
 
 When a patched method's stock text changes but the patch still applies, the payload may silently
 drop the new upstream behaviour. `stock-source.test.ts` and `probe hub` flag it, and the gate's

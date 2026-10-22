@@ -276,8 +276,7 @@ function causePatch(name: string, rest: string): Patch {
 const SNAPSHOT_BUILD =
   '{snapshotVersion:O,streamingVersion:F}=k0e(D.getStore(),A),K=E.current;if(K.ssm===f&&K.sessionId===y&&K.updateMode===A&&K.snapshotVersion===O&&K.streamingVersion===F)return K.messages;let G=[...f.getDisplayMessages(y)];';
 
-const WORKING_SET =
-  'updateDroidWorkingState(t){if(this.droidWorkingState===t)return;this.droidWorkingState=t,';
+const WORKING_SET = 'updateDroidWorkingState(t){if(this.droidWorkingState===t)return;';
 
 const INPUT_EMIT = '{ie(iA),rA.current.emit("input",iA)}';
 
@@ -293,7 +292,7 @@ export const recorderFeedPatches: readonly Patch[] = [
   {
     name: 'render-profile-working',
     find: WORKING_SET,
-    replace: `${WORKING_SET}globalThis.$ODr?.working(this,t),`,
+    replace: `${WORKING_SET}globalThis.$ODr?.working(this,t);`,
   },
   {
     name: 'render-profile-typed',

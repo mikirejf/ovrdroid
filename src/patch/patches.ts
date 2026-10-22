@@ -175,18 +175,19 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'new-session-loads-in-background',
-    find: 'if(De?.missionV2)await lb(gt);return await wc(gt),gt}',
-    replace: 'if(De?.missionV2)return await lb(gt),await wc(gt),gt;return wc(gt),gt}',
+    find: '{title:ke.title}:{},...at});return await Cu(Sn),Sn}',
+    replace:
+      '{title:ke.title}:{},...at});if(ke?.missionV2)return await Cu(Sn),Sn;return Cu(Sn),Sn}',
   },
   {
     name: 'session-load-keeps-pending-settings',
     find: 'Le.current=_t;return await wt.loadSession({sessionId:Bt}),be.current=Bt,je.current={},Y.emit(',
     lookups: [
       '.notify("settings_updated")}function wM(',
-      'n("[useDaemonAgent] Daemon disconnected",{code:',
+      'n("[Daemon] Daemon disconnected",{code:',
     ],
     replace:
-      'Le.current=_t;await wt.loadSession({sessionId:Bt}),be.current=Bt;let $ODs=je.current;if(je.current={},wM($ODs))try{await wt.updateSessionSettings({sessionId:Bt,...$ODs})}catch($ODx){n("[useDaemonAgent] Failed to sync pending session settings",{cause:$ODx})}return Y.emit(',
+      'Le.current=_t;await wt.loadSession({sessionId:Bt}),be.current=Bt;let $ODs=je.current;if(je.current={},wM($ODs))try{await wt.updateSessionSettings({sessionId:Bt,...$ODs})}catch($ODx){n("[Daemon] Failed to sync pending session settings",{cause:$ODx})}return Y.emit(',
   },
   {
     name: 'session-load-reads-loaded-settings',
@@ -231,9 +232,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'first-message-shows-at-once-undo',
-    find: 'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return h(bt,"[useDaemonAgent] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
+    find: 'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return h(bt,"[Daemon] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
     replace:
-      'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return $ODu(),h(bt,"[useDaemonAgent] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
+      'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return $ODu(),h(bt,"[Daemon] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
   },
   {
     name: 'first-message-cancel-before-session',
@@ -241,7 +242,7 @@ export const patches: readonly Patch[] = [
     lookups: [
       'p().syncSettingsFromDaemon(',
       'L().sendTuiMessage({sessionId:',
-      ',"[useDaemonAgent] Failed to create session"),P(',
+      ',"[Daemon] Failed to create session"),P(',
       'R().t("common:droids.failedToLoadDroids")',
     ],
     replace:

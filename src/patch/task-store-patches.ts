@@ -10,9 +10,7 @@ const PRUNE =
   '$ODkept=$ODstore.invocations.filter(($ODe)=>$ODe.status==="pending"||$ODe.status==="running"||($ODe.updatedAt??$ODe.createdAt)>=$ODcutoff);' +
   'if($ODkept.length===$ODstore.invocations.length)return $ODwrote;$ODstore.invocations=$ODkept;return!0}';
 
-const SAVE_HEAD =
-  `function Va(r,t,e,o){let a=\`\${r}.\${process.pid}.\${Date.now()}.tmp\`;try{let s=y.dirname(r);` +
-  'if(!l.existsSync(s))l.mkdirSync(s,{recursive:!0,mode:448});if(l.writeFileSync(a,JSON.stringify(e,null,';
+const SAVE_HEAD = `function jo(e,o,t,r){let a=\`\${e}.\${process.pid}.\${Date.now()}.tmp\`;try{let c=JSON.stringify(t,null,`;
 
 export const taskStorePatches: readonly Patch[] = [
   {
@@ -23,6 +21,6 @@ export const taskStorePatches: readonly Patch[] = [
   {
     name: 'task-store-writes-compact-json',
     find: `${SAVE_HEAD}2)`,
-    replace: `${SAVE_HEAD}o?.${COMPACT_OPTION}?void 0:2)`,
+    replace: `${SAVE_HEAD}r?.${COMPACT_OPTION}?void 0:2)`,
   },
 ];

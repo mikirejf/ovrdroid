@@ -6,6 +6,7 @@ import {
   FIRST_PID,
   HTTP_CONFIG,
   HubWorld,
+  isSettled,
   SERVER,
   STDIO_CONFIG,
   TOOLS,
@@ -18,19 +19,6 @@ async function reloadWith(world: HubWorld, config: ServerConfig): Promise<void> 
 
 const NEW_TOOLS = [...TOOLS, { name: 'navigate_page' }];
 const CHANGED_CONFIG = { ...STDIO_CONFIG, args: ['-y', 'chrome-devtools-mcp', '--headless'] };
-
-async function stillPending(): Promise<boolean> {
-  await HubWorld.settle();
-  return false;
-}
-
-async function isSettled(promise: Promise<void>): Promise<boolean> {
-  const done = async (): Promise<boolean> => {
-    await promise;
-    return true;
-  };
-  return await Promise.race([done(), stillPending()]);
-}
 
 async function dormantWorld(): Promise<HubWorld> {
   const world = new HubWorld();
@@ -98,7 +86,7 @@ describe('waking', () => {
   test('a call on a seeded server that arrives before it connects waits, then wakes it', async () => {
     const world = new HubWorld();
     world.seedCache();
-    world.hub.openPendingConnection(SERVER);
+    world.hub.openPendingConnection(SERVER, STDIO_CONFIG);
 
     const call = world.hub.callTool(SERVER, 'click');
     await HubWorld.settle();
@@ -109,6 +97,15 @@ describe('waking', () => {
 
     expect(world.spawned).toHaveLength(1);
     expect(world.calls).toContain('callTool:click');
+  });
+
+  test('a modern-era server lists its tools on the new connection before the first call', async () => {
+    const world = await dormantWorld();
+    world.era = 'modern';
+
+    await world.hub.callTool(SERVER, 'click');
+
+    expect(world.calls).toEqual(['listTools', 'callTool:click']);
   });
 
   test('three concurrent calls share one spawn', async () => {

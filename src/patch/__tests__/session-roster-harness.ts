@@ -33,7 +33,7 @@ export interface Entry {
   createdAt: number;
   updatedAt: number | null;
   computerId: string | null;
-  pullRequest: null;
+  pullRequestArtifacts: never[];
   cwd: string | null;
 }
 
@@ -100,7 +100,7 @@ export function entry(
     createdAt,
     updatedAt: null,
     computerId: null,
-    pullRequest: null,
+    pullRequestArtifacts: [],
     cwd: null,
   };
 }
@@ -179,8 +179,7 @@ type RowNames = [
   () => null,
   () => null,
   (agent: { status?: string }) => string,
-  () => boolean,
-  (row: Droid) => Droid,
+  () => null,
   Record<string, never>,
 ];
 
@@ -202,16 +201,15 @@ interface RowInput {
 
 function rowsOf(tee: string): (input: RowInput) => Droid[] {
   return payloadFunction<RowNames, (input: RowInput) => Droid[]>(
-    ['ay', 'PS', 'hK', 'qe', 'ft', 'pt', 'mn', 'Ml'],
-    `${STOCK_ROW_BUILDER};${tee};return Tee`,
+    ['k9', 'Cb', 'OQ', 'Pe', 'ze', 'l_', 'bT'],
+    `${STOCK_ROW_BUILDER};${tee};return qQ`,
   )(
     () => new Set(),
     (left, right) => left ?? right,
     () => null,
     () => null,
     (agent) => (agent.status === 'running' ? 'streaming' : 'idle'),
-    () => false,
-    (row) => row,
+    () => null,
     {},
   );
 }
@@ -223,7 +221,7 @@ type TreeNames = [(droid: Droid) => boolean, (left: Node, right: Node) => number
 const buildTree = payloadFunction<
   TreeNames,
   (droids: Droid[], unreachable: Set<string>, paused: Set<string>) => Node[]
->(['yf', 'U'], `${STOCK_TREE};return tA`)(
+>(['f9', 'ce'], `${STOCK_TREE};return u_`)(
   (droid) => droid.workingState !== 'idle',
   (left, right) => left.droid.joinOrdinal - right.droid.joinOrdinal,
 );
@@ -251,15 +249,22 @@ interface ListState {
 }
 
 interface Expansion {
-  d9: (...args: [Row[], Node, number, Droid | null, Set<string>]) => undefined;
+  on: (...args: [Row[], Node, number, Droid | null, number, Set<string>]) => undefined;
   ufe: (state: ListState, id: string, expand: boolean) => ListState;
 }
 
-const expansion = payloadFunction<[(node: Node) => boolean], Expansion>(
-  ['np'],
+type ExpansionNames = [(node: Node) => boolean, (text: string) => number, () => string, number];
+
+const expansion = payloadFunction<ExpansionNames, Expansion>(
+  ['mb', 'X', 'goe', 'Ht'],
   `${STOCK_SET_TOGGLE}${patchedText(STOCK_EXPAND_TOGGLE_FN, 'session-roster-remembers-a-collapse')}` +
-    `${patchedText(STOCK_EXPAND, 'session-roster-expands-nested-by-default')};return{d9,ufe}`,
-)(() => false);
+    `${patchedText(STOCK_EXPAND, 'session-roster-expands-nested-by-default')};return{on,ufe}`,
+)(
+  () => false,
+  (text) => text.length,
+  () => '',
+  0,
+);
 
 export function nodesOf(agents: Described[], leadId = 'lead'): Node[] {
   const droids = patchedRows({
@@ -291,7 +296,7 @@ export function listing(nodes: Node[]): Listing {
     rows: () => {
       const out: Row[] = [];
       for (const node of nodes) {
-        expansion.d9(out, node, 0, null, listState.state.expandedDroids);
+        expansion.on(out, node, 0, null, 0, listState.state.expandedDroids);
       }
       return out.map((row) => ({
         sessionId: row.id,

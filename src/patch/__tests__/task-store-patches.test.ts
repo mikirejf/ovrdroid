@@ -183,47 +183,24 @@ describe('task store pruning', () => {
   });
 });
 
-interface FakeFs {
-  writes: string[];
-  existsSync: (path: string) => boolean;
-  mkdirSync: () => void;
-  writeFileSync: (path: string, data: string) => void;
-  renameSync: () => void;
-}
+type SerializeStoreArgs = [string, string, Store, StoreOptions | null];
 
-type WriteStoreArgs = [string, string, Store, StoreOptions | null];
+type SerializeStore = (...args: SerializeStoreArgs) => string;
 
-type WriteStore = (...args: WriteStoreArgs) => void;
+const STOCK_TAIL = ';return c}catch(l){throw l}}';
 
-const STOCK_TAIL = ',{mode:S}),l.existsSync(r))l.renameSync(a,r);}catch(s){throw s}}';
-
-const buildWriter = payloadFunction<[FakeFs, { dirname: () => string }, number], WriteStore>(
-  ['l', 'y', 'S'],
-  `${compact.replace}${STOCK_TAIL};return Va`,
+const buildSerializer = payloadFunction<[], SerializeStore>(
+  [],
+  `${compact.replace}${STOCK_TAIL};return jo`,
 );
 
 function writeWith(options: StoreOptions | null): string {
-  const fakeFs: FakeFs = {
-    writes: [],
-    existsSync: () => false,
-    mkdirSync: () => {},
-    writeFileSync: (_path, data) => {
-      fakeFs.writes.push(data);
-    },
-    renameSync: () => {},
-  };
-  const write = buildWriter(fakeFs, { dirname: () => '.' }, 384);
-  write(
+  return buildSerializer()(
     'store.json',
     'store.json.bak',
     { invocations: [entry({ id: 'a', status: 'completed', ageHours: 1 })] },
     options,
   );
-  const [data] = fakeFs.writes;
-  if (data === undefined) {
-    throw new TypeError('nothing was written');
-  }
-  return data;
 }
 
 const ONE_ENTRY = { invocations: [entry({ id: 'a', status: 'completed', ageHours: 1 })] };

@@ -18,14 +18,14 @@ const HELPERS =
   'function $ODMW($ODname,$ODcfg,$ODtools){let $ODfsp=require("fs").promises,$ODfile=$ODMn($ODname,$ODcfg),$ODtmp=$ODfile+"."+process.pid;' +
   '$ODfsp.mkdir($ODMD,{recursive:!0}).then(()=>$ODfsp.writeFile($ODtmp,JSON.stringify($ODtools))).then(()=>$ODfsp.rename($ODtmp,$ODfile)).catch(()=>{})}' +
   `function $ODMe(){let $ODms=Number(process.env.${MCP_IDLE_ENV});return Number.isFinite($ODms)&&$ODms>=${MIN_MCP_IDLE_MS}?$ODms:${DEFAULT_MCP_IDLE_MS}}` +
-  'function $ODMd($ODname,$ODcfg){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},pid:null,$ODMz:!0}}';
+  'function $ODMd($ODname,$ODcfg,$ODera){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},eraNegotiation:$ODera,pid:null,$ODMz:!0}}';
 
 const ADD =
-  'async connectServer(t,r){if($ODMh(r))return await this.$ODMspawn(t,r);' +
-  'let $ODold=this.servers[t],$ODtools=!this.shuttingDown&&(!$ODold||$ODold.$ODMz)?$ODMr(t,r):void 0;' +
-  'if($ODtools){this.servers[t]=$ODMd(t,r),this.availableResources[t]=G(),this.toolsListCache.set(t,{state:"ready",tools:$ODtools}),' +
+  'async connectServer(t,r,h){if($ODMh(r))return await this.$ODMspawn(t,r,h);' +
+  'let $ODold=this.servers[t],$ODtools=!this.shutdownController.signal.aborted&&(!$ODold||$ODold.$ODMz)?$ODMr(t,r):void 0;' +
+  'if($ODtools){this.servers[t]=$ODMd(t,r,h),this.toolsListCache.set(t,{state:"ready",list:{tools:$ODtools}}),' +
   'this.logger?.info("[ovrdroid] MCP server dormant until first use",{name:t});return}' +
-  'await this.$ODMspawn(t,r),this.$ODMa(t)}';
+  'await this.$ODMspawn(t,r,h),this.$ODMa(t)}';
 
 const STATE =
   '$ODMg($ODname){let $ODall=this.$ODMq??=new Map,$ODst=$ODall.get($ODname);if(!$ODst)$ODall.set($ODname,$ODst={n:0});return $ODst}' +
@@ -36,19 +36,21 @@ const ARM =
   '$ODst.t=setTimeout(()=>{this.$ODMo($ODname).catch(($ODerr)=>{this.logger?.warn("[ovrdroid] MCP idle stop failed",{server:$ODname,error:$ODerr})})},$ODMe()),$ODst.t.unref?.()}';
 
 const SLEEP =
-  'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname];if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
-  'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||this.toolsListCache.get($ODname)?.state!=="ready")return this.$ODMa($ODname);' +
-  'let $ODpid=$ODsrv.pid,$ODdorm=$ODMd($ODname,$ODsrv.config);$ODdorm.pid=$ODpid;' +
-  '$ODdorm.$ODMstop=(async()=>{try{await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
+  'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname],$ODcache=this.toolsListCache.get($ODname);if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
+  'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||$ODcache?.state!=="ready")return this.$ODMa($ODname);' +
+  'let $ODpid=$ODsrv.pid,$ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);$ODdorm.pid=$ODpid;' +
+  'this.toolsListCache.set($ODname,{state:"ready",list:{tools:$ODcache.list.tools}}),this.settledTools.delete($ODname);' +
+  '$ODdorm.$ODMstop=(async()=>{try{$ODsrv.listenStream?.close(),await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
   'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODdorm.pid=null})();' +
   'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname,pid:$ODpid});await $ODdorm.$ODMstop}' +
   'async $ODMsettle($ODname){let $ODsrv=this.servers[$ODname];await Promise.all([$ODsrv?.$ODMstop,$ODsrv?.$ODMb?.catch(()=>{})])}';
 
 const WAKE =
   '$ODMw($ODname){let $ODsrv=this.servers[$ODname];if(!$ODsrv?.$ODMz)return;' +
-  'return $ODsrv.$ODMb??=this.$ODMspawn($ODname,$ODsrv.config).then(()=>{let $ODnow=this.servers[$ODname];if($ODnow&&$ODsrv.$ODMstop)$ODnow.$ODMstop=$ODsrv.$ODMstop;this.$ODMf($ODname)},($ODerr)=>{throw $ODsrv.$ODMb=void 0,$ODerr})}' +
-  '$ODMf($ODname){this.requestToolsList($ODname).then(($ODtools)=>{let $ODcache=this.toolsListCache.get($ODname);' +
-  'if($ODcache?.state!=="ready"||JSON.stringify($ODcache.tools)!==JSON.stringify($ODtools))return this.handleToolsListChanged($ODname)})' +
+  'return $ODsrv.$ODMb??=this.$ODMspawn($ODname,$ODsrv.config,$ODsrv.eraNegotiation).then(()=>{let $ODnow=this.servers[$ODname];if($ODnow&&$ODsrv.$ODMstop)$ODnow.$ODMstop=$ODsrv.$ODMstop;this.$ODMf($ODname)},($ODerr)=>{throw $ODsrv.$ODMb=void 0,$ODerr})}' +
+  '$ODMf($ODname){let $ODprev=this.toolsListCache.get($ODname);if($ODprev?.state!=="ready")return;this.toolsListCache.delete($ODname);' +
+  'this.listToolsForServer($ODname,{includeDisabled:!0}).then(({tools:$ODtools})=>{' +
+  'if(JSON.stringify($ODprev.list.tools)!==JSON.stringify($ODtools))return this.handleToolsListChanged($ODname)})' +
   '.catch(($ODerr)=>{this.logger?.warn("[ovrdroid] MCP tools refresh after wake failed",{server:$ODname,error:$ODerr})})}';
 
 const USE =
@@ -56,11 +58,10 @@ const USE =
   'let $ODst=this.$ODMg($ODname);$ODst.n++,clearTimeout($ODst.t);try{return await this.$ODMw($ODname),await $ODrun()}finally{if(!--$ODst.n)this.$ODMa($ODname)}}';
 
 const FETCH =
-  'async requestToolsList(t){return await this.$ODMu(t,async()=>{let $ODtools=await this.$ODMlist(t),$ODsrv=this.servers[t],$ODcache=this.toolsListCache.get(t);' +
-  'if($ODsrv&&!$ODMh($ODsrv.config)&&($ODcache?.state!=="ready"||JSON.stringify($ODcache.tools)!==JSON.stringify($ODtools)))$ODMW(t,$ODsrv.config,$ODtools);return $ODtools})}';
+  'async requestToolsList(t){return await this.$ODMu(t,async()=>{let $ODlist=await this.$ODMlist(t),$ODsrv=this.servers[t];' +
+  'if($ODsrv&&!$ODMh($ODsrv.config)&&JSON.stringify($ODMr(t,$ODsrv.config))!==JSON.stringify($ODlist.tools))$ODMW(t,$ODsrv.config,$ODlist.tools);return $ODlist})}';
 
-const ADD_SERVER_HEAD =
-  'let s=performance.now(),o=r.type==="http"||r.type==="sse"?"remote":"stdio";if(this.shuttingDown)throw new a("MCP hub is shut down",{name:t});let l="success",u;try{let p=this.servers[t];if(p';
+const STALE_ENTRY_LOG = 'this.logger?.warn("MCP server already exists in hub state;';
 
 export const mcpIdlePatches: readonly Patch[] = [
   {
@@ -70,34 +71,36 @@ export const mcpIdlePatches: readonly Patch[] = [
   },
   {
     name: 'mcp-idle-connect-server',
-    find: `async connectServer(t,r){${ADD_SERVER_HEAD}){`,
-    lookups: [
-      'availableResources=G();invalidToolsFingerprints=new Map;',
-      'var ri=(t)=>{try{return process.kill(t,0),!0}',
-    ],
-    replace: `${ADD}${STATE}${ARM}${SLEEP}${WAKE}${USE}async $ODMspawn(t,r){${ADD_SERVER_HEAD}&&!p.$ODMz){`,
+    find: 'async connectServer(t,r,h){',
+    lookups: ['if(e.length>0||ri(n))await this.killServerProcessTree('],
+    replace: `${ADD}${STATE}${ARM}${SLEEP}${WAKE}${USE}async $ODMspawn(t,r,h){`,
+  },
+  {
+    name: 'mcp-idle-spawn-replaces-dormant-entry',
+    find: `if(p){${STALE_ENTRY_LOG}`,
+    replace: `if(p&&!p.$ODMz){${STALE_ENTRY_LOG}`,
   },
   {
     name: 'mcp-idle-request-tools',
-    find: 'async requestToolsList(t){let r=Date.now()+Dt(),',
-    replace: `${FETCH}async $ODMlist(t){let r=Date.now()+Dt(),`,
+    find: 'async requestToolsList(t){',
+    replace: `${FETCH}async $ODMlist(t){`,
   },
   {
     name: 'mcp-idle-call-tool',
     find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
-    lookups: ['if(await QH(A.promise,u),p=this.servers[t],!p)'],
+    lookups: ['if(await QH(A.resolvers.promise,u),p=this.servers[t],!p)'],
     replace:
       'async callTool(...$ODargs){let $ODpend=!this.servers[$ODargs[0]]&&this.pendingConnections.get($ODargs[0]);' +
-      'if($ODpend)await QH($ODpend.promise,$ODargs[5]);' +
+      'if($ODpend)await QH($ODpend.resolvers.promise,$ODargs[5]);' +
       'return await this.$ODMu($ODargs[0],()=>this.$ODMcall(...$ODargs))}' +
       'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
   },
   {
     name: 'mcp-idle-read-resource',
-    find: 'async readResource(t,r){if(!this.servers[t])',
+    find: 'async readResource(t,r,{signal:',
     replace:
-      'async readResource(t,r){return await this.$ODMu(t,()=>this.$ODMread(t,r))}' +
-      'async $ODMread(t,r){if(!this.servers[t])',
+      'async readResource(...$ODargs){return await this.$ODMu($ODargs[0],()=>this.$ODMread(...$ODargs))}' +
+      'async $ODMread(t,r,{signal:',
   },
   {
     name: 'mcp-idle-subscribe',

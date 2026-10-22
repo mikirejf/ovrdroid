@@ -159,12 +159,20 @@ interface Converted {
   converted: Conversion;
 }
 
+interface CacheOptions {
+  sessionId: string;
+  modelId: string;
+}
+
 interface Prepared {
   prepared: Converted;
+  options: CacheOptions;
 }
 
 interface LoopState {
-  llmCore: { prepareMessagesWithCaching: (messages: Converted) => Prepared };
+  llmCore: {
+    prepareMessagesWithCaching: (messages: Converted, options: CacheOptions) => Prepared;
+  };
   params: { getConversationHistory: () => Message[] };
   lastSummaryRef: string;
 }
@@ -175,24 +183,31 @@ interface Stored {
 }
 
 describe('compaction-reuse-extender', () => {
-  test('rebuilds the next request from the live history with the reminders and summary of the snapshot', () => {
+  test('rebuilds the next request from the live history with the reminders, summary and cache options of the snapshot', () => {
     const history = [textMessage('turn-1')];
     const loop: LoopState = {
-      llmCore: { prepareMessagesWithCaching: (messages) => ({ prepared: messages }) },
+      llmCore: {
+        prepareMessagesWithCaching: (messages, options) => ({ prepared: messages, options }),
+      },
       params: { getConversationHistory: () => history },
       lastSummaryRef: 'summary at snapshot',
     };
     const stored: Stored[] = [];
+    let toolVariant = 'variant at snapshot';
     const capture = payloadFunction<unknown[], Stored>(
-      ['un', 'Rt', 'qo', 'bt', 'DJ'],
+      ['Nn', 'VU', 'yo', 'br', 'un', 'Pt', 'v', 'We', 'DJ'],
       `let jn={sessionId:"s",${EXTENDER}return jn`,
     );
     const snapshot = capture.call(
       loop,
       (input: Conversion): Converted => ({ converted: input }),
+      (catalog: string, variant: string) => `${catalog} for ${variant}`,
       'tool catalog',
-      'spec reminder',
-      'todo reminder',
+      () => toolVariant,
+      'skills reminder',
+      'subagent reminder',
+      'session',
+      'model',
       (entry: Stored) => {
         stored.push(entry);
       },
@@ -200,6 +215,7 @@ describe('compaction-reuse-extender', () => {
 
     expect(stored).toEqual([snapshot]);
     loop.lastSummaryRef = 'summary written later';
+    toolVariant = 'variant written later';
     history.push(LAST_REPLY);
     const ask = textMessage('ask');
     expect(snapshot.odExtend(ask)).toEqual({
@@ -207,9 +223,14 @@ describe('compaction-reuse-extender', () => {
         converted: {
           rawHistory: [textMessage('turn-1'), LAST_REPLY, ask],
           lastSummary: 'summary at snapshot',
-          reminders: ['tool catalog', 'spec reminder', 'todo reminder'],
+          reminders: [
+            'tool catalog for variant at snapshot',
+            'skills reminder',
+            'subagent reminder',
+          ],
         },
       },
+      options: { sessionId: 'session', modelId: 'model' },
     });
   });
 });

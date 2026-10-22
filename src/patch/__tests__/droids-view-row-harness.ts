@@ -16,9 +16,7 @@ export const STOCK_BUILD =
 export const STOCK_LISTENER =
   '(t,{sessionId:o})=>{if(this.adoptChild(o)||this.refresh(o))this.schedulePublish(!0)}';
 
-export const STOCK_CHIPS =
-  'me=[L&&Z.mission?.kind==="orchestrator"&&u().t("common:droidsView.missionLead"),' +
-  'U&&u().t("common:droidsView.onScreen")].filter(Boolean)';
+export const STOCK_CHIPS = `Ie=W?\`\${kT}\${h().t("common:droidsView.onScreen")}\`:""`;
 
 export interface Row {
   sessionId: string;

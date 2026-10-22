@@ -11,6 +11,7 @@ import type {
   FakeClient,
   Hub,
   HubClass,
+  Listing,
   Logger,
   ServerConfig,
   SpoolSource,
@@ -48,12 +49,7 @@ type SpawnArgs = Pick<ServerConfig, 'command' | 'url'>;
 
 const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdlePatches)[0]
   .text.replace(markerStatement(mcpIdlePatches), '')
-  .replace(STOCK_PID_HELPERS, '');
-
-const BINDINGS =
-  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH l0e El bx'.split(
-    ' ',
-  );
+  .replace(`${STOCK_PID_HELPERS};`, '');
 
 function bareRecord(): Configs {
   // SAFETY: the stock hub builds its maps with Object.create(null) and only ever stores into them.
@@ -64,6 +60,35 @@ function bareRecord(): Configs {
 function pidOf(transport: Transport): number | null {
   const { pid } = transport;
   return typeof pid === 'number' && pid > 0 ? pid : null;
+}
+
+interface Bound {
+  signal?: AbortSignal;
+  mapError?: (error: Error) => Error;
+}
+
+async function withBound<T>(
+  { signal, mapError }: Bound,
+  run: (options: { signal: AbortSignal }) => Promise<T>,
+): Promise<T> {
+  try {
+    return await run({ signal: signal ?? new AbortController().signal });
+  } catch (error) {
+    if (mapError === undefined || !(error instanceof Error)) {
+      throw error;
+    }
+    throw mapError(error);
+  }
+}
+
+async function listing(client: FakeClient): Promise<Listing> {
+  const { tools } = await client.listTools();
+  return {
+    client,
+    tools,
+    callDefinitions: new Map(tools.map((tool) => [tool.name, tool])),
+    uncompilableOutputSchemas: [],
+  };
 }
 
 function never(): never {
@@ -95,6 +120,7 @@ export class HubWorld {
   failSpawns = 0;
   private spoolSource: SpoolSource = ignore;
   exitOnClose = false;
+  era: 'legacy' | 'modern' = 'legacy';
   private readonly holds = new Map<HoldKind, Promise<boolean>>();
   private nextPid = FIRST_PID;
 
@@ -106,58 +132,58 @@ export class HubWorld {
       debug: ignore,
       child: () => logger,
     };
-    const build = payloadFunction<unknown[], HubClass>(BINDINGS, `${PATCHED}return Ft`);
-    const Hub = build(
-      bareRecord,
-      (value: Configs) => ({ ...value }),
-      Error,
-      pidOf,
-      (pid: number) => this.alive.has(pid),
-      ignore,
-      (env: Configs) => env,
-      async (args: SpawnArgs) => await Promise.resolve(args),
-      async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
-      () => 'identity',
-      ignore,
-      async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
-      () => ({}),
-      () => 'protocol',
-      'resource-updated',
-      'resource-list-changed',
-      'tool-list-changed',
-      String,
-      { addToCounter: ignore },
-      MINUTE,
-      never,
-      () => true,
-      () => MINUTE,
-      () => false,
-      () => false,
-      { safeParse: (data: ToolResult) => ({ success: true, data }) },
-      MINUTE,
-      () => false,
-      ignore,
-      Error,
-      (name: string) => this.module(name),
-      { env: this.env, pid: 1 },
-      (callback: () => void, delay: number) => this.schedule(callback, delay),
-      (timer: Timer | undefined) => {
-        if (timer !== undefined) {
-          timer.active = false;
-        }
-      },
-      async (pending: Promise<void>) => {
-        await pending;
-      },
-      TEARDOWN_BOUND_MS,
-      {
+    const stand = {
+      Zo: (pid: number) => this.alive.has(pid),
+      XC: pidOf,
+      _t: bareRecord,
+      Xl: {
         addSource: (source: SpoolSource) => {
           this.spoolSource = source;
           return ignore;
         },
       },
-      REAP_GRACE_MS,
-    );
+      yI: REAP_GRACE_MS,
+      wi: (value: Configs) => ({ ...value }),
+      Xu: () => false,
+      i: Error,
+      N5: ignore,
+      $a: (env: Configs) => env,
+      Uu: async (args: SpawnArgs) => await Promise.resolve(args),
+      $u: async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
+      H_: () => 'identity',
+      CB: ignore,
+      sV: async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
+      es: () => ({}),
+      Xo: never,
+      EPe: String,
+      H: { addToCounter: ignore },
+      LK: TEARDOWN_BOUND_MS,
+      AC: withBound,
+      bm: () => MINUTE,
+      dNe: MINUTE,
+      $d: async (pending: Promise<unknown>) => await pending,
+      ne: never,
+      cV: listing,
+      hNe: MINUTE,
+      mV: ignore,
+      pV: () => false,
+      L0e: ignore,
+      SB: Error,
+      Tr: TypeError,
+      ute: 'header-mismatch',
+      yB: { safeParse: (data: ToolResult) => ({ success: true, data }) },
+      wv: MINUTE,
+      require: (name: string) => this.module(name),
+      process: { env: this.env, pid: 1 },
+      setTimeout: (callback: () => void, delay: number) => this.schedule(callback, delay),
+      clearTimeout: (timer: Timer | undefined) => {
+        if (timer !== undefined) {
+          timer.active = false;
+        }
+      },
+    };
+    const build = payloadFunction<unknown[], HubClass>(Object.keys(stand), `${PATCHED}return TV`);
+    const Hub = build(...Object.values(stand));
     this.hub = new Hub({
       userMcpConfigs: configs ?? { [SERVER]: STDIO_CONFIG },
       logger,
@@ -170,6 +196,9 @@ export class HubWorld {
       applyToolConfig: (_name: string, tools: Tool[]) => tools,
       persistCatalog: ignore,
       discardCatalog: ignore,
+      protocolEraFor: ignore,
+      logInvalidToolsTransition: ignore,
+      logUncompilableOutputSchemasTransition: ignore,
     });
     this.hub.killServerProcessTree = async (pid) => {
       this.killed.push(pid);
@@ -274,6 +303,7 @@ export class HubWorld {
 
   private client(): FakeClient {
     return {
+      transport: {},
       listTools: async () => {
         this.calls.push('listTools');
         return await Promise.resolve({ tools: this.tools });
@@ -295,15 +325,16 @@ export class HubWorld {
         this.calls.push('unsubscribeResource');
         await Promise.resolve();
       },
-      listResources: async () => {
+      request: async ({ method }) => {
         await this.held('list');
-        return { resources: [{ uri: 'live://a' }] };
-      },
-      listResourceTemplates: async () => {
-        await this.held('list');
-        return { resourceTemplates: [{ uri: 'live://{id}' }] };
+        return method === 'resources/list'
+          ? { resources: [{ uri: 'live://a' }] }
+          : { resourceTemplates: [{ uri: 'live://{id}' }] };
       },
       getServerVersion: () => ({ name: 'fake', version: '1' }),
+      getNegotiatedProtocolVersion: () => 'protocol',
+      getProtocolEra: () => this.era,
+      getServerCapabilities: () => ({}),
       setNotificationHandler: ignore,
     };
   }
@@ -320,4 +351,17 @@ export class HubWorld {
     }
     throw new Error(`unexpected require("${name}")`);
   }
+}
+
+async function stillPending(): Promise<boolean> {
+  await HubWorld.settle();
+  return false;
+}
+
+export async function isSettled(promise: Promise<void>): Promise<boolean> {
+  const done = async (): Promise<boolean> => {
+    await promise;
+    return true;
+  };
+  return await Promise.race([done(), stillPending()]);
 }

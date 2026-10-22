@@ -20,9 +20,9 @@ const STOCK_GATES =
   'function o6(){let t=oo(Z1)??Ym;return{maxDepth:Math.min(t.max_depth,j6),maxActiveDescendantsPerRoot:t.max_active_descendants_per_root}}' +
   'function a6(){if(!U(M.NestedTaskDelegation))return!1;let t=m();if(t.isSpecMode())return!1;let o=t.getCurrentSessionId();if(!o)return!1;' +
   'try{let a=$z(o),c=o6();if(a.lineage.depth===0)return!1;return a.lineage.depth<c.maxDepth}' +
-  'catch(a){return n("Nested Task availability check failed; disabling delegation",{sessionId:o,cause:a}),!1}}' +
+  'catch(a){return n("[Agent] Nested Task availability check failed; disabling delegation",{sessionId:o,cause:a}),!1}}' +
   'function kTe(t){if(!hn(t.parentSessionId))return;let o;try{o=$z(t.parentSessionId).lineage.depth}' +
-  'catch(a){return n("Nested Task scope check failed; rejecting call",{sessionId:t.parentSessionId,cause:a}),"over_depth"}' +
+  'catch(a){return n("[Agent] Nested Task scope check failed; rejecting call",{sessionId:t.parentSessionId,cause:a}),"over_depth"}' +
   'if(o===0)return;if(!U(M.NestedTaskDelegation)||o>=o6().maxDepth)return"over_depth";return}';
 
 const PATCHED_GATES =
@@ -31,9 +31,9 @@ const PATCHED_GATES =
   `return{maxDepth:$ODnestCap($ODn?.maxDepth,${DEFAULT_MAX_DEPTH},j6),maxActiveDescendantsPerRoot:$ODnestCap($ODn?.maxActiveDescendantsPerRoot,${DEFAULT_DESCENDANTS_PER_ROOT})}}` +
   'function a6(){let t=m();if(t.isSpecMode())return!1;let o=t.getCurrentSessionId();if(!o)return!1;' +
   'try{let a=$z(o).lineage.depth;return a>0&&$ODmayNest(a,hn(o)?.maxDepth,o6().maxDepth)}' +
-  'catch(a){return n("Nested Task availability check failed; disabling delegation",{sessionId:o,cause:a}),!1}}' +
+  'catch(a){return n("[Agent] Nested Task availability check failed; disabling delegation",{sessionId:o,cause:a}),!1}}' +
   'function kTe(t){let $ODr=hn(t.parentSessionId);if(!$ODr)return;let o;try{o=$z(t.parentSessionId).lineage.depth}' +
-  'catch(a){return n("Nested Task scope check failed; rejecting call",{sessionId:t.parentSessionId,cause:a}),"over_depth"}' +
+  'catch(a){return n("[Agent] Nested Task scope check failed; rejecting call",{sessionId:t.parentSessionId,cause:a}),"over_depth"}' +
   'let $ODc=o6().maxDepth;return $ODmayNest(o,$ODr.maxDepth,$ODc)?void 0:$ODnestRefusal($ODr,o,$ODc)}';
 
 const STOCK_SCOPE_VIOLATION =

@@ -214,19 +214,20 @@ describe('the droids view publishes when settings change', () => {
 });
 
 interface ChipInput {
-  lead?: boolean;
   droid: { model?: string; reasoningEffort?: string };
   onScreen?: boolean;
 }
 
 interface ChipScope {
-  L: boolean;
-  Z: ChipInput['droid'] & { mission?: { kind: string } };
-  u: () => { t: (key: string) => string };
-  U: boolean;
-  Re: (id: string) => { shortDisplayName?: string | undefined };
-  ai: (effort: string) => string;
+  te: ChipInput['droid'];
+  h: () => { t: (key: string) => string };
+  W: boolean;
+  kT: string;
+  de: (id: string) => { shortDisplayName?: string | undefined };
+  mr: (effort: string) => string;
 }
+
+const CHIP_SEPARATOR = ' | ';
 
 const SHORT_NAMES = new Map([
   [OPUS, 'Opus 5.5'],
@@ -238,20 +239,21 @@ const EFFORTS = new Map([
   ['xhigh', 'Extra High'],
 ]);
 
-const chipsOf = payloadFunction<[ChipScope], string[]>(
+const chipsOf = payloadFunction<[ChipScope], string>(
   ['scope'],
-  `const{L,Z,u,U,Re,ai}=scope;let ${patchedSnippet(STOCK_CHIPS, 'droids-view-row-model-chip')};return me`,
+  `const{te,h,W,kT,de,mr}=scope;let ${patchedSnippet(STOCK_CHIPS, 'droids-view-row-model-chip')};return Ie`,
 );
 
-function chips({ lead = false, droid, onScreen = false }: ChipInput): string[] {
-  return chipsOf({
-    L: lead,
-    Z: { ...droid, mission: { kind: lead ? 'orchestrator' : 'worker' } },
-    u: () => ({ t: (key) => key.replace('common:droidsView.', '') }),
-    U: onScreen,
-    Re: (id) => ({ shortDisplayName: SHORT_NAMES.get(id) }),
-    ai: (effort) => EFFORTS.get(effort) ?? effort,
+function chips({ droid, onScreen = false }: ChipInput): string[] {
+  const suffix = chipsOf({
+    te: droid,
+    h: () => ({ t: (key) => key.replace('common:droidsView.', '') }),
+    W: onScreen,
+    kT: CHIP_SEPARATOR,
+    de: (id) => ({ shortDisplayName: SHORT_NAMES.get(id) }),
+    mr: (effort) => EFFORTS.get(effort) ?? effort,
   });
+  return suffix.split(CHIP_SEPARATOR).slice(1);
 }
 
 describe('the row shows a model chip', () => {
@@ -280,12 +282,12 @@ describe('the row shows a model chip', () => {
     ]);
   });
 
-  test('it sits between the mission lead and the on-screen chips', () => {
-    expect(chips({ lead: true, onScreen: true, droid: { model: OPUS } })).toEqual([
-      'missionLead',
-      'Opus 5.5',
-      'onScreen',
-    ]);
+  test('it sits before the on-screen chip, each behind the separator', () => {
+    expect(chips({ onScreen: true, droid: { model: OPUS } })).toEqual(['Opus 5.5', 'onScreen']);
+  });
+
+  test('an on-screen row with no model keeps the stock chip alone', () => {
+    expect(chips({ onScreen: true, droid: {} })).toEqual(['onScreen']);
   });
 });
 

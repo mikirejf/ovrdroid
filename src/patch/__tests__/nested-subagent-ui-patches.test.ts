@@ -121,8 +121,10 @@ describe.skipIf(stockDroid === undefined)('the shipped binary', () => {
   });
 
   test('Task progress updates carry their tool use id', () => {
-    expect(patchedText).toContain('type:"tool_call",toolName:a.name,toolUseId:a.id,');
-    expect(patchedText).toContain('toolUseId:a.toolUseId,');
+    expect(patchedText).toContain(rebasedNamed('nested-subagent-ui-task-call-carries-id').replace);
+    expect(patchedText).toContain(
+      rebasedNamed('nested-subagent-ui-task-result-carries-id').replace,
+    );
   });
 
   test('the detailed view formats every step through the stock switch, rendered live', () => {

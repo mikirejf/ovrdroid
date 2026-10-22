@@ -95,7 +95,7 @@ const PARENT_BRIEF =
   `ae+="\\n\\n"+($ODbrief?${JSON.stringify(PARENT_BRIEF_LEAD)}+"\\n\\n"+$ODbrief+"\\n\\n":"")+${JSON.stringify(PARENT_NOTE)}}}catch{}`;
 
 const SUMMARIZER_END =
-  'return s("[Summarizer] Response OK, extracted summary",{length:ae.length}),ae}}';
+  'return s("[Compaction] Summarizer response OK, extracted summary",{length:ae.length}),ae}}';
 
 export const compactionPatches: readonly Patch[] = [
   {
@@ -115,11 +115,14 @@ export const compactionPatches: readonly Patch[] = [
   {
     name: 'compaction-reuse-extender',
     find: 'capturedAt:Date.now()};DJ(jn);',
-    lookups: ['mt=un({rawHistory:xe,lastSummary:this.lastSummaryRef,reminders:[Rt,qo,bt]})'],
+    lookups: [
+      'Nn({rawHistory:Pe,lastSummary:this.lastSummaryRef,reminders:[VU(yo,br()),un,Pt]})',
+      'prepareMessagesWithCaching(Do,{sessionId:v,modelId:We})',
+    ],
     replace:
-      `capturedAt:Date.now(),${EXTENDER_KEY}:(($ODrem,$ODsum)=>($ODask)=>this.llmCore.prepareMessagesWithCaching(` +
-      'un({rawHistory:[...this.params.getConversationHistory(),$ODask],lastSummary:$ODsum,reminders:$ODrem})))' +
-      '([Rt,qo,bt],this.lastSummaryRef)};DJ(jn);',
+      `capturedAt:Date.now(),${EXTENDER_KEY}:(($ODrem,$ODopts,$ODsum)=>($ODask)=>this.llmCore.prepareMessagesWithCaching(` +
+      'Nn({rawHistory:[...this.params.getConversationHistory(),$ODask],lastSummary:$ODsum,reminders:$ODrem}),$ODopts))' +
+      '([VU(yo,br()),un,Pt],{sessionId:v,modelId:We},this.lastSummaryRef)};DJ(jn);',
   },
   {
     name: 'compaction-reuse-prefix',

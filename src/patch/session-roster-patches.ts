@@ -40,18 +40,22 @@ export const PATCHED_ROSTER_EVENTS =
   '"message_thread_updated","subagent_invocation_summary_updated","settings_updated"],zCe=new Set(';
 
 export const STOCK_ROSTER_ROW_TAIL =
-  'mission:{kind:"agent",missionId:t.sessionId}},c.get(g.sessionId));return mn(E,D,y?pt(y):qe(g)!==null)})}';
+  'mission:{kind:"agent",missionId:t.sessionId}},M);' +
+  'return{droid:In(b,p,g?Ye(g):Pe(f)!==null),pullRequestArtifacts:I}})}';
 
 export const PATCHED_ROSTER_ROW_TAIL =
-  'mission:{kind:"agent",missionId:t.sessionId},model:g.model,reasoningEffort:g.reasoningEffort,' +
-  'nestedRoster:g.parentSessionId!==void 0},c.get(g.sessionId));' +
-  'return{...mn(E,D,y?pt(y):qe(g)!==null),parentSessionId:g.parentSessionId===t.sessionId?null:g.parentSessionId??null}})}';
+  'mission:{kind:"agent",missionId:t.sessionId},model:f.model,reasoningEffort:f.reasoningEffort,' +
+  'nestedRoster:f.parentSessionId!==void 0},M);' +
+  'return{droid:{...In(b,p,g?Ye(g):Pe(f)!==null),' +
+  'parentSessionId:f.parentSessionId===t.sessionId?null:f.parentSessionId??null},pullRequestArtifacts:I}})}';
 
-export const STOCK_EXPAND_CHECK = 'function d9(f,y,S,x,w){let I=y1(y)&&w.has(y.droid.sessionId);';
+export const STOCK_EXPAND_CHECK =
+  'let l=nn(o)&&d.has(o.droid.sessionId);if(t.push({kind:"droid",id:o.droid.sessionId,';
 
 export const PATCHED_EXPAND_CHECK =
-  'function d9(f,y,S,x,w){let I=y1(y)&&(w.has(y.droid.sessionId)||' +
-  'y.droid.nestedRoster===!0&&y.children.length>0&&!w.has("collapsed:"+y.droid.sessionId));';
+  'let l=nn(o)&&(d.has(o.droid.sessionId)||' +
+  'o.droid.nestedRoster===!0&&o.children.length>0&&!d.has("collapsed:"+o.droid.sessionId));' +
+  'if(t.push({kind:"droid",id:o.droid.sessionId,';
 
 export const STOCK_EXPAND_TOGGLE =
   'function ufe(f,y,S){let x=y2(f.expandedDroids,y,S);return x===f.expandedDroids?f:{...f,expandedDroids:x}}';
