@@ -15,10 +15,16 @@ const STOCK_GATE =
 
 const OUTER_BINDINGS = 'let I=new Set(["Read"]),b=new Set(["Execute"]),nr={llmId:"Task"};';
 
-const patch = toolSurfacePatches.find((candidate) => candidate.name === 'todo-write-direct');
-if (patch === undefined) {
-  throw new TypeError('todo-write-direct is missing from the tool surface patches');
+function named(name: string) {
+  const found = toolSurfacePatches.find((candidate) => candidate.name === name);
+  if (found === undefined) {
+    throw new TypeError(`${name} is missing from the tool surface patches`);
+  }
+  return found;
 }
+
+const patch = named('todo-write-direct');
+const sonnetPatch = named('script-mode-sonnet');
 
 function buildGate(source: string): Gate {
   // SAFETY: the body is the shipped surface gate with its outer sets bound: the always-direct set, the script-bound set and the subagent tool.
@@ -76,4 +82,78 @@ describe('every other tool is gated as before', () => {
       }
     },
   );
+});
+
+type Resolve = (session: { modelId: string; override?: Mode }) => Mode;
+
+const STOCK_RESOLVER =
+  'function dQ(t){let r=Ta(B3)?.models,o=_t(t.modelId)?At(t.modelId,C().getCustomModels()):void 0,i=o?Wl(o):void 0;if(!(r?.some((u)=>u===t.modelId||u===i)??!1))return"direct_only";return t.override??"script_only"}';
+
+const RESOLVER_BINDINGS = `
+const B3="script_tool_models";
+const Ta=(flag)=>flag===B3?{models:["claude-opus-5-5"]}:void 0;
+const _t=(id)=>id.startsWith("custom:");
+const registry=[
+  {id:"custom:droidproxy:sonnet-5-5",model:"claude-sonnet-5-5"},
+  {id:"custom:droidproxy:haiku-5-5",model:"claude-haiku-5-5"},
+  {id:"custom:droidproxy:opus-5-5",model:"claude-opus-5-5"},
+  {id:"custom:droidproxy:gpt",model:"gpt-6.1-sol"},
+  {id:"custom:mine:fast",model:"claude-sonnet-5-5"},
+];
+const At=(id,models)=>models.find((m)=>m.id===id);
+const C=()=>({getCustomModels:()=>registry});
+const Wl=(m)=>m.model;
+`;
+
+function buildResolver(source: string): Resolve {
+  // SAFETY: the body is the shipped mode resolver with its flag store, custom model registry and id helpers stubbed.
+  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
+  return new Function(`${RESOLVER_BINDINGS}${source};return dQ`)() as Resolve;
+}
+
+const stockMode = buildResolver(STOCK_RESOLVER);
+const patchedMode = buildResolver(STOCK_RESOLVER.replace(sonnetPatch.find, sonnetPatch.replace));
+
+describe('script mode on Sonnet', () => {
+  test.each(['claude-sonnet-5-5', 'claude-Sonnet-4-20250514', 'custom:droidproxy:sonnet-5-5'])(
+    '%s runs script_only patched and direct_only on stock',
+    (modelId) => {
+      expect(stockMode({ modelId })).toBe('direct_only');
+      expect(patchedMode({ modelId })).toBe('script_only');
+    },
+  );
+
+  test('a custom model whose id hides Sonnet is found by its underlying model', () => {
+    expect(stockMode({ modelId: 'custom:mine:fast' })).toBe('direct_only');
+    expect(patchedMode({ modelId: 'custom:mine:fast' })).toBe('script_only');
+  });
+
+  test('the override still wins once Sonnet is allowed', () => {
+    expect(patchedMode({ modelId: 'custom:droidproxy:sonnet-5-5', override: 'direct_only' })).toBe(
+      'direct_only',
+    );
+    expect(patchedMode({ modelId: 'claude-sonnet-5-5', override: 'mixed' })).toBe('mixed');
+  });
+});
+
+describe('script mode on other models', () => {
+  test.each(['custom:droidproxy:haiku-5-5', 'custom:droidproxy:gpt', 'claude-haiku-5-5'])(
+    '%s stays direct_only',
+    (modelId) => {
+      expect(stockMode({ modelId })).toBe('direct_only');
+      expect(patchedMode({ modelId })).toBe('direct_only');
+    },
+  );
+
+  test.each(['claude-opus-5-5', 'custom:droidproxy:opus-5-5'])(
+    '%s on the remote list stays script_only',
+    (modelId) => {
+      expect(stockMode({ modelId })).toBe('script_only');
+      expect(patchedMode({ modelId })).toBe('script_only');
+    },
+  );
+
+  test('the override still wins on a listed model', () => {
+    expect(patchedMode({ modelId: 'claude-opus-5-5', override: 'mixed' })).toBe('mixed');
+  });
 });

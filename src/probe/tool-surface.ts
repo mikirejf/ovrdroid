@@ -13,7 +13,7 @@ import { describeToolSurface, readToolSurface } from './tool-surface-report.ts';
 
 const BODIES_VARIABLE = 'OD_BODIES';
 const PROMPT = 'Reply with the single word "ok". Do not use any tool.';
-const DEFAULT_MODEL = 'custom:droidproxy:opus-5-5';
+const DEFAULT_MODEL = 'custom:droidproxy:sonnet-5-5';
 const DEFAULT_EFFORT = 'low';
 const DEFAULT_TOOL = 'TodoWrite';
 const DEFAULT_TIMEOUT_S = 120;

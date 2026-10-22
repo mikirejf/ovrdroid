@@ -24,6 +24,8 @@ retraction, because how it went wrong is the reusable part.
 - [first-message.md](first-message.md): showing the first message at once, and how MCP servers
   start.
 - [subagents.md](subagents.md): what a subagent costs, and what fills the machine's memory.
+- [script-mode.md](script-mode.md): which models get the Script tool, the remote list that decides,
+  and the Sonnet patch.
 - [menu-rescans.md](menu-rescans.md): why one new Droid makes every other Droid's slash menu rescan.
 
 Prompt cache and token spend:
