@@ -23,15 +23,16 @@ function pathsUnder(home: string) {
 }
 
 describe('fillScratchHome', () => {
-  test('places the target and the stock where the installed Droid and its .orig resolve under that HOME', () => {
+  test('places the target and the stock side by side, where the installed Droid and its .orig resolve under that HOME', () => {
     const target = path.join(dir, 'target');
     const stock = path.join(dir, 'stock');
     const home = path.join(dir, 'home');
     writeFileSync(target, 'patched bytes');
     writeFileSync(stock, 'stock bytes');
-    fillScratchHome(home, { target, stock });
+    const copies = fillScratchHome(home, { target, stock });
 
     const { installed, backup } = pathsUnder(home);
+    expect(copies).toEqual({ target: installed, stock: backup });
     expect(installed).toBe(path.join(home, '.local', 'bin', 'droid'));
     expect(backup).toBe(path.join(home, '.local', 'bin', 'droid.orig'));
     expect(readFileSync(installed, 'utf-8')).toBe('patched bytes');

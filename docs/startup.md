@@ -65,9 +65,15 @@ mutex through `FSEventStreamStart`, so N synchronous `fs.watch` calls wait for N
 small directory and ~400ms from `/tmp`. A Bun issue draft is in `/tmp/bun-fswatch-issue.md`, not
 filed.
 
+Quit pays it too: on Droid 0.247.0 (2026-10-22, `probe ab -r 12`) stock quit in ~117ms from a
+one-entry directory and ~269ms from `/tmp`. A patched build in `/tmp` against stock in a small
+directory read as a 118ms quit regression and a 232ms resume regression; side by side in small
+directories the patched build was faster on both.
+
 Measure startup with both binaries in the same directory, and in a small one or `~/.local/bin`.
-`probe typing-start` copies both into one fresh scratch directory for this reason. `probe ab`
-measures binaries where they are, so pass it two paths in the same directory.
+`probe typing-start` copies both into one fresh scratch directory for this reason, and the gate runs
+every check on the clones it places side by side in its scratch HOME. `probe ab` measures binaries
+where they are, so pass it two paths in the same directory.
 
 ## Probe sessions start only once Droid has loaded the org policy
 

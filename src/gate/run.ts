@@ -63,10 +63,8 @@ export async function runGate(options: GateOptions): Promise<GateOutcome> {
   const scratchHome = makeTempDir('gate-home');
   const bodiesBuild = path.join(logDir, 'droid-bodies');
   try {
-    fillScratchHome(scratchHome, { target, stock });
     const phases = gateChecks({
-      target,
-      stock,
+      ...fillScratchHome(scratchHome, { target, stock }),
       droidVersion: gated.droidVersion,
       scratchHome,
       bodiesBuild,
