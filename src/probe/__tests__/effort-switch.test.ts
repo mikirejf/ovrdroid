@@ -84,8 +84,29 @@ describe('switchVerdict rules on the switched turn against the control prefix', 
   test('a control that read nothing means the run cannot judge the switch', () => {
     const missed: SwitchOutcomes = { ...outcomes(turn(24_000, 0)), control: turn(0, 24_000) };
     expect(switchVerdict(missed)).toBe(
-      'the control turn at "high" read nothing from the cache the seed turn wrote, so the cache never warmed and the run cannot judge the switch',
+      'the control turn at "high" read 0 from the cache, no more than the seed turn read (0), so the conversation never reached the cache and the run cannot judge the switch',
     );
+  });
+
+  test('a GPT run that logs no writes is judged on what the control turn read', () => {
+    const gpt: SwitchOutcomes = {
+      ...outcomes(turn(7680, 0)),
+      seed: turn(7680, 0),
+      control: turn(14_336, 0),
+    };
+    expect(switchVerdict(gpt)).toBe(
+      'switching effort from "high" to "medium" partly kept the cache: read 7,680 of 14,336 cached tokens, wrote 0',
+    );
+    expect(switchRuling(gpt).kind).toBe('busted');
+  });
+
+  test('a GPT switched turn that read the whole conversation kept the cache', () => {
+    const gpt: SwitchOutcomes = {
+      ...outcomes(turn(14_336, 0)),
+      seed: turn(0, 0),
+      control: turn(11_904, 0),
+    };
+    expect(switchRuling(gpt).kind).toBe('kept');
   });
 
   test('a control that re-wrote the tail of a cold seed still lets the run judge the switch', () => {
@@ -108,10 +129,10 @@ describe('switchVerdict rules on the switched turn against the control prefix', 
     );
   });
 
-  test('a seed that wrote nothing cannot judge the switch either', () => {
+  test('a control that read only what the seed already read cannot judge the switch either', () => {
     const empty: SwitchOutcomes = { ...outcomes(turn(0, 0)), seed: turn(24_000, 0) };
     expect(switchVerdict(empty)).toBe(
-      'the seed turn wrote nothing to the cache, so the run cannot judge the switch',
+      'the control turn at "high" read 24,000 from the cache, no more than the seed turn read (24,000), so the conversation never reached the cache and the run cannot judge the switch',
     );
   });
 });

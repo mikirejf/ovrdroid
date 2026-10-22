@@ -65,9 +65,19 @@ was dropped ([first-message.md](first-message.md)).
   [cache-patches.md](cache-patches.md)), a pasted image, a fork, a spec-mode toggle. Reopened
   sessions are measured in [cache-reopens.md](cache-reopens.md). `probe busts` can split by event
   once the log carries prefix identity.
-- An effort change mid-conversation does not bust. `probe effort-switch <binary> --yes` presses Tab
-  in a real session and reads the cache numbers Droid logs. On Droid 0.242.0, `sonnet-5-5` through
-  DroidProxy, High to Medium (the transcript confirms the reply ran at `medium`): the turn after the
-  switch read 25,001 of 25,001 cached tokens and wrote 23, with no not-append-only warning. One run,
-  one model, one direction; Opus and thinking off are not measured.
+- An effort change mid-conversation does not bust on Claude. `probe effort-switch <binary> --yes`
+  presses Tab in a real session and reads the cache numbers Droid logs. On Droid 0.242.0,
+  `sonnet-5-5` through DroidProxy, High to Medium (the transcript confirms the reply ran at
+  `medium`): the turn after the switch read 25,001 of 25,001 cached tokens and wrote 23, with no
+  not-append-only warning. One run, one model, one direction; Opus and thinking off are not
+  measured.
+- An effort change mid-conversation busts on GPT, in stock Droid too. On Droid 0.247.0, `gpt-6-luna`
+  through DroidProxy, High to Medium: stock's control turn read 11,904 and the switched turn read 0,
+  3 of 3 runs. Patched, the control read 14,336 and the switched turn 7,680 or 0, 5 of 5 runs; the
+  7,680 is the system and tools prefix the shared cache key keeps warm, so the conversation is lost
+  every time. Droid logged no not-append-only warning: OpenAI busts on a changed request-level
+  `reasoning.effort` by default. On GPT-6 an appended `configuration_update` input item changes
+  effort and keeps the prefix (https://developers.openai.com/api/docs/guides/prompt-caching); Droid
+  does not send one. The check judges GPT against what the control turn read, because Droid logs 0
+  cache writes for GPT ([openai-cache.md](openai-cache.md)).
 - The 57.4M of ordinary incremental writes are new tails, not waste.

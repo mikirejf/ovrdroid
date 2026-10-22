@@ -1,3 +1,4 @@
+import { whole } from '../cli.ts';
 import { kept, ruling } from './effort-cache-verdict.ts';
 import type { BustLine, UsageLine } from './logs.ts';
 
@@ -96,14 +97,9 @@ export function switchRuling(outcomes: SwitchOutcomes): SwitchRuling {
     return undecided(problem);
   }
   const from = efforts.control;
-  if (seed.cacheWrite === 0) {
+  if (control.cacheRead <= seed.cacheRead) {
     return undecided(
-      'the seed turn wrote nothing to the cache, so the run cannot judge the switch',
-    );
-  }
-  if (control.cacheRead === 0) {
-    return undecided(
-      `the control turn at "${from}" read nothing from the cache the seed turn wrote, so the cache never warmed and the run cannot judge the switch`,
+      `the control turn at "${from}" read ${whole(control.cacheRead)} from the cache, no more than the seed turn read (${whole(seed.cacheRead)}), so the conversation never reached the cache and the run cannot judge the switch`,
     );
   }
   const cached = control.cacheRead + control.cacheWrite;
