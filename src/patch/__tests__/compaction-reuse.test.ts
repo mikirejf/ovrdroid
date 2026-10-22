@@ -64,6 +64,22 @@ describe('compaction-reuse-prefix', () => {
     );
   });
 
+  test('reports the model of every request it sends, reused or not', async () => {
+    const summarize = buildSummarize(undefined, freshSignal());
+    await summarize({ modelId: MODEL });
+    expect(calls.modelRequests).toEqual([MODEL]);
+    await summarize({ modelId: MODEL });
+    expect(calls.modelRequests).toEqual([MODEL, MODEL]);
+  });
+
+  test('reports no model for a reuse it refuses before sending', async () => {
+    script.snapshot = undefined;
+    const summarize = buildSummarize(undefined, freshSignal());
+    await summarize({ modelId: MODEL });
+    expect(calls.send).toHaveLength(0);
+    expect(calls.modelRequests).toEqual([MODEL]);
+  });
+
   test('only the first call tries the reuse path', async () => {
     const summarize = buildSummarize(undefined, freshSignal());
     await summarize({ modelId: MODEL });

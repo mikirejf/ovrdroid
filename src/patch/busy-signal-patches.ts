@@ -33,7 +33,10 @@ export const busySignalPatches: readonly Patch[] = [
   {
     name: 'progress-busy-while-session-or-subagents-work',
     find: STOCK_STATUS_MOUNT,
-    lookups: ['ssm=N().getSessionStateManager();listeners=new Set;', '?qme(this.ssm,f):[]'],
+    lookups: [
+      'ssm=N().getSessionStateManager();changes=Ts("SessionRosterStore"',
+      'let A=qme(U,I);if(A.length===0)return GP;',
+    ],
     replace: `${BUSY_SIGNAL_PAYLOAD}${PATCHED_STATUS_MOUNT}`,
   },
 ];

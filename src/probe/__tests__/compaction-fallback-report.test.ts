@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { ADAPTIVE_STORED } from '../../patch/__tests__/summary-fixtures.ts';
 import type { Evidence } from '../compaction-fallback-report.ts';
 import {
   CANNED_REFUSAL,
@@ -58,14 +59,25 @@ describe('fallbackVerdict', () => {
     const verdict = fallbackVerdict(passing());
     expect(verdict.pass).toBe(true);
     expect(verdict.finding).toBe(
-      `the patched Droid rejected the refusal (not-summary), logged how it began, fell back to stock, and stored a ${STORED_SUMMARY.length}-character summary with 3 stock sections`,
+      `the patched Droid rejected the refusal (not-summary), logged how it began, fell back to stock, and stored a ${STORED_SUMMARY.length}-character summary (3 of the stock sections)`,
     );
   });
 
-  test('passes but says so when the stored text is not the refusal and has no stock layout', () => {
+  test('calls an adaptive summary a summary although it has none of the stock sections', () => {
+    const verdict = fallbackVerdict({ ...passing(), stored: [ADAPTIVE_STORED] });
+    expect(verdict.pass).toBe(true);
+    expect(verdict.finding).toContain(
+      `stored a ${ADAPTIVE_STORED.length}-character summary (0 of the stock sections)`,
+    );
+    expect(verdict.finding).not.toContain('by eye');
+  });
+
+  test('passes but says so when the stored text is not the refusal and is not a summary', () => {
     const verdict = fallbackVerdict({ ...passing(), stored: ['The work so far, in prose.'] });
     expect(verdict.pass).toBe(true);
-    expect(verdict.finding).toContain('not the refusal but has only 0 of the stock summary');
+    expect(verdict.finding).toContain(
+      'not the refusal and not a summary either: 0 of the stock sections, 0 markdown headings',
+    );
   });
 
   test('fails when Droid never sent the reuse request', () => {

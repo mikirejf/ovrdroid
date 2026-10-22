@@ -1,13 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  declines,
+  isStoredSummary,
   isSummary,
+  isSummaryReply,
+  markdownHeadings,
   MIN_SUMMARY_SECTIONS,
   PARENT_BRIEF_LEAD,
   SUMMARY_SECTIONS,
   summaryBody,
   summarySections,
 } from '../summary-format.ts';
+import {
+  ADAPTIVE_STORED,
+  STORED_REFUSAL,
+  STORED_REFUSAL_WITH_HEADINGS,
+} from './summary-fixtures.ts';
 
 const TITLES = [
   'Chronological Play-by-Play',
@@ -154,6 +163,98 @@ describe('isSummary needs enough stock headings', () => {
       'goes on as before.',
     ].join('\n');
     expect(isSummary(refusal)).toBe(false);
+  });
+});
+
+describe('isSummaryReply accepts a summary tag or the stock headings', () => {
+  test('a reply in the sections the adaptive prompt lets the model choose passes on its tag', () => {
+    const adaptive =
+      '<summary>\n## Role and task\nI am the grunt.\n\n## Session context\nRead the files.';
+    expect(isSummary(adaptive)).toBe(false);
+    expect(isSummaryReply(adaptive)).toBe(true);
+  });
+
+  test('the tag counts in any case and anywhere in the reply', () => {
+    expect(isSummaryReply('Thinking first.\n<SUMMARY>\nshort</SUMMARY>')).toBe(true);
+  });
+
+  test('stock headings without a tag still pass', () => {
+    expect(isSummaryReply(HASHED)).toBe(true);
+  });
+
+  test('refusals and reports without a tag fail', () => {
+    for (const reply of [...REFUSALS, REPORT]) {
+      expect(isSummaryReply(reply)).toBe(false);
+    }
+  });
+});
+
+describe('markdownHeadings counts heading lines', () => {
+  test('counts one to six hashes with up to three spaces of indent', () => {
+    expect(markdownHeadings('# a\n## b\n   ### c\n###### d')).toBe(4);
+  });
+
+  test('skips hashes without a space, indented code and prose', () => {
+    expect(markdownHeadings('#tag\n    ## code\nsee # here\n####### seven\n#')).toBe(0);
+  });
+});
+
+describe('declines reads only the opening of a text', () => {
+  test('every refusal declines', () => {
+    for (const refusal of [...REFUSALS, STORED_REFUSAL]) {
+      expect(declines(refusal)).toBe(true);
+    }
+  });
+
+  test('a decline word late in a long text does not count', () => {
+    expect(declines(`${'The session read many files. '.repeat(20)}I won't write a summary.`)).toBe(
+      false,
+    );
+  });
+});
+
+describe('isStoredSummary judges a summary after its tag was stripped', () => {
+  test('a summary in the stock headings passes', () => {
+    expect(isStoredSummary(HASHED)).toBe(true);
+  });
+
+  test('a summary in the sections the adaptive prompt let the model choose passes', () => {
+    expect(summarySections(ADAPTIVE_STORED)).toBe(0);
+    expect(markdownHeadings(ADAPTIVE_STORED)).toBe(4);
+    expect(isStoredSummary(ADAPTIVE_STORED)).toBe(true);
+  });
+
+  test('a summary that still holds its tag passes', () => {
+    expect(isStoredSummary('<summary>\nWork so far, in prose.\n</summary>')).toBe(true);
+  });
+
+  test('the canned refusal and the other short refusals fail', () => {
+    for (const refusal of [...REFUSALS, STORED_REFUSAL]) {
+      expect(isStoredSummary(refusal)).toBe(false);
+    }
+  });
+
+  test('a refusal that goes on with headings of its own fails', () => {
+    expect(markdownHeadings(STORED_REFUSAL_WITH_HEADINGS)).toBe(3);
+    expect(isStoredSummary(STORED_REFUSAL_WITH_HEADINGS)).toBe(false);
+  });
+
+  test('a report without headings and a prose reply fail', () => {
+    expect(isStoredSummary(REPORT)).toBe(false);
+    expect(isStoredSummary('The work so far, in prose.')).toBe(false);
+  });
+
+  test('two markdown headings are not enough', () => {
+    expect(isStoredSummary('## One\ntext\n## Two\ntext')).toBe(false);
+  });
+
+  test('the parent brief behind a refusal does not make it pass', () => {
+    const [refusal = ''] = REFUSALS;
+    expect(isStoredSummary(`${refusal}\n\n${BRIEF}`)).toBe(false);
+  });
+
+  test('a summary still passes with the parent brief behind it', () => {
+    expect(isStoredSummary(`${ADAPTIVE_STORED}\n\n${BRIEF}`)).toBe(true);
   });
 });
 

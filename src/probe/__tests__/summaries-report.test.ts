@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
+import {
+  ADAPTIVE_STORED,
+  STORED_REFUSAL_WITH_HEADINGS,
+} from '../../patch/__tests__/summary-fixtures.ts';
 import { PARENT_BRIEF_LEAD } from '../../patch/summary-format.ts';
 import type { CompactionRecord, CompactRow } from '../summaries-report.ts';
 import {
@@ -251,6 +255,21 @@ describe('flagged lines and verdicts read as plain text', () => {
     const text = `${REFUSAL}\n\n${PARENT_BRIEF_LEAD}\n\n${SUMMARY}`;
     const lines = summariesReport([compaction({ text })], [row()]);
     expect(lines.at(-1)).toContain('flags 1 of 1');
+  });
+
+  test('an adaptive summary passes and a refusal with headings of its own is flagged', () => {
+    const lines = summariesReport(
+      [
+        compaction({ sessionId: 'adaptive', text: ADAPTIVE_STORED }),
+        compaction({ sessionId: 'headed', text: STORED_REFUSAL_WITH_HEADINGS }),
+      ],
+      [row({ sessionId: 'adaptive' }), row({ sessionId: 'headed' })],
+    );
+    expect(lines.at(-1)).toBe(
+      'the check flags 1 of 2 summaries; every flagged one came out of reuse.',
+    );
+    expect(lines.find((line) => line.startsWith('headed'))).toBeDefined();
+    expect(lines.find((line) => line.startsWith('adaptive'))).toBeUndefined();
   });
 
   test('no compactions at all gives a plain sentence', () => {

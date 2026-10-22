@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { NO_MENTION_LINE, SUMMARIZE_LINE } from '../../patch/compaction-patches.ts';
 import {
+  ADAPTIVE_SYSTEM_MARK,
   bodyFormat,
   compactionKind,
   flatten,
@@ -45,6 +46,16 @@ describe('compactionKind tells the two compaction paths apart', () => {
 
   test('a system prompt with the summarizer wording is a stock compaction', () => {
     expect(compactionKind(stockCaptured())).toBe('stock');
+  });
+
+  test('a system prompt with the adaptive summarizer wording is a stock compaction', () => {
+    const body = {
+      ...stockCaptured(),
+      system: [
+        { type: 'text', text: `You are Droid.\n\n${ADAPTIVE_SYSTEM_MARK}\n\nChoose the sections.` },
+      ],
+    };
+    expect(compactionKind(body)).toBe('stock');
   });
 
   test('an ordinary request is neither, with or without a system prompt', () => {

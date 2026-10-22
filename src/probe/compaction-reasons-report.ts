@@ -1,4 +1,5 @@
-import { OPENING_CHARS, readReply } from './compaction-outcome.ts';
+import { OPENING_CHARS } from '../patch/summary-format.ts';
+import { readReply } from './compaction-outcome.ts';
 import type { Arm } from './compaction-replay-plan.ts';
 import { ARMS } from './compaction-replay-plan.ts';
 import type { SavedReply } from './compaction-saved.ts';

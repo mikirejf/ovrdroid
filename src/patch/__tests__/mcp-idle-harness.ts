@@ -5,6 +5,19 @@ import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME, mcpIdlePatches } from '../m
 import { markerStatement } from '../patches.ts';
 import { fakeFs } from './mcp-fake-fs.ts';
 import { STOCK_HUB_MODULE, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
+import type {
+  Configs,
+  Connection,
+  FakeClient,
+  Hub,
+  HubClass,
+  Logger,
+  ServerConfig,
+  SpoolSource,
+  Tool,
+  ToolResult,
+  Transport,
+} from './mcp-hub-types.ts';
 import { payloadFunction } from './payload.ts';
 
 export const SERVER = 'chrome-devtools';
@@ -12,19 +25,7 @@ export const HOME = '/home/tester';
 export const FIRST_PID = 4100;
 const MINUTE = 60_000;
 const TEARDOWN_BOUND_MS = 7000;
-
-export interface Tool {
-  name: string;
-}
-
-export interface ServerConfig {
-  type: string;
-  command?: string;
-  args?: string[];
-  url?: string;
-}
-
-type Configs = Record<string, ServerConfig>;
+const REAP_GRACE_MS = 2000;
 
 export const STDIO_CONFIG: ServerConfig = {
   type: 'stdio',
@@ -33,65 +34,6 @@ export const STDIO_CONFIG: ServerConfig = {
 };
 export const HTTP_CONFIG: ServerConfig = { type: 'http', url: 'https://mcp.example.test/' };
 export const TOOLS: Tool[] = [{ name: 'take_screenshot' }, { name: 'click' }];
-
-interface TextContent {
-  type: string;
-  text: string;
-}
-
-interface ToolResult {
-  content: TextContent[];
-}
-
-interface Resource {
-  uri: string;
-  text?: string;
-}
-
-interface Transport {
-  pid?: number;
-  close: () => Promise<void>;
-}
-
-interface ServerRecord {
-  name: string;
-  config: ServerConfig;
-  transport: Transport;
-}
-
-type CacheEntry = { state: 'ready'; tools: Tool[] } | { state: 'loading' } | { state: 'failed' };
-
-type Subscriptions = Record<string, Set<string>>;
-
-interface Hub {
-  servers: Record<string, ServerRecord>;
-  toolsListCache: Map<string, CacheEntry>;
-  clientResourceSubscriptions: Record<string, Subscriptions>;
-  killServerProcessTree: (pid: number, name: string) => Promise<void>;
-  openPendingConnection: (name: string) => void;
-  addServer: (name: string, config: ServerConfig) => Promise<void>;
-  removeServer: (name: string) => Promise<void>;
-  retryServer: (name: string) => Promise<void>;
-  restartStdioServers: () => Promise<string[]>;
-  listToolsForServer: (name: string) => Promise<{ tools: Tool[] }>;
-  applyToolConfig: (name: string, tools: Tool[]) => Tool[];
-  persistCatalog: () => void;
-  discardCatalog: () => void;
-  callTool: (name: string, tool: string) => Promise<ToolResult>;
-  readResource: (name: string, uri: string) => Promise<Resource>;
-  subscribeToServerResource: (name: string, uri: string) => Promise<void>;
-  unsubscribeFromServerResource: (name: string, uri: string) => Promise<void>;
-  listResourcesForServer: (name: string) => Promise<Resource[]>;
-  listResourceTemplatesForServer: (name: string) => Promise<Resource[]>;
-}
-
-interface HubOptions {
-  userMcpConfigs: Configs;
-  logger: Logger;
-  onToolsListChanged: (name: string) => Promise<void>;
-}
-
-type HubClass = new (options: HubOptions) => Hub;
 
 type HoldKind = 'spawn' | 'call' | 'close' | 'list';
 
@@ -102,39 +44,14 @@ export interface Timer {
   unref: () => void;
 }
 
-interface Logger {
-  info: () => void;
-  warn: () => void;
-  error: () => void;
-  debug: () => void;
-  child: () => Logger;
-}
-
 type SpawnArgs = Pick<ServerConfig, 'command' | 'url'>;
-
-interface Connection {
-  client: FakeClient;
-  transport: Transport;
-}
-
-interface FakeClient {
-  listTools: () => Promise<{ tools: Tool[] }>;
-  callTool: (request: Tool) => Promise<ToolResult>;
-  readResource: (request: Resource) => Promise<{ contents: Resource[] }>;
-  subscribeResource: () => Promise<void>;
-  unsubscribeResource: () => Promise<void>;
-  listResources: () => Promise<{ resources: Resource[] }>;
-  listResourceTemplates: () => Promise<{ resourceTemplates: Resource[] }>;
-  getServerVersion: () => { name: string; version: string };
-  setNotificationHandler: () => void;
-}
 
 const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdlePatches)[0]
   .text.replace(markerStatement(mcpIdlePatches), '')
   .replace(STOCK_PID_HELPERS, '');
 
 const BINDINGS =
-  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH l0e'.split(
+  'G ur a ii ri Ut gi Yr ti Iy te Zr je vn z5 Py vy Sn S cee ut YB Dt hn dn fo Tee It ch Br require process setTimeout clearTimeout QH l0e El bx'.split(
     ' ',
   );
 
@@ -176,6 +93,7 @@ export class HubWorld {
   readonly env: Record<string, string> = {};
   tools: Tool[] = TOOLS;
   failSpawns = 0;
+  private spoolSource: SpoolSource = ignore;
   exitOnClose = false;
   private readonly holds = new Map<HoldKind, Promise<boolean>>();
   private nextPid = FIRST_PID;
@@ -232,6 +150,13 @@ export class HubWorld {
         await pending;
       },
       TEARDOWN_BOUND_MS,
+      {
+        addSource: (source: SpoolSource) => {
+          this.spoolSource = source;
+          return ignore;
+        },
+      },
+      REAP_GRACE_MS,
     );
     this.hub = new Hub({
       userMcpConfigs: configs ?? { [SERVER]: STDIO_CONFIG },
@@ -265,6 +190,16 @@ export class HubWorld {
   get dormant(): boolean {
     const server = this.hub.servers[SERVER];
     return server !== undefined && '$ODMz' in server;
+  }
+
+  get reapedAtExit(): number[] {
+    const reaped: number[] = [];
+    this.spoolSource({
+      append: (entry) => {
+        reaped.push(entry.pid);
+      },
+    });
+    return reaped;
   }
 
   seedCache(tools: Tool[] = TOOLS, name = SERVER, config: ServerConfig = STDIO_CONFIG): void {

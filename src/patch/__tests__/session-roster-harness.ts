@@ -72,7 +72,7 @@ interface Lookup {
 }
 
 const lookup = payloadFunction<LookupNames, Lookup>(
-  ['p', 'qme', 'require', 'globalThis'],
+  ['m', 'pCe', 'require', 'globalThis'],
   `${MODEL_AND_DESCENDANTS};return{rosterOf:$ODrosterOf}`,
 );
 

@@ -186,7 +186,11 @@ export const patches: readonly Patch[] = [
       'Gt=f(async(Bt)=>{let Lo=L(),_t=(Me.current||Ee.current?null:be.current)??await Dt();if(!_t)return"rejected_with_notice";' +
       'let To=Bt.message,mo=Bt.requestId??xe(),Do=Bt.messageId??xe(),Wo=Lo.getSessionStateManager().getSessionManager(_t),' +
       'yn=Wo?.getDroidWorkingState()==="idle",Pt=ho(Bt.queuePlacement),Ot=yn&&Pt==="end_of_turn";if(Ot){',
-    lookups: ['p().syncSettingsFromDaemon(', '}){return eR({text:', 'images:Kz(Bt.images)'],
+    lookups: [
+      'p().syncSettingsFromDaemon(',
+      '{text:A,images:B,files:C}){return eR({text:A,images:Hr(B),files:C})}',
+      'images:Kz(Bt.images)',
+    ],
     replace:
       'Gt=f(async(Bt)=>{let Lo=L(),$ODn=Me.current||Ee.current?null:be.current,To=Bt.message,mo=Bt.requestId??xe(),' +
       'Do=Bt.messageId??xe(),Pt=ho(Bt.queuePlacement),$ODe=null;if(!$ODn&&Pt==="end_of_turn"){' +

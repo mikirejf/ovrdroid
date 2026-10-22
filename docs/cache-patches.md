@@ -120,14 +120,43 @@ reply as `head`, so a real refusal can be read later; Droid's own logs never hol
 ### A reply that is not a summary
 
 Haiku 5.5 subagents often answer the summary request with a refusal or with their final task report.
-A reply counts as a summary only when it names at least three of the stock section headings
-(`SUMMARY_SECTIONS` in `src/patch/summary-format.ts`). Any other reply logs `not-summary` and falls
-back to the stock request. The payload builds its check from the same constants as `isSummary`, so
-the rule has one source. The stock request's own reply is not checked.
+A reply counts as a summary when it holds a `<summary>` tag or names at least three of the stock
+section headings (`SUMMARY_SECTIONS` in `src/patch/summary-format.ts`). Any other reply logs
+`not-summary` and falls back to the stock request. The payload builds its check from the same
+constants as `isSummaryReply`, so the rule has one source. The stock request's own reply is not
+checked.
+
+The tag rule exists because of Statsig's `adaptive_compaction_prompt` flag (default off in 0.245.0).
+With it on, the summarizer prompt drops the ten fixed sections and lets the model choose its own,
+and its system prompt no longer says "You excel at creating and maintaining summaries". The flag
+turned on for this account around 2026-10-20 20:30 UTC. Before that, 0 of 23 logged `not-summary`
+replies (all real refusals) held a `<summary>` tag. After it, 25 of 27 were tagged summaries in
+their own sections, rejected by the headings rule, and the other 2 were the fallback probe's canned
+refusal. The fallback probe's relay tells the stock request apart by either system prompt wording.
 
 `probe summaries` runs the check over every stored summary. Since 2026-10-11 it flags 37 of 398,
 every one from the reuse path and from a Haiku subagent. A heading written as a bullet
 (`• Approach`) counts, because one real replayed summary used that style.
+
+The stored text has lost its tag, so the reports (`probe summaries`, `digest-run`,
+`compaction-fallback`, `compaction-capture`) judge it with `isStoredSummary` in
+`src/patch/summary-format.ts`: a tag, or at least three stock headings or three markdown `#`
+headings, and an opening that does not decline (`declines`, shared with the reply classifier in
+`compaction-outcome.ts`). It was fitted to the 1541 stored summaries in `~/.factory/sessions` on
+2026-10-21, 1523 from before the flag and 18 from after:
+
+| rule                                    | flags | wrongly passed | wrongly flagged |
+| --------------------------------------- | ----- | -------------- | --------------- |
+| 3 stock headings (old)                  | 302   | 0              | 250             |
+| + 3 markdown headings                   | 102   | 2              | 52              |
+| + opening that declines fails (shipped) | 107   | 1              | 56              |
+
+"Wrongly" is against a hand label of the 102 texts with neither three stock nor three markdown
+headings: 52 were refusals, status notes and tool-call dumps, the rest real summaries. All 17
+post-flag fallback summaries have three or more `#` headings and no stock heading; the old rule
+flagged every one. The remaining wrongly flagged texts are prose summaries the stock model wrote
+with no headings at all, which no structural rule separates from a recon report. The one wrongly
+passed text is a final report that has nine `#` headings and an opening with no decline word.
 
 ### Why Haiku refuses, measured on 0.242.0
 

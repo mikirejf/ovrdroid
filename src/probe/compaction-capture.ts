@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from 'node:path';
 
 import { MS_PER_SECOND, say, whole } from '../cli.ts';
-import { isSummary, summaryBody } from '../patch/summary-format.ts';
+import { isStoredSummary } from '../patch/summary-format.ts';
 import { makeTempDir } from '../temp.ts';
 import { describeRow, missingReuse, reuseRows, rowsFor } from './compaction-capture-report.ts';
 import { DEFAULT_DIGEST_FOLDER } from './digest-key.ts';
@@ -113,7 +113,7 @@ async function driveCapture({ binary, options, out, dir }: Drive): Promise<Captu
     return {
       sessionId: read.id,
       summaryChars: stored?.text.length,
-      summaryIsSummary: stored !== undefined && isSummary(summaryBody(stored.text)),
+      summaryIsSummary: stored !== undefined && isStoredSummary(stored.text),
     };
   } finally {
     await session.close();
@@ -138,7 +138,7 @@ export async function compactionCapture(
   say(
     capture.summaryChars === undefined
       ? `no summary was stored within ${options.timeout}s`
-      : `stored a ${whole(capture.summaryChars)}-character ${capture.summaryIsSummary ? 'summary' : 'text that is not a stock-format summary'}`,
+      : `stored a ${whole(capture.summaryChars)}-character ${capture.summaryIsSummary ? 'summary' : 'text that is not a summary'}`,
   );
 
   const rows = rowsFor(existsSync(out) ? readFileSync(out, 'utf-8') : '', capture.sessionId);

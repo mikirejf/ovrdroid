@@ -4,8 +4,7 @@ export const REWIND_MOVE_GLOBAL = '__odRewindMoveTasks';
 
 export const SUBAGENT_TAG = 'subagent';
 
-const STORE_ANCHOR =
-  'function e8(t){return h().invocations.filter((e)=>e.parentSessionId===t).map(v)}';
+const STORE_ANCHOR = 'function e8(t){return(R(h().invocations).byParent.get(t)??[]).map(v)}';
 
 const STORE_LOOKUPS = [
   'async function k(t,e){let{storePath:o,backupPath:s}=x()',

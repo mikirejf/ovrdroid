@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { isSummary } from '../summary-format.ts';
+import { CANNED_REFUSAL } from '../../probe/compaction-fallback-report.ts';
+import { isSummaryReply } from '../summary-format.ts';
 import {
   FALLBACK_SUMMARY,
   MODEL,
@@ -33,6 +34,11 @@ const SUMMARY_FIXTURES: readonly (readonly [string, string])[] = [
     '## Done\nChanged the file.\n## Validation\nTests pass.\n## Blockers\nNone.',
   ],
   ['indented headings in a quote', '> Approach: a\n> Current work: b\n> Next steps: c'],
+  [
+    'a summary in its own sections, as the adaptive prompt asks',
+    '<summary>\n## Role and task\nI am the grunt subagent.\n\n## Parent assignment\nRead the files.\n</summary>',
+  ],
+  ['the canned refusal of the fallback probe', CANNED_REFUSAL],
 ];
 
 describe('compaction-reuse-prefix reply check', () => {
@@ -49,7 +55,7 @@ describe('compaction-reuse-prefix reply check', () => {
     script.reply = replyWith(text);
     const summarize = buildSummarize(undefined, freshSignal());
     const summary = await summarize({ modelId: MODEL });
-    const reused = isSummary(text);
+    const reused = isSummaryReply(text);
     expect(summary.content).toBe(reused ? text : FALLBACK_SUMMARY);
     expect(calls.logged.map((line) => line.compact)).toEqual([reused ? 'reuse' : 'not-summary']);
   });

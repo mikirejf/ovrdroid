@@ -3,7 +3,7 @@ import type { Patch } from './patches.ts';
 export const MODEL_OF_GLOBAL = '__odModelOf';
 
 export const STOCK_ROSTER_HEAD =
-  'class pZ{sessionId;ssm=N().getSessionStateManager();listeners=new Set;';
+  'class VQ{sessionId;ssm=N().getSessionStateManager();changes=Ts("SessionRosterStore",';
 
 export const MODEL_AND_DESCENDANTS =
   'var $ODsavedModels=new Map;' +
@@ -11,26 +11,27 @@ export const MODEL_AND_DESCENDANTS =
   'let $ODstore=$ODssm.getSessionManager($ODid)?.getStore(),$ODmodel=$ODstore?.getModelId();' +
   'if($ODmodel)return{model:$ODmodel,reasoningEffort:$ODstore.getReasoningEffort()};' +
   'let $ODsaved=$ODsavedModels.get($ODid);if($ODsaved)return $ODsaved;' +
-  'try{let $ODpath=p().findSessionSettingsPath($ODid,!0),' +
+  'try{let $ODpath=m().findSessionSettingsPath($ODid,!0),' +
   '$ODfile=$ODpath?JSON.parse(require("fs").readFileSync($ODpath,"utf8")):void 0;' +
   'if($ODfile?.model){$ODsaved={model:$ODfile.model,reasoningEffort:$ODfile.reasoningEffort};' +
   '$ODsavedModels.set($ODid,$ODsaved);return $ODsaved}}catch{}return{}};' +
   'function $ODrosterOf($ODssm,$ODroot){let $ODseen=new Set([$ODroot]),$ODout=[];' +
-  'let $ODwalk=($ODparent)=>{for(let $ODentry of qme($ODssm,$ODparent)){' +
+  'let $ODwalk=($ODparent)=>{for(let $ODentry of pCe($ODssm,$ODparent)){' +
   'if($ODseen.has($ODentry.sessionId))continue;$ODseen.add($ODentry.sessionId);' +
   `$ODout.push({...$ODentry,parentSessionId:$ODparent,...globalThis.${MODEL_OF_GLOBAL}($ODssm,$ODentry.sessionId)});` +
   '$ODwalk($ODentry.sessionId)}};$ODwalk($ODroot);return $ODout}';
 
-export const STOCK_ROSTER_READ = 'y=f?qme(this.ssm,f):[],S=new Map,x=new Map(this.previews)';
+export const STOCK_ROSTER_READ =
+  'function Wke(f,y,x,v){let I=y&&_Ce(f,y);if(!I)return GP;let A=pCe(f,I);';
 
 export const PATCHED_ROSTER_READ =
-  'y=f?$ODrosterOf(this.ssm,f):[],S=new Map,x=new Map(this.previews)';
+  'function Wke(f,y,x,v){let I=y&&_Ce(f,y);if(!I)return GP;let A=$ODrosterOf(f,I);';
 
-export const STOCK_ROSTER_WATCHED =
-  'let w=f&&y.length>0?GCe(f,y,S,x,this.refresh):null;this.watched=new Set(w?[w.roster.lead.droid.sessionId,...w.roster.sections.flatMap(({nodes:A})=>A.map(({droid:L})=>L.sessionId))]:[])';
+export const STOCK_ROSTER_WATCHED = 'if(y)this.roster=f,this.watched=UQ(f.model);';
 
 export const PATCHED_ROSTER_WATCHED =
-  'let w=f&&y.length>0?GCe(f,y,S,x,this.refresh):null;this.watched=new Set(w?[f,...y.map(({sessionId:A})=>A)]:[])';
+  'if(y)this.roster=f,this.watched=new Set(f.model?' +
+  '[f.model.roster.lead.droid.sessionId,...f.agents.map(({sessionId:$ODid})=>$ODid)]:[]);';
 
 export const STOCK_ROSTER_EVENTS =
   '"message_thread_updated","subagent_invocation_summary_updated"],zCe=new Set(';
@@ -63,7 +64,10 @@ export const sessionRosterPatches: readonly Patch[] = [
   {
     name: 'session-roster-model-lookup',
     find: STOCK_ROSTER_HEAD,
-    lookups: ['function u7(f){let y=p().getCurrentSessionId()??void 0,', '?qme(this.ssm,f):[]'],
+    lookups: [
+      'function r7(f){let y=m().getCurrentSessionId()??void 0,',
+      'let A=pCe(f,I);if(A.length===0)',
+    ],
     replace: `${MODEL_AND_DESCENDANTS}${STOCK_ROSTER_HEAD}`,
   },
   {

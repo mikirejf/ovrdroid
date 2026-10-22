@@ -16,7 +16,7 @@ const TRIGGER_STOCK =
   'v(()=>{if(!Bn)return;return P().subscribeToSessionNotifications(Bn,(ke)=>{if(ke.type==="agent_turn_completed"&&ke.reason!=="cancelled")oee()})},[Bn]);';
 
 const AGENT_LIST_STOCK =
-  'class pZ{ssm=P().getSessionStateManager();read(){let f=this.sessionId&&Ome(this.ssm,this.sessionId),y=f?qme(this.ssm,f):[];this.agents=y}}';
+  'function Wke(f,y,x){let I=y&&_Ce(f,y);if(!I)return GP;let A=qme(f,I);if(A.length===0)return GP;return{agents:A}}';
 
 const trigger = patched(TRIGGER_STOCK, 'turn-end-reports-running-subagents');
 
@@ -181,7 +181,7 @@ function chunks({ list, session, state, fire }: Names): string[] {
       TRIGGER_STOCK.replaceAll('Bn', session)
         .replaceAll('oee', fire)
         .replaceAll('P()', `${state}()`),
-      AGENT_LIST_STOCK.replaceAll('qme', list).replaceAll('P()', `${state}()`),
+      AGENT_LIST_STOCK.replaceAll('qme', list),
     ].join(''),
   ];
 }

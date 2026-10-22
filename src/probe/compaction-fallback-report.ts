@@ -1,5 +1,10 @@
 import { whole } from '../cli.ts';
-import { isSummary, summaryBody, summarySections } from '../patch/summary-format.ts';
+import {
+  isStoredSummary,
+  markdownHeadings,
+  summaryBody,
+  summarySections,
+} from '../patch/summary-format.ts';
 import type { JsonObject } from './bodies.ts';
 import { compactionKind } from './compaction-replay-bodies.ts';
 import { isObject } from './fields.ts';
@@ -64,12 +69,12 @@ function fail(finding: string): Verdict {
 }
 
 function storedFinding(text: string): string {
-  const sections = summarySections(summaryBody(text));
+  const stock = summarySections(summaryBody(text));
   const size = `${whole(text.length)}-character`;
-  if (isSummary(summaryBody(text))) {
-    return `a ${size} summary with ${sections} stock sections`;
+  if (isStoredSummary(text)) {
+    return `a ${size} summary (${stock} of the stock sections)`;
   }
-  return `a ${size} text that is not the refusal but has only ${sections} of the stock summary sections, so read it by eye`;
+  return `a ${size} text that is not the refusal and not a summary either: ${stock} of the stock sections, ${markdownHeadings(summaryBody(text))} markdown headings`;
 }
 
 export function fallbackVerdict(evidence: Evidence): Verdict {

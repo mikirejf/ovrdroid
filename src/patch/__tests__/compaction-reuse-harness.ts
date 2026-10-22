@@ -104,6 +104,9 @@ export const SNAPSHOT: Snapshot = {
 
 const PREFIX = patchNamed(compactionPatches, 'compaction-reuse-prefix').replace;
 
+const STOCK_SEND_TAIL =
+  'isSpecMode:he.isSpecMode(),...W.reasoningEffort?{reasoningEffort:W.reasoningEffort}:{}})}';
+
 interface Script {
   prefix: string;
   reply: () => Promise<Reply>;
@@ -136,10 +139,19 @@ interface Calls {
   core: CoreOptions[];
   fallback: number;
   logged: UsageLine[];
+  modelRequests: string[];
 }
 
 function noCalls(): Calls {
-  return { snapshot: [], extend: [], send: [], core: [], fallback: 0, logged: [] };
+  return {
+    snapshot: [],
+    extend: [],
+    send: [],
+    core: [],
+    fallback: 0,
+    logged: [],
+    modelRequests: [],
+  };
 }
 
 export const calls = noCalls();
@@ -205,11 +217,12 @@ export function buildSummarize(
   messages: readonly Message[] = SEEN,
 ): Summarize {
   return payloadFunction<unknown[], Summarize>(
-    ['Zi', 'as', 'J', 'y', 'ie', 'u', 'r', 'b', '_', 'O', 'i'],
-    `let Me=!1,${script.prefix};return Ie`,
+    ['ta', 'hl', 'g', 'X', 'B', 'z', 'fe', 'r', 'S', 'he', 'k', 's', 'y'],
+    `let Me=!1,${script.prefix}${STOCK_SEND_TAIL};return me`,
   )(
     fakeZi,
     fakeAs,
+    {},
     {},
     SUMMARIZER_PROMPT,
     () => ({ userContent: 'flattened' }),
@@ -219,6 +232,9 @@ export function buildSummarize(
     { isSpecMode: () => false },
     customInstructions,
     messages,
+    (modelId: string) => {
+      calls.modelRequests.push(modelId);
+    },
   );
 }
 

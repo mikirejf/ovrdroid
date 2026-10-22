@@ -1,4 +1,4 @@
-import { isSummary, summaryBody } from '../patch/summary-format.ts';
+import { isStoredSummary } from '../patch/summary-format.ts';
 import { fieldsOfJson, numberAt, worded } from './fields.ts';
 
 export interface CompactionRecord {
@@ -117,7 +117,7 @@ function judge(record: CompactionRecord, rows: readonly CompactRow[]): Judged {
     at,
     model: match?.model ?? UNKNOWN_MODEL,
     path: match?.path ?? NO_LOG_LINE,
-    real: isSummary(summaryBody(record.text)),
+    real: isStoredSummary(record.text),
   };
 }
 

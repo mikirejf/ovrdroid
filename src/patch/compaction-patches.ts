@@ -6,6 +6,7 @@ import {
   PARENT_BRIEF_LEAD,
   PARENT_NOTE,
   SUMMARY_SECTIONS,
+  SUMMARY_TAG,
 } from './summary-format.ts';
 import { USAGE_LOG_OPEN } from './usage-patches.ts';
 
@@ -33,9 +34,9 @@ export const CUSTOM_INSTRUCTIONS_LEAD =
   'The user has provided the following instructions for this summary:';
 
 const INSTRUCTION =
-  `y+(new RegExp(${JSON.stringify(CLAUDE_MODEL_SOURCE)},"i").test($ODsnap.modelId)` +
+  `B+(new RegExp(${JSON.stringify(CLAUDE_MODEL_SOURCE)},"i").test($ODsnap.modelId)` +
   `?${JSON.stringify(`\n\n${NO_MENTION_LINE}`)}:${JSON.stringify(`\n\n${SUMMARIZE_LINE}`)})` +
-  `+(O?${JSON.stringify(`\n\n${CUSTOM_INSTRUCTIONS_LEAD}\n`)}+O:"")`;
+  `+(k?${JSON.stringify(`\n\n${CUSTOM_INSTRUCTIONS_LEAD}\n`)}+k:"")`;
 
 const EXTEND =
   '($ODsnap,$ODunseen,$ODtext)=>{' +
@@ -50,39 +51,41 @@ const EXTEND =
 
 const LOG =
   '$ODlog=($ODhow,$ODhead)=>{try{' +
-  `${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:r,m:U.modelId,compact:$ODhow,...$ODhead?{head:$ODhead}:{}})}catch{}}`;
+  `${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:r,m:$ODattempt.modelId,compact:$ODhow,...$ODhead?{head:$ODhead}:{}})}catch{}}`;
 
 const IS_SUMMARY =
-  '$ODisSummary=($ODbody)=>new Set([...$ODbody.toLowerCase().matchAll(' +
+  `$ODisSummary=($ODbody,$ODlower=$ODbody.toLowerCase())=>$ODlower.includes(${JSON.stringify(SUMMARY_TAG)})||new Set([...$ODlower.matchAll(` +
   `new RegExp(${JSON.stringify(HEADING_SOURCE)},${JSON.stringify(HEADING_FLAGS)}))].flatMap(([,$ODheading=""])=>` +
   `${JSON.stringify(SUMMARY_SECTIONS)}.filter(($ODsection)=>$ODheading.startsWith($ODsection)))).size>=${MIN_SUMMARY_SECTIONS}`;
 
 const REUSE =
-  '$ODreuse=async(U)=>{' +
+  '$ODreuse=async($ODattempt)=>{' +
   `let ${LOG},${IS_SUMMARY},$ODsnap=globalThis.${REUSE_GLOBAL}.snapshot(r);` +
   'if(!$ODsnap){$ODlog("no-snapshot");return}' +
-  'if($ODsnap.modelId!==U.modelId){$ODlog("other-model");return}' +
+  'if($ODsnap.modelId!==$ODattempt.modelId){$ODlog("other-model");return}' +
   `let $ODtext=${INSTRUCTION},` +
-  '$ODunseen=i.filter(($ODmsg)=>$ODmsg.content?.length&&!$ODsnap.citableMessageIds.has($ODmsg.id)),' +
-  '$ODcore=Zi({emitLlmRetryStatus:!0,tools:$ODsnap.tools}),$ODsend=$ODcore.sendMessage,$ODseen,' +
+  '$ODunseen=s.filter(($ODmsg)=>$ODmsg.content?.length&&!$ODsnap.citableMessageIds.has($ODmsg.id)),' +
+  '$ODcore=ta({emitLlmRetryStatus:!0,tools:$ODsnap.tools}),$ODsend=$ODcore.sendMessage,$ODseen,' +
   '$ODstop=()=>$ODcore.abortStreaming(),$ODhow,$ODhead;' +
   '$ODcore.sendMessage=async($ODarg)=>$ODseen=await $ODsend($ODarg);' +
-  'b?.addEventListener("abort",$ODstop,{once:!0});' +
+  'S?.addEventListener("abort",$ODstop,{once:!0});' +
   `try{let $ODhist=$ODunseen.length?globalThis.${REUSE_GLOBAL}.extend($ODsnap,$ODunseen,$ODtext):$ODsnap.preparedHistory;` +
-  'if(typeof $ODhist==="string")$ODhow=$ODhist;else{' +
+  'if(typeof $ODhist==="string")$ODhow=$ODhist;else{y?.($ODsnap.modelId);' +
   `let $ODres=await globalThis.${REUSE_GLOBAL}.send($ODcore,{modelId:$ODsnap.modelId,isSpecMode:$ODsnap.isSpecMode,` +
   'reasoningEffort:$ODsnap.reasoningEffort,systemMessage:$ODsnap.systemMessage,preparedHistory:$ODhist,' +
-  'instruction:$ODtext,maxTokensOverride:u,sessionId:r});' +
-  'if(b?.aborted)throw new DOMException("Compaction aborted","AbortError");' +
+  'instruction:$ODtext,maxTokensOverride:fe,sessionId:r});' +
+  'if(S?.aborted)throw new DOMException("Compaction aborted","AbortError");' +
   'if(!$ODres.content)$ODhow="empty";else if($ODseen?.toolUses?.length)$ODhow="tool-call";' +
   `else if(!$ODisSummary($ODres.content))$ODhow="not-summary",$ODhead=$ODres.content.slice(0,${NOT_SUMMARY_HEAD_CHARS});` +
   'else{$ODlog($ODunseen.length?"reuse-extended":"reuse");return $ODres}}}' +
-  'catch($ODerr){if(b?.aborted)throw $ODerr;$ODhow="error"}' +
-  'finally{b?.removeEventListener("abort",$ODstop)}' +
-  '$ODlog($ODhow,$ODhead);if(b?.aborted)throw new DOMException("Compaction aborted","AbortError")}';
+  'catch($ODerr){if(S?.aborted)throw $ODerr;$ODhow="error"}' +
+  'finally{S?.removeEventListener("abort",$ODstop)}' +
+  '$ODlog($ODhow,$ODhead);if(S?.aborted)throw new DOMException("Compaction aborted","AbortError")}';
 
-const STOCK_SEND =
-  'as(J,{systemPrompt:y,userContent:ie(U).userContent,modelId:U.modelId,maxTokensOverride:u,sessionId:r,abortSignal:b,isSpecMode:_.isSpecMode(),...U.reasoningEffort?{reasoningEffort:U.reasoningEffort}:{}})';
+const STOCK_SEND_HEAD = 'me=async(W)=>{';
+
+const STOCK_SEND_BODY =
+  'let L=z(W).userContent;return y?.(W.modelId),await hl(g,{providerRoutingOperation:X,systemPrompt:B,userContent:L,modelId:W.modelId,maxTokensOverride:fe,sessionId:r,abortSignal:S,';
 
 const PARENT_BRIEF =
   'try{if(J.getCallingSessionId(a)){' +
@@ -120,13 +123,13 @@ export const compactionPatches: readonly Patch[] = [
   },
   {
     name: 'compaction-reuse-prefix',
-    find: `Ie=async(U)=>await ${STOCK_SEND}`,
+    find: `${STOCK_SEND_HEAD}${STOCK_SEND_BODY}`,
     lookups: [
-      'J=Zi({emitLlmRetryStatus:!0})',
-      'customInstructions:O,contextLimitFallbackModelId:k}){',
-      'return async function({messages:i,sessionId:r,previousSummary:l,',
+      'g=ta({emitLlmRetryStatus:!0})',
+      'customInstructions:k,contextLimitFallbackModelId:E,onModelRequest:y}){',
+      'return async function({messages:s,sessionId:r,previousSummary:a,',
     ],
-    replace: `$ODfirst=!0,${REUSE},Ie=async(U)=>{if($ODfirst){$ODfirst=!1;let $ODdone=await $ODreuse(U);if($ODdone)return $ODdone}return await ${STOCK_SEND}}`,
+    replace: `$ODfirst=!0,${REUSE},${STOCK_SEND_HEAD}if($ODfirst){$ODfirst=!1;let $ODdone=await $ODreuse(W);if($ODdone)return $ODdone}${STOCK_SEND_BODY}`,
   },
   {
     name: 'compaction-parent-brief',

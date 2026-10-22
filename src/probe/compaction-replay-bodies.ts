@@ -25,6 +25,10 @@ interface Ask {
 }
 
 export const STOCK_SYSTEM_MARK = 'You excel at creating and maintaining summaries';
+export const ADAPTIVE_SYSTEM_MARK =
+  'Summarize this conversation or agent trajectory so the assistant can continue effectively after compaction.';
+
+const STOCK_SYSTEM_MARKS = [STOCK_SYSTEM_MARK, ADAPTIVE_SYSTEM_MARK];
 export const THINKING_CHARS = 500;
 export const INLINE_TOOLS_BETA = 'inline-tools-2026-09-15';
 
@@ -119,7 +123,8 @@ export function compactionKind(body: JsonObject): CompactionKind | undefined {
   if (bodyFormat(body) === 'responses') {
     return undefined;
   }
-  return JSON.stringify(body['system'] ?? null).includes(STOCK_SYSTEM_MARK) ? 'stock' : undefined;
+  const system = JSON.stringify(body['system'] ?? null);
+  return STOCK_SYSTEM_MARKS.some((mark) => system.includes(mark)) ? 'stock' : undefined;
 }
 
 function askBlock(body: JsonObject): JsonObject {

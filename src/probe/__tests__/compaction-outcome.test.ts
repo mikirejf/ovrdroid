@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { ADAPTIVE_TAGGED, STORED_REFUSAL } from '../../patch/__tests__/summary-fixtures.ts';
 import { classifyText, readReply } from '../compaction-outcome.ts';
 import {
   OWN_LAYOUT_REPLIES,
@@ -23,14 +24,33 @@ describe('classifyText on replies the model really sent', () => {
   });
 
   test('a real summary in the model own layout is own-layout, not a refusal', () => {
-    expect(OWN_LAYOUT_REPLIES.length).toBeGreaterThan(20);
-    for (const text of OWN_LAYOUT_REPLIES) {
+    const untagged = OWN_LAYOUT_REPLIES.filter((text) => !text.includes('<summary>'));
+    expect(untagged.length).toBeGreaterThan(15);
+    for (const text of untagged) {
       expect({ text, outcome: classifyText(text, []) }).toEqual({ text, outcome: 'own-layout' });
+    }
+  });
+
+  test('a real summary in the model own layout inside a summary tag is a summary', () => {
+    const tagged = OWN_LAYOUT_REPLIES.filter((text) => text.includes('<summary>'));
+    expect(tagged.length).toBeGreaterThan(3);
+    for (const text of tagged) {
+      expect({ text, outcome: classifyText(text, []) }).toEqual({ text, outcome: 'summary' });
     }
   });
 
   test('a summary in the stock layout is a summary', () => {
     expect(classifyText(SUMMARY, [])).toBe('summary');
+  });
+
+  test('a tagged adaptive summary is a summary, even when its opening says "cannot"', () => {
+    expect(classifyText(ADAPTIVE_TAGGED, [])).toBe('summary');
+    const cannot = ADAPTIVE_TAGGED.replace('I am a', 'The summary cannot skip that I am a');
+    expect(classifyText(cannot, [])).toBe('summary');
+  });
+
+  test('the canned refusal is a refusal', () => {
+    expect(classifyText(STORED_REFUSAL, [])).toBe('refusal');
   });
 });
 

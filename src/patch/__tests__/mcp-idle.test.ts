@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { DEFAULT_MCP_IDLE_MS, MCP_IDLE_ENV, MIN_MCP_IDLE_MS } from '../mcp-idle-patches.ts';
+import type { ServerConfig } from './mcp-hub-types.ts';
 import {
   FIRST_PID,
   HTTP_CONFIG,
@@ -9,7 +10,6 @@ import {
   STDIO_CONFIG,
   TOOLS,
 } from './mcp-idle-harness.ts';
-import type { ServerConfig } from './mcp-idle-harness.ts';
 
 async function reloadWith(world: HubWorld, config: ServerConfig): Promise<void> {
   await world.hub.removeServer(SERVER);
@@ -51,6 +51,7 @@ describe('starting a session', () => {
     const world = await dormantWorld();
 
     expect(world.dormant).toBe(true);
+    expect(world.hub.servers[SERVER]?.pid).toBeNull();
     expect(world.spawned).toEqual([]);
     expect(await world.listed()).toEqual(TOOLS);
     expect(world.calls).toEqual([]);
@@ -292,6 +293,22 @@ describe('sleeping when idle', () => {
 
     expect(world.spawned).toHaveLength(2);
     expect(world.alive).toEqual(new Set());
+  });
+
+  test('the exit spool reaps the old process until its idle stop finishes, then nothing', async () => {
+    const world = await liveWorld();
+    expect(world.reapedAtExit).toEqual([FIRST_PID]);
+    const release = world.hold('close');
+
+    await world.fireIdle();
+    expect(world.dormant).toBe(true);
+    expect(world.reapedAtExit).toEqual([FIRST_PID]);
+
+    release();
+    await HubWorld.settle();
+
+    expect(world.reapedAtExit).toEqual([]);
+    expect(world.hub.servers[SERVER]?.pid).toBeNull();
   });
 
   test('a live resource subscription keeps the server awake and re-arms the timer', async () => {

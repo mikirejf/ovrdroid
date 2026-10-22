@@ -18,7 +18,7 @@ const HELPERS =
   'function $ODMW($ODname,$ODcfg,$ODtools){let $ODfsp=require("fs").promises,$ODfile=$ODMn($ODname,$ODcfg),$ODtmp=$ODfile+"."+process.pid;' +
   '$ODfsp.mkdir($ODMD,{recursive:!0}).then(()=>$ODfsp.writeFile($ODtmp,JSON.stringify($ODtools))).then(()=>$ODfsp.rename($ODtmp,$ODfile)).catch(()=>{})}' +
   `function $ODMe(){let $ODms=Number(process.env.${MCP_IDLE_ENV});return Number.isFinite($ODms)&&$ODms>=${MIN_MCP_IDLE_MS}?$ODms:${DEFAULT_MCP_IDLE_MS}}` +
-  'function $ODMd($ODname,$ODcfg){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},$ODMz:!0}}';
+  'function $ODMd($ODname,$ODcfg){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},pid:null,$ODMz:!0}}';
 
 const ADD =
   'async connectServer(t,r){if($ODMh(r))return await this.$ODMspawn(t,r);' +
@@ -38,9 +38,9 @@ const ARM =
 const SLEEP =
   'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname];if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
   'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||this.toolsListCache.get($ODname)?.state!=="ready")return this.$ODMa($ODname);' +
-  'let $ODpid=ii($ODsrv.transport),$ODdorm=$ODMd($ODname,$ODsrv.config);' +
+  'let $ODpid=$ODsrv.pid,$ODdorm=$ODMd($ODname,$ODsrv.config);$ODdorm.pid=$ODpid;' +
   '$ODdorm.$ODMstop=(async()=>{try{await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
-  'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}})();' +
+  'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODdorm.pid=null})();' +
   'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname,pid:$ODpid});await $ODdorm.$ODMstop}' +
   'async $ODMsettle($ODname){let $ODsrv=this.servers[$ODname];await Promise.all([$ODsrv?.$ODMstop,$ODsrv?.$ODMb?.catch(()=>{})])}';
 
@@ -74,7 +74,6 @@ export const mcpIdlePatches: readonly Patch[] = [
     lookups: [
       'availableResources=G();invalidToolsFingerprints=new Map;',
       'var ri=(t)=>{try{return process.kill(t,0),!0}',
-      '},ii=(t)=>{if(!("pid"in t))return null;',
     ],
     replace: `${ADD}${STATE}${ARM}${SLEEP}${WAKE}${USE}async $ODMspawn(t,r){${ADD_SERVER_HEAD}&&!p.$ODMz){`,
   },
