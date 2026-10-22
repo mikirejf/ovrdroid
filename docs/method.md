@@ -30,8 +30,11 @@ How to time paint in a PTY, and the `DROID_PROFILE` gotchas, are in the `patchin
   experiment deferred. The harness now strips `FACTORY_*`, `DROID_*` and `HERDR_*` and forces
   auto-update off.
 - **Position-balance, and require the result to survive order reversal.** The binary that ran second
-  used to look 39ms faster. `probe ab` now alternates order each round and drops a warm-up round.
-  Use an even round count.
+  used to look 39ms faster. `probe ab` now alternates order each round, and `interleave` runs one
+  unrecorded warm-up per binary before the first round. The warm-up only has to pull the binary into
+  the page cache, so `keys`, `resume` and `stream` pass a plain launch to the input box and close
+  (`warmWithLaunch`) instead of a full unrecorded measurement; `ab` already is a plain launch. Use
+  an even round count.
 - **Check that the feature runs inside the probe.** `probe keys` never submits a prompt, so a
   feature that needs a finished turn is switched off for the whole probe, and any difference it
   reports came from somewhere else.
@@ -52,6 +55,42 @@ Two identical binaries, interleaved, differ by a standard deviation of ~126ms on
 |  150ms |             3 |
 
 `probe ab` prints the smallest resolvable effect for the run you did.
+
+## The gate's verdict: worse with confidence, and by more than the floor
+
+Every paired probe the gate runs (`ab`, `keys`, `resume`, `stream`, `typing-start`, and `idle`)
+hands its measures to `failOnRegressions` in `src/probe/regressions.ts`. A measure fails only when
+both hold:
+
+1. The patched build is worse with confidence. Each measure is tested at 1 - 0.05/m, where m is the
+   number of measures that probe reports (Bonferroni), so the family of measures keeps a 5% false
+   alarm rate.
+2. The lower bound of that interval is above the measure's **floor**, the smallest worsening that is
+   worth blocking an update for. The floor sits next to the measure's definition, in its own unit.
+
+A difference that is resolved but stays under its floor prints a `within floor` line on stderr and
+passes. Without a floor, enough rounds resolve any difference at all: on 0.245.0 the gate failed on
+an echo 1.2ms slower (97.5% CI 0.6 to 1.8, n=12), which no one can feel against a 16.7ms frame at 60
+Hz, and which a rebuild of the same patch set did not reproduce on a quieter machine (see
+[typing.md](typing.md)).
+
+| Probe          | Measure                                | Floor    | Why                                                     |
+| :------------- | :------------------------------------- | :------- | :------------------------------------------------------ |
+| `keys`         | echo (median per run)                  | 3ms      | Echo is ~4 to 6ms; a run's median moves about 1ms alone |
+| `keys`         | lag                                    | 16ms     | One frame at 60 Hz                                      |
+| `ab`           | paint                                  | 10ms     | Under half the 25ms the patch set wins at paint         |
+| `ab`           | quit                                   | 20ms     | Over one frame; nobody waits on the exit                |
+| `typing-start` | app paint, per gap                     | 20ms     | Twice the `ab` floor: typing makes paint bimodal        |
+| `resume`       | input box, transcript, settled, resize | 20ms     | Over one frame; the patches win 170 to 250ms here       |
+| `resume`       | resume cpu                             | 50ms     | ~2.5% of ~2100ms                                        |
+| `stream`       | stream cpu                             | 30ms     | ~3% of ~930ms; the patches win 288ms                    |
+| `stream`       | frames                                 | 2        | ~1% of ~160 frames                                      |
+| `stream`       | bytes                                  | 2048     | ~2% of ~120KB                                           |
+| `idle`         | idle cpu                               | 30ms/min | ~6% of ~520ms per idle minute                           |
+| `idle`         | idle footprint                         | 5MB      | ~3% of a ~180MB footprint                               |
+
+Raise a floor only with a number that shows the effect cannot be felt or cannot be told from noise,
+and write that number into the table.
 
 ## Pick the meter that can see the effect
 

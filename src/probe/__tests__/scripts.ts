@@ -4,7 +4,7 @@ import path from 'node:path';
 import { messageOf } from '../../cli.ts';
 import { LEDGER_VARIABLE } from '../ledger.ts';
 
-export { PAINT_MARKER } from '../launch.ts';
+export { PAINT_OUTPUT } from '../launch.ts';
 
 export const START_HOOK = `printf '{"hook_event_name":"SessionStart"}' > "$${LEDGER_VARIABLE}/start"`;
 export { makeTempDir as scriptDir } from '../../temp.ts';

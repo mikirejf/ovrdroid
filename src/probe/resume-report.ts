@@ -1,9 +1,10 @@
 import type { Series } from './ab.ts';
 import { summarise } from './ab.ts';
-import { PAINT_MARKER } from './launch.ts';
+import type { Measure } from './regressions.ts';
 import type { Frame } from './session.ts';
 
 const TRUST_PROMPT = 'Trust this folder?';
+const BOX_BOTTOM_LEFT = '╰';
 
 export interface ResumeReading {
   paintMs: number;
@@ -36,7 +37,7 @@ export function asksForTrust(frames: readonly Frame[]): boolean {
 }
 
 export function readResume(frames: readonly Frame[], inputs: ResumeInputs): ResumeReading {
-  const paint = frames.find((frame) => frame.text.includes(PAINT_MARKER));
+  const paint = frames.find((frame) => frame.text.includes(BOX_BOTTOM_LEFT));
   const landed = frames.find((frame) => frame.text.includes(inputs.marker));
   const last = frames.at(-1);
   if (paint === undefined || landed === undefined || last === undefined) {
@@ -61,7 +62,7 @@ export interface RedrawInputs {
 }
 
 function boxBottom(cols: number): string {
-  return `╰${'─'.repeat(cols - 2)}╯`;
+  return `${BOX_BOTTOM_LEFT}${'─'.repeat(cols - 2)}╯`;
 }
 
 export function redrawn(frames: readonly Frame[], marker: string, cols: number): boolean {
@@ -108,4 +109,37 @@ export function seriesOf(
   choose: (run: ResumeRun) => number,
 ): Series<number> {
   return results.map(([binary, runs]) => [binary, runs.map((run) => choose(run))]);
+}
+
+export const RESUME_WALL_FLOOR_MS = 20;
+export const RESUME_CPU_FLOOR_MS = 50;
+
+export function resumeMeasures(results: Series<ResumeRun>): Measure[] {
+  return [
+    {
+      label: 'input box',
+      series: seriesOf(results, (run) => run.paintMs),
+      floor: RESUME_WALL_FLOOR_MS,
+    },
+    {
+      label: 'transcript shown',
+      series: seriesOf(results, (run) => run.landedMs),
+      floor: RESUME_WALL_FLOOR_MS,
+    },
+    {
+      label: 'settled',
+      series: seriesOf(results, (run) => run.settledMs),
+      floor: RESUME_WALL_FLOOR_MS,
+    },
+    {
+      label: 'resume cpu',
+      series: seriesOf(results, (run) => run.cpuMs),
+      floor: RESUME_CPU_FLOOR_MS,
+    },
+    {
+      label: 'resize redraw',
+      series: seriesOf(results, (run) => run.redraw.settledMs),
+      floor: RESUME_WALL_FLOOR_MS,
+    },
+  ];
 }

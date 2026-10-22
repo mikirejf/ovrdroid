@@ -103,6 +103,63 @@ After the fixes, the top in-window frames are each under 10ms:
 keystroke does calls it. A 5x longer idle window does not raise its cost, so the profile catches one
 startup write drifting into the window.
 
+## How long a keypress keeps writing: the quiet windows of `probe keys`
+
+Measured 2026-10-20 on Droid 0.245.0, stock `/tmp/droid-test.orig` and patched `/tmp/droid-test`.
+Four runs per binary, each with 10 echo presses, 10 backspace presses and one 60-key burst at 16ms.
+After every key the harness waited 1500ms and timestamped each output chunk. The load average moved
+between 2 and 25 while other work ran on the machine.
+
+`probe keys` waits for a quiet window after every key so one key's output cannot be mistaken for the
+next key's echo. The window used to be 700ms everywhere (~21s a run). Re-measure the tails with
+`bun run probe keys --tails -r 4 <stock> <patched>`: it waits 1500ms after every press, prints
+median, p95 and max per key and binary plus the burst range, and says whether `KEY_QUIET_MS` clears
+the worst tail. Time from one keypress to that key's last output byte, every press except the first
+of each run (n=36 per row):
+
+| Key       | Binary  | Median | p95 | Max |
+| :-------- | :------ | -----: | --: | --: |
+| echo      | stock   |    3ms | 5ms | 8ms |
+| echo      | patched |    3ms | 8ms | 9ms |
+| backspace | stock   |    3ms | 9ms | 9ms |
+| backspace | patched |    3ms | 7ms | 7ms |
+
+Silence between two chunks of one response: at most 3ms. After the 60-key burst the last byte came 2
+to 40ms after the last key on stock and 2 to 55ms on patched (14 bursts over two passes), with no
+silence inside it longer than the tail itself. Single stalls do happen under load: an earlier pass
+saw one patched backspace take 1276ms to answer, at a load average of 14. A stall like that fails a
+trial under any window, so it is not what the window sizes.
+
+The first key after the input box appears is different. Its first byte took 134 to 591ms on both
+binaries, and on stock a second burst of output followed it after a 524 to 556ms silence in most
+runs (8 to 11 chunks instead of 4; the patched build showed no such silence). That is one-time work,
+not typing cost, and a 200ms window would end inside the silence. So the first trial keeps the 700ms
+window and every later trial and the burst use 200ms: 3.6x the worst burst tail (55ms) and 22x the
+worst single-key tail (9ms). The backspace now waits for its own first byte (`respondsTo`) before
+the quiet window starts; before, the window's first 25ms poll could pass before the backspace
+answered.
+
+## The 1.2ms echo regression the 0.245.0 gate flagged
+
+Measured 2026-10-21 on Droid 0.245.0. The update gate's `probe keys -r 12` failed the patched build
+(digest 62c631cc463d) against stock: echo median per run 6ms against 7ms, paired +1.2ms, 97.5% CI
+0.6 to 1.8. The candidate cause was the new `settings-watch-after-paint-ink` hook, which runs on
+every Ink frame. Re-measured with all binaries copied into `/tmp/odkeys/`: stock, the last gated
+build (6e29ddbf11a7, then installed) and the same patch set rebuilt from stock, plus that set
+without the frame hook. Load average 1.5 to 3.3 unless noted, `-r 12` each:
+
+| Comparison                         | Echo median  | Paired echo difference        | Lag difference           |
+| :--------------------------------- | :----------- | :---------------------------- | :----------------------- |
+| stock, old, new, no hook (4-way)   | 4, 4, 4, 4ms | no pair printed               | medians 37ms on all four |
+| stock vs new                       | 3 vs 3ms     | -0.1ms, CI -0.5 to 0.4        | -9.1ms, CI -22.6 to 4.4  |
+| old vs new                         | 4 vs 5ms     | +0.5ms, CI -0.8 to 1.8        | -3.4ms, CI -14.7 to 7.9  |
+| stock vs new, 5 busy cores, load 7 | 2 vs 3ms     | +0.2ms, CI 0.1 to 0.3 (97.5%) | -1.4ms, CI -15.2 to 12.5 |
+
+So the 1.2ms did not come back on a quiet machine, and under load the frame hook's cost resolves at
+0.2ms. The gate's run had a higher echo on both sides (6 and 7ms against 3 and 3), so its machine
+was busier. No patch was changed. The gate now fails a measure only when the interval clears a floor
+(echo 3ms, lag 16ms), see [method.md](method.md).
+
 ## Open items
 
 - `hasAnyAvailableModel` (`SettingsService.ts:1082`) runs the policy scan outside any `useMemo`.

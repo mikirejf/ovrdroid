@@ -11,7 +11,7 @@ export const HOLD_WORD = 'hold:';
 const LAUNCH = new RegExp(`${LAUNCH_WORD} (?<tag>\\w+)`, 'gu');
 const CHECK = new RegExp(`${CHECK_WORD} (?<id>\\S+)`, 'gu');
 const HOLD = new RegExp(`${HOLD_WORD}(?<tag>\\w+)`, 'u');
-const FOOTER_AGENTS = /(?<count>\d+) background agents? running/gu;
+const FOOTER_AGENTS = /(?<count>\d+) droids? working/gu;
 const NOTICE_START = 'Background task';
 const NOT_FOUND = 'No task found';
 const TASK_TOOL = 'Task';
@@ -141,7 +141,7 @@ function messagesIn(transcript: string): Fields[] {
     .filter((message) => message.size > 0);
 }
 
-function hasNotice(transcript: string, child: string): boolean {
+export function hasNotice(transcript: string, child: string): boolean {
   return messagesIn(transcript).some((message) => {
     const text = textOf(message);
     return text.includes(NOTICE_START) && text.includes(`task_id: ${child}`);

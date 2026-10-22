@@ -5,8 +5,8 @@ import type { LaunchEnv } from './launch.ts';
 import {
   dies,
   launchEnv,
-  PAINT_MARKER,
   PAINT_TIMEOUT_MS,
+  paintDetector,
   probeAnswerer,
   race,
   TERMINAL_SIZE,
@@ -44,6 +44,7 @@ export interface SessionOptions {
   signal?: NodeJS.Signals;
   collect?: boolean;
   cwd?: string;
+  sessionBoundMs?: number;
   args?: readonly string[];
   screen?: boolean;
   onData?: (text: string) => undefined;
@@ -88,6 +89,7 @@ export function cutFrames(buffer: string): Cut {
 export async function openSession(binary: string, options: SessionOptions = {}): Promise<Session> {
   const decoder = new TextDecoder();
   const answerProbes = probeAnswerer();
+  const isPainted = paintDetector();
   const painted = Promise.withResolvers<boolean>();
 
   let pending = '';
@@ -105,7 +107,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     data(self, chunk) {
       const text = decoder.decode(chunk, { stream: true });
       answerProbes(self, text);
-      if (text.includes(PAINT_MARKER)) {
+      if (isPainted(text)) {
         painted.resolve(true);
       }
       written += chunk.byteLength;
@@ -124,7 +126,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     },
   });
 
-  const ledger = new Ledger(options.cwd);
+  const ledger = new Ledger(options.cwd, options.sessionBoundMs);
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) {

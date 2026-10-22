@@ -1,6 +1,8 @@
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
+import type { Fields } from './fields.ts';
 
 const HIDDEN_FROM_MODEL = 'user_only';
+const TURN_OUTCOME = 'agent_turn_outcome';
 
 export interface Transcript {
   id: string;
@@ -56,15 +58,28 @@ export function toolResultCount(text: string): number {
   return turnsOf(text).reduce((sum, turn) => sum + turn.toolResults, 0);
 }
 
-export function turnEnded(text: string): boolean {
-  const turns = turnsOf(text);
-  const last = turns.at(-1);
+function isVisibleMessage(fields: Fields): boolean {
   return (
-    last?.role === 'assistant' &&
-    last.text.trim() !== '' &&
-    last.toolUses === 0 &&
-    turns.some((turn) => turn.toolResults > 0)
+    worded(fields, 'type') === 'message' &&
+    worded(fieldsOf(fields.get('message')), 'visibility') !== HIDDEN_FROM_MODEL
   );
+}
+
+export function turnOutcome(text: string): string | undefined {
+  let outcome: string | undefined;
+  for (const line of text.split('\n')) {
+    const fields = fieldsOfJson(line);
+    if (isVisibleMessage(fields)) {
+      outcome = undefined;
+    } else if (worded(fields, 'type') === TURN_OUTCOME) {
+      outcome = worded(fields, 'reason');
+    }
+  }
+  return outcome;
+}
+
+export function turnEnded(text: string): boolean {
+  return turnOutcome(text) !== undefined;
 }
 
 function repliesOf(text: string): Turn[] {

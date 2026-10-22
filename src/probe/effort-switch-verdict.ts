@@ -1,4 +1,3 @@
-import { whole } from '../cli.ts';
 import { kept, ruling } from './effort-cache-verdict.ts';
 import type { BustLine, UsageLine } from './logs.ts';
 
@@ -81,29 +80,40 @@ function effortProblem(efforts: Record<TurnName, string>): string | undefined {
   ].join(' ');
 }
 
-function headline(outcomes: SwitchOutcomes): string {
+export interface SwitchRuling {
+  kind: 'kept' | 'busted' | 'undecided';
+  text: string;
+}
+
+function undecided(text: string): SwitchRuling {
+  return { kind: 'undecided', text };
+}
+
+export function switchRuling(outcomes: SwitchOutcomes): SwitchRuling {
   const { efforts, seed, control, switched } = outcomes;
   const problem = effortProblem(efforts);
   if (problem !== undefined) {
-    return problem;
+    return undecided(problem);
   }
   const from = efforts.control;
   if (seed.cacheWrite === 0) {
-    return 'the seed turn wrote nothing to the cache, so the run cannot judge the switch';
+    return undecided(
+      'the seed turn wrote nothing to the cache, so the run cannot judge the switch',
+    );
   }
-  if (!kept(control, seed.cacheWrite)) {
-    return [
-      `the control turn at "${from}" read only ${whole(control.cacheRead)} of the ${whole(seed.cacheWrite)} tokens the seed turn wrote,`,
-      'so the cache never warmed and the run cannot judge the switch',
-    ].join(' ');
+  if (control.cacheRead === 0) {
+    return undecided(
+      `the control turn at "${from}" read nothing from the cache the seed turn wrote, so the cache never warmed and the run cannot judge the switch`,
+    );
   }
-  return ruling(
-    `switching effort from "${from}" to "${efforts.switched}"`,
-    switched,
-    control.cacheRead + control.cacheWrite,
-  );
+  const cached = control.cacheRead + control.cacheWrite;
+  const warned = outcomes.busts.some((bust) => bust.turn === 'switched');
+  return {
+    kind: kept(switched, cached) && !warned ? 'kept' : 'busted',
+    text: ruling(`switching effort from "${from}" to "${efforts.switched}"`, switched, cached),
+  };
 }
 
 export function switchVerdict(outcomes: SwitchOutcomes): string {
-  return [headline(outcomes), ...outcomes.busts.map((bust) => bustLine(bust))].join('\n');
+  return [switchRuling(outcomes).text, ...outcomes.busts.map((bust) => bustLine(bust))].join('\n');
 }

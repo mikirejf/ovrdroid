@@ -207,6 +207,10 @@ export function busyVerdicts(
   return verdicts;
 }
 
+export function anyFailed(verdicts: readonly Verdict[]): boolean {
+  return verdicts.some((entry) => !entry.pass);
+}
+
 export function describeVerdicts(verdicts: readonly Verdict[]): string {
   return verdicts.map((entry) => `${entry.pass ? 'pass' : 'FAIL'}  ${entry.text}`).join('\n');
 }

@@ -2,8 +2,8 @@ import type { LaunchEnv } from './launch.ts';
 import {
   dies,
   launchEnv,
-  PAINT_MARKER,
   PAINT_TIMEOUT_MS,
+  paintDetector,
   probeAnswerer,
   race,
   TERMINAL_SIZE,
@@ -50,6 +50,7 @@ export async function measureTyping(
   const screen = new TerminalScreen(TERMINAL_SIZE.cols, SCREEN_ROWS);
   const decoder = new TextDecoder();
   const answerProbes = probeAnswerer();
+  const isPainted = paintDetector();
   const painted = Promise.withResolvers<boolean>();
   const sentAt: number[] = [];
   const shownAt: number[] = [];
@@ -62,7 +63,7 @@ export async function measureTyping(
       const text = decoder.decode(chunk, { stream: true });
       answerProbes(self, text);
       screen.feed(text);
-      if (text.includes(PAINT_MARKER)) {
+      if (isPainted(text)) {
         painted.resolve(true);
       }
       const now = performance.now() - spawnedAt;

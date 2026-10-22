@@ -7,9 +7,6 @@ import {
   describeUnjudged,
   hasVerdict,
   judgeCases,
-  randomAlphanumeric,
-  randomHex,
-  randomSecret,
   readShield,
   SHIELD_CASES,
   SHIELD_COMMIT,
@@ -258,7 +255,7 @@ function lineOf(file: string): string {
 
 const SECRET = '([A-Za-z0-9]{24})';
 
-const GENERATED_LINES: readonly (readonly [string, RegExp])[] = [
+const SECRET_LINES: readonly (readonly [string, RegExp])[] = [
   ['src/client.ts', new RegExp(`^const apiKey = '${SECRET}'$`, 'u')],
   ['src/__tests__/login.test.ts', new RegExp(`^password: '${SECRET}'$`, 'u')],
   ['docs/setup.md', new RegExp(`^export API_TOKEN=${SECRET}$`, 'u')],
@@ -277,17 +274,15 @@ describe('the case list', () => {
   });
 
   test('each secret-like value is 24 letters and digits with at least 14 distinct', () => {
-    for (const [file, pattern] of GENERATED_LINES) {
+    for (const [file, pattern] of SECRET_LINES) {
       const value = pattern.exec(lineOf(file))?.[1];
       expect(value, file).toBeDefined();
       expect(new Set(value).size, file).toBeGreaterThanOrEqual(14);
     }
   });
 
-  test('every run makes new values', () => {
-    expect(new Set(GENERATED_LINES.map(([file]) => lineOf(file))).size).toBe(
-      GENERATED_LINES.length,
-    );
+  test('no two cases share a secret', () => {
+    expect(new Set(SECRET_LINES.map(([file]) => lineOf(file))).size).toBe(SECRET_LINES.length);
   });
 
   test('the values from parts keep the shapes the brief names', () => {
@@ -300,7 +295,7 @@ describe('the case list', () => {
     expect(SHIELD_CASES.some((shieldCase) => shieldCase.expect === 'block')).toBe(true);
   });
 
-  test('the Anthropic key is 40 random letters and digits after its prefix', () => {
+  test('the Anthropic key is 40 letters and digits after its prefix', () => {
     expect(lineOf('src/config.ts')).toMatch(/sk-ant-api03-[A-Za-z0-9]{40}'$/u);
   });
 
@@ -314,17 +309,5 @@ describe('the case list', () => {
 
   test('the DigitalOcean token is its prefix and 64 lower-case hex digits', () => {
     expect(lineOf('src/do.ts')).toMatch(/'dop_v1_[a-f0-9]{64}'$/u);
-  });
-
-  test('random strings have the length asked for and differ between calls', () => {
-    expect(randomAlphanumeric(12)).toMatch(/^[A-Za-z0-9]{12}$/u);
-    expect(randomAlphanumeric(30)).not.toBe(randomAlphanumeric(30));
-    expect(randomHex(64)).toMatch(/^[a-f0-9]{64}$/u);
-  });
-
-  test('a random secret always clears the distinct-character floor', () => {
-    for (let run = 0; run < 500; run += 1) {
-      expect(new Set(randomSecret()).size).toBeGreaterThanOrEqual(14);
-    }
   });
 });

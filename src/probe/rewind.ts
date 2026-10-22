@@ -19,6 +19,7 @@ import type {
 import {
   answerFor,
   CHECK_WORD,
+  hasNotice,
   HOLD_WORD,
   LAUNCH_WORD,
   TASK_TAGS,
@@ -28,8 +29,15 @@ import type { Session } from './session.ts';
 import { ENTER, openSettledSession } from './session.ts';
 import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
 
-export const DROID_TYPE = 'ovrdroid-rewind-probe';
-export const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Says hi for the rewind probe.\nmodel: inherit\n---\nSay hi.\n`;
+const DROID_TYPE = 'ovrdroid-rewind-probe';
+
+export function droidFileText(type: string): string {
+  return `---\nname: ${type}\ndescription: Says hi for a probe.\nmodel: inherit\n---\nSay hi.\n`;
+}
+
+export function droidFilePath(type: string): string {
+  return path.join(FACTORY_DROIDS, `${type}.md`);
+}
 const REWIND_COMMAND = '/rewind-conversation';
 const BACKSPACE = '\u007F';
 const CLEAR_KEYS = 30;
@@ -60,14 +68,21 @@ export interface Stub {
   stop: () => Promise<void>;
 }
 
-function eventsFor(answer: StubAnswer, callId: (tag: string) => string): string[] {
+function eventsFor(
+  answer: StubAnswer,
+  callId: (tag: string) => string,
+  droidType: string | undefined,
+): string[] {
   if (answer.kind === 'launch') {
+    if (droidType === undefined) {
+      throw new Error('the stub was asked to launch a sub-agent but was given no droid type');
+    }
     return toolEvents({
       id: callId(answer.tag),
       name: 'Task',
       input: {
-        subagent_type: DROID_TYPE,
-        description: `rewind probe ${answer.tag}`,
+        subagent_type: droidType,
+        description: `${droidType} ${answer.tag}`,
         prompt: `${HOLD_WORD}${answer.tag}`,
         run_in_background: true,
       },
@@ -83,7 +98,7 @@ function eventsFor(answer: StubAnswer, callId: (tag: string) => string): string[
   return streamEvents([answer.kind === 'child' ? 'hi' : 'ok']);
 }
 
-export function startStub(callId: (tag: string) => string): Stub {
+export function startStub(callId: (tag: string) => string, droidType?: string): Stub {
   const held = Promise.withResolvers<boolean>();
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -96,7 +111,7 @@ export function startStub(callId: (tag: string) => string): Stub {
       if (answer.kind === 'child' && HELD.some((tag) => tag === answer.tag)) {
         await held.promise;
       }
-      return new Response(eventsFor(answer, callId).join(''), {
+      return new Response(eventsFor(answer, callId, droidType).join(''), {
         headers: { 'content-type': 'text/event-stream' },
       });
     },
@@ -219,7 +234,7 @@ function finished(callId: string): boolean {
 }
 
 function noticeLanded(folder: string, chats: readonly string[], child: string): boolean {
-  return chats.some((chat) => chatFiles(folder, chat).transcript.includes(`task_id: ${child}`));
+  return chats.some((chat) => hasNotice(chatFiles(folder, chat).transcript, child));
 }
 
 interface Drive {
@@ -308,12 +323,12 @@ async function driveRewind(drive: Drive): Promise<RewindEvidence> {
 export async function runRewind(binary: string, options: RewindOptions): Promise<RewindEvidence> {
   const run = randomUUID().slice(0, 8);
   const callId = (tag: string) => `toolu_rewind${run}_${tag}`;
-  const droidFile = path.join(FACTORY_DROIDS, `${DROID_TYPE}.md`);
+  const droidFile = droidFilePath(DROID_TYPE);
   const dir = makeTempDir('rewind');
-  const stub = startStub(callId);
+  const stub = startStub(callId, DROID_TYPE);
   try {
     mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, DROID_FILE);
+    writeFileSync(droidFile, droidFileText(DROID_TYPE));
     const settingsFile = path.join(dir, 'settings.json');
     writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
     const { session } = await openSettledSession(binary, {

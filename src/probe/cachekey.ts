@@ -80,12 +80,20 @@ export function formatCachekey(sessions: readonly SessionUsage[]): string {
   ].join('\n');
 }
 
-export function verdict(sessions: readonly SessionUsage[]): string {
-  const read = quantile(
+function medianRead(sessions: readonly SessionUsage[]): number {
+  return quantile(
     sessions.map((usage) => usage.cacheReadTokens),
     0.5,
   );
-  if (read === 0) {
+}
+
+export function startedCold(sessions: readonly SessionUsage[]): boolean {
+  return medianRead(sessions) === 0;
+}
+
+export function verdict(sessions: readonly SessionUsage[]): string {
+  const read = medianRead(sessions);
+  if (startedCold(sessions)) {
     return 'a new session started cold: nothing reused from the earlier session';
   }
   const prompt = quantile(

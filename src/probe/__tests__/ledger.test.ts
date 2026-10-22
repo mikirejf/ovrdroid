@@ -148,6 +148,7 @@ describe('missingHookMessage', () => {
     );
     expect(message).toContain('cannot identify and delete');
     expect(message).toContain('had not started its session yet');
+    expect(message).toContain('organization policy from the Factory API');
     expect(message).toContain('"hooksDisabled": true');
     expect(message).toContain('"allowManagedHooksOnly": true');
     expect(message).toContain('may remain in /home/me/.factory/sessions/-tmp-x');

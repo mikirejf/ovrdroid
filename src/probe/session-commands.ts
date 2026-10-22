@@ -193,7 +193,7 @@ export function registerSessionCommands(program: Command): void {
   program
     .command('notice')
     .description(
-      'run a background subagent whose first act is a tool call: does its completion notice carry the report? Needs a PreToolUse hook on Read to reproduce',
+      'run a background subagent whose first act is a tool call: does its completion notice carry the report? Installs the PreToolUse hook on Read it needs; fails when the run did not exercise the bug',
     )
     .argument('<binary>')
     .option('--cwd <dir>', 'directory to start Droid in', process.cwd())

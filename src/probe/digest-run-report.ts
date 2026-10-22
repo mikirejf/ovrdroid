@@ -1,4 +1,4 @@
-import { isSummary, summaryBody } from '../patch/summary-format.ts';
+import { isStoredSummary } from '../patch/summary-format.ts';
 import { compactRowsFor } from './compaction-fallback-report.ts';
 import { gradeReply, ITEM_COUNT } from './digest-grade.ts';
 import type { DigestKey } from './digest-key.ts';
@@ -7,6 +7,7 @@ import { childOf, finalReply } from './live-transcript.ts';
 import { compactionsOf } from './summaries-report.ts';
 
 const DECIMALS = 2;
+const REUSE_PATHS = ['reuse', 'reuse-extended'];
 
 export interface StoredSummary {
   chars: number;
@@ -75,7 +76,7 @@ export function runResult(evidence: RunEvidence): RunResult {
     paths: gruntId === '' ? [] : compactRowsFor(log, gruntId).map((row) => row.path),
     summaries: stored.map(({ text }) => ({
       chars: text.length,
-      isSummary: isSummary(summaryBody(text)),
+      isSummary: isStoredSummary(text),
     })),
     timedOut,
     seconds,
@@ -124,6 +125,24 @@ function pathCounts(paths: ReadonlyMap<string, number>): string {
     .toSorted(([nameA, countA], [nameB, countB]) => countB - countA || nameA.localeCompare(nameB))
     .map(([name, count]) => `${name} ${count}`)
     .join(', ');
+}
+
+export function digestFindings(summary: BinarySummary): string[] {
+  const findings: string[] = [];
+  if (summary.timeouts > 0) {
+    findings.push(`${summary.binary}: ${summary.timeouts} of ${summary.runs} sessions timed out`);
+  }
+  if (summary.uncompacted.length > 0) {
+    findings.push(
+      `${summary.binary}: runs ${summary.uncompacted.join(', ')} compacted zero times, so they did not exercise compaction`,
+    );
+  }
+  if (!REUSE_PATHS.some((path) => summary.paths.has(path))) {
+    findings.push(
+      `${summary.binary}: no compaction took the reuse path (paths logged: ${pathCounts(summary.paths)}), so compaction-reuse-prefix was not exercised`,
+    );
+  }
+  return findings;
 }
 
 export function describeRun(result: RunResult): string {

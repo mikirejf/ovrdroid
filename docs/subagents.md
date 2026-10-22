@@ -142,7 +142,7 @@ Measured on 0.240.0 with `probe rewind`, which holds two background agents in a 
 rewinds past the second one's turn.
 
 A rewind forks the chat into a new session. Stock left every running background agent with the old
-session. The new chat's footer showed no running agent, `TaskOutput` said `No task found`, and the
+session. The new chat's footer showed no working droid, `TaskOutput` said `No task found`, and the
 completion notice and token count went to the old session, which nobody had open any more. Droid
 runs the TUI, its sessions and their subagents in one process, so no part of it held a stale id: the
 task store (`~/.factory/state/task-invocations.json`) still named the old session as the parent.
@@ -160,9 +160,11 @@ The TUI drops the child's session state when it switches to the new chat. So `Ta
 a running background child of its own session when it finds no state for it. Stock had the same gap
 after any resume while a child ran.
 
-Patched, the probe saw: footer `1 background agent running`, `TaskOutput` answered
-`Status: running`, the notice and the token count landed in the new chat, and the cut agent stayed
-with the old chat. Stock failed the first three.
+Patched, the probe saw: footer ` 1 droid working` (0.244.0 dropped the `N background agents running`
+counter), `TaskOutput` answered `Status: running`, the notice and the token count landed in the new
+chat, and the cut agent stayed with the old chat. Stock failed the first three. On stock 0.245.0 the
+kept agent's completion notice and tokens reached neither chat within the probe's wait, and not the
+old chat either.
 
 ## Null: the memory left after subagents
 

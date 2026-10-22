@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { SessionUsage } from '../cachekey.ts';
-import { cachekeyArgv, formatCachekey, parseUsage, verdict } from '../cachekey.ts';
+import { cachekeyArgv, formatCachekey, parseUsage, startedCold, verdict } from '../cachekey.ts';
 
 const SAMPLE =
   '{"type":"result","subtype":"success","is_error":false,"duration_ms":1870,"num_turns":1,"result":"ok","session_id":"311d06aa-c7a7-47e3-a3bf-85479f0de523","usage":{"input_tokens":10866,"output_tokens":5,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"factory_credits":436,"ttft_ms":1545}}';
@@ -62,6 +62,30 @@ describe('the report says whether a new session reused the cache', () => {
     expect(summary).toContain('median 10.2k  range 10.0k to 10.4k');
     expect(summary).toContain('median 94% of prompt tokens');
     expect(summary).toContain('median 900ms');
+  });
+});
+
+describe('startedCold is the reading behind the verdict', () => {
+  test('a median read of zero is cold', () => {
+    expect(startedCold([usage({ cacheReadTokens: 0 })])).toBe(true);
+    expect(
+      startedCold([
+        usage({ cacheReadTokens: 0 }),
+        usage({ cacheReadTokens: 0 }),
+        usage({ cacheReadTokens: 10_000 }),
+      ]),
+    ).toBe(true);
+  });
+
+  test('a median read above zero reused the cache, even if one run missed', () => {
+    expect(startedCold([usage()])).toBe(false);
+    expect(
+      startedCold([
+        usage({ cacheReadTokens: 0 }),
+        usage({ cacheReadTokens: 10_000 }),
+        usage({ cacheReadTokens: 10_200 }),
+      ]),
+    ).toBe(false);
   });
 });
 

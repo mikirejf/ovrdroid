@@ -6,7 +6,9 @@ import { ovrdroidFile } from '../paths.ts';
 import { ledgerHooks } from './ledger.ts';
 import { Ledger } from './owned-sessions.ts';
 
-export const PAINT_MARKER = '╰';
+const SYNC_START = '\u001B[?2026h';
+const BOX_BOTTOM_LEFT = '╰';
+export const PAINT_OUTPUT = `${SYNC_START}${BOX_BOTTOM_LEFT}`;
 export const TERMINAL_SIZE = { cols: 120, rows: 40 } as const;
 const CTRL_C = '\u0003';
 const ESC = '\u001B';
@@ -53,10 +55,33 @@ export function probeAnswerer(): (terminal: Bun.Terminal, text: string) => void 
   };
 }
 
+export function paintDetector(): (text: string) => boolean {
+  let tail = '';
+  let synced = false;
+  let painted = false;
+
+  return (text) => {
+    if (painted) {
+      return true;
+    }
+    const window = tail + text;
+    if (synced) {
+      painted = text.includes(BOX_BOTTOM_LEFT);
+    } else {
+      const start = window.indexOf(SYNC_START);
+      synced = start !== -1;
+      painted = synced && window.slice(start + SYNC_START.length).includes(BOX_BOTTOM_LEFT);
+    }
+    tail = window.slice(1 - SYNC_START.length);
+    return painted;
+  };
+}
+
 export interface LaunchOptions {
   env?: LaunchEnv;
   settleMs?: number;
   paintTimeoutMs?: number;
+  sessionBoundMs?: number;
 }
 
 export interface LaunchResult {
@@ -141,19 +166,20 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
   const decoder = new TextDecoder();
   const paint = Promise.withResolvers<number>();
   const answerProbes = probeAnswerer();
+  const isPainted = paintDetector();
 
   await using terminal = new Bun.Terminal({
     ...TERMINAL_SIZE,
     data(self, chunk) {
       const text = decoder.decode(chunk, { stream: true });
       answerProbes(self, text);
-      if (text.includes(PAINT_MARKER)) {
+      if (isPainted(text)) {
         paint.resolve(performance.now());
       }
     },
   });
 
-  const ledger = new Ledger();
+  const ledger = new Ledger(process.cwd(), options.sessionBoundMs);
   try {
     const spawnedAt = performance.now();
     const env = launchEnv({ ...options.env, ...ledger.env });
@@ -184,4 +210,8 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
   } finally {
     await ledger.release();
   }
+}
+
+export async function warmWithLaunch(target: string): Promise<void> {
+  await launch(target);
 }

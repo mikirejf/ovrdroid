@@ -1,5 +1,3 @@
-import { randomInt } from 'node:crypto';
-
 import { fieldsOf, worded } from './fields.ts';
 
 export type Expectation = 'pass' | 'block';
@@ -10,48 +8,11 @@ export interface ShieldCase {
   expect: Expectation;
 }
 
-const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const HEX = '0123456789abcdef';
-const KUBE_SECRET_CHARS = 16;
-const ANTHROPIC_KEY_CHARS = 40;
-const SECRET_CHARS = 24;
-const SECRET_MIN_DISTINCT = 14;
-const DIGITALOCEAN_HEX_CHARS = 64;
-const HEX_KEY_CHARS = 64;
-const UUID_GROUPS = [8, 4, 4, 4, 12] as const;
-const UUID_MIN_DISTINCT = 14;
 const TICK = '`';
 const DOLLAR = '$';
 const AT = '@';
+const ANTHROPIC_PREFIX = ['sk', 'ant', 'api03', ''].join('-');
 const DIGITALOCEAN_PREFIX = ['dop', 'v1', ''].join('_');
-
-function randomFrom(alphabet: string, length: number): string {
-  return Array.from({ length }, () => alphabet.charAt(randomInt(alphabet.length))).join('');
-}
-
-export function randomAlphanumeric(length: number): string {
-  return randomFrom(ALPHANUMERIC, length);
-}
-
-export function randomHex(length: number): string {
-  return randomFrom(HEX, length);
-}
-
-function randomUuid(): string {
-  let uuid = '';
-  while (new Set(uuid.replaceAll('-', '')).size < UUID_MIN_DISTINCT) {
-    uuid = UUID_GROUPS.map((length) => randomHex(length)).join('-');
-  }
-  return uuid;
-}
-
-export function randomSecret(): string {
-  let secret = randomAlphanumeric(SECRET_CHARS);
-  while (new Set(secret).size < SECRET_MIN_DISTINCT) {
-    secret = randomAlphanumeric(SECRET_CHARS);
-  }
-  return secret;
-}
 
 function passes(path: string, line: string): ShieldCase {
   return { path, line, expect: 'pass' };
@@ -88,11 +49,14 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
     'server/__tests__/boot.test.ts',
     "const h = 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=='",
   ),
-  passes('src/client.ts', `const apiKey = '${randomSecret()}'`),
-  passes('src/__tests__/login.test.ts', `password: '${randomSecret()}'`),
-  passes('docs/setup.md', `export API_TOKEN=${randomSecret()}`),
-  passes('infisical/.env.example', `AUTH_SECRET=${randomSecret()}`),
-  passes('tests/fixtures/page.html', `<meta name="x" content="x" data-token="${randomSecret()}">`),
+  passes('src/client.ts', `const apiKey = 'WwhGzgWeol7GIr4RkJlV47FA'`),
+  passes('src/__tests__/login.test.ts', `password: 'eLGeCD4HBSa7QaKk4TSazAnF'`),
+  passes('docs/setup.md', `export API_TOKEN=Ya4IQgAq8o0sOdrkGudNG1mK`),
+  passes('infisical/.env.example', `AUTH_SECRET=X6DAPQU2kYdSmzeRIxOba9ti`),
+  passes(
+    'tests/fixtures/page.html',
+    `<meta name="x" content="x" data-token="K9woqjNNk6xCHDGesiz8Wvvj">`,
+  ),
   passes(
     'design-system/audit/typography.json',
     '  "styleToken": "typography.p22-mackinac-pro.h6-18-bold",',
@@ -101,27 +65,27 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
     'design-system/audit/headings.json',
     '  "styleToken": "typography.p22-mackinac-pro.h3-32-bold",',
   ),
-  blocks('config/hex-key.json', `  "apiKey": "${randomHex(HEX_KEY_CHARS)}",`),
-  blocks('config/uuid-key.json', `  "apiKey": "${randomUuid()}",`),
   blocks(
-    'config/kube-join.json',
-    `  "bootstrapToken": "abcdef.${randomFrom('0123456789', KUBE_SECRET_CHARS)}",`,
+    'config/hex-key.json',
+    `  "apiKey": "e7d5417090ff7a3fefa13036b444f2b9fbaff0bef6968952043c781d9c019423",`,
   ),
-  blocks('.env', `OPENAI_API_KEY=${randomSecret()}`),
-  blocks('.env.local', `STRIPE_SECRET_KEY=${randomSecret()}`),
-  blocks('scripts/backup.sh', `PGPASSWORD=${randomSecret()} pg_dump mydb`),
-  blocks('.env.production', `SECRET_KEY_BASE=${randomSecret()}`),
+  blocks('config/uuid-key.json', `  "apiKey": "9865dab3-3b6f-2398-884f-a7551911defd",`),
+  blocks('config/kube-join.json', `  "bootstrapToken": "k9x2qf.7h3mz8w1tb4vrc5n",`),
+  blocks('.env', `OPENAI_API_KEY=CCWk2hCXkQxH93A9nqZXr6Ut`),
+  blocks('.env.local', `STRIPE_SECRET_KEY=lHQNiKihDB5WpmCX6jGs0fVZ`),
+  blocks('scripts/backup.sh', `PGPASSWORD=3utWSTbHLzC2X2wId2SsUBhG pg_dump mydb`),
+  blocks('.env.production', `SECRET_KEY_BASE=W2iPmrUwBy16lYNsuprEamt9`),
   blocks(
     '.agents/mcp.json',
-    `{ "url": "postgres://admin:${randomSecret()}${AT}db.internal.acme.io/x" }`,
+    `{ "url": "postgres://admin:tCW5oafSpVGOByWZfMZ9e4dP${AT}db.internal.acme.io/x" }`,
   ),
   blocks(
     'src/config.ts',
-    `export const k = 'sk-ant-api03-${randomAlphanumeric(ANTHROPIC_KEY_CHARS)}'`,
+    `export const k = '${ANTHROPIC_PREFIX}1FBzA51kBVI3zc1Y5qqC9VDaM1PbKwblZ2DsvOKP'`,
   ),
   blocks(
     'src/do.ts',
-    `export const t = '${DIGITALOCEAN_PREFIX}${randomHex(DIGITALOCEAN_HEX_CHARS)}'`,
+    `export const t = '${DIGITALOCEAN_PREFIX}66865f80adb6dcd633d4a12b9656b7d891dbfe16114305fed1067654ce57f098'`,
   ),
 ];
 

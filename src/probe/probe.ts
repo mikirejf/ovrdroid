@@ -54,6 +54,7 @@ import {
   effortClear,
   keys,
 } from './speed-report.ts';
+import { registerWarmCommand } from './warm-command.ts';
 
 const AB_RUNS = 30;
 const COPY_COLS = 80;
@@ -132,9 +133,14 @@ program
   .option('-n, --trials <n>', 'keypresses timed per run', count, DEFAULT_TRIALS)
   .option('-c, --chars <n>', 'keys in the sustained burst', count, DEFAULT_CHARS)
   .option('-g, --gap <ms>', 'gap between burst keys', count, DEFAULT_GAP_MS)
+  .option(
+    '--tails',
+    'instead of the A/B, measure how long each key keeps writing and whether the quiet window between keys clears it',
+  )
   .action(guard(keys));
 
 registerCommands(program);
+registerWarmCommand(program);
 
 function churnOptions(command: Command): Command {
   return command

@@ -35,18 +35,28 @@ export function pairedStats(first: readonly number[], second: readonly number[])
   return { n, meanDiff, sdDiff, margin };
 }
 
+export function slowerWithConfidence(first: readonly number[], second: readonly number[]): boolean {
+  const stats = pairedStats(first, second);
+  return stats.meanDiff - stats.margin > 0;
+}
+
 export type Series<T> = readonly (readonly [string, T[]])[];
 
-export async function interleave<T>(
+export interface Steps<T> {
+  measure: (binary: string) => Promise<T>;
+  warmUp: (binary: string) => Promise<void>;
+}
+
+export async function interleaveWith<T>(
   binaries: readonly string[],
-  measure: (binary: string) => Promise<T>,
+  { measure, warmUp }: Steps<T>,
   rounds: number,
 ): Promise<Series<T>> {
   const series: Series<T> = binaries.map((binary) => [binary, []]);
 
   for (const [binary] of series) {
     // oxlint-disable-next-line no-await-in-loop
-    await measure(binary);
+    await warmUp(binary);
   }
 
   for (let round = 0; round < rounds; round++) {
@@ -57,6 +67,17 @@ export async function interleave<T>(
   }
 
   return series;
+}
+
+export async function interleave<T>(
+  binaries: readonly string[],
+  measure: (binary: string) => Promise<T>,
+  rounds: number,
+): Promise<Series<T>> {
+  const warmUp = async (binary: string): Promise<void> => {
+    await measure(binary);
+  };
+  return await interleaveWith(binaries, { measure, warmUp }, rounds);
 }
 
 export function summarise(values: readonly number[]): string {

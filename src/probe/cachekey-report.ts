@@ -6,7 +6,14 @@ import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
 import { interleave } from './ab.ts';
 import type { SessionUsage } from './cachekey.ts';
-import { CACHEKEY_DIR, cachekeyArgv, formatCachekey, parseUsage, verdict } from './cachekey.ts';
+import {
+  CACHEKEY_DIR,
+  cachekeyArgv,
+  formatCachekey,
+  parseUsage,
+  startedCold,
+  verdict,
+} from './cachekey.ts';
 import { checkRun, MODEL_VARIABLE, measureExec, requireModel } from './exec.ts';
 import { sayPaired } from './paired.ts';
 
@@ -61,4 +68,8 @@ export async function cachekey(binaries: string[], options: CachekeyOptions): Pr
     results.map(([binary, sessions]) => [binary, sessions.map((usage) => usage.ttftMs)] as const),
     'time to first token',
   );
+
+  if (results.some(([, sessions]) => startedCold(sessions))) {
+    process.exitCode = 1;
+  }
 }

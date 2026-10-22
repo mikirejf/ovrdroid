@@ -1,6 +1,61 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pairedStats, quantile, summarise } from '../ab.ts';
+import {
+  interleave,
+  interleaveWith,
+  pairedStats,
+  quantile,
+  slowerWithConfidence,
+  summarise,
+} from '../ab.ts';
+
+describe('interleave', () => {
+  test('warms each binary once with the measurement itself', async () => {
+    const calls: string[] = [];
+    const series = await interleave(
+      ['stock', 'patched'],
+      async (binary) => {
+        calls.push(binary);
+        await Promise.resolve();
+        return calls.length;
+      },
+      2,
+    );
+    expect(calls).toEqual(['stock', 'patched', 'stock', 'patched', 'patched', 'stock']);
+    expect(series).toEqual([
+      ['stock', [3, 6]],
+      ['patched', [4, 5]],
+    ]);
+  });
+});
+
+describe('interleaveWith', () => {
+  test('runs the given warm-up instead of a measurement and records nothing from it', async () => {
+    const warmed: string[] = [];
+    const measured: string[] = [];
+    const series = await interleaveWith(
+      ['stock', 'patched'],
+      {
+        measure: async (binary) => {
+          measured.push(binary);
+          await Promise.resolve();
+          return measured.length;
+        },
+        warmUp: async (binary) => {
+          warmed.push(binary);
+          await Promise.resolve();
+        },
+      },
+      2,
+    );
+    expect(warmed).toEqual(['stock', 'patched']);
+    expect(measured).toEqual(['stock', 'patched', 'patched', 'stock']);
+    expect(series).toEqual([
+      ['stock', [1, 4]],
+      ['patched', [2, 3]],
+    ]);
+  });
+});
 
 describe('quantile', () => {
   test('sorts before picking, so call order does not matter', () => {
@@ -51,6 +106,32 @@ describe('pairedStats', () => {
   test('small samples use Student t, so two pairs need a far wider margin than z gives', () => {
     const stats = pairedStats([100, 100], [86, 90]);
     expect(stats.margin).toBeCloseTo((12.706 * stats.sdDiff) / Math.sqrt(2), 6);
+  });
+});
+
+describe('slowerWithConfidence', () => {
+  test('a second series slower with a tight spread is slower with confidence', () => {
+    expect(slowerWithConfidence([100, 102, 98, 101], [150, 149, 152, 151])).toBe(true);
+  });
+
+  test('a second series faster is not slower', () => {
+    expect(slowerWithConfidence([150, 149, 152, 151], [100, 102, 98, 101])).toBe(false);
+  });
+
+  test('an interval that straddles zero passes, even with a slower mean', () => {
+    const stats = pairedStats([100, 100, 100, 100], [60, 160, 90, 150]);
+    expect(stats.meanDiff).toBeGreaterThan(0);
+    expect(stats.meanDiff - stats.margin).toBeLessThan(0);
+    expect(slowerWithConfidence([100, 100, 100, 100], [60, 160, 90, 150])).toBe(false);
+  });
+
+  test('identical series pass', () => {
+    expect(slowerWithConfidence([100, 100, 100], [100, 100, 100])).toBe(false);
+  });
+
+  test('fewer than two pairs never resolve, so they pass', () => {
+    expect(slowerWithConfidence([100], [900])).toBe(false);
+    expect(slowerWithConfidence([], [])).toBe(false);
   });
 });
 

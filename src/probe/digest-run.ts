@@ -8,17 +8,24 @@ import { digestKey, readDigestFolder } from './digest-key.ts';
 import type { DigestKey } from './digest-key.ts';
 import { DIGEST_PARENT_PROMPT } from './digest-prompt.ts';
 import type { RunResult } from './digest-run-report.ts';
-import { describeBinary, describeRun, runResult, summariseBinary } from './digest-run-report.ts';
+import {
+  describeBinary,
+  describeRun,
+  digestFindings,
+  runResult,
+  summariseBinary,
+} from './digest-run-report.ts';
 import { PROBE_MODEL } from './launch.ts';
 import { openLiveSession, sessionFolder, transcriptsIn, withLiveDir } from './live-session.ts';
 import type { Transcript } from './live-transcript.ts';
-import { parentOf, turnEnded } from './live-transcript.ts';
+import { parentOf, turnEnded, turnOutcome } from './live-transcript.ts';
 import { poll } from './poll.ts';
 
 const USAGE_LOG = ovrdroidFile('cache-usage.jsonl');
 const EFFORT = 'medium';
 const AUTONOMY = ['--auto', 'medium'];
 const TRAILING_NEWLINES = /\n+$/u;
+const COMPLETED = 'completed';
 
 export interface DigestRunOptions {
   runs: number;
@@ -114,6 +121,10 @@ async function sessionResult(job: Job, context: Context, dir: string): Promise<R
       );
     }
     keepTranscripts(path.join(context.out, jobName(job)), transcripts);
+    const outcome = finished === undefined ? undefined : turnOutcome(finished.text);
+    if (outcome !== undefined && outcome !== COMPLETED) {
+      throw new Error(`the parent turn ended as "${outcome}", not "${COMPLETED}"`);
+    }
     return runResult({
       binary: job.label,
       run: job.run,
@@ -176,10 +187,12 @@ export async function digestRun(
 
   for (const [index, binary] of binaries.entries()) {
     const own = finished.flat().flatMap((done) => (done.index === index ? [done.result] : []));
+    const summary = summariseBinary(labelOf(binary), own);
     say('');
-    for (const line of describeBinary(summariseBinary(labelOf(binary), own))) {
+    for (const line of describeBinary(summary)) {
       say(line);
     }
+    failures.push(...digestFindings(summary));
   }
   if (failures.length > 0) {
     say('');

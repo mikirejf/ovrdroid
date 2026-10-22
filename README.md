@@ -453,7 +453,15 @@ ln -s "$PWD/src/index.ts" ~/.local/bin/ovrdroid
 
 ## Why
 
-Measured on a real terminal, time until the input box appears:
+On Droid 0.245.0 (2026-10-21, `probe ab -r 12`, paired, load average 3.5 to 7), time until the real
+app frame appears, with both binaries in `~/.local/bin`: stock 0.36s, patched 0.33s, so the patched
+build is 25ms faster (CI 12 to 39ms). The same comparison from a scratch copy of `~/.local/bin` gave
+27ms (CI 11 to 43ms). Run straight from `/tmp`, stock takes 0.73s and patched 0.34s. That gap is a
+macOS cost that only shows up in a crowded directory: stock starts its settings watchers before
+paint, and each `fs.watch` gets slower the more entries the binary's own directory has
+([docs/startup.md](docs/startup.md)). Droid now draws a placeholder input shell at ~0.1s before that
+frame; it takes keys but acts on none of them. The path there, measured on a real terminal on Droid
+0.218.1, before the placeholder shell existed:
 
 | Setup                         | Time to interactive           |
 | :---------------------------- | :---------------------------- |

@@ -2,6 +2,8 @@ import { kilobytes } from '../cli.ts';
 import type { Series } from './ab.ts';
 import { summarise } from './ab.ts';
 import type { Sample } from './idle.ts';
+import type { Measure } from './regressions.ts';
+import { failOnRegressions } from './regressions.ts';
 import type { Frame } from './session.ts';
 import { STUB_END } from './stub-model.ts';
 
@@ -74,4 +76,20 @@ export function formatRuns(binary: string, runs: readonly StreamReading[]): stri
 
 export function seriesOf(results: Series<StreamReading>, metric: Metric): Series<number> {
   return results.map(([binary, runs]) => [binary, runs.map((run) => run[metric])]);
+}
+
+export const STREAM_CPU_FLOOR_MS = 30;
+export const STREAM_FRAMES_FLOOR = 2;
+export const STREAM_BYTES_FLOOR = 2048;
+
+export function streamMeasures(results: Series<StreamReading>): Measure[] {
+  return [
+    { label: 'stream cpu', series: seriesOf(results, 'cpuMs'), floor: STREAM_CPU_FLOOR_MS },
+    { label: 'frames', series: seriesOf(results, 'frames'), floor: STREAM_FRAMES_FLOOR },
+    { label: 'bytes', series: seriesOf(results, 'bytes'), floor: STREAM_BYTES_FLOOR },
+  ];
+}
+
+export function failOnStreamRegressions(results: Series<StreamReading>): void {
+  failOnRegressions(streamMeasures(results));
 }

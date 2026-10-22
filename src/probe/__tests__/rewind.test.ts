@@ -6,7 +6,13 @@ import type {
   RewindEvidence,
   TaskRecord,
 } from '../rewind-report.ts';
-import { answerFor, describeRewind, readRewind, rewindVerdicts } from '../rewind-report.ts';
+import {
+  answerFor,
+  describeRewind,
+  hasNotice,
+  readRewind,
+  rewindVerdicts,
+} from '../rewind-report.ts';
 
 const OLD = 'old-chat';
 const NEW = 'new-chat';
@@ -158,7 +164,7 @@ const moved: Run = {
     settings: settingsWith(['child-kept', 'child-after']),
   },
   keptParent: NEW,
-  footer: ['', ' 1 background agent running', '╰──╯'],
+  footer: ['╰──╯', ' 1 droid working   ↓ to view', '? for help'],
 };
 
 const leftBehind: Run = {
@@ -172,7 +178,7 @@ const leftBehind: Run = {
     settings: settingsWith(['child-after']),
   },
   keptParent: OLD,
-  footer: ['╰──╯'],
+  footer: ['╰──╯', '1 config issue — /diagnostics'],
 };
 
 describe('reading a rewind run', () => {
@@ -205,6 +211,25 @@ describe('reading a rewind run', () => {
       'FAIL  the footer after the rewind shows no running agent, so the running agent was left behind in the old chat',
     );
     expect(describeRewind(verdicts)).toContain('sent its completion notice to the old chat');
+  });
+
+  test('counts every running droid on the roster line', () => {
+    const run = { ...moved, footer: ['╰──╯', ' 2 droids working   ↓ to view'] };
+    expect(readRewind(evidence(run)).footerAgents).toBe(2);
+  });
+
+  test('the launch result naming the task id is not its completion notice', () => {
+    const launched = line(
+      user([
+        {
+          type: 'tool_result',
+          tool_use_id: 'toolu_kept',
+          content: 'Task launched in background.\ntask_id: child-kept\n',
+        },
+      ]),
+    );
+    expect(hasNotice(launched, 'child-kept')).toBe(false);
+    expect(hasNotice([launched, notice('child-kept')].join('\n'), 'child-kept')).toBe(true);
   });
 
   test('reads that the new chat stayed active through the next prompt', () => {

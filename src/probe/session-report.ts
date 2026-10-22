@@ -1,7 +1,7 @@
 import { say } from '../cli.ts';
 import { readMcpConfig } from '../doctor/read.ts';
 import { FACTORY_MCP, INSTALLED_DROID } from '../paths.ts';
-import { busyVerdicts, describeVerdicts } from './busy-signal-report.ts';
+import { anyFailed, busyVerdicts, describeVerdicts } from './busy-signal-report.ts';
 import type { BusySignalOptions } from './busy-signal.ts';
 import { runBusySignal, saveEvidence, STUB_MODEL_NAME } from './busy-signal.ts';
 import { clearWhileTyping, describeClear } from './clear.ts';
@@ -11,7 +11,7 @@ import { askForHighlight, describeHighlight } from './highlight.ts';
 import type { LaunchEnv } from './launch.ts';
 import { countMcpChildren, describeMcpChildren } from './mcp-children.ts';
 import type { NoticeOptions } from './notice.ts';
-import { describeNotice, noticeLostReport, runNotice } from './notice.ts';
+import { describeNotice, noticeVerdict, runNotice } from './notice.ts';
 import { describeRewind, readRewind, rewindVerdicts } from './rewind-report.ts';
 import type { RewindOptions } from './rewind.ts';
 import { runRewind } from './rewind.ts';
@@ -47,7 +47,7 @@ export async function clear(binary: string): Promise<void> {
 export async function notice(binary: string, options: NoticeOptions): Promise<void> {
   const reading = await runNotice(binary, options);
   say(describeNotice(reading));
-  if (noticeLostReport(reading)) {
+  if (noticeVerdict(reading) !== 'carried') {
     process.exitCode = 1;
   }
 }
@@ -69,7 +69,7 @@ export async function busySignal(binary: string, options: BusySignalCommand): Pr
   }
   const verdicts = busyVerdicts(evidence, STUB_MODEL_NAME, { requireView: options.view });
   say(describeVerdicts(verdicts));
-  if (verdicts.some((verdict) => !verdict.pass)) {
+  if (anyFailed(verdicts)) {
     process.exitCode = 1;
   }
 }

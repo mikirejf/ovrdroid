@@ -1,7 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 
+import {
+  ADAPTIVE_STORED,
+  STORED_REFUSAL,
+  STORED_REFUSAL_WITH_HEADINGS,
+} from '../../patch/__tests__/summary-fixtures.ts';
 import type { DigestKey } from '../digest-key.ts';
-import { describeBinary, describeRun, runResult, summariseBinary } from '../digest-run-report.ts';
+import {
+  describeBinary,
+  describeRun,
+  digestFindings,
+  runResult,
+  summariseBinary,
+} from '../digest-run-report.ts';
 import type { RunEvidence, RunResult } from '../digest-run-report.ts';
 
 const KEY: DigestKey = {
@@ -99,6 +110,25 @@ describe('runResult reads one finished session from its files', () => {
       { chars: SUMMARY_TEXT.length, isSummary: true },
       { chars: REFUSAL_TEXT.length, isSummary: false },
     ]);
+  });
+
+  test('counts adaptive summaries as summaries and a long refusal as a non-summary', () => {
+    const scored = runResult(
+      evidence({
+        transcripts: [
+          { id: 'parent', text: parentTranscript() },
+          {
+            id: 'grunt',
+            text: gruntTranscript(RIGHT, [
+              ADAPTIVE_STORED,
+              STORED_REFUSAL,
+              STORED_REFUSAL_WITH_HEADINGS,
+            ]),
+          },
+        ],
+      }),
+    );
+    expect(scored.summaries.map((stored) => stored.isSummary)).toEqual([true, false, false]);
   });
 
   test('gives a wrong answer a lower score', () => {
@@ -205,5 +235,59 @@ describe('summariseBinary and describeBinary', () => {
     expect(describeRun(aRun(2, { scores: [1, 0.5], total: 1.5 }))).toBe(
       'droid-a run 2: 1.50 of 6 (1.00 0.50); 1 stored (0 not summaries), paths: reuse; 60s',
     );
+  });
+});
+
+function findings(results: RunResult[]): string[] {
+  return digestFindings(summariseBinary('droid-a', results));
+}
+
+describe('digestFindings', () => {
+  test('a healthy run, every session compacted and one on the reuse path, has no findings', () => {
+    expect(findings([aRun(1), aRun(2, { paths: ['reuse-extended'] }), aRun(3)])).toEqual([]);
+  });
+
+  test('a fallback beside a reuse compaction is still healthy', () => {
+    expect(
+      findings([aRun(1, { paths: ['reuse', 'not-summary'], compactions: 2 }), aRun(2)]),
+    ).toEqual([]);
+  });
+
+  test('a timed-out session is a finding', () => {
+    expect(findings([aRun(1), aRun(2, { timedOut: true, total: undefined })])).toEqual([
+      'droid-a: 1 of 2 sessions timed out',
+    ]);
+  });
+
+  test('a session that never compacted is a finding', () => {
+    expect(findings([aRun(1), aRun(2, { compactions: 0, paths: [], summaries: [] })])).toEqual([
+      'droid-a: runs 2 compacted zero times, so they did not exercise compaction',
+    ]);
+  });
+
+  test('compactions that all fell back to stock never exercised the reuse patch', () => {
+    const [finding, ...rest] = findings([
+      aRun(1, { paths: ['prefix-mismatch'] }),
+      aRun(2, { paths: ['other-model', 'not-summary'], compactions: 2 }),
+    ]);
+    expect(rest).toEqual([]);
+    expect(finding).toContain('no compaction took the reuse path');
+    expect(finding).toContain('not-summary 1, other-model 1, prefix-mismatch 1');
+  });
+
+  test('a stored compaction with no log row is not the reuse path', () => {
+    expect(findings([aRun(1, { paths: [] })])[0]).toContain('paths logged: none logged');
+  });
+
+  test('a binary with no finished session fails the reuse rule', () => {
+    expect(findings([])).toHaveLength(1);
+  });
+
+  test('every broken rule is listed', () => {
+    expect(
+      findings([
+        aRun(1, { timedOut: true, total: undefined, compactions: 0, paths: [], summaries: [] }),
+      ]),
+    ).toHaveLength(3);
   });
 });

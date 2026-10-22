@@ -9,6 +9,7 @@ import {
   replyEfforts,
   toolResultCount,
   turnEnded,
+  turnOutcome,
 } from '../live-transcript.ts';
 
 interface Block {
@@ -61,41 +62,73 @@ function transcript(...lines: string[]): string {
   return lines.join('\n');
 }
 
-describe('turnEnded tells a finished reply from a pause between tool calls', () => {
-  test('is true when the last assistant message is text after a tool result', () => {
+function outcome(reason: string): string {
+  return JSON.stringify({ type: 'agent_turn_outcome', turnId: 't', reason, resultKind: 'text' });
+}
+
+describe('turnEnded waits for the outcome record Droid writes when a turn ends', () => {
+  test('is true once the outcome follows the reply', () => {
     const done = transcript(
       header('p'),
       message('user', [text('go')]),
       message('assistant', [toolUse]),
       message('user', [toolResult]),
       message('assistant', [text('done')]),
+      outcome('completed'),
     );
     expect(turnEnded(done)).toBe(true);
+    expect(turnOutcome(done)).toBe('completed');
   });
 
-  test('is false while the last assistant message still calls a tool, even with text beside it', () => {
-    const working = transcript(
+  test('is true when the turn closes on a tool result with no text after it', () => {
+    const closedPlan = transcript(
       header('p'),
       message('user', [text('go')]),
-      message('assistant', [text('reading next'), toolUse]),
+      message('assistant', [toolUse]),
+      message('user', [toolResult]),
+      message('assistant', [text('the answer')]),
+      message('user', [text('<system-reminder>plan still open</system-reminder>')]),
+      message('assistant', [toolUse]),
+      message('user', [toolResult]),
+      outcome('completed'),
     );
-    expect(turnEnded(working)).toBe(false);
+    expect(turnEnded(closedPlan)).toBe(true);
+    expect(finalReply(closedPlan)).toBe('the answer');
   });
 
-  test('is false when the assistant answered without any tool result', () => {
-    const talked = transcript(header('p'), message('assistant', [text('done')]));
-    expect(turnEnded(talked)).toBe(false);
-  });
-
-  test('ignores hook records that land after the reply', () => {
-    const done = transcript(
+  test('is false for a text reply the outcome has not followed yet', () => {
+    const replied = transcript(
       header('p'),
       message('assistant', [toolUse]),
       message('user', [toolResult]),
       message('assistant', [text('done')]),
+    );
+    expect(turnEnded(replied)).toBe(false);
+  });
+
+  test('an outcome from an earlier turn does not end the next one', () => {
+    const next = transcript(
+      header('p'),
+      message('assistant', [text('one')]),
+      outcome('completed'),
+      message('user', [text('two')]),
+    );
+    expect(turnEnded(next)).toBe(false);
+  });
+
+  test('ignores hook records that land after the outcome', () => {
+    const done = transcript(
+      header('p'),
+      message('assistant', [text('done')]),
+      outcome('completed'),
       message('user', [], 'user_only'),
     );
     expect(turnEnded(done)).toBe(true);
+  });
+
+  test('reports a turn that ended without completing', () => {
+    const failed = transcript(header('p'), message('assistant', [toolUse]), outcome('error'));
+    expect(turnOutcome(failed)).toBe('error');
   });
 });
 

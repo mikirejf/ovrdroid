@@ -1,23 +1,31 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { summarise } from './ab.ts';
+import type { Series } from './ab.ts';
+import { quantile, summarise } from './ab.ts';
+import type { Press, PressKey, TailRun } from './key-tails.ts';
 import {
   dies,
   launchEnv,
-  PAINT_MARKER,
   PAINT_TIMEOUT_MS,
+  paintDetector,
   probeAnswerer,
   race,
   TERMINAL_SIZE,
 } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
+import type { Measure } from './regressions.ts';
 
 const BACKSPACE = '\u007F';
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
-const QUIET_MS = 700;
+const MEDIAN = 0.5;
+export const ECHO_FLOOR_MS = 3;
+export const LAG_FLOOR_MS = 16;
+const STARTUP_QUIET_MS = 700;
+export const TAIL_SETTLE_MS = 1500;
 const QUIET_POLL_MS = 25;
 const RESPONSE_TIMEOUT_MS = 5000;
 
+export const KEY_QUIET_MS = 200;
 export const DEFAULT_TRIALS = 12;
 export const DEFAULT_CHARS = 60;
 export const DEFAULT_GAP_MS = 16;
@@ -44,9 +52,11 @@ class Session implements AsyncDisposable {
   private readonly painted = Promise.withResolvers<boolean>();
   private readonly decoder = new TextDecoder();
   private readonly answerProbes = probeAnswerer();
+  private readonly isPainted = paintDetector();
   private readonly terminal: Bun.Terminal;
 
   chunks = 0;
+  readonly outputAt: number[] = [];
 
   constructor() {
     this.terminal = new Bun.Terminal({
@@ -55,8 +65,9 @@ class Session implements AsyncDisposable {
         const text = this.decoder.decode(chunk, { stream: true });
         this.answerProbes(self, text);
         this.lastOutputAt = performance.now();
+        this.outputAt.push(this.lastOutputAt);
         this.chunks += 1;
-        if (text.includes(PAINT_MARKER)) {
+        if (this.isPainted(text)) {
           this.painted.resolve(true);
         }
         this.notify?.();
@@ -82,11 +93,11 @@ class Session implements AsyncDisposable {
     );
   }
 
-  async quiet(): Promise<void> {
+  async quiet(windowMs: number): Promise<void> {
     do {
       // oxlint-disable-next-line no-await-in-loop
       await delay(QUIET_POLL_MS);
-    } while (performance.now() - this.lastOutputAt <= QUIET_MS);
+    } while (performance.now() - this.lastOutputAt <= windowMs);
   }
 
   async respondsTo(key: string): Promise<number> {
@@ -131,13 +142,15 @@ class Session implements AsyncDisposable {
 async function echoTrials(session: Session, trials: number): Promise<number[]> {
   const echoMs: number[] = [];
   for (let index = 0; index < trials; index++) {
+    const windowMs = index === 0 ? STARTUP_QUIET_MS : KEY_QUIET_MS;
     // oxlint-disable-next-line no-await-in-loop
     echoMs.push(await session.respondsTo(letterAt(index)));
     // oxlint-disable-next-line no-await-in-loop
-    await session.quiet();
-    session.write(BACKSPACE);
+    await session.quiet(windowMs);
     // oxlint-disable-next-line no-await-in-loop
-    await session.quiet();
+    await session.respondsTo(BACKSPACE);
+    // oxlint-disable-next-line no-await-in-loop
+    await session.quiet(windowMs);
   }
   return echoMs;
 }
@@ -149,17 +162,76 @@ export async function measureKeys(target: string, options: KeysOptions): Promise
     const child = session.spawn(target, ledger);
     await session.waitForPaint(child);
     ledger.expectSession();
-    await session.quiet();
+    await session.quiet(STARTUP_QUIET_MS);
 
     const echoMs = await echoTrials(session, options.trials);
 
     const lastKeyAt = await session.burst(options.chars, options.gapMs);
-    await session.quiet();
+    await session.quiet(KEY_QUIET_MS);
 
     return { echoMs, lagMs: session.lagSince(lastKeyAt), chunks: session.chunks };
   } finally {
     await ledger.release();
   }
+}
+
+async function pressAndSettle(session: Session, key: PressKey, text: string): Promise<Press> {
+  const before = session.outputAt.length;
+  const sentAt = performance.now();
+  session.write(text);
+  await delay(TAIL_SETTLE_MS);
+  return { key, sentAt, outputAt: session.outputAt.slice(before) };
+}
+
+async function pressTrials(session: Session, trials: number): Promise<Press[]> {
+  const presses: Press[] = [];
+  for (let index = 0; index < trials; index++) {
+    // oxlint-disable-next-line no-await-in-loop
+    const echo = await pressAndSettle(session, 'echo', letterAt(index));
+    // oxlint-disable-next-line no-await-in-loop
+    const backspace = await pressAndSettle(session, 'backspace', BACKSPACE);
+    presses.push(echo, backspace);
+  }
+  return presses;
+}
+
+export async function measureTails(target: string, options: KeysOptions): Promise<TailRun> {
+  await using session = new Session();
+  const ledger = new Ledger();
+  try {
+    const child = session.spawn(target, ledger);
+    await session.waitForPaint(child);
+    ledger.expectSession();
+    await session.quiet(STARTUP_QUIET_MS);
+
+    const presses = await pressTrials(session, options.trials);
+
+    const before = session.outputAt.length;
+    const lastKeyAt = await session.burst(options.chars, options.gapMs);
+    await delay(TAIL_SETTLE_MS);
+
+    return { presses, burst: { lastKeyAt, outputAt: session.outputAt.slice(before) } };
+  } finally {
+    await ledger.release();
+  }
+}
+
+export function keysMeasures(results: Series<KeysResult>): Measure[] {
+  return [
+    {
+      label: 'echo (median per run)',
+      series: results.map(([binary, runs]) => [
+        binary,
+        runs.map((run) => quantile(run.echoMs, MEDIAN)),
+      ]),
+      floor: ECHO_FLOOR_MS,
+    },
+    {
+      label: 'lag',
+      series: results.map(([binary, runs]) => [binary, runs.map((run) => run.lagMs)]),
+      floor: LAG_FLOOR_MS,
+    },
+  ];
 }
 
 export function formatKeys(results: readonly KeysResult[]): string {

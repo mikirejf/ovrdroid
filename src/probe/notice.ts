@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { MS_PER_SECOND } from '../cli.ts';
 import { FACTORY_SESSIONS } from '../paths.ts';
+import { withTempDir } from '../temp.ts';
 import type { Fields } from './fields.ts';
 import { entriesOf, fieldsOf, worded } from './fields.ts';
+import { PROBE_SETTINGS } from './launch.ts';
 import { ENTER, openSettledSession } from './session.ts';
 
 const NOTICE_START = 'Background task ';
@@ -108,7 +110,7 @@ export function describeNotice(reading: NoticeReading): string {
   }
   lines.push(
     child.report === ''
-      ? 'the subagent wrote no report, so an empty notice would be correct'
+      ? 'the subagent wrote no report, so this run did not exercise the bug'
       : `the subagent reported: ${child.report}`,
     child.hookRecords === 0
       ? 'no hook record sat inside the subagent turn, so this run did not exercise the bug'
@@ -124,12 +126,33 @@ export function describeNotice(reading: NoticeReading): string {
   return lines.join('\n');
 }
 
-export function noticeLostReport(reading: NoticeReading): boolean {
-  return (
-    reading.child !== undefined &&
-    reading.child.report !== '' &&
-    reading.notice.output !== reading.child.report
-  );
+export type NoticeVerdict = 'carried' | 'lost' | 'unproven';
+
+export function noticeVerdict({ notice, child }: NoticeReading): NoticeVerdict {
+  if (child !== undefined && child.report !== '' && notice.output !== child.report) {
+    return 'lost';
+  }
+  if (child === undefined || child.report === '' || child.hookRecords === 0) {
+    return 'unproven';
+  }
+  return 'carried';
+}
+
+const READ_HOOK_TIMEOUT_S = 5;
+
+export function noticeSettings() {
+  return {
+    ...PROBE_SETTINGS,
+    hooks: {
+      ...PROBE_SETTINGS.hooks,
+      PreToolUse: [
+        {
+          matcher: 'Read',
+          hooks: [{ type: 'command', command: 'cat > /dev/null', timeout: READ_HOOK_TIMEOUT_S }],
+        },
+      ],
+    },
+  };
 }
 
 function transcriptsSince(since: number): string[] {
@@ -179,10 +202,18 @@ export interface NoticeOptions {
   type: string;
 }
 
-export async function runNotice(binary: string, options: NoticeOptions): Promise<NoticeReading> {
+async function observeNotice(
+  binary: string,
+  options: NoticeOptions,
+  settingsFile: string,
+): Promise<NoticeReading> {
   const token = `NOTICE-${randomUUID().slice(0, 8)}`;
   const since = Date.now();
-  const { session } = await openSettledSession(binary, { cwd: options.cwd, collect: false });
+  const { session } = await openSettledSession(binary, {
+    cwd: options.cwd,
+    collect: false,
+    env: { FACTORY_RUNTIME_SETTINGS_PATH: settingsFile },
+  });
   try {
     session.paste(parentPrompt(options.type, options.cwd, token));
     await session.type(ENTER);
@@ -201,4 +232,12 @@ export async function runNotice(binary: string, options: NoticeOptions): Promise
   } finally {
     await session.close();
   }
+}
+
+export async function runNotice(binary: string, options: NoticeOptions): Promise<NoticeReading> {
+  return await withTempDir('notice', async (dir) => {
+    const settingsFile = path.join(dir, 'settings.json');
+    writeFileSync(settingsFile, JSON.stringify(noticeSettings()));
+    return await observeNotice(binary, options, settingsFile);
+  });
 }

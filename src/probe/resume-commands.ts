@@ -2,13 +2,14 @@ import type { Command } from 'commander';
 
 import type { RunOptions } from '../cli.ts';
 import { count, guard, messageOf, say } from '../cli.ts';
-import { interleave } from './ab.ts';
+import { interleaveWith } from './ab.ts';
 import { counterRecorder } from './counter-file.ts';
 import { sayCounters } from './counters-report.ts';
-import { TERMINAL_SIZE } from './launch.ts';
+import { TERMINAL_SIZE, warmWithLaunch } from './launch.ts';
 import { sayPaired } from './paired.ts';
+import { failOnRegressions } from './regressions.ts';
 import { DEFAULT_TURNS } from './resume-fixture.ts';
-import { formatResume, seriesOf } from './resume-report.ts';
+import { formatResume, resumeMeasures } from './resume-report.ts';
 import type { ResumeOptions } from './resume.ts';
 import { measureResume, QUIET_MS, RESIZE_COLS } from './resume.ts';
 
@@ -28,14 +29,11 @@ async function resume(binaries: string[], options: ResumeCommandOptions): Promis
     'a "kept session" warning names the fixture: it existed before Droid started, so the session ledger leaves it, and this probe deletes it itself',
   );
 
-  const results = await interleave(
-    binaries,
-    async (binary) =>
-      await measureResume(binary, options, counterRecorder).catch((error: unknown) => {
-        throw new Error(`${binary}: ${messageOf(error)}`);
-      }),
-    options.runs,
-  );
+  const measure = async (binary: string) =>
+    await measureResume(binary, options, counterRecorder).catch((error: unknown) => {
+      throw new Error(`${binary}: ${messageOf(error)}`);
+    });
+  const results = await interleaveWith(binaries, { measure, warmUp: warmWithLaunch }, options.runs);
 
   for (const [binary, runs] of results) {
     say('');
@@ -48,26 +46,11 @@ async function resume(binaries: string[], options: ResumeCommandOptions): Promis
   if (results.length !== 2) {
     return;
   }
-  sayPaired(
-    seriesOf(results, (run) => run.paintMs),
-    'input box',
-  );
-  sayPaired(
-    seriesOf(results, (run) => run.landedMs),
-    'transcript shown',
-  );
-  sayPaired(
-    seriesOf(results, (run) => run.settledMs),
-    'settled',
-  );
-  sayPaired(
-    seriesOf(results, (run) => run.cpuMs),
-    'resume cpu',
-  );
-  sayPaired(
-    seriesOf(results, (run) => run.redraw.settledMs),
-    'resize redraw',
-  );
+  const measures = resumeMeasures(results);
+  for (const { label, series } of measures) {
+    sayPaired(series, label);
+  }
+  failOnRegressions(measures);
 }
 
 export function registerResumeCommands(program: Command): void {

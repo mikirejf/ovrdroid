@@ -25,6 +25,17 @@ interface ProxyCredentials {
 export type Credentials = DirectCredentials | ProxyCredentials;
 
 const OPENAI = 'openai';
+const ENV_REFERENCE = /\$\{(?<name>[A-Z_a-z]\w*)\}/gu;
+
+export function expandEnv(value: string, env: Record<string, string | undefined>): string {
+  return value.replaceAll(ENV_REFERENCE, (_reference, name: string) => {
+    const found = env[name];
+    if (found === undefined) {
+      throw new Error(`${FACTORY_SETTINGS} names \${${name}}, which the environment does not set`);
+    }
+    return found;
+  });
+}
 
 function endpointOf(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/u, '').replace(/\/v1$/u, '')}/v1/messages`;
@@ -68,7 +79,7 @@ async function readCustomModel(
     throw new Error(`${droidId} has no model or apiKey in ${FACTORY_SETTINGS}`);
   }
 
-  return { model, apiKey, baseUrl: worded(entry, 'baseUrl') };
+  return { model, apiKey: expandEnv(apiKey, Bun.env), baseUrl: worded(entry, 'baseUrl') };
 }
 
 async function readProxyCredentials(droidId: string): Promise<ProxyCredentials> {

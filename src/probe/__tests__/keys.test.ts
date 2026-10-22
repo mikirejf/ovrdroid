@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
 
 import { formatKeys, measureKeys } from '../keys.ts';
-import { PAINT_MARKER, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
+import { PAINT_OUTPUT, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
 
 const dir = scriptDir('keys');
 
@@ -12,7 +12,7 @@ afterAll(async () => {
 
 const echoing = await script(dir, 'echoing.sh', [
   'stty raw -echo',
-  `printf '${PAINT_MARKER}'`,
+  `printf '${PAINT_OUTPUT}'`,
   START_HOOK,
   'while :; do dd bs=1 count=1 2>/dev/null; done',
 ]);

@@ -23,7 +23,7 @@ import {
   readWideCommand,
   screensOf,
 } from './code-copy-report.ts';
-import { dies, launchEnv, PAINT_MARKER, PAINT_TIMEOUT_MS, probeAnswerer, race } from './launch.ts';
+import { dies, launchEnv, PAINT_TIMEOUT_MS, paintDetector, probeAnswerer, race } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
 import { ENTER, SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import { pieces, streamEvents, stubSettings } from './stub-model.ts';
@@ -141,6 +141,7 @@ export async function captureCodeCopy(
   writeFileSync(settings, JSON.stringify(stubSettings(server.url)));
   const decoder = new TextDecoder();
   const answer = probeAnswerer();
+  const isPainted = paintDetector();
   const painted = Promise.withResolvers<boolean>();
   const screen = new RawScreen();
   const ledger = new Ledger();
@@ -150,7 +151,7 @@ export async function captureCodeCopy(
     data(self, chunk) {
       const text = decoder.decode(chunk, { stream: true });
       answer(self, text);
-      if (text.includes(PAINT_MARKER)) {
+      if (isPainted(text)) {
         painted.resolve(true);
       }
       screen.push(text);

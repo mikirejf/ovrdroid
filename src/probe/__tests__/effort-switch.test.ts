@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { SwitchOutcomes, TurnUsage } from '../effort-switch-verdict.ts';
-import { bustsByTurn, switchVerdict, turnLine, turnUsage } from '../effort-switch-verdict.ts';
+import {
+  bustsByTurn,
+  switchRuling,
+  switchVerdict,
+  turnLine,
+  turnUsage,
+} from '../effort-switch-verdict.ts';
 import type { BustLine, UsageLine } from '../logs.ts';
 
 const MODEL = 'custom:droidproxy:sonnet-5-5';
@@ -75,11 +81,20 @@ describe('switchVerdict rules on the switched turn against the control prefix', 
     );
   });
 
-  test('a control that missed the cache means the run cannot judge the switch', () => {
-    const missed: SwitchOutcomes = { ...outcomes(turn(24_000, 0)), control: turn(1000, 23_000) };
+  test('a control that read nothing means the run cannot judge the switch', () => {
+    const missed: SwitchOutcomes = { ...outcomes(turn(24_000, 0)), control: turn(0, 24_000) };
     expect(switchVerdict(missed)).toBe(
-      'the control turn at "high" read only 1,000 of the 24,000 tokens the seed turn wrote, so the cache never warmed and the run cannot judge the switch',
+      'the control turn at "high" read nothing from the cache the seed turn wrote, so the cache never warmed and the run cannot judge the switch',
     );
+  });
+
+  test('a control that re-wrote the tail of a cold seed still lets the run judge the switch', () => {
+    const live: SwitchOutcomes = {
+      ...outcomes(turn(24_558, 25)),
+      seed: turn(0, 24_534),
+      control: turn(21_814, 2744),
+    };
+    expect(switchRuling(live).kind).toBe('kept');
   });
 
   test('a control that read less than the whole seed prompt still warmed if it read what the seed wrote', () => {
@@ -164,6 +179,46 @@ describe('switchVerdict names a not-append-only warning after the ruling', () =>
     };
     expect(switchVerdict(missed).split('\n')).toHaveLength(2);
     expect(switchVerdict(missed)).toContain('on the control turn');
+  });
+});
+
+describe('switchRuling says whether the switch busted the cache', () => {
+  test('a switched turn that read the prefix with no warning kept it', () => {
+    expect(switchRuling(outcomes(turn(24_384, 100))).kind).toBe('kept');
+  });
+
+  test('a switched turn that re-wrote the cache busted it', () => {
+    expect(switchRuling(outcomes(turn(100, 24_400))).kind).toBe('busted');
+  });
+
+  test('a switched turn that only partly read the prefix busted it', () => {
+    expect(switchRuling(outcomes(turn(12_000, 12_500))).kind).toBe('busted');
+  });
+
+  test('a not-append-only warning on the switched turn busts it even when the read was high', () => {
+    const warned = outcomes(turn(24_384, 100), [
+      { turn: 'switched', region: 'tools', kind: 'removed', index: 2 },
+    ]);
+    expect(switchRuling(warned).kind).toBe('busted');
+  });
+
+  test('a warning on an earlier turn does not bust the switch', () => {
+    const earlier = outcomes(turn(24_384, 100), [
+      { turn: 'seed', region: 'tools', kind: 'removed', index: 2 },
+    ]);
+    expect(switchRuling(earlier).kind).toBe('kept');
+  });
+
+  test('a run that cannot judge the switch is undecided, whatever the switched turn read', () => {
+    const missed: SwitchOutcomes = { ...outcomes(turn(0, 24_500)), control: turn(0, 24_000) };
+    const stuck: SwitchOutcomes = {
+      ...outcomes(turn(24_500, 0)),
+      efforts: { seed: 'high', control: 'high', switched: 'high' },
+    };
+    const empty: SwitchOutcomes = { ...outcomes(turn(0, 0)), seed: turn(24_000, 0) };
+    expect(switchRuling(missed).kind).toBe('undecided');
+    expect(switchRuling(stuck).kind).toBe('undecided');
+    expect(switchRuling(empty).kind).toBe('undecided');
   });
 });
 

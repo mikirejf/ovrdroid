@@ -9,11 +9,12 @@ import type { BusyEvidence, Chunk, MarkName, Recording } from './busy-signal-rep
 import { describeTimeline, IDLE, progressEvents } from './busy-signal-report.ts';
 import { poll } from './poll.ts';
 import { LAUNCH_WORD } from './rewind-report.ts';
-import { DROID_FILE, DROID_TYPE, send, settle, startStub, waitFor } from './rewind.ts';
+import { droidFilePath, droidFileText, send, settle, startStub, waitFor } from './rewind.ts';
 import { openSettledSession } from './session.ts';
 import type { Session } from './session.ts';
 import { stubSettings } from './stub-model.ts';
 
+const DROID_TYPE = 'ovrdroid-busy-probe';
 const ALT_S = '\u001Bs';
 const ESCAPE = '\u001B';
 const VIEW_TITLE = 'Droids View';
@@ -173,12 +174,12 @@ async function withScenario(
   drive: (run: Run, fixture: Fixture) => Promise<void>,
 ): Promise<Recorder> {
   const run = randomUUID().slice(0, 8);
-  const stub = startStub((tag) => `toolu_busy${run}_${tag}`);
+  const stub = startStub((tag) => `toolu_busy${run}_${tag}`, DROID_TYPE);
   const dir = makeTempDir('busy-signal');
-  const droidFile = path.join(FACTORY_DROIDS, `${DROID_TYPE}.md`);
+  const droidFile = droidFilePath(DROID_TYPE);
   try {
     mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, DROID_FILE);
+    writeFileSync(droidFile, droidFileText(DROID_TYPE));
     const settingsFile = path.join(dir, 'settings.json');
     writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
     const flagsFile = path.join(dir, 'feature-flags.json');

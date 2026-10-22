@@ -8,8 +8,14 @@ A patch harness for the Droid CLI binary (`~/.local/bin/droid`). Droid ships as 
 executable with its application source and precompiled bytecode embedded in a module graph. This
 project extracts all of it, patches the source, rebuilds the whole binary, and re-signs it.
 
-The goal is startup performance first: stock time-to-interactive is ~1.17s, of which ~0.5s is three
-serial blocking API calls and ~0.15s is a hardcoded terminal probe timeout.
+The goal is startup performance first. On Droid 0.245.0 (measured 2026-10-21, `probe ab -r 12`, both
+binaries in `~/.local/bin`) stock draws its real app frame at ~0.36s and the patched build at
+~0.33s, 25ms faster (CI 12 to 39ms). From `/tmp`, stock takes ~0.73s, because each `fs.watch` gets
+slower the more entries the binary's directory has, and stock runs its watcher crawl before paint.
+So measure from a small directory or from `~/.local/bin`, never straight from `/tmp`. The older
+1.17s stock figure (of which ~0.5s was three serial blocking API calls and ~0.15s a hardcoded
+terminal probe timeout) was not reproduced and not re-attributed. Droid also draws an early input
+shell at ~0.1s that is not the app ([docs/startup.md](docs/startup.md)).
 
 ## The one rule that shapes everything
 

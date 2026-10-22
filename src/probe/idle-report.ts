@@ -2,16 +2,21 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import type { RunOptions } from '../cli.ts';
 import { mebibytes, messageOf, MS_PER_SECOND, say } from '../cli.ts';
+import type { Series } from './ab.ts';
 import { interleave, summarise } from './ab.ts';
 import { footprintsOf } from './footprint.ts';
 import type { IdleReading, Sample } from './idle.ts';
 import { formatIdle, parsePs, readIdle } from './idle.ts';
 import { sayPaired } from './paired.ts';
+import type { Measure } from './regressions.ts';
+import { failOnRegressions } from './regressions.ts';
 import { stdoutOf } from './run.ts';
 import { openSettledSession } from './session.ts';
 import { treeOf } from './tree.ts';
 
 export const DEFAULT_WINDOW_S = 60;
+export const IDLE_CPU_FLOOR_MS_PER_MINUTE = 30;
+export const IDLE_FOOTPRINT_FLOOR_MB = 5;
 
 export interface IdleOptions {
   window: number;
@@ -53,6 +58,27 @@ export async function measureIdle(binary: string, options: IdleOptions): Promise
   }
 }
 
+export function idleMeasures(results: Series<IdleResult>): Measure[] {
+  return [
+    {
+      label: 'idle cpu',
+      series: results.map(([binary, runs]) => [
+        binary,
+        runs.map((run) => run.reading.cpuMsPerMinute),
+      ]),
+      floor: IDLE_CPU_FLOOR_MS_PER_MINUTE,
+    },
+    {
+      label: 'idle footprint (MB)',
+      series: results.map(([binary, runs]) => [
+        binary,
+        runs.map((run) => mebibytes(run.reading.footprintKib)),
+      ]),
+      floor: IDLE_FOOTPRINT_FLOOR_MB,
+    },
+  ];
+}
+
 export async function idle(binaries: string[], options: IdleCommandOptions): Promise<void> {
   say(`each run waits for the input box, then stands by for ${options.window}s`);
 
@@ -82,15 +108,9 @@ export async function idle(binaries: string[], options: IdleCommandOptions): Pro
     }
   }
 
-  sayPaired(
-    results.map(([binary, runs]) => [binary, runs.map((run) => run.reading.cpuMsPerMinute)]),
-    'idle cpu',
-  );
-  sayPaired(
-    results.map(([binary, runs]) => [
-      binary,
-      runs.map((run) => mebibytes(run.reading.footprintKib)),
-    ]),
-    'idle footprint (MB)',
-  );
+  const measures = idleMeasures(results);
+  for (const { label, series } of measures) {
+    sayPaired(series, label);
+  }
+  failOnRegressions(measures);
 }

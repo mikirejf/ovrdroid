@@ -7,7 +7,7 @@ import { ovrdroidFile } from '../paths.ts';
 import type { Drive } from './effort-switch-turn.ts';
 import { logOf, LOG_PATH, takeTurn } from './effort-switch-turn.ts';
 import type { TurnBust, TurnEnds, TurnName, TurnUsage } from './effort-switch-verdict.ts';
-import { bustsByTurn, switchVerdict, turnUsage } from './effort-switch-verdict.ts';
+import { bustsByTurn, switchRuling, switchVerdict, turnUsage } from './effort-switch-verdict.ts';
 import { CYCLE_EFFORT, lastShownEffort } from './effort.ts';
 import { jsonlAppender } from './jsonl.ts';
 import { openLiveSession, sessionFolder, withLiveDir } from './live-session.ts';
@@ -154,7 +154,8 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   }
   say(`the status line showed "${measured.labels.from}", then "${measured.labels.to}" after Tab`);
   say('');
-  say(switchVerdict({ efforts: measured.efforts, ...turns, busts: measured.busts }));
+  const outcomes = { efforts: measured.efforts, ...turns, busts: measured.busts };
+  say(switchVerdict(outcomes));
   await jsonlAppender(options.out)({
     t: new Date().toISOString(),
     model: options.model,
@@ -165,4 +166,11 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   });
   say('');
   say(`this run appended to ${options.out}`);
+  const ruling = switchRuling(outcomes);
+  if (ruling.kind === 'undecided') {
+    throw new Error(`could not decide whether the effort switch busts the cache: ${ruling.text}`);
+  }
+  if (ruling.kind === 'busted') {
+    process.exitCode = 1;
+  }
 }

@@ -5,11 +5,12 @@ import path from 'node:path';
 
 import { launch, launchEnv, PROBE_SETTINGS, PROBE_SETTINGS_FILE } from '../launch.ts';
 import { LEDGER_VARIABLE } from '../ledger.ts';
-import { START_HOOK_BOUND_MS } from '../owned-sessions.ts';
-import { PAINT_MARKER, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
+import { PAINT_OUTPUT, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
 
 const LAUNCH_SRC = path.join(import.meta.dir, '..', 'launch.ts');
 const dir = scriptDir('launch');
+const RECORD_DELAY_MS = 2000;
+const SESSION_BOUND_MS = 3000;
 
 afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -17,34 +18,34 @@ afterAll(async () => {
 
 const healthy = await script(dir, 'healthy.sh', [
   'stty raw -echo',
-  `printf '${PAINT_MARKER}'`,
+  `printf '${PAINT_OUTPUT}'`,
   START_HOOK,
   'dd bs=1 count=1 >/dev/null 2>&1',
   'exit 0',
 ]);
 const interrupted = await script(dir, 'interrupted.sh', [
   'stty raw -echo',
-  `printf '${PAINT_MARKER}'`,
+  `printf '${PAINT_OUTPUT}'`,
   START_HOOK,
   'dd bs=1 count=1 >/dev/null 2>&1',
   'exit 130',
 ]);
 const hookless = await script(dir, 'hookless.sh', [
   'stty raw -echo',
-  `printf '${PAINT_MARKER}'`,
+  `printf '${PAINT_OUTPUT}'`,
   'trap "exit 0" INT',
   'while :; do sleep 0.05; done',
 ]);
 const slowRecord = await script(dir, 'slow-record.sh', [
   'stty raw -echo',
-  `printf '${PAINT_MARKER}'`,
-  `( sleep 0.5; ${START_HOOK} ) &`,
+  `printf '${PAINT_OUTPUT}'`,
+  `( sleep ${RECORD_DELAY_MS / 1000}; ${START_HOOK} ) &`,
   'dd bs=1 count=1 >/dev/null 2>&1',
   `[ -f "$${LEDGER_VARIABLE}/start" ] || exit 9`,
   'exit 0',
 ]);
 const crashing = await script(dir, 'crashing.sh', [
-  `printf '${PAINT_MARKER}'`,
+  `printf '${PAINT_OUTPUT}'`,
   START_HOOK,
   'sleep 0.05',
   'exit 42',
@@ -87,16 +88,18 @@ describe('launch', () => {
 
   test('presses Ctrl-C only after the session reported in, so an early exit cannot hide it', async () => {
     const result = await launch(slowRecord, { settleMs: 50 });
-    expect(result.paintMs).toBeLessThan(400);
+    expect(result.paintMs).toBeLessThan(RECORD_DELAY_MS);
   }, 30_000);
 
   test('stops a target whose session never reported in, and says why', async () => {
     const listeners = process.listenerCount('SIGINT');
     const started = performance.now();
-    const message = await rejection(launch(hookless, { settleMs: 50 }));
+    const message = await rejection(
+      launch(hookless, { settleMs: 50, sessionBoundMs: SESSION_BOUND_MS }),
+    );
     expect(message).toContain("ran neither the probe's SessionStart nor its SessionEnd hook");
     expect(message).toContain(`may remain in ${homedir()}/.factory/sessions/-`);
-    expect(performance.now() - started).toBeGreaterThanOrEqual(START_HOOK_BOUND_MS);
+    expect(performance.now() - started).toBeGreaterThanOrEqual(SESSION_BOUND_MS);
     expect(process.listenerCount('SIGINT')).toBe(listeners);
   }, 30_000);
 

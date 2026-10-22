@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  anyFailed,
   BUSY,
   busyVerdicts,
   chipVerdict,
@@ -68,6 +69,25 @@ describe('progressEvents', () => {
   test('ignores other OSC 9 messages and other sequences', () => {
     const chunks = [chunk(1, `${osc('notify me')}${ESC}[0m${ESC}]0;title${BEL}`)];
     expect(progressEvents(chunks)).toEqual([]);
+  });
+});
+
+describe('anyFailed decides the exit code', () => {
+  test('a healthy run has no failure', () => {
+    expect(anyFailed(busyVerdicts(evidence(), MODEL, OPTIONAL))).toBe(false);
+  });
+
+  test('one FAIL among passes is a failure', () => {
+    const finish = {
+      ...healthy(),
+      chunks: [chunk(110, osc(BUSY)), chunk(4900, osc(BUSY))],
+    };
+    expect(anyFailed(busyVerdicts(evidence({ finish }), MODEL, OPTIONAL))).toBe(true);
+  });
+
+  test('a step the probe never reached is a failure, not a skip', () => {
+    const finish = { ...healthy(), marks: { prompt: 100 } };
+    expect(anyFailed(busyVerdicts(evidence({ finish }), MODEL, OPTIONAL))).toBe(true);
   });
 });
 

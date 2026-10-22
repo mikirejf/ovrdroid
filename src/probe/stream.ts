@@ -4,16 +4,16 @@ import path from 'node:path';
 
 import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
-import { interleave } from './ab.ts';
+import { interleaveWith } from './ab.ts';
 import type { Measured, Recorder } from './counter-file.ts';
 import { counterRecorder, endSpan, withRecorder } from './counter-file.ts';
 import { countVerdict, sayCounters } from './counters-report.ts';
-import { race } from './launch.ts';
+import { race, warmWithLaunch } from './launch.ts';
 import { sayPaired } from './paired.ts';
 import type { Session } from './session.ts';
 import { ENTER, openSettledSession } from './session.ts';
 import type { StreamReading } from './stream-report.ts';
-import { formatRuns, readStream, seriesOf } from './stream-report.ts';
+import { failOnStreamRegressions, formatRuns, readStream, seriesOf } from './stream-report.ts';
 import type { ReplyPlan, StubModel } from './stub-model.ts';
 import { pieces, replyText, startStubModel, stubSettings } from './stub-model.ts';
 import { sampleTree } from './tree-samples.ts';
@@ -101,14 +101,11 @@ export async function stream(binaries: string[], options: StreamCommandOptions):
   );
   say('cpu sums user and system time over the Droid process tree, read with ps before and after');
 
-  const results = await interleave(
-    binaries,
-    async (binary) =>
-      await measureStream(binary, plan, counterRecorder).catch((error: unknown) => {
-        throw new Error(`${binary}: ${messageOf(error)}`);
-      }),
-    options.runs,
-  );
+  const measure = async (binary: string) =>
+    await measureStream(binary, plan, counterRecorder).catch((error: unknown) => {
+      throw new Error(`${binary}: ${messageOf(error)}`);
+    });
+  const results = await interleaveWith(binaries, { measure, warmUp: warmWithLaunch }, options.runs);
 
   for (const [binary, runs] of results) {
     say(formatRuns(binary, runs));
@@ -121,6 +118,7 @@ export async function stream(binaries: string[], options: StreamCommandOptions):
     say('');
     say(countVerdict(seriesOf(results, 'frames'), 'frames'));
     say(countVerdict(seriesOf(results, 'bytes'), 'bytes'));
+    failOnStreamRegressions(results);
   }
   sayCounters(results);
 }
