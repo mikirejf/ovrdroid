@@ -31,7 +31,12 @@ match is hardcoded, with no setting.
 Patched, the same `droid exec` call ran `Script` with two `Read` calls and answered `3` and `5`
 lines. `probe tool-surface` on a `--bodies` build, now defaulting to `custom:droidproxy:sonnet-5-5`
 at effort low, reads the request body of one real turn and showed `Script` and `TodoWrite` together
-on the direct list. That one turn proves both this patch and `todo-write-direct`.
+on the direct list. That one turn proves both this patch and `direct-tools`.
+
+Opus 5.5 called `Read` and `Grep` directly in `script_only` sessions: 13 failures between Oct 18 and
+Oct 22 across long sessions, with arguments sent as strings like "true" and "60", a sign it had no
+schema. `direct-tools` puts `TodoWrite`, `Read` and `Grep` on the direct list. They stay bound
+inside `Script` too.
 
 ## Open
 

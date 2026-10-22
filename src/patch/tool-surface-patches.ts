@@ -13,8 +13,8 @@ export const toolSurfacePatches: readonly Patch[] = [
       'if(!((r?.some((u)=>u===t.modelId||u===i)??!1)||(t.modelId+i).toLowerCase().includes("sonnet")))',
   },
   {
-    name: 'todo-write-direct',
+    name: 'direct-tools',
     find: SURFACE_GATE,
-    replace: `${SURFACE_GATE}e==="TodoWrite"||`,
+    replace: `${SURFACE_GATE}["TodoWrite","Read","Grep"].includes(e)||`,
   },
 ];

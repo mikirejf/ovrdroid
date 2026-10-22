@@ -13,7 +13,7 @@ type Gate = (call: {
 const STOCK_GATE =
   'function Bh({toolName:e,surface:o,policy:t}){if(o==="direct")return t.mode!=="script_only"||I.has(e)||b.has(e)||!t.allowSubagentsInScripts&&e===nr.llmId;if(t.mode==="direct_only")return!1;if(I.has(e)||b.has(e))return!1;return e!==nr.llmId||t.allowSubagentsInScripts}';
 
-const OUTER_BINDINGS = 'let I=new Set(["Read"]),b=new Set(["Execute"]),nr={llmId:"Task"};';
+const OUTER_BINDINGS = 'let I=new Set(["Skill"]),b=new Set(["Execute"]),nr={llmId:"Task"};';
 
 function named(name: string) {
   const found = toolSurfacePatches.find((candidate) => candidate.name === name);
@@ -23,7 +23,7 @@ function named(name: string) {
   return found;
 }
 
-const patch = named('todo-write-direct');
+const patch = named('direct-tools');
 const sonnetPatch = named('script-mode-sonnet');
 
 function buildGate(source: string): Gate {
@@ -45,34 +45,42 @@ const patched = admitsWith(buildGate(STOCK_GATE.replace(patch.find, patch.replac
 const MODES: readonly Mode[] = ['script_only', 'direct_only', 'mixed'];
 const SURFACES: readonly Surface[] = ['direct', 'script'];
 
-describe('TodoWrite in script_only mode', () => {
+const DIRECT_TOOLS = ['TodoWrite', 'Read', 'Grep'];
+
+describe.each(DIRECT_TOOLS)('%s in script_only mode', (toolName) => {
   test('the stock gate hides it from the direct list', () => {
-    expect(stock('TodoWrite', 'direct', 'script_only')).toBe(false);
+    expect(stock(toolName, 'direct', 'script_only')).toBe(false);
   });
 
   test('is exposed directly', () => {
-    expect(patched('TodoWrite', 'direct', 'script_only')).toBe(true);
+    expect(patched(toolName, 'direct', 'script_only')).toBe(true);
   });
 
   test('stays bound inside Script', () => {
-    expect(patched('TodoWrite', 'script', 'script_only')).toBe(true);
+    expect(patched(toolName, 'script', 'script_only')).toBe(true);
   });
 });
 
-describe('direct_only mode', () => {
-  test('keeps TodoWrite on the direct list and out of Script', () => {
-    expect(patched('TodoWrite', 'direct', 'direct_only')).toBe(true);
-    expect(patched('TodoWrite', 'script', 'direct_only')).toBe(false);
+describe.each(DIRECT_TOOLS)('%s in the other modes', (toolName) => {
+  test('direct_only keeps it on the direct list and out of Script', () => {
+    expect(patched(toolName, 'direct', 'direct_only')).toBe(true);
+    expect(patched(toolName, 'script', 'direct_only')).toBe(false);
+  });
+
+  test('mixed matches the stock answer on both surfaces', () => {
+    for (const surface of SURFACES) {
+      expect(patched(toolName, surface, 'mixed')).toBe(stock(toolName, surface, 'mixed'));
+    }
   });
 });
 
 describe('every other tool is gated as before', () => {
   test('an ordinary tool stays off the direct list and on the script list', () => {
-    expect(patched('Grep', 'direct', 'script_only')).toBe(false);
-    expect(patched('Grep', 'script', 'script_only')).toBe(true);
+    expect(patched('Glob', 'direct', 'script_only')).toBe(false);
+    expect(patched('Glob', 'script', 'script_only')).toBe(true);
   });
 
-  test.each(['Read', 'Execute', 'Task', 'Grep', 'TodoWriteX', 'todowrite'])(
+  test.each(['Skill', 'Execute', 'Task', 'TodoWriteX', 'todowrite', 'grep', 'ReadX'])(
     '%s matches the stock answer on every mode and surface',
     (toolName) => {
       for (const mode of MODES) {
