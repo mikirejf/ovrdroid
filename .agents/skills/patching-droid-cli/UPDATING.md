@@ -277,9 +277,11 @@ These tests copy stock code and need a fresh copy when it changes:
 - `command-menu.test.ts` wraps the patch payload in the opening of stock's command ranking
   function. Copy that opening off the bundle again rather than renaming letters one by one, and
   keep the test's own `internalMenu` field where stock reads the suggestion kind.
-- `denylist-patches.test.ts` rebuilds stock's pattern builder around the payloads:
-  `STOCK_ARGUMENT_END` is a copy of the argument-end helper, and the wrapper's parameters name the
-  last token. Both follow the builder.
+- `rm-safety-patches.test.ts` carries three copies of stock code, each patched by its own payload:
+  the Execute tool's hard block list (`STOCK_HARD_BLOCKS`), the rules engine's `rm` safeguard
+  (`STOCK_GUARD`: its `P`, `xe`, `V`, `Ee` and `T` functions, with stand-ins for the dequoting
+  helpers) and the shell-word screen the runtime safeguards use (`STOCK_SCREEN`). Copy each off the
+  bundle again when its patch goes `missing`.
 - `mcp-hub-stock.ts` is a copy of stock's MCP hub class, in its own fixed names, that
   `mcp-idle-harness.ts` patches and runs. `stock-source.test.ts` checks each piece occurs once in
   the bundle **up to minified names** (`holePattern`), so a rename passes and only a real code
