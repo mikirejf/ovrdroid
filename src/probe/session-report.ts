@@ -1,6 +1,5 @@
 import { say } from '../cli.ts';
-import { readMcpConfig } from '../doctor/read.ts';
-import { FACTORY_MCP, INSTALLED_DROID } from '../paths.ts';
+import { INSTALLED_DROID } from '../paths.ts';
 import { anyFailed, busyVerdicts, describeVerdicts } from './busy-signal-report.ts';
 import type { BusySignalOptions } from './busy-signal.ts';
 import { runBusySignal, saveEvidence, STUB_MODEL_NAME } from './busy-signal.ts';
@@ -8,8 +7,8 @@ import { clearWhileTyping, describeClear } from './clear.ts';
 import type { FirstSendOptions } from './first-send.ts';
 import { describeFirstSend, sendFirstMessage } from './first-send.ts';
 import { askForHighlight, describeHighlight } from './highlight.ts';
-import type { LaunchEnv } from './launch.ts';
-import { countMcpChildren, describeMcpChildren } from './mcp-children.ts';
+import type { McpChildrenCommandOptions } from './mcp-children.ts';
+import { runMcpChildren } from './mcp-children.ts';
 import type { NoticeOptions } from './notice.ts';
 import { describeNotice, noticeVerdict, runNotice } from './notice.ts';
 import { describeRewind, readRewind, rewindVerdicts } from './rewind-report.ts';
@@ -74,25 +73,15 @@ export async function busySignal(binary: string, options: BusySignalCommand): Pr
   }
 }
 
-export interface McpChildrenCommandOptions {
-  settle: number;
-  env: LaunchEnv;
-  mcp?: string;
-}
-
 export async function mcpChildren(
   binary: string | undefined,
   options: McpChildrenCommandOptions,
 ): Promise<void> {
-  say(
-    `waiting ${options.settle}s after the input box; a server counts as running while a process under this droid carries its package name or command`,
-  );
-  const readings = await countMcpChildren(binary ?? INSTALLED_DROID, {
-    settle: options.settle,
-    env: options.env,
-    mcp: readMcpConfig(options.mcp ?? FACTORY_MCP),
-  });
-  say(describeMcpChildren(readings));
+  const verdict = await runMcpChildren(binary ?? INSTALLED_DROID, options);
+  say(verdict.reason);
+  if (!verdict.pass) {
+    process.exitCode = 1;
+  }
 }
 
 export async function firstSend(binary: string, options: FirstSendOptions): Promise<void> {

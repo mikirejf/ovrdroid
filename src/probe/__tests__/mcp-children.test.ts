@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
-import { describeMcpChildren, envPair, readMcpChildren, stdioServers } from '../mcp-children.ts';
+import {
+  describeLaunches,
+  describeMcpChildren,
+  envPair,
+  judgeMcpChildren,
+  readMcpChildren,
+  runningServers,
+  stdioServers,
+} from '../mcp-children.ts';
 import { parseParents } from '../tree.ts';
 
 const CONFIG = {
@@ -71,11 +79,79 @@ describe('describeMcpChildren says it in words', () => {
     );
   });
 
-  test('an empty config says there was nothing to count', () => {
-    expect(describeMcpChildren([])).toContain('nothing to count');
+  test('an empty config says there was nothing to test', () => {
+    expect(describeMcpChildren([])).toBe('nothing to test: no stdio MCP servers configured');
   });
 });
 
+describe('runningServers is what fails the probe', () => {
+  test('a live process at session open is a failure', () => {
+    const readings = [
+      { name: 'chrome-devtools', pid: 200, processes: 2 },
+      { name: 'local', pid: undefined, processes: 0 },
+    ];
+    expect(runningServers(readings).map((reading) => reading.name)).toEqual(['chrome-devtools']);
+  });
+
+  test('all servers dormant passes', () => {
+    expect(runningServers([{ name: 'local', pid: undefined, processes: 0 }])).toEqual([]);
+  });
+});
+
+describe('judgeMcpChildren passes only a run that exercised the patch', () => {
+  const running = { name: 'ovrdroid-fixture', pid: 200, processes: 1 };
+  const dormant = { name: 'ovrdroid-fixture', pid: undefined, processes: 0 };
+
+  test('no servers to look for fails in the default fixture mode', () => {
+    expect(judgeMcpChildren({ first: [], second: [] }, true)).toEqual({
+      pass: false,
+      reason: 'nothing tested: no stdio MCP servers to look for',
+    });
+  });
+
+  test('no servers to look for fails with a real config too', () => {
+    expect(judgeMcpChildren({ first: [], second: [] }, false).pass).toBe(false);
+  });
+
+  test('a fixture Droid never started on the cold launch tested nothing', () => {
+    const verdict = judgeMcpChildren({ first: [dormant], second: [dormant] }, true);
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('never started ovrdroid-fixture');
+  });
+
+  test('a real server already cached may stay dormant on both launches', () => {
+    expect(judgeMcpChildren({ first: [dormant], second: [dormant] }, false).pass).toBe(true);
+  });
+
+  test('a server running on the second launch fails', () => {
+    expect(judgeMcpChildren({ first: [running], second: [running] }, true)).toEqual({
+      pass: false,
+      reason: 'kept running from launch: ovrdroid-fixture',
+    });
+  });
+
+  test('started cold, dormant once cached passes', () => {
+    expect(judgeMcpChildren({ first: [running], second: [dormant] }, true).pass).toBe(true);
+  });
+});
+
+describe('describeLaunches names both launches', () => {
+  test('the second launch is the one judged', () => {
+    expect(
+      describeLaunches({
+        first: [{ name: 'ovrdroid-fixture', pid: 200, processes: 1 }],
+        second: [{ name: 'ovrdroid-fixture', pid: undefined, processes: 0 }],
+      }),
+    ).toBe(
+      [
+        'first launch, tools not cached yet:',
+        '  ovrdroid-fixture: running, pid 200',
+        'second launch, the one judged:',
+        '  ovrdroid-fixture: not running (dormant)',
+      ].join('\n'),
+    );
+  });
+});
 describe('envPair collects repeated --env options', () => {
   test('pairs accumulate and a value may contain =', () => {
     expect(envPair('B=x=y', envPair('A=1'))).toEqual({ A: '1', B: 'x=y' });

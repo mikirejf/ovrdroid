@@ -179,14 +179,14 @@ export function registerSessionCommands(program: Command): void {
   program
     .command('mcp-children')
     .description(
-      'open a session and list which stdio MCP servers it keeps running: is each one a live process or dormant until first use?',
+      'launch Droid twice with a fixture stdio MCP server in a scratch project: once its tools are cached, does the second launch keep the server dormant instead of starting it? Fails when Droid never started the fixture, since then nothing was tested',
     )
     .argument('[binary]', 'Droid binary to launch (default: the installed one)')
     .option('--settle <seconds>', 'how long to wait after the input box', count, DEFAULT_SETTLE_S)
     .option('--env <KEY=VALUE>', 'extra environment for Droid, repeatable', envPair, {})
     .option(
       '--mcp <file>',
-      'mcp.json whose stdio servers are counted (default: ~/.factory/mcp.json)',
+      'test the stdio servers of this mcp.json instead of the fixture; Droid starts in the current directory and must load the file itself (from ~/.factory or the project)',
     )
     .action(guard(mcpChildren));
 
