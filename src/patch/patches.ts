@@ -254,6 +254,11 @@ export const patches: readonly Patch[] = [
       'return Promise.resolve()}',
   },
   {
+    name: 'live-reply-shows-every-line',
+    find: 'if(N===void 0)return O;return t(c1e,{maxRows:N,children:O})});TF.displayName="DynamicMessageList";',
+    replace: 'return O});TF.displayName="DynamicMessageList";',
+  },
+  {
     name: 'mcp-servers-start-together',
     find: 'for(let[K,oe]of N)await te(K,oe);await Promise.all(z.map(([K,oe])=>te(K,oe)));',
     replace: 'await Promise.all([...N,...z].map(([K,oe])=>te(K,oe)));',
