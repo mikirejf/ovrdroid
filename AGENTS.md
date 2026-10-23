@@ -124,6 +124,10 @@ being tested. Tell the user afterwards that running Droid sessions need a restar
 
 ## Every tool you build lands in this repo
 
+The probe commands are a toolbox for reading, measuring and driving Droid. Before you write a script
+to do any of that, run `bun run probe --help`: it lists every command with the question it answers.
+Use whichever fit the job, or none.
+
 If you write something that measures, probes, scans, or reproduces a bug, **it belongs in `src/` as
 a `probe` subcommand, not in `/tmp`**. A throwaway script answers one question once and is gone by
 the next session; the next agent then rebuilds it from nothing and gets a slightly different answer.

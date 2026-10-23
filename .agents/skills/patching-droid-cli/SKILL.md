@@ -110,6 +110,11 @@ patterns error out, and a recursive grep over hundreds of chunks times out.
 
 `bun run probe extract <binary> -o work/src/<version>` writes one file per module when you need to
 read a whole region rather than query it. Keep the previous release's extraction beside it.
+`bun run probe readable <binary> -o <dir>` writes the same modules as readable JSX, with React
+hooks and components named. Use it to understand code; anchor patches on the minified text.
+
+These are only the commands for finding a patch site. `bun run probe --help` lists the whole
+toolbox.
 
 - Anchor on strings the minifier cannot rename: log messages, telemetry event names, URL paths,
   env var names. Then walk outward to the identifier you need.
