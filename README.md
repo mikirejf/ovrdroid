@@ -445,16 +445,16 @@ release on its own. `dotfiles-sync` on the Mac runs the same step at once. Run `
 pushing a patch change, because a patch that fits only one platform makes that host's sync fail, and
 the host keeps its current Droid.
 
-On the Mac, `update` and `apply` also run the gate
-(`ovrdroid gate --target <build> --stock <stock>`) on the freshly built binary before it replaces
-the installed Droid: the build basics and the probes for speed against stock, prompt cache,
-compaction, MCP servers, sub-agents and token cost. One failure deletes the build and installs and
-pins nothing; each check's output is in
+On the Mac, `update` also runs the gate (`ovrdroid gate --target <build> --stock <stock>`) on the
+freshly built binary before it replaces the installed Droid: the build basics and the probes for
+speed against stock, prompt cache, compaction, MCP servers, sub-agents and token cost. One failure
+deletes the build and installs and pins nothing; each check's output is in
 `~/.cache/ovrdroid/gate/<version>-<patch digest>/<check>.log`. A pass writes `gate-pass.json`, which
 you commit with `droid-version`. The stamp records the Droid version, the patch digest and the Bun
-version the build used; when it already covers all three, `update` and `apply` skip the gate and say
-so. `ovrdroid sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pinned version
-the stamp does not cover with the current patch set and Bun version.
+version the build used; when it already covers all three, `update` skips the gate and says so.
+`apply` never runs the gate, so after a patch change run `ovrdroid gate` before you push.
+`ovrdroid sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pinned version the
+stamp does not cover with the current patch set and Bun version.
 
 To run it from anywhere, link the entry point onto your `PATH`:
 

@@ -174,10 +174,11 @@ build is slower than stock with confidence and by more than the measure's floor 
 Checks that run side by side must not share state.
 
 When every check passes the gate writes `gate-pass.json` (Droid version, patch digest, Bun version,
-platform, time, check names); commit it with `droid-version`. `update` and `apply` run the gate
-before they replace anything and skip it when the stamp already covers the same Droid version, patch
-digest and Bun version. `sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pin
-the stamp does not cover.
+platform, time, check names); commit it with `droid-version`. `update` runs the gate before it
+replaces anything and skips it when the stamp already covers the same Droid version, patch digest
+and Bun version. `apply` never runs it, so after a patch change run `ovrdroid gate` yourself before
+you push. `sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pin the stamp does
+not cover.
 
 ## Findings and measuring
 

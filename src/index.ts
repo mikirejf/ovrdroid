@@ -36,7 +36,7 @@ function status(options: Options): void {
 }
 
 async function apply(options: Options): Promise<void> {
-  await applyTo(options.target, GATED_HERE);
+  await applyTo(options.target, false);
 }
 
 async function hooks(): Promise<void> {
@@ -119,7 +119,7 @@ program
 program
   .command('gate')
   .description(
-    'run every behavioural check on a patched build against its stock build, and write gate-pass.json when all pass; update and apply run it before they install, sync and the pre-push hook refuse a pin it never passed',
+    'run every behavioural check on a patched build against its stock build, and write gate-pass.json when all pass; update runs it before it installs, sync and the pre-push hook refuse a pin it never passed',
   )
   .option(...targetOption)
   .option('--stock <path>', 'stock Droid the target was built from (default: the target .orig)')
