@@ -5,8 +5,8 @@ import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import type { Patch } from '../patches.ts';
 import { findMarker } from '../patches.ts';
 import { rebaseAll } from '../rebase.ts';
+import { closureOf } from './module-closure.ts';
 import { rebasedNamed as rebasedIn } from './payload.ts';
-import { scannerSource } from './scanner-source.ts';
 
 export interface Finding {
   ruleId: string;
@@ -49,9 +49,6 @@ const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
 const LINE_MATCHER =
   /function (?<name>[\w$]+)\(\w+\)\{let \w+=\w+\.replace\(\w+,\(\w+\)=>" "\.repeat\(/u;
 
-const REDACTOR =
-  /function [\w$]+\([\w$]+,[\w$]+=\{\}\)\{try\{let [\w$]+=typeof [\w$]+==="function"\?[\w$]+\(\):[\w$]+;if\(typeof [\w$]+!=="string"\)return\{success:!1\};/u;
-
 export function scannerText(app: App): string {
   const module = app.find((candidate) => candidate.text.includes(SCANNER_ANCHOR));
   if (module === undefined) {
@@ -62,13 +59,11 @@ export function scannerText(app: App): string {
 
 export function lineMatcherIn(app: App): LineMatcher {
   const text = scannerText(app);
-  const rules = text.indexOf(SCANNER_ANCHOR);
-  const name = LINE_MATCHER.exec(text.slice(rules))?.groups?.['name'];
-  const end = text.slice(rules).search(REDACTOR);
-  if (name === undefined || end === -1) {
+  const name = LINE_MATCHER.exec(text.slice(text.indexOf(SCANNER_ANCHOR)))?.groups?.['name'];
+  if (name === undefined) {
     throw new Error('the secret-scanner line matcher is not where the tests expect it');
   }
-  // SAFETY: the body is the shipped scanner, from its rule helpers up to the redactor that follows the line matcher.
+  // SAFETY: the body is the shipped line matcher with the top-level declarations it reaches.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${scannerSource(text, rules, end)};return ${name}`)() as LineMatcher;
+  return new Function(`${closureOf(text, [name])};return ${name}`)() as LineMatcher;
 }
