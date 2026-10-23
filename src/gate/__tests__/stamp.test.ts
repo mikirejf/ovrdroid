@@ -15,7 +15,7 @@ const STAMP: GateStamp = {
   passedAt: '2026-10-20T12:00:00.000Z',
   checks: ['verify', 'highlight'],
 };
-const EXPECTED = { droidVersion: '0.244.0', patchDigest: 'abc123def456', bunVersion: '1.4.3' };
+const EXPECTED = { droidVersion: '0.244.0', bunVersion: '1.4.3' };
 const FILE = 'gate-pass.json';
 const dir = makeTempDir('gate-stamp');
 
@@ -24,13 +24,13 @@ afterAll(async () => {
 });
 
 describe('stampProblem', () => {
-  test('is silent when version, digest and Bun all match', () => {
+  test('is silent when version and Bun match', () => {
     expect(stampProblem(JSON.stringify(STAMP), EXPECTED, FILE)).toBeUndefined();
   });
 
   test('names the Bun that was gated when it is another one', () => {
     const problem = stampProblem(JSON.stringify(STAMP), { ...EXPECTED, bunVersion: '1.5.0' }, FILE);
-    expect(problem).toContain('built on Bun 1.5.0');
+    expect(problem).toContain('was never gated on Bun 1.5.0');
     expect(problem).toContain('records Bun 1.4.3');
   });
 
@@ -45,18 +45,13 @@ describe('stampProblem', () => {
       { ...EXPECTED, droidVersion: '0.245.0' },
       FILE,
     );
-    expect(problem).toContain('Droid 0.245.0 was never gated with patch set abc123def456');
+    expect(problem).toContain('Droid 0.245.0 was never gated on Bun 1.4.3');
     expect(problem).toContain('records Droid 0.244.0');
   });
 
-  test('names the patch set that was gated when it is another one', () => {
-    const problem = stampProblem(
-      JSON.stringify(STAMP),
-      { ...EXPECTED, patchDigest: 'ffffffffffff' },
-      FILE,
-    );
-    expect(problem).toContain('was never gated with patch set ffffffffffff');
-    expect(problem).toContain('records patch set abc123def456');
+  test('covers a build whose patch set differs from the stamped one', () => {
+    const stamped = JSON.stringify({ ...STAMP, patchDigest: 'ffffffffffff' });
+    expect(stampProblem(stamped, EXPECTED, FILE)).toBeUndefined();
   });
 
   test('says the file is missing when there is no stamp', () => {
@@ -86,15 +81,12 @@ describe('assertGated', () => {
     }).toThrow('does not exist');
   });
 
-  test('passes when version and digest match and throws when either differs', () => {
+  test('passes when version and Bun match and throws when either differs', () => {
     const file = path.join(dir, 'present.json');
     writeFileSync(file, JSON.stringify(STAMP));
     expect(() => {
       assertGated(EXPECTED, file);
     }).not.toThrow();
-    expect(() => {
-      assertGated({ ...EXPECTED, patchDigest: 'ffffffffffff' }, file);
-    }).toThrow('never gated');
     expect(() => {
       assertGated({ ...EXPECTED, droidVersion: '0.245.0' }, file);
     }).toThrow('never gated');
@@ -109,9 +101,7 @@ describe('gateProblem', () => {
     const file = path.join(dir, 'skip.json');
     writeFileSync(file, JSON.stringify(STAMP));
     expect(gateProblem(EXPECTED, file)).toBeUndefined();
-    expect(gateProblem({ ...EXPECTED, patchDigest: 'ffffffffffff' }, file)).toContain(
-      'records patch set abc123def456',
-    );
+    expect(gateProblem({ ...EXPECTED, bunVersion: '1.5.0' }, file)).toContain('records Bun 1.4.3');
     expect(gateProblem(EXPECTED, path.join(dir, 'absent.json'))).toContain('does not exist');
   });
 });

@@ -24,7 +24,7 @@ async function passGate(candidate: string, stock: string, version: string): Prom
   const covered = gatedNow(version);
   if (gateProblemNow(version) === undefined) {
     say(
-      `gate: gate-pass.json already covers Droid ${covered.droidVersion}, patch set ${covered.patchDigest}, Bun ${covered.bunVersion}; not running it again`,
+      `gate: gate-pass.json already covers Droid ${covered.droidVersion} on Bun ${covered.bunVersion}; not running it again`,
     );
     return;
   }

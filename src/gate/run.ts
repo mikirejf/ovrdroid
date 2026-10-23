@@ -23,7 +23,11 @@ function platformName(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-function gatedBuild(target: string, stock: string): Gated {
+interface GatedBuild extends Gated {
+  patchDigest: string;
+}
+
+function gatedBuild(target: string, stock: string): GatedBuild {
   const patchDigest = markerDigest(patches);
   const built = readStock(target);
   const status = statusOf(built.app, patches);

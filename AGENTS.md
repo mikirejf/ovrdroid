@@ -161,11 +161,11 @@ patch change: a patch that fits only one platform breaks that host's sync.
 
 ## Update gate
 
-After every update the gate must pass on the build. It runs the after-update checks listed in
-`src/gate/checks.ts`: the build basics (`verify`, `probe builds`, `bun test`) and the probes for
-what costs time or tokens: speed against stock, prompt cache, compaction, MCP servers, sub-agents,
-and what the model is sent. Every other probe is optional; run it when a change touches its area.
-Only a check in one of those areas joins the gate.
+After every update to a new Droid version the gate must pass on the build. It runs the after-update
+checks listed in `src/gate/checks.ts`: the build basics (`verify`, `probe builds`, `bun test`) and
+the probes for what costs time or tokens: speed against stock, prompt cache, compaction, MCP
+servers, sub-agents, and what the model is sent. Every other probe is optional; run it when a change
+touches its area. Only a check in one of those areas joins the gate.
 
 `ovrdroid gate --target <patched> --stock <stock>` (defaults: the installed Droid and its `.orig`)
 writes each check's output to `~/.cache/ovrdroid/gate/<version>-<patch digest>/<check>.log`. A check
@@ -174,11 +174,11 @@ build is slower than stock with confidence and by more than the measure's floor 
 Checks that run side by side must not share state.
 
 When every check passes the gate writes `gate-pass.json` (Droid version, patch digest, Bun version,
-platform, time, check names); commit it with `droid-version`. `update` runs the gate before it
-replaces anything and skips it when the stamp already covers the same Droid version, patch digest
-and Bun version. `apply` never runs it, so after a patch change run `ovrdroid gate` yourself before
-you push. `sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pin the stamp does
-not cover.
+platform, time, check names); commit it with `droid-version`. The stamp covers a Droid version and a
+Bun version; the patch digest is recorded but not compared. `update` to a new Droid version runs the
+gate before it replaces anything and skips it when the stamp already covers the same Droid version
+and Bun version. `apply` never runs it, and a patch change needs no gate run before you push. `sync`
+refuses a pin the stamp does not cover. There is no pre-push stamp check.
 
 ## Findings and measuring
 

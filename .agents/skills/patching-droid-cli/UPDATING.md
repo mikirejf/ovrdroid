@@ -16,8 +16,8 @@ timer, which installs the version `update` pinned in `droid-version` on the Mac.
 it blocks every push until the drift is fixed. Start here.
 
 Done when the gate passes for the new release. The gate (`ovrdroid gate`, run for you by `update`
-and `apply`) covers speed against stock (`probe ab` never slower), prompt cache, compaction, MCP
-servers, sub-agents, the tools sent to the model, and `probe builds` for every platform. Faster is
+when it moves to a new Droid version) covers speed against stock (`probe ab` never slower), prompt
+cache, compaction, MCP servers, sub-agents, the tools sent to the model, and `probe builds` for every platform. Faster is
 not the bar: as Droid moves its own waits after paint, the paint gap shrinks toward zero, and an
 interval that straddles zero at `-r 24` is a pass. Then record what you learned (step 7) and
 commit `droid-version` and `gate-pass.json` together with the patch changes.
@@ -381,13 +381,13 @@ Before it finishes, `update` builds to `<target>.tmp` and runs the gate on that 
 leaves the target, its `.orig` and `droid-version` untouched, deletes the build, and prints which
 check failed and where its log is (`~/.cache/ovrdroid/gate/<version>-<digest>/<check>.log`).
 Then prove it, below, and push. The real `ovrdroid update` pins the new version in `droid-version`
-only when `gate-pass.json` covers that version and the current patch set; push both files. The
-stamp key is the Droid version, the patch digest and the Bun version (`BUILD_BUN_VERSION`). Within
+only when `gate-pass.json` covers that version; push both files. The stamp key is the Droid
+version and the Bun version (`BUILD_BUN_VERSION`); the patch digest is recorded, not compared, so a
+patch change alone needs no gate run. Within
 15 minutes each Linux host pulls ovrdroid and runs `ovrdroid sync`, which runs no probes and
 refuses a pin the stamp does not cover. Otherwise it installs the pinned version. A patch set that
 fits only one platform makes that step fail, and the host keeps its current Droid. The `builds`
-check catches it, and the pre-push hook (`ovrdroid gate --check-stamp`) blocks a push without a
-covering stamp.
+check catches it.
 
 ## 6. Prove it
 

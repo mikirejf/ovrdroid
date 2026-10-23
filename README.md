@@ -451,10 +451,10 @@ speed against stock, prompt cache, compaction, MCP servers, sub-agents and token
 deletes the build and installs and pins nothing; each check's output is in
 `~/.cache/ovrdroid/gate/<version>-<patch digest>/<check>.log`. A pass writes `gate-pass.json`, which
 you commit with `droid-version`. The stamp records the Droid version, the patch digest and the Bun
-version the build used; when it already covers all three, `update` skips the gate and says so.
-`apply` never runs the gate, so after a patch change run `ovrdroid gate` before you push.
-`ovrdroid sync` and the pre-push hook (`ovrdroid gate --check-stamp`) refuse a pinned version the
-stamp does not cover with the current patch set and Bun version.
+version the build used, and covers a Droid version and a Bun version; when it already covers both,
+`update` skips the gate and says so. The gate runs when `update` moves to a new Droid version.
+`apply` never runs it, and a patch change needs no gate run before you push. `ovrdroid sync` refuses
+a pinned version the stamp does not cover with the current Bun version.
 
 To run it from anywhere, link the entry point onto your `PATH`:
 

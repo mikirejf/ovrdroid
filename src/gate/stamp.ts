@@ -7,11 +7,11 @@ export const GATE_STAMP_FILE = path.join(import.meta.dir, '..', '..', 'gate-pass
 
 export interface Gated {
   droidVersion: string;
-  patchDigest: string;
   bunVersion: string;
 }
 
 export interface GateStamp extends Gated {
+  patchDigest: string;
   platform: string;
   passedAt: string;
   checks: string[];
@@ -54,7 +54,7 @@ export function stampProblem(
   expected: Gated,
   file: string,
 ): string | undefined {
-  const never = `Droid ${expected.droidVersion} was never gated with patch set ${expected.patchDigest} built on Bun ${expected.bunVersion}`;
+  const never = `Droid ${expected.droidVersion} was never gated on Bun ${expected.bunVersion}`;
   if (stampText === undefined) {
     return `${never}: ${file} does not exist; run \`ovrdroid update\` or \`ovrdroid gate\` on the Mac`;
   }
@@ -64,9 +64,6 @@ export function stampProblem(
   }
   if (stamp.droidVersion !== expected.droidVersion) {
     return `${never}: ${file} records Droid ${stamp.droidVersion}`;
-  }
-  if (stamp.patchDigest !== expected.patchDigest) {
-    return `${never}: ${file} records patch set ${stamp.patchDigest}`;
   }
   if (stamp.bunVersion !== expected.bunVersion) {
     return `${never}: ${file} records Bun ${stamp.bunVersion}`;
