@@ -259,6 +259,16 @@ export const patches: readonly Patch[] = [
     replace: 'return O});TF.displayName="DynamicMessageList";',
   },
   {
+    name: 'escape-keeps-turn-running',
+    find: 'if(qi!=="idle")return lL(),!0;return!1};return Mr.subscribe(ke,{layer:4})',
+    replace: 'if(qi!=="idle")return!0;return!1};return Mr.subscribe(ke,{layer:4})',
+  },
+  {
+    name: 'no-escape-stop-hint',
+    find: '"(Please wait)":"(Press ESC to stop)"}',
+    replace: '"(Please wait)":""}',
+  },
+  {
     name: 'mcp-servers-start-together',
     find: 'for(let[K,oe]of N)await te(K,oe);await Promise.all(z.map(([K,oe])=>te(K,oe)));',
     replace: 'await Promise.all([...N,...z].map(([K,oe])=>te(K,oe)));',
