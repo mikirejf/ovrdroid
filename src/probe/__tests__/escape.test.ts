@@ -5,7 +5,10 @@ import {
   describeEscape,
   escapeVerdict,
   readEscape,
+  describeRewind,
   REPLY_OPENING,
+  REWIND_MENU,
+  rewindVerdict,
   STOP_HINT,
 } from '../escape-report.ts';
 import { STUB_END } from '../stub-model.ts';
@@ -68,5 +71,30 @@ describe('describeEscape', () => {
 
     expect(text).toStartWith('FAIL  Esc stopped the turn');
     expect(text).toContain(`"${STOP_HINT}" never showed on screen`);
+  });
+});
+
+describe('rewindVerdict', () => {
+  test('passes when the rewind menu opened', () => {
+    const verdict = rewindVerdict([RUNNING, `${RUNNING}\n${REWIND_MENU}`]);
+
+    expect(verdict.pass).toBe(true);
+    expect(verdict.reason).toContain('opened the rewind menu');
+    expect(describeRewind(verdict)).toStartWith('PASS  three quick Esc presses');
+  });
+
+  test('fails when the rewind menu never opened', () => {
+    const verdict = rewindVerdict([RUNNING, CANCELLED]);
+
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('the rewind menu did not open');
+    expect(describeRewind(verdict)).toStartWith('FAIL  ');
+  });
+
+  test('fails when the turn never started', () => {
+    const verdict = rewindVerdict(['nothing here', REWIND_MENU]);
+
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toBe('the turn never started, so nothing was tested');
   });
 });

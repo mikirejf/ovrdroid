@@ -269,6 +269,20 @@ export const patches: readonly Patch[] = [
     replace: '"(Please wait)":""}',
   },
   {
+    name: 'rewind-stops-running-turn',
+    find: 'if(lo&&lo.getDroidWorkingState()!=="idle")return!1}catch(Ct){n("[App] Failed to read session state for rewind gate"',
+    lookups: ['lL=g(async()=>{let ke=Eo?eu(Eo)?.getQueuedMessages()'],
+    replace:
+      'if(lo&&lo.getDroidWorkingState()!=="idle"&&(await lL(),lo.getDroidWorkingState()!=="idle"))return!1}catch(Ct){n("[App] Failed to read session state for rewind gate"',
+  },
+  {
+    name: 'rewind-sees-current-stop',
+    find: 'return yr.openPane({kind:"rewind",payload:{options:rt}}),!0},[wi,yr,it,sr,kn,bx,Vn]);',
+    lookups: ['lL=g(async()=>{let ke=Eo?eu(Eo)?.getQueuedMessages()'],
+    replace:
+      'return yr.openPane({kind:"rewind",payload:{options:rt}}),!0},[wi,yr,it,sr,kn,bx,Vn,lL]);',
+  },
+  {
     name: 'mcp-servers-start-together',
     find: 'for(let[K,oe]of N)await te(K,oe);await Promise.all(z.map(([K,oe])=>te(K,oe)));',
     replace: 'await Promise.all([...N,...z].map(([K,oe])=>te(K,oe)));',
