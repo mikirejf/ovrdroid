@@ -11,12 +11,14 @@ interface Armed {
   start: () => void;
   delay: number;
   unrefs: number;
+  outside: boolean;
 }
 
 type Bindings = [
   (name: string) => object,
   (start: () => void, delay: number) => { unref: () => void },
   (message: string, detail: Logged['detail']) => void,
+  <T>(work: () => T) => T,
 ];
 
 function done(): void {}
@@ -28,8 +30,17 @@ function environment() {
   const armed: Armed[] = [];
   const logged: Logged[] = [];
   const { fs } = new ClockEnv();
+  let depth = 0;
+  const outside = <T>(work: () => T): T => {
+    depth += 1;
+    try {
+      return work();
+    } finally {
+      depth -= 1;
+    }
+  };
   const env = payloadFunction<Bindings, ClockEnvironment>(
-    ['require', 'setTimeout', 'n'],
+    ['require', 'setTimeout', 'n', 'vo'],
     `return ${CACHE_CLOCK_ENV}`,
   )(
     (name) => {
@@ -50,7 +61,7 @@ function environment() {
       throw new Error(`unexpected require(${name})`);
     },
     (callback, delay) => {
-      const timer = { start: callback, delay, unrefs: 0 };
+      const timer = { start: callback, delay, unrefs: 0, outside: depth > 0 };
       armed.push(timer);
       return {
         unref: () => {
@@ -61,6 +72,7 @@ function environment() {
     (message, detail) => {
       logged.push({ message, detail });
     },
+    outside,
   );
   return { env, fs, spawned, armed, logged };
 }
@@ -91,7 +103,13 @@ test('the shipped environment waits before it starts and does not keep Droid ali
 
   env.later(start);
 
-  expect(armed).toEqual([{ start, delay: FINGERPRINT_DELAY_MS, unrefs: 1 }]);
+  expect(armed).toEqual([{ start, delay: FINGERPRINT_DELAY_MS, unrefs: 1, outside: true }]);
+});
+
+test('the shipped environment runs work through Droid and returns its result', () => {
+  const { env } = environment();
+
+  expect(env.outside(() => 'result')).toBe('result');
 });
 
 test('the shipped environment logs through Droid', () => {

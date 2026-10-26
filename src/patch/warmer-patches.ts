@@ -74,6 +74,7 @@ export const warmerPatches: readonly Patch[] = [
       'function p(){let t=Te(IX);if(t)return t;if(!kv)kv=new Oi,',
       'n("[Prompt-Caching] Failed to promote cached prefix",{sessionId:',
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
+      'return vo(()=>Xq(e))}catch(e){return Promise.reject(e)}}takePendingMissionMetadataSync(){',
     ],
     replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t);try{$ODCs(t),$ODWa(t)}catch{}}`,
   },

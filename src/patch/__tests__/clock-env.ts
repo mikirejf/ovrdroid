@@ -77,6 +77,7 @@ export interface ClockEnvironment {
   dir: string;
   sessions: string;
   log: (message: string, detail: Logged['detail']) => void;
+  outside: <T>(work: () => T) => T;
   later: (start: () => void) => void;
 }
 
@@ -111,6 +112,7 @@ export class ClockEnv {
   readonly unlinked: string[] = [];
   readonly reads: string[] = [];
   writeFailure: Error | undefined;
+  outsideDepth = 0;
   private started: (() => void) | undefined;
 
   readonly fs: FakeFs = {
@@ -192,6 +194,15 @@ export class ClockEnv {
     this.logged.push({ message, detail });
   };
 
+  readonly outside = <T>(work: () => T): T => {
+    this.outsideDepth += 1;
+    try {
+      return work();
+    } finally {
+      this.outsideDepth -= 1;
+    }
+  };
+
   readonly later = (start: () => void): void => {
     this.started = start;
   };
@@ -226,6 +237,7 @@ export class ClockEnv {
       dir: CLOCK_DIR,
       sessions: SESSIONS_DIR,
       log: this.log,
+      outside: this.outside,
       later: this.later,
     };
   }

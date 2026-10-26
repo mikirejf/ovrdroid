@@ -40,7 +40,6 @@ import {
   DEFAULT_SWITCH_TO,
   effortSwitch,
 } from './effort-switch.ts';
-import { registerEscapeCommand } from './escape-command.ts';
 import type { ChurnKind } from './menu-report.ts';
 import { CHURN_GAP_MS, CHURN_KINDS, DEFAULT_ROUNDS, menu, touches, watch } from './menu-report.ts';
 import { buildProbe, DEFAULT_STOCK } from './probe-build.ts';
@@ -55,6 +54,7 @@ import {
   effortClear,
   keys,
 } from './speed-report.ts';
+import { registerTurnCommands } from './turn-commands.ts';
 import { registerWarmCommand } from './warm-command.ts';
 
 const AB_RUNS = 30;
@@ -142,7 +142,7 @@ program
 
 registerCommands(program);
 registerWarmCommand(program);
-registerEscapeCommand(program);
+registerTurnCommands(program);
 
 function churnOptions(command: Command): Command {
   return command

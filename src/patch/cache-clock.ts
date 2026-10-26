@@ -88,7 +88,7 @@ export const CACHE_CLOCK_FACTORY =
   `${CACHE_CLOCK_PURE}function $ODCf($ODenv){` +
   `let $ODfs=$ODenv.fs,$ODmap=()=>${CACHE_CLOCK_GLOBAL}??=new Map,$ODmine={done:!1,setup:null},` +
   '$ODlisteners=new Set,$ODtried=new Set,$ODgone=new Set,$ODqueues=new Map,$ODpending,' +
-  '$ODemit=()=>{for(let $ODlisten of $ODlisteners)$ODlisten()},' +
+  '$ODemit=()=>$ODenv.outside(()=>{for(let $ODlisten of $ODlisteners)$ODlisten()}),' +
   '$ODfile=($ODsid)=>$ODenv.dir+"/"+$ODsid+".json",' +
   `${FINGERPRINT},` +
   `${SAVE},` +
@@ -109,7 +109,8 @@ export const CACHE_CLOCK_ENV =
   `dir:require("os").homedir()+"/${OVRDROID_UNDER_HOME}/${CACHE_CLOCK_DIR}",` +
   `sessions:require("os").homedir()+"/${SESSIONS_UNDER_HOME}",` +
   'log:($ODmessage,$ODdetail)=>n($ODmessage,$ODdetail),' +
-  `later:($ODstart)=>setTimeout($ODstart,${FINGERPRINT_DELAY_MS}).unref?.()}`;
+  'outside:($ODwork)=>vo($ODwork),' +
+  `later:($ODstart)=>vo(()=>setTimeout($ODstart,${FINGERPRINT_DELAY_MS})).unref?.()}`;
 
 export const CACHE_CLOCK_RECORDERS =
   `${CACHE_CLOCK_FACTORY}var $ODCr=${CACHE_CLOCK_RUNTIME_GLOBAL}=$ODCf(${CACHE_CLOCK_ENV});` +
