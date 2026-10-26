@@ -27,6 +27,8 @@ retraction, because how it went wrong is the reusable part.
 - [script-mode.md](script-mode.md): which models get the Script tool, the remote list that decides,
   and the Sonnet patch.
 - [menu-rescans.md](menu-rescans.md): why one new Droid makes every other Droid's slash menu rescan.
+- [stale-edits.md](stale-edits.md): why Edit refused files that changed since they were read, what
+  the credit patch left, and the unique-match patch.
 
 Prompt cache and token spend:
 

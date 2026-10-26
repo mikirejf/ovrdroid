@@ -123,7 +123,7 @@ async function runCase(run: CaseRun): Promise<Observed> {
   }
 }
 
-async function inBatches<T, R>(
+export async function inBatches<T, R>(
   items: readonly T[],
   size: number,
   work: (item: T, index: number) => Promise<R>,

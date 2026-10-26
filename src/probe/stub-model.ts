@@ -4,7 +4,6 @@ import { PROBE_SETTINGS } from './launch.ts';
 
 export const STUB_END = 'End of the stub reply.';
 const STUB_MODEL = 'stub-stream';
-const STUB_ID = `custom:${STUB_MODEL}`;
 
 export interface ReplyPlan {
   chars: number;
@@ -104,22 +103,24 @@ function event(data: StreamEvent): string {
   return `event: ${data.type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+function messageStart(): string {
+  return event({
+    type: 'message_start',
+    message: {
+      id: 'msg_stub',
+      type: 'message',
+      role: 'assistant',
+      model: STUB_MODEL,
+      content: [],
+      stop_reason: null,
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    },
+  });
+}
+
 function opening(block: Json): string {
-  return (
-    event({
-      type: 'message_start',
-      message: {
-        id: 'msg_stub',
-        type: 'message',
-        role: 'assistant',
-        model: STUB_MODEL,
-        content: [],
-        stop_reason: null,
-        stop_sequence: null,
-        usage: { input_tokens: 1, output_tokens: 1 },
-      },
-    }) + event({ type: 'content_block_start', index: 0, content_block: block })
-  );
+  return messageStart() + event({ type: 'content_block_start', index: 0, content_block: block });
 }
 
 function closing(stopReason: string, outputTokens: number): string {
@@ -166,13 +167,44 @@ export function toolEvents(call: ToolCall): string[] {
   ];
 }
 
-export function stubSettings(url: string) {
+export function toolBatchEvents(calls: readonly ToolCall[]): string[] {
+  return [
+    messageStart(),
+    ...calls.flatMap((call, index) => [
+      event({
+        type: 'content_block_start',
+        index,
+        content_block: {
+          type: 'tool_use',
+          id: call.id ?? `toolu_stub_${index}`,
+          name: call.name,
+          input: {},
+        },
+      }),
+      event({
+        type: 'content_block_delta',
+        index,
+        delta: { type: 'input_json_delta', partial_json: JSON.stringify(call.input) },
+      }),
+      event({ type: 'content_block_stop', index }),
+    ]),
+    event({
+      type: 'message_delta',
+      delta: { stop_reason: 'tool_use', stop_sequence: null },
+      usage: { output_tokens: calls.length },
+    }),
+    event({ type: 'message_stop' }),
+  ];
+}
+
+export function stubSettings(url: string, model = STUB_MODEL) {
+  const id = `custom:${model}`;
   return {
     ...PROBE_SETTINGS,
     customModels: [
       {
-        id: STUB_ID,
-        model: STUB_MODEL,
+        id,
+        model,
         displayName: 'Stub Stream',
         provider: 'anthropic',
         baseUrl: url,
@@ -182,13 +214,13 @@ export function stubSettings(url: string) {
       },
     ],
     sessionDefaultSettings: {
-      model: STUB_ID,
+      model: id,
       reasoningEffort: 'none',
       autonomyLevel: 'high',
       autonomyMode: 'auto-high',
       interactionMode: 'auto',
     },
-    sessionTitleModel: STUB_ID,
+    sessionTitleModel: id,
   };
 }
 

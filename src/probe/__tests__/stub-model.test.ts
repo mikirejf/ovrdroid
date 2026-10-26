@@ -7,6 +7,7 @@ import {
   streamEvents,
   STUB_END,
   stubSettings,
+  toolBatchEvents,
   toolEvents,
 } from '../stub-model.ts';
 
@@ -111,6 +112,31 @@ describe('toolEvents', () => {
   });
 });
 
+describe('toolBatchEvents', () => {
+  test('sends each call as its own indexed tool_use block in one message that ends on tool_use', () => {
+    const joined = toolBatchEvents([
+      { id: 'one', name: 'Edit', input: { old_str: 'a' } },
+      { id: 'two', name: 'Edit', input: { old_str: 'b' } },
+    ]).join('');
+    const data = dataOf(joined);
+    expect(data.map((entry) => entry.type)).toEqual([
+      'message_start',
+      'content_block_start',
+      'content_block_delta',
+      'content_block_stop',
+      'content_block_start',
+      'content_block_delta',
+      'content_block_stop',
+      'message_delta',
+      'message_stop',
+    ]);
+    expect(joined).toContain('"id":"one"');
+    expect(joined).toContain('"id":"two"');
+    expect(joined).toContain('"index":1');
+    expect(joined).toContain('"stop_reason":"tool_use"');
+  });
+});
+
 describe('startStubModel', () => {
   test('answers the first request with the tool call and later ones with the reply', async () => {
     const stub = startStubModel(
@@ -154,6 +180,15 @@ describe('startStubModel', () => {
 });
 
 describe('stubSettings', () => {
+  test('names the stub model when asked, in the model list and as the session model', () => {
+    const settings = stubSettings('http://127.0.0.1:9', 'claude-sonnet-x');
+    expect(settings).toMatchObject({
+      customModels: [{ id: 'custom:claude-sonnet-x', model: 'claude-sonnet-x' }],
+      sessionDefaultSettings: { model: 'custom:claude-sonnet-x' },
+      sessionTitleModel: 'custom:claude-sonnet-x',
+    });
+  });
+
   test('keeps the probe settings and makes the stub the session model', () => {
     const settings = stubSettings('http://127.0.0.1:9');
     expect(settings).toMatchObject({
