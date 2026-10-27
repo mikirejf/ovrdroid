@@ -45,9 +45,9 @@ export const updateNoticePatches: readonly Patch[] = [
   },
   {
     name: 'update-notice-reader',
-    find: 'function u5({width:e,height:t,t:n}){',
+    find: 'function u5({width:e,height:n,t}){',
     lookups: ['v=e0(),A=!'],
-    replace: `${UPDATE_FILE_READER}function u5({width:e,height:t,t:n}){`,
+    replace: `${UPDATE_FILE_READER}function u5({width:e,height:n,t}){`,
   },
   {
     name: 'update-notice-header-room',

@@ -93,7 +93,7 @@ export const nestingPatches: readonly Patch[] = [
     name: 'nesting-daemon-cap-from-settings',
     find: STOCK_DAEMON_SLOT,
     lookups: [
-      `static sessionFileExists(t){let o=F.join(L(),w(),"sessions"),a=F.join(o,\`\${t}.jsonl\`);if(O.existsSync(a))`,
+      `static promoteBtwSessionIfNeeded(t){let o=F.join(L(),w(),"sessions"),a=F.join(o,"btw"),c=F.join(a,\`\${t}.jsonl\`);if(!O.existsSync(c))`,
     ],
     replace: PATCHED_DAEMON_SLOT,
   },

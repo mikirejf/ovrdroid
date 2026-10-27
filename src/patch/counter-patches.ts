@@ -41,8 +41,8 @@ export const counterPatches: readonly Patch[] = [
   },
   {
     name: 'counter-root',
-    find: 'loginNotice:re}){let le=q?.kind==="local"?q.sessionId:void 0,',
-    replace: 'loginNotice:re}){globalThis.$ODc.root++;let le=q?.kind==="local"?q.sessionId:void 0,',
+    find: 'onLoggedOut:ie,loginNotice:re}){',
+    replace: 'onLoggedOut:ie,loginNotice:re}){globalThis.$ODc.root++;',
   },
   {
     name: 'counter-message-list',
