@@ -3,7 +3,7 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { MS_PER_SECOND } from '../cli.ts';
+import { hasErrorCode, MS_PER_SECOND } from '../cli.ts';
 import { FACTORY_SESSIONS } from '../paths.ts';
 import { withTempDir } from '../temp.ts';
 import type { Fields } from './fields.ts';
@@ -155,24 +155,25 @@ export function noticeSettings() {
   };
 }
 
-function transcriptsSince(since: number): string[] {
-  const found: string[] = [];
-  for (const file of new Bun.Glob('*/*.jsonl').scanSync(FACTORY_SESSIONS)) {
-    const full = path.join(FACTORY_SESSIONS, file);
-    if (statSync(full).mtimeMs >= since) {
-      found.push(full);
-    }
-  }
-  return found;
-}
-
 function linesIn(file: string): string[] {
   return readFileSync(file, 'utf-8').split('\n');
 }
 
+function linesIfWrittenSince(file: string, since: number): string[] | undefined {
+  try {
+    return statSync(file).mtimeMs >= since ? linesIn(file) : undefined;
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 function findNotice(since: number, token: string): Notice | undefined {
-  for (const file of transcriptsSince(since)) {
-    const notice = readNotice(linesIn(file), token);
+  for (const file of new Bun.Glob('*/*.jsonl').scanSync(FACTORY_SESSIONS)) {
+    const lines = linesIfWrittenSince(path.join(FACTORY_SESSIONS, file), since);
+    const notice = lines === undefined ? undefined : readNotice(lines, token);
     if (notice !== undefined) {
       return notice;
     }
