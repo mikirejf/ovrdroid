@@ -92,7 +92,9 @@ Fix by reason:
   code moved or was rewritten. Before assuming a rewrite, check whether only a **neighbour** moved:
   a `find` that reaches past the code its `replace` touches goes missing when that extra code
   changes, for example when Droid splits a leading call into its own statement. Keep every `find`
-  to what its `replace` actually changes.
+  to what its `replace` actually changes. A patch that only inserts code before a function needs
+  nothing from its parameter list but the name: a destructured parameter that turns into
+  shorthand (`t:n` to `t`) sends a `find` that quotes the whole list `missing`.
 - `ambiguous`: widen the `find` until its shape is unique. A `find` that is mostly names (`K$=\``)
   matches thousands of sites, and renaming alone can tip a short one over. Anchor it on a
   neighbouring keyword or literal (`var Hz=\``), or extend it into the value it assigns
@@ -352,6 +354,10 @@ the new release before it is installed. By hand, do the same: point `HOME` at a 
 whose `.local/bin/droid` is a copy of the new stock binary, and run the tests for the patches you
 changed there.
 
+Run the **whole** `bun test` that way before the gate, not only the tests for patches you changed.
+Patch sets the build does not ship (the render counters, instrumentation) are not in `probe
+builds`, so their drift shows up only in the gate's `test` check, and the gate cannot rerun one
+check: a red there costs a full rerun of every probe.
 `bun test` can exit 1 with `0 fail`: a stock-reading helper that throws while a file loads shows
 up as `N errors` and `# Unhandled error between tests`, and that file's tests never run. Search
 the output for that header, not only for `(fail)`.
