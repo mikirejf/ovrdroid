@@ -44,7 +44,10 @@ names the rebase can map:
 - Every short name in a `find` is a wildcard, and the same letter twice means **one binding
   twice**. Give each distinct binding its own letter: `{width:t,height:e,t}` matches only code
   that really repeats `t`, so stock's `{width:e,height:n,t}` slips past it, while
-  `{width:t,height:e,r}` matches.
+  `{width:t,height:e,r}` matches. The rule reaches `lookups` too: a lookup pins the names `find`
+  already captured, so a letter in a lookup is the same binding as that letter in `find`. Never
+  reuse it for a different binding (an inner arrow's local, say). It matches on one build and fails
+  on the other.
 - A `find` is written in the names of whichever build its author had open, Mac or Linux. So
   `unchanged` on one host and `rebased` on the other is normal, and a shell search of one
   platform's extraction for the other platform's `find` finds nothing. Search by shape, or read the
@@ -117,7 +120,10 @@ Fix by reason:
 - `collides`: two names in `replace` land on one name on this build, so a lookup or `find` is
   capturing the wrong binding for one of them. Step 3, settle by role.
 - `no-lookup` with several matches: the lookup snippet is not unique in the module. Widen it, or
-  pick a different use of the same binding.
+  pick a different use of the same binding. A lookup made only of short names and punctuation
+  (`X=!1,Y=()=>{`) is unique as literal text but matches many places by shape. Widen it within the
+  same declaration list until a literal or a dotted name pins it. `probe grep` counts literals, not
+  shapes, so it cannot tell you this.
 - `no-lookup` with no match: usually only the snippet's **surroundings** moved, not the binding it
   captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
   the names the `replace` uses plus just enough text to match once in its module. A lookup only
@@ -180,6 +186,9 @@ then read the stock code around where it was (step 2's extractions, side by side
 - **Droid now persists what the payload caches.** Before re-anchoring a patch that keeps its own
   file or state, check whether stock now stores the same thing, and under which conditions.
 
+- **Droid added its own optimistic or undo machinery around the site.** Attach the payload to that
+  machinery (set upstream's handle) rather than re-porting private flags. Companion undo and cancel
+  patches often become dead, so delete them with their tests.
 - **The fix may be older than this release.** A patch can keep matching after upstream fixed the
   problem some other way, and then do nothing until a neighbouring edit finally makes it go
   `missing`. Read the stock code for what it does now, not just the diff since the last release.
@@ -265,6 +274,10 @@ Upstream also adds behaviour around code a payload replaces, such as a `shutting
 MCP hub. Diff the old and new stock text of every method a payload **replaces** (not just the
 `find`), and port each new guard.
 
+When upstream moves a step (matching, say) into its own helper, a payload that redid the step by
+hand can call the helper: one borrowed binding instead of several, and it inherits upstream's new
+validation.
+
 Give payloads as few borrowed bindings as possible. Every chunk import, hook, or helper a `replace`
 leans on is another lookup to keep working next release, and another chance to bind a stranger.
 Node built-ins and fixed paths never need borrowing: `require("fs")` and
@@ -340,6 +353,10 @@ platforms. Write any new one the same way:
 - A test that runs a payload with a copied stock tail can close the function right after the
   patched expression and return the value under test, rather than faking the I/O that upstream
   keeps adding to the body.
+- A harness that joins every patch's `find` from one file into one fake source needs all of that
+  file's finds in one build's names. Re-anchoring one patch means rewriting the rest of the file's
+  finds in the same build's names, or the harness defines a function under one build's name and
+  calls it under another's.
 - The 400-line lint limit applies to test harnesses too. Move a helper into its own file
   (`mcp-fake-fs.ts`, `scanner-source.ts`) instead of trimming code.
 
@@ -412,7 +429,9 @@ rerun just that probe by hand instead of the whole gate: `bun run probe <name> <
 `-r 8` rarely resolves anything; the gate uses 24.
 
 When a probe fails on the **stock** binary, the probe's model of Droid drifted, not your patches.
-Fix the probe in `src/probe/` with a test, then rerun. When Droid started exiting 130 on Ctrl-C,
+Fix the probe in `src/probe/` with a test, then rerun. When upstream drops a tool input, search
+`src/probe/` for probes that still send it: they keep passing schema validation but no longer
+exercise what they meant to. When Droid started exiting 130 on Ctrl-C,
 `probe ab` read it as a crash until the probe learned that exit code.
 
 A failing gate check can be the check, not Droid. Before fixing a patch, run the probe on stock and
