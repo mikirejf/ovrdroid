@@ -117,3 +117,19 @@ export function childOf(
 ): Transcript | undefined {
   return transcripts.find(({ text }) => callerOf(text) === parentId);
 }
+
+export interface FinishedChild {
+  parent: Transcript;
+  child: Transcript;
+}
+
+export function finishedChild(
+  transcripts: readonly Transcript[],
+  parentId: string,
+): FinishedChild | undefined {
+  const parent = transcripts.find((transcript) => transcript.id === parentId);
+  const child = childOf(transcripts, parentId);
+  return parent !== undefined && child !== undefined && turnEnded(child.text)
+    ? { parent, child }
+    : undefined;
+}

@@ -57,6 +57,7 @@ const CACHE_ORDER = ['instructions', 'tools', 'system', 'input', 'messages'];
 const PROMPT_KEYS = new Set(CACHE_ORDER);
 const EXCERPT = 40;
 const REMINDER = '<system-reminder>';
+const ONE_SHOT_MESSAGE_ID_PREFIX = 'oneshot-';
 
 function toJson(value: unknown): Json {
   if (Array.isArray(value)) {
@@ -108,6 +109,10 @@ export function parseBodies(text: string): BodyRow[] {
 
 export function isWarm(row: BodyRow): boolean {
   return row.assistantMessageId.startsWith(WARM_MESSAGE_ID_PREFIX);
+}
+
+export function isOneShot(row: BodyRow): boolean {
+  return row.assistantMessageId.startsWith(ONE_SHOT_MESSAGE_ID_PREFIX);
 }
 
 function promptOf(body: JsonObject): JsonObject {

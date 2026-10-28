@@ -17,8 +17,8 @@ import {
 } from './digest-run-report.ts';
 import { PROBE_MODEL } from './launch.ts';
 import { openLiveSession, sessionFolder, transcriptsIn, withLiveDir } from './live-session.ts';
-import type { Transcript } from './live-transcript.ts';
-import { parentOf, turnEnded, turnOutcome } from './live-transcript.ts';
+import type { FinishedChild, Transcript } from './live-transcript.ts';
+import { finishedChild, parentOf, turnOutcome } from './live-transcript.ts';
 import { poll } from './poll.ts';
 
 const USAGE_LOG = ovrdroidFile('cache-usage.jsonl');
@@ -77,14 +77,12 @@ async function inPool<T, R>(
   return results;
 }
 
-function watchParent(folder: string): () => Transcript | undefined {
+function watchGrunt(folder: string): () => FinishedChild | undefined {
   let known: string | undefined;
   return () => {
     const transcripts = transcriptsIn(folder);
-    const parent =
-      known === undefined ? parentOf(transcripts) : transcripts.find((t) => t.id === known);
-    known = parent?.id;
-    return parent !== undefined && turnEnded(parent.text) ? parent : undefined;
+    known ??= parentOf(transcripts)?.id;
+    return known === undefined ? undefined : finishedChild(transcripts, known);
   };
 }
 
@@ -112,18 +110,18 @@ async function sessionResult(job: Job, context: Context, dir: string): Promise<R
   });
   try {
     const folder = sessionFolder(cwd);
-    const finished = await poll(watchParent(folder), context.timeoutMs);
+    const finished = await poll(watchGrunt(folder), context.timeoutMs);
     const transcripts = transcriptsIn(folder);
-    const parent = finished ?? parentOf(transcripts);
+    const parent = finished?.parent ?? parentOf(transcripts);
     if (parent === undefined) {
       throw new Error(
         `no parent transcript appeared in ${folder} within ${context.timeoutMs / MS_PER_SECOND}s`,
       );
     }
     keepTranscripts(path.join(context.out, jobName(job)), transcripts);
-    const outcome = finished === undefined ? undefined : turnOutcome(finished.text);
+    const outcome = finished === undefined ? undefined : turnOutcome(finished.child.text);
     if (outcome !== undefined && outcome !== COMPLETED) {
-      throw new Error(`the parent turn ended as "${outcome}", not "${COMPLETED}"`);
+      throw new Error(`the grunt turn ended as "${outcome}", not "${COMPLETED}"`);
     }
     return runResult({
       binary: job.label,

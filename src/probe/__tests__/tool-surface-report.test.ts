@@ -3,11 +3,11 @@ import { describe, expect, test } from 'bun:test';
 import type { BodyRow } from '../bodies.ts';
 import { describeToolSurface, readToolSurface } from '../tool-surface-report.ts';
 
-function row(tools: readonly string[]): BodyRow {
+function row(tools: readonly string[], assistantMessageId = 'a'): BodyRow {
   return {
     t: 0,
     sessionId: 's',
-    assistantMessageId: 'a',
+    assistantMessageId,
     route: 'anthropic',
     body: { tools: tools.map((name) => ({ name })) },
   };
@@ -19,6 +19,18 @@ describe('readToolSurface', () => {
     expect(surface?.names).toEqual(['Script', 'TodoWrite']);
     expect(surface?.scriptOnly).toBe(true);
     expect(surface?.direct).toBe(true);
+  });
+
+  test('skips a one-shot side request, such as the session title, that lands after the turn', () => {
+    const surface = readToolSurface(
+      [row(['Script', 'TodoWrite']), row([], 'oneshot-assistant-1793180297120')],
+      'TodoWrite',
+    );
+    expect(surface?.names).toEqual(['Script', 'TodoWrite']);
+  });
+
+  test('has no reading while only a one-shot side request was recorded', () => {
+    expect(readToolSurface([row([], 'oneshot-assistant-1')], 'TodoWrite')).toBeUndefined();
   });
 
   test('says a tool is not direct when only Script carries it', () => {

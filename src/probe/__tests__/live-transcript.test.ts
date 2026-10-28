@@ -4,6 +4,7 @@ import {
   callerOf,
   childOf,
   finalReply,
+  finishedChild,
   parentOf,
   replyCount,
   replyEfforts,
@@ -129,6 +130,39 @@ describe('turnEnded waits for the outcome record Droid writes when a turn ends',
   test('reports a turn that ended without completing', () => {
     const failed = transcript(header('p'), message('assistant', [toolUse]), outcome('error'));
     expect(turnOutcome(failed)).toBe('error');
+  });
+});
+
+describe('finishedChild waits for the subagent turn, not the parent turn', () => {
+  const launched = {
+    id: 'p',
+    text: transcript(
+      header('p'),
+      message('assistant', [toolUse]),
+      message('user', [text('Task launched in background.')]),
+      message('assistant', [text('the subagent is running')]),
+      outcome('completed'),
+    ),
+  };
+
+  test('a parent turn that ended right after a background launch is not finished', () => {
+    const running = {
+      id: 'c',
+      text: transcript(header('c', 'p'), message('assistant', [toolUse])),
+    };
+    expect(finishedChild([launched, running], 'p')).toBeUndefined();
+  });
+
+  test('is finished once the subagent turn has its outcome', () => {
+    const done = {
+      id: 'c',
+      text: transcript(header('c', 'p'), message('assistant', [text('report')]), outcome('error')),
+    };
+    expect(finishedChild([launched, done], 'p')).toEqual({ parent: launched, child: done });
+  });
+
+  test('is not finished before any subagent exists', () => {
+    expect(finishedChild([launched], 'p')).toBeUndefined();
   });
 });
 

@@ -1,3 +1,4 @@
+import { isOneShot } from './bodies.ts';
 import type { BodyRow, Json, JsonObject } from './bodies.ts';
 
 const SCRIPT_TOOL = 'Script';
@@ -17,7 +18,7 @@ function isRecord(value: Json | undefined): value is JsonObject {
 }
 
 export function readToolNames(rows: readonly BodyRow[]): string[] | undefined {
-  const tools = rows.at(-1)?.body['tools'];
+  const tools = rows.findLast((row) => !isOneShot(row))?.body['tools'];
   if (!isList(tools)) {
     return undefined;
   }
