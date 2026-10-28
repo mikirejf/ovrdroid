@@ -110,7 +110,7 @@ export const subagentLaunchPatches: readonly Patch[] = [
   {
     name: 'task-schema-readonly-field',
     find: TASK_RESUME_FIELD,
-    lookups: ['await:p().default(!1).describe(Vt)'],
+    lookups: ['block:p().default(!0).describe('],
     replace: `${TASK_RESUME_FIELD},readonly:p().optional().describe(${JSON.stringify(READONLY_FIELD_DESCRIPTION)})`,
   },
   {

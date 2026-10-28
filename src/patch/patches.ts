@@ -181,13 +181,13 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-load-keeps-pending-settings',
-    find: 'Le.current=_t;return await wt.loadSession({sessionId:Bt}),be.current=Bt,je.current={},Y.emit(',
+    find: 'return await pt.loadSession({sessionId:dt}),De.current=dt,ot.current.delete(dt),ae.emit(',
     lookups: [
-      '.notify("settings_updated")}function wM(',
-      'n("[Daemon] Daemon disconnected",{code:',
+      '.notify("settings_updated")}function c4(',
+      'r("[Daemon] Daemon disconnected",{code:',
     ],
     replace:
-      'Le.current=_t;await wt.loadSession({sessionId:Bt}),be.current=Bt;let $ODs=je.current;if(je.current={},wM($ODs))try{await wt.updateSessionSettings({sessionId:Bt,...$ODs})}catch($ODx){n("[Daemon] Failed to sync pending session settings",{cause:$ODx})}return Y.emit(',
+      'await pt.loadSession({sessionId:dt}),De.current=dt;let $ODs=ot.current.get(dt);if(ot.current.delete(dt),$ODs&&c4($ODs))try{await pt.updateSessionSettings({sessionId:dt,...$ODs})}catch($ODx){r("[Daemon] Failed to sync pending session settings",{cause:$ODx})}return ae.emit(',
   },
   {
     name: 'session-load-reads-loaded-settings',
@@ -207,51 +207,23 @@ export const patches: readonly Patch[] = [
   {
     name: 'first-message-shows-at-once',
     find:
-      'Gt=f(async(Bt)=>{let Lo=L(),_t=(Me.current||Ee.current?null:be.current)??await Dt();if(!_t)return"rejected_with_notice";' +
-      'let To=Bt.message,mo=Bt.requestId??xe(),Do=Bt.messageId??xe(),Wo=Lo.getSessionStateManager().getSessionManager(_t),' +
-      'yn=Wo?.getDroidWorkingState()==="idle",Pt=ho(Bt.queuePlacement),Ot=yn&&Pt==="end_of_turn";if(Ot){',
+      'ko=oo??Oe.current,tr=ko??await Wn(Ln());if(pt)return"rejected_with_notice";if(!tr)return Vn(),"rejected_with_notice";' +
+      'let er=dt.message,Ir=Dt.getSessionStateManager(),Po=Ir.getSessionManager(tr),',
     lookups: [
-      'p().syncSettingsFromDaemon(',
-      '{text:A,images:B,files:C}){return eR({text:A,images:Hr(B),files:C})}',
-      'images:Kz(Bt.images)',
+      'fr=l0(dt.queuePlacement);if(Lo&&fr==="end_of_turn"){let Er=dk({text:er,images:$He(dt.images)})',
+      'an=m().getCurrentSessionId(),Bt=dt.draft',
+      'lt=dt.requestId??Zt?.requestId??st(),ln=dt.messageId??Zt?.messageId??st(),qn,fo=!1,zn,Gn=!1,Wt=()=>{',
     ],
     replace:
-      'Gt=f(async(Bt)=>{let Lo=L(),$ODn=Me.current||Ee.current?null:be.current,To=Bt.message,mo=Bt.requestId??xe(),' +
-      'Do=Bt.messageId??xe(),Pt=ho(Bt.queuePlacement),$ODe=null;if(!$ODn&&Pt==="end_of_turn"){' +
-      'let $ODk=p().getCurrentSessionId(),$ODm=$ODk?Lo.getSessionStateManager().getSessionManager($ODk):null;' +
+      'ko=oo??Oe.current,$ODe=null;if(!ko&&l0(dt.queuePlacement)==="end_of_turn"){' +
+      'let $ODm=an?Dt.getSessionStateManager().getSessionManager(an):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(mo,{id:Do,role:Bt.role??"user",content:eR({text:To,images:Kz(Bt.images)}),' +
-      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...Bt.visibility&&{visibility:Bt.visibility}}),' +
-      '$ODm.setThinking(),$ODm.$ODr=mo,$ODm.$ODc=!1,$ODe=$ODm}}' +
-      'let $ODu=()=>{if(!$ODe)return;$ODe.$ODr=null;$ODe.removeOptimisticMessage(mo);' +
-      'if($ODe.getDroidWorkingState()==="thinking")$ODe.stopStreaming();$ODe=null},' +
-      '_t=$ODn??await Dt();if($ODe){let $ODx=$ODe.$ODc;$ODe.$ODr=null,$ODe.$ODc=!1;if($ODx)return $ODe=null,"accepted"}' +
-      'if(!_t)return $ODu(),"rejected_with_notice";' +
-      'let Wo=Lo.getSessionStateManager().getSessionManager(_t);if($ODe!==Wo)$ODu();' +
-      'let yn=Wo?.getDroidWorkingState()==="idle",Ot=yn&&Pt==="end_of_turn";if(Ot){',
-  },
-  {
-    name: 'first-message-shows-at-once-undo',
-    find: 'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return h(bt,"[Daemon] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
-    replace:
-      'if(Ot&&Wo)Wo.removeOptimisticMessage(mo);return $ODu(),h(bt,"[Daemon] Failed to send message"),P(EH(bt),{messageType:"text",visibility:"user_only"}),"rejected_with_notice"}},[P,Dt])',
-  },
-  {
-    name: 'first-message-cancel-before-session',
-    find: 'eo=f(()=>{if(We.current)return We.current;let Bt=be.current;if(!Bt)return Promise.resolve();',
-    lookups: [
-      'p().syncSettingsFromDaemon(',
-      'L().sendTuiMessage({sessionId:',
-      ',"[Daemon] Failed to create session"),P(',
-      'R().t("common:droids.failedToLoadDroids")',
-    ],
-    replace:
-      'eo=f(()=>{if(We.current)return We.current;let Bt=be.current;if(!Bt){' +
-      'let $ODk=p().getCurrentSessionId(),$ODm=$ODk?L().getSessionStateManager().getSessionManager($ODk):null;' +
-      'if($ODm?.$ODr){$ODm.removeOptimisticMessage($ODm.$ODr),$ODm.$ODr=null,$ODm.$ODc=!0;' +
-      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming();' +
-      'P(R().t("common:appMessages.requestCancelledByUser"),{messageType:"text",visibility:"user_only"})}' +
-      'return Promise.resolve()}',
+      '$ODm.addOptimisticMessage(lt,{id:ln,role:dt.role??"user",content:dk({text:dt.message,images:$He(dt.images)}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...dt.visibility&&{visibility:dt.visibility}}),' +
+      '$ODm.setThinking(),$ODe=$ODm,qn={remove:()=>{$ODm.removeOptimisticMessage(lt);' +
+      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(lt)===void 0}}}' +
+      'let tr=ko??await Wn(Ln());if(pt)return"rejected_with_notice";if(!tr)return Vn(),"rejected_with_notice";' +
+      'let er=dt.message,Ir=Dt.getSessionStateManager(),Po=Ir.getSessionManager(tr);if($ODe&&$ODe!==Po)Wt(),qn=void 0;let ',
   },
   {
     name: 'live-reply-shows-every-line',
@@ -260,8 +232,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'escape-keeps-turn-running',
-    find: 'if(qi!=="idle")return lL(),!0;return!1};return Mr.subscribe(ke,{layer:4})',
-    replace: 'if(qi!=="idle")return!0;return!1};return Mr.subscribe(ke,{layer:4})',
+    find: 'if(Ss!=="idle"||JC)return V3(),!0;return!1};return Pr.subscribe(Ee,{layer:4})',
+    replace: 'if(Ss!=="idle"||JC)return!0;return!1};return Pr.subscribe(Ee,{layer:4})',
   },
   {
     name: 'no-escape-stop-hint',

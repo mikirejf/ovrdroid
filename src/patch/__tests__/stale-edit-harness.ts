@@ -53,23 +53,27 @@ function finds(name: string): string {
 
 const STOCK_SOURCE = [
   `${finds('edit-check-takes-stale-test')}message:"bad path"};`,
-  'let a=await Ct(t);if(!a.wasRead)return{success:!1,message:"not read"};',
+  'let a=await At(t);if(!a.wasRead)return{success:!1,message:"not read"};',
   `${finds('edit-refusal-asks-stale-test')}message:"Error: File "+t+" has been modified externally since it was last read."};`,
   'return{success:!0,message:a.absolutePath}}',
-  'async function cn(t){let{filePath:o,oldStr:a,newStr:l,changeAll:c=!1,toolCallId:u}=t;try{',
+  'async function wn(t){let{filePath:o,oldStr:a,newStr:c,changeAll:l=!1}=t,f=await EH(o);',
+  'if(f.error)return{success:!1,message:f.error};',
+  'let p=f.content,g={old_str:a,new_str:c,change_all:l},y=ut(p),S=_r(y,g);',
+  'if(!S.success)return{success:!1,message:S.message,oldContent:p};let T=vr(p,y,g);',
+  'return{success:!0,file:f,oldContent:p,newContent:Ar(p,T),changesApplied:S.changesApplied}}',
+  'async function jbe(t){let{filePath:o,oldStr:a,newStr:c,changeAll:l,toolCallId:f}=t;try{',
   finds('edit-accepts-stale-unique-match'),
-  'if(!b.success)return{success:!1,message:b.message,filePath:o};',
-  'let I=c?y.split(a).join(l):y.replace(a,()=>l);',
-  'let k=await s9({filePath:o,content:I,toolCallId:u,expectedOldContentBuffer:g.rawBuffer});',
-  'if(!k.success)return{success:!1,message:k.message,filePath:o};',
-  'return{success:!0,message:"ok",',
+  'if(!y.success)return{...y,filePath:o};let{file:S,oldContent:T,newContent:_,changesApplied:v}=y;',
+  'let I=await fB({filePath:o,content:_,toolCallId:f,expectedOldContentBuffer:S.rawBuffer});',
+  'if(!I.success)return{success:!1,message:I.message,oldContent:T,newContent:_,filePath:o};',
+  'return{success:!0,message:"ok",oldContent:T,newContent:_,filePath:o,',
   finds('edit-result-flags-stale-edit'),
-  '{return{success:!1,message:"Error editing file: "+p.message,filePath:o}}}',
-  'async function*execute(t,o){let{file_path:f,old_str:l,new_str:c,change_all:u}=o;',
-  'let y=await cn({filePath:f,oldStr:l,newStr:c,changeAll:u,toolCallId:t.toolCallId});',
+  '{return{success:!1,message:"Error editing file: "+g.message,filePath:o}}}',
+  'async function*execute(t,o){let{file_path:f,old_str:l,new_str:c,change_all:d}=o;',
+  'let y=await jbe({filePath:f,oldStr:l,newStr:c,changeAll:d,toolCallId:t.toolCallId});',
   'if(!y.success){yield{type:"result",isError:!0,llmError:y.message};return}',
   `let v=t.ideReminder,${finds('edit-reply-notes-stale-edit')}}`,
-  'return{execute,VU}',
+  'return{execute,RY}',
 ].join('');
 
 function patched(): string {
@@ -85,7 +89,7 @@ function patched(): string {
 
 interface Built {
   execute: (context: ExecuteContext, input: ExecuteInput) => AsyncGenerator<EditReply>;
-  VU: (path: string, id: string) => Promise<Check>;
+  RY: (path: string, id: string) => Promise<Check>;
 }
 
 interface Write {
@@ -95,9 +99,18 @@ interface Write {
   expectedOldContentBuffer: Buffer;
 }
 
-function stockMatch(content: string, edit: { old_str: string; change_all: boolean }): Matched {
+interface MatchEdit {
+  old_str: string;
+  new_str: string;
+  change_all: boolean;
+}
+
+function stockMatch(content: string, edit: MatchEdit): Matched {
   if (edit.old_str === '' && content === '') {
     return { success: true, message: '', changesApplied: 1 };
+  }
+  if (edit.old_str === '') {
+    return { success: false, message: 'Error: old_str is empty, but the file is not empty.' };
   }
   if (!content.includes(edit.old_str)) {
     return { success: false, message: 'Error: The text to replace was not found in the file.' };
@@ -109,9 +122,15 @@ function stockMatch(content: string, edit: { old_str: string; change_all: boolea
   return { success: true, message: '', changesApplied: edit.change_all ? found : 1 };
 }
 
+function stockReplace(content: string, _normalized: string, edit: MatchEdit): string {
+  return edit.change_all
+    ? content.split(edit.old_str).join(edit.new_str)
+    : content.replace(edit.old_str, () => edit.new_str);
+}
+
 export function stockEdit(tracker: FakeTracker, source = patched()): StockEdit {
   const build = payloadFunction<unknown[], Built>(
-    ['Ct', 'KR', 'hO', 'Wse', 'dt', 's9', 'wu'],
+    ['At', 'CA', 'EH', '_r', 'ut', 'vr', 'Ar', 'fB', 'ld'],
     source,
   );
   const built = build(
@@ -123,6 +142,8 @@ export function stockEdit(tracker: FakeTracker, source = patched()): StockEdit {
     },
     stockMatch,
     (content: string) => content,
+    stockReplace,
+    (_old: string, next: string) => next,
     async (write: Write) => {
       if (!readFileSync(write.filePath).equals(write.expectedOldContentBuffer)) {
         return { success: false, message: 'Error: File changed on disk since it was read.' };
@@ -134,7 +155,7 @@ export function stockEdit(tracker: FakeTracker, source = patched()): StockEdit {
     () => ({ additions: 0, deletions: 0 }),
   );
   return {
-    check: async (path) => await built.VU(path, 'call'),
+    check: async (path) => await built.RY(path, 'call'),
     edit: async (call) => {
       const input = {
         file_path: call.path,

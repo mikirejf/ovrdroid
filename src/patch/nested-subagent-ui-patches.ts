@@ -63,8 +63,7 @@ const PATCHED_CHILD_LOOKUP =
   'O=O2({ssm:D,parentSessionId:$ODps??m().getCurrentSessionId(),toolUseId:A}),' +
   'F=B(()=>mhe({input:f,progressUpdates:y,result:E,toolUseId:A,ssmChildSessionId:O,parentSessionId:$ODps}),[f,y,E,A,O,$ODps])';
 
-const STOCK_COMPACT_HEAD =
-  'function fhe({input:f,result:y,isError:E,progressUpdates:A,liveSummary:D,invocationSummary:O}){';
+const STOCK_COMPACT_ARGS_END = 'invocationSummary:O}){';
 
 const STOCK_LATEST_STEP =
   'else me=Sy(be)||be.text||A1(be.details)||u().t("common:toolDisplay.task.statusUpdate");';
@@ -143,11 +142,8 @@ export const nestedSubagentUiPatches: readonly Patch[] = [
   },
   {
     name: 'nested-subagent-ui-compact-depth',
-    find: STOCK_COMPACT_HEAD,
-    replace: STOCK_COMPACT_HEAD.replace(
-      'invocationSummary:O})',
-      'invocationSummary:O,nestDepth:$ODdepth=1})',
-    ),
+    find: STOCK_COMPACT_ARGS_END,
+    replace: 'invocationSummary:O,nestDepth:$ODdepth=1}){',
   },
   {
     name: 'nested-subagent-ui-compact-row',

@@ -113,6 +113,7 @@ export class HubWorld {
   readonly closed: number[] = [];
   readonly killed: number[] = [];
   readonly alive = new Set<number>();
+  readonly owned = new Set<number>();
   readonly changed: string[] = [];
   readonly calls: string[] = [];
   readonly env: Record<string, string> = {};
@@ -143,6 +144,14 @@ export class HubWorld {
         },
       },
       yI: REAP_GRACE_MS,
+      yr: {
+        recordOwnership: (_source: string, pid: number) => {
+          this.owned.add(pid);
+          return () => {
+            this.owned.delete(pid);
+          };
+        },
+      },
       wi: (value: Configs) => ({ ...value }),
       Xu: () => false,
       i: Error,

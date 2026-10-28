@@ -13,27 +13,31 @@ not the cause: all 173 logged gates were under 0.5s.
 
 ## Shipped: `first-message-shows-at-once`
 
-The session id is created early and already has a session manager, and `initializeSession` keeps
-optimistic messages. So the patch adds the message and sets "Thinking..." on that manager before the
-await. It undoes both if session creation fails, the send throws, or a different session comes back.
-The message goes to the daemon with the same request id, so the daemon treats it as the running
-turn, not a queued one.
+The session id is created early and already has a session manager. Stock's send keeps an optimistic
+message handle, `{remove, isConfirmed}`, and the patch plugs into it. When there is no session yet,
+the placement is end_of_turn and the current session's manager is idle, the patch adds the message
+to that manager at once and sets "Thinking...". It sets the handle so `remove` also stops the
+spinner. Stock's own paths then undo it: a failed session creation or a failed send calls stock's
+withdraw function, which calls `remove`. If the session that arrives is a different one, the patch
+withdraws and lets stock add the message on the right manager. The message goes to the daemon with
+the same request id, so the daemon treats it as the running turn, not a queued one.
+
+Stopping before the session exists needs no patch of ours. On 0.251.0 stock's stop withdraws every
+pending submission and posts "request cancelled by user", and the send returns
+"rejected_with_notice", so nothing reaches the daemon. `first-message-cancel-before-session` and the
+`$ODr`/`$ODc` flags it kept on the manager were deleted, and so was
+`first-message-shows-at-once-undo`. Esc itself never triggers that stop: `escape-keeps-turn-running`
+swallows Esc while a turn runs or a submission is pending, as it has since it shipped.
+
+`src/patch/__tests__/first-message-patches.test.ts` covers: show and Thinking before the session
+exists, a stop withdrawing it with nothing sent, a different session coming back, a failed session
+creation, a failed send, and a busy or non end-of-turn message left to stock.
 
 `bun run probe first-send <binary> --cwd <project>` measures it. The probe pastes the message in one
 write and times from Enter. On 0.227.0 in fightsignal, `--after-clear`: stock shows the message
 after 1.4 to 2.3s, patched after 0.1 to 0.2s. The reply time does not change. The probe keys on
-"(Press ESC to stop)", because the spinner text changes between releases.
-
-## Shipped: `first-message-cancel-before-session`
-
-Stock's stop callback returned at once while the session did not exist yet, so Esc did nothing and
-the turn went out once the session was created. The patch records the request id on the manager
-(`$ODr`). Esc before the session exists removes the message, stops the spinner, posts the stock
-"Request cancelled by user" notice, and marks it cancelled (`$ODc`). The send then returns
-"accepted" without sending, so no caller re-queues it.
-
-Tested with one MCP server that takes 15s to start: the cancel notice showed 0.4s after Esc, no
-reply came in 30s, and the next message replied in 2.6s.
+"(Press ESC to stop)", because the spinner text changes between releases. That measurement predates
+the handle rewrite and has not been repeated on 0.251.0.
 
 ## Shipped: `mcp-servers-start-together`
 
