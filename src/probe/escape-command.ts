@@ -7,7 +7,7 @@ export function registerEscapeCommand(program: Command): void {
   program
     .command('escape')
     .description(
-      'press Esc twice while a turn runs: does the turn keep running, with no "Request cancelled by user"? Also reports whether the "Press ESC to stop" hint showed. A second turn asks: does pressing Esc three times quickly still open the rewind menu?',
+      'press Esc while a turn runs: does one Esc keep the turn running, do two quick Esc presses stop it with "Request cancelled by user", does the "(Esc twice to stop)" hint show, and does pressing Esc three times quickly still open the rewind menu?',
     )
     .argument('<binary>')
     .action(guard(escape));

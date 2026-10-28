@@ -26,8 +26,12 @@ Stopping before the session exists needs no patch of ours. On 0.251.0 stock's st
 pending submission and posts "request cancelled by user", and the send returns
 "rejected_with_notice", so nothing reaches the daemon. `first-message-cancel-before-session` and the
 `$ODr`/`$ODc` flags it kept on the manager were deleted, and so was
-`first-message-shows-at-once-undo`. Esc itself never triggers that stop: `escape-keeps-turn-running`
-swallows Esc while a turn runs or a submission is pending, as it has since it shipped.
+`first-message-shows-at-once-undo`. One Esc never triggers that stop: `escape-twice-stops-turn`
+swallows the first Esc while a turn runs or a submission is pending and calls stock's stop on a
+second Esc within one second, so a pending first message is withdrawn by a double Esc. The prompt
+input counts Esc presses itself and swallows every press after the first, so
+`escape-twice-reaches-stop` lets a repeated Esc through while one was swallowed in the last second;
+without it the second Esc never reaches the stop.
 
 `src/patch/__tests__/first-message-patches.test.ts` covers: show and Thinking before the session
 exists, a stop withdrawing it with nothing sent, a different session coming back, a failed session
@@ -35,9 +39,10 @@ creation, a failed send, and a busy or non end-of-turn message left to stock.
 
 `bun run probe first-send <binary> --cwd <project>` measures it. The probe pastes the message in one
 write and times from Enter. On 0.227.0 in fightsignal, `--after-clear`: stock shows the message
-after 1.4 to 2.3s, patched after 0.1 to 0.2s. The reply time does not change. The probe keys on
-"(Press ESC to stop)", because the spinner text changes between releases. That measurement predates
-the handle rewrite and has not been repeated on 0.251.0.
+after 1.4 to 2.3s, patched after 0.1 to 0.2s. The reply time does not change. The probe keys on the
+stop hint ("(Press ESC to stop)" on stock, "(Esc twice to stop)" patched), because the spinner text
+changes between releases. That measurement predates the handle rewrite and has not been repeated on
+0.251.0.
 
 ## Shipped: `mcp-servers-start-together`
 

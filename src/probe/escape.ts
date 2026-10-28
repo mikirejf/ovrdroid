@@ -4,16 +4,16 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { say } from '../cli.ts';
-import type { EscapeVerdict, RewindVerdict } from './escape-report.ts';
 import {
   CANCELLED_TEXT,
-  describeEscape,
-  describeRewind,
-  escapeVerdict,
+  describeVerdict,
+  doubleEscapeVerdict,
+  hintVerdict,
   readEscape,
   REPLY_OPENING,
   REWIND_MENU,
   rewindVerdict,
+  singleEscapeVerdict,
 } from './escape-report.ts';
 import { poll } from './poll.ts';
 import { ENTER, openSettledSession } from './session.ts';
@@ -27,7 +27,7 @@ const ESCAPE = '\u001B';
 const PASTE_QUIET_MS = 300;
 const PASTE_TIMEOUT_MS = 3000;
 const START_TIMEOUT_MS = 20_000;
-const DOUBLE_PRESS_GAP_MS = 1000;
+const DOUBLE_PRESS_GAP_MS = 300;
 const TRIPLE_PRESS_GAP_MS = 120;
 const MENU_TIMEOUT_MS = 3000;
 const FINISH_MARGIN_MS = 15_000;
@@ -43,10 +43,12 @@ function showsAny(session: Session, needles: readonly string[]): true | undefine
   return needles.some((needle) => all.some((screen) => screen.includes(needle))) ? true : undefined;
 }
 
-async function pressEscapeTwice(session: Session): Promise<void> {
+async function pressEscape(session: Session, times: number, gapMs: number): Promise<void> {
   session.press(ESCAPE);
-  await delay(DOUBLE_PRESS_GAP_MS);
-  session.press(ESCAPE);
+  if (times > 1) {
+    await delay(gapMs);
+    await pressEscape(session, times - 1, gapMs);
+  }
 }
 
 async function startTurn(session: Session): Promise<boolean> {
@@ -57,26 +59,24 @@ async function startTurn(session: Session): Promise<boolean> {
   return (await poll(() => showsAny(session, [REPLY_OPENING]), START_TIMEOUT_MS)) !== undefined;
 }
 
-async function driveTurn(session: Session): Promise<string[]> {
-  if (!(await startTurn(session))) {
+function driveEscape(times: number): (session: Session) => Promise<string[]> {
+  return async (session) => {
+    if (!(await startTurn(session))) {
+      return screens(session);
+    }
+    await pressEscape(session, times, DOUBLE_PRESS_GAP_MS);
+    const streamMs = pieces(replyText(PLAN.chars), PLAN.chunk).length * PLAN.gapMs;
+    await poll(() => showsAny(session, [STUB_END, CANCELLED_TEXT]), streamMs + FINISH_MARGIN_MS);
+    await session.quiet(QUIET_MS, QUIET_TIMEOUT_MS);
     return screens(session);
-  }
-  await pressEscapeTwice(session);
-  const streamMs = pieces(replyText(PLAN.chars), PLAN.chunk).length * PLAN.gapMs;
-  await poll(() => showsAny(session, [STUB_END, CANCELLED_TEXT]), streamMs + FINISH_MARGIN_MS);
-  await session.quiet(QUIET_MS, QUIET_TIMEOUT_MS);
-  return screens(session);
+  };
 }
 
 async function driveRewind(session: Session): Promise<string[]> {
   if (!(await startTurn(session))) {
     return screens(session);
   }
-  session.press(ESCAPE);
-  await delay(TRIPLE_PRESS_GAP_MS);
-  session.press(ESCAPE);
-  await delay(TRIPLE_PRESS_GAP_MS);
-  session.press(ESCAPE);
+  await pressEscape(session, 3, TRIPLE_PRESS_GAP_MS);
   await delay(TRIPLE_PRESS_GAP_MS);
   await poll(() => showsAny(session, [REWIND_MENU]), MENU_TIMEOUT_MS);
   return screens(session);
@@ -106,26 +106,26 @@ async function inFreshSession<T>(
   }
 }
 
-export async function escapeDuringTurn(binary: string): Promise<EscapeVerdict> {
-  return await inFreshSession(binary, driveTurn, (all) => escapeVerdict(readEscape(all)));
-}
-
-export async function rewindDuringTurn(binary: string): Promise<RewindVerdict> {
-  return await inFreshSession(binary, driveRewind, rewindVerdict);
-}
-
 export async function escape(binary: string): Promise<void> {
+  const streamSeconds = (pieces(replyText(PLAN.chars), PLAN.chunk).length * PLAN.gapMs) / 1000;
   say(
-    `a stub model streams a reply for about ${(pieces(replyText(PLAN.chars), PLAN.chunk).length * PLAN.gapMs) / 1000}s; Esc is pressed twice, ${DOUBLE_PRESS_GAP_MS}ms apart, once the reply starts showing`,
+    `a stub model streams a reply for about ${streamSeconds}s; Esc is pressed once after the reply starts showing`,
   );
-  const verdict = await escapeDuringTurn(binary);
-  say(describeEscape(verdict));
+  const single = await inFreshSession(binary, driveEscape(1), readEscape);
+  const singleVerdict = singleEscapeVerdict(single);
+  const hint = hintVerdict(single);
+  say(describeVerdict(singleVerdict));
+  say(describeVerdict(hint));
+  say(`a second turn: Esc is pressed twice, ${DOUBLE_PRESS_GAP_MS}ms apart`);
+  const double = await inFreshSession(binary, driveEscape(2), readEscape);
+  const doubleVerdict = doubleEscapeVerdict(double);
+  say(describeVerdict(doubleVerdict));
   say(
-    `a second turn: Esc is pressed 3 times, ${TRIPLE_PRESS_GAP_MS}ms apart; the rewind menu should open`,
+    `a third turn: Esc is pressed 3 times, ${TRIPLE_PRESS_GAP_MS}ms apart; the rewind menu should open`,
   );
-  const rewind = await rewindDuringTurn(binary);
-  say(describeRewind(rewind));
-  if (!verdict.pass || !rewind.pass) {
+  const rewind = await inFreshSession(binary, driveRewind, rewindVerdict);
+  say(describeVerdict(rewind));
+  if (![singleVerdict, hint, doubleVerdict, rewind].every((verdict) => verdict.pass)) {
     process.exitCode = 1;
   }
 }

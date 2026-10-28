@@ -2,13 +2,15 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   CANCELLED_TEXT,
-  describeEscape,
-  escapeVerdict,
+  describeVerdict,
+  doubleEscapeVerdict,
+  hintVerdict,
   readEscape,
-  describeRewind,
   REPLY_OPENING,
   REWIND_MENU,
   rewindVerdict,
+  singleEscapeVerdict,
+  STOCK_STOP_HINT,
   STOP_HINT,
 } from '../escape-report.ts';
 import { STUB_END } from '../stub-model.ts';
@@ -18,59 +20,89 @@ const RUNNING = `${REPLY_OPENING}\n first section`;
 const DONE = `${REPLY_OPENING}\n first section\n${STUB_END}`;
 const CANCELLED = `${REPLY_OPENING}\n first section\n${CANCELLED_TEXT}`;
 
-describe('escapeVerdict', () => {
+describe('singleEscapeVerdict', () => {
   test('passes when the reply finished and nothing was cancelled', () => {
-    const verdict = escapeVerdict(readEscape([RUNNING, DONE]));
+    const verdict = singleEscapeVerdict(readEscape([RUNNING, DONE]));
 
     expect(verdict.pass).toBe(true);
-    expect(verdict.reason).toContain('Esc left the turn running');
-    expect(verdict.hintShown).toBe(false);
+    expect(verdict.reason).toContain('one Esc left the turn running');
   });
 
-  test('fails when Esc stopped the turn', () => {
-    const verdict = escapeVerdict(readEscape([RUNNING, CANCELLED]));
+  test('fails when one Esc stopped the turn', () => {
+    const verdict = singleEscapeVerdict(readEscape([RUNNING, CANCELLED]));
 
     expect(verdict.pass).toBe(false);
-    expect(verdict.reason).toContain('Esc stopped the turn');
+    expect(verdict.reason).toContain('one Esc stopped the turn');
   });
 
   test('a cancelled notice fails even when the last line also showed', () => {
-    const verdict = escapeVerdict(readEscape([DONE, CANCELLED]));
+    const verdict = singleEscapeVerdict(readEscape([DONE, CANCELLED]));
 
     expect(verdict.pass).toBe(false);
-    expect(verdict.reason).toContain('Esc stopped the turn');
+    expect(verdict.reason).toContain('one Esc stopped the turn');
   });
 
   test('fails when the turn never started', () => {
-    const verdict = escapeVerdict(readEscape(['nothing here', '']));
+    const verdict = singleEscapeVerdict(readEscape(['nothing here', '']));
 
     expect(verdict.pass).toBe(false);
     expect(verdict.reason).toBe('the turn never started, so nothing was tested');
   });
 
   test('fails when the reply never finished and nothing was cancelled', () => {
-    const verdict = escapeVerdict(readEscape([RUNNING]));
+    const verdict = singleEscapeVerdict(readEscape([RUNNING]));
 
     expect(verdict.pass).toBe(false);
     expect(verdict.reason).toContain('the turn did not finish');
   });
 });
 
-describe('describeEscape', () => {
-  test('reports the stop hint when it showed during the turn', () => {
-    const verdict = escapeVerdict(readEscape([WORKING, DONE]));
+describe('doubleEscapeVerdict', () => {
+  test('passes when the cancelled notice showed', () => {
+    const verdict = doubleEscapeVerdict(readEscape([RUNNING, CANCELLED]));
 
-    expect(verdict.hintShown).toBe(true);
-    expect(describeEscape(verdict)).toBe(
-      `PASS  ${verdict.reason}\n"${STOP_HINT}" showed on screen while the turn ran`,
+    expect(verdict.pass).toBe(true);
+    expect(verdict.reason).toContain('two quick Esc presses stopped the turn');
+  });
+
+  test('fails when the reply ran to its last line', () => {
+    const verdict = doubleEscapeVerdict(readEscape([RUNNING, DONE]));
+
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('did not stop the turn: the full reply showed');
+  });
+
+  test('fails when nothing was cancelled and the reply did not finish', () => {
+    const verdict = doubleEscapeVerdict(readEscape([RUNNING]));
+
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('the reply did not finish either');
+  });
+
+  test('fails when the turn never started', () => {
+    const verdict = doubleEscapeVerdict(readEscape(['nothing here']));
+
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toBe('the turn never started, so nothing was tested');
+  });
+});
+
+describe('hintVerdict', () => {
+  test('passes when the twice hint showed during the turn', () => {
+    const verdict = hintVerdict(readEscape([WORKING, DONE]));
+
+    expect(verdict.pass).toBe(true);
+    expect(describeVerdict(verdict)).toBe(
+      `PASS  "${STOP_HINT}" showed on screen while the turn ran`,
     );
   });
 
-  test('reports a missing stop hint on a failing run', () => {
-    const text = describeEscape(escapeVerdict(readEscape([CANCELLED])));
+  test('fails on the stock hint', () => {
+    const stock = `${REPLY_OPENING}\n Working...  ${STOCK_STOP_HINT}`;
+    const verdict = hintVerdict(readEscape([stock, DONE]));
 
-    expect(text).toStartWith('FAIL  Esc stopped the turn');
-    expect(text).toContain(`"${STOP_HINT}" never showed on screen`);
+    expect(verdict.pass).toBe(false);
+    expect(describeVerdict(verdict)).toBe(`FAIL  "${STOP_HINT}" never showed on screen`);
   });
 });
 
@@ -80,7 +112,7 @@ describe('rewindVerdict', () => {
 
     expect(verdict.pass).toBe(true);
     expect(verdict.reason).toContain('opened the rewind menu');
-    expect(describeRewind(verdict)).toStartWith('PASS  three quick Esc presses');
+    expect(describeVerdict(verdict)).toStartWith('PASS  three quick Esc presses');
   });
 
   test('fails when the rewind menu never opened', () => {
@@ -88,7 +120,7 @@ describe('rewindVerdict', () => {
 
     expect(verdict.pass).toBe(false);
     expect(verdict.reason).toContain('the rewind menu did not open');
-    expect(describeRewind(verdict)).toStartWith('FAIL  ');
+    expect(describeVerdict(verdict)).toStartWith('FAIL  ');
   });
 
   test('fails when the turn never started', () => {

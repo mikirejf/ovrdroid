@@ -1,3 +1,4 @@
+import { STOP_HINTS } from './escape-report.ts';
 import { TerminalScreen } from './terminal-screen.ts';
 
 // oxlint-disable-next-line no-control-regex
@@ -11,7 +12,6 @@ const HEAD_CHARS = 16;
 const RESUME_CHARS = 8;
 const GAP_SHOWN = 40;
 const LIVE_AREA_MARKER = 'allow all commands';
-const SPINNER_MARKER = '(Press ESC to stop)';
 
 export interface CodeCopyReading {
   printed: boolean;
@@ -159,7 +159,10 @@ export function describeWideCommand(
 export function conversationAbove(lines: string[]): string[] {
   const live = lines.findLastIndex((line) => line.includes(LIVE_AREA_MARKER));
   const above = lines.slice(0, live === -1 ? lines.length : live);
-  while (above.at(-1)?.trim() === '' || above.at(-1)?.includes(SPINNER_MARKER) === true) {
+  while (
+    above.at(-1)?.trim() === '' ||
+    STOP_HINTS.some((hint) => above.at(-1)?.includes(hint) === true)
+  ) {
     above.pop();
   }
   return above;

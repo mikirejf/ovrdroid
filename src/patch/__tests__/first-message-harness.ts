@@ -12,7 +12,8 @@ import { scoped, scopeOver } from './session-mention-scope.ts';
 const NAMES = [
   'session-load-keeps-pending-settings',
   'first-message-shows-at-once',
-  'escape-keeps-turn-running',
+  'escape-twice-stops-turn',
+  'escape-twice-reaches-stop',
 ] as const;
 
 type Name = (typeof NAMES)[number];
@@ -304,13 +305,31 @@ export function loadWorld(sites: Sites): LoadWorld {
   return world;
 }
 
+const ESCAPE_STAMP = '__odEscAt';
+
+export function inputEscape(sites: Sites): (counted: boolean) => boolean {
+  const rebase = sites.rebase('escape-twice-reaches-stop');
+  const named = renamed(rebase);
+  const source = rebase.replace.slice(
+    rebase.replace.indexOf('=g(') + 3,
+    rebase.replace.lastIndexOf(',['),
+  );
+  const handler = evaluate<(count: () => boolean) => () => boolean>(
+    `(${named('Hr')})=>${source}`,
+    new Map<string, Stand>([[named('X'), false]]),
+  );
+  return (counted) => handler(() => counted)();
+}
+
 export interface EscapeWorld {
   readonly stops: number[];
   press: (state: { working: string; pending: boolean }) => boolean;
+  lastSwallowedAgo: (ms: number) => void;
+  forget: () => void;
 }
 
 export function escapeWorld(sites: Sites): EscapeWorld {
-  const rebase = sites.rebase('escape-keeps-turn-running');
+  const rebase = sites.rebase('escape-twice-stops-turn');
   const named = renamed(rebase);
   const at = sites.text.indexOf(rebase.replace);
   const window = sites.text.slice(Math.max(0, at - 400), at + rebase.replace.length);
@@ -337,5 +356,11 @@ export function escapeWorld(sites: Sites): EscapeWorld {
   return {
     stops,
     press: ({ working, pending }) => handler(working, pending)({}),
+    lastSwallowedAgo: (ms) => {
+      Reflect.set(globalThis, ESCAPE_STAMP, Date.now() - ms);
+    },
+    forget: () => {
+      Reflect.deleteProperty(globalThis, ESCAPE_STAMP);
+    },
   };
 }

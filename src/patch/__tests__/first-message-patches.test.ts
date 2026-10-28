@@ -4,6 +4,7 @@ import type { Sites } from './first-message-harness.ts';
 import {
   escapeWorld,
   FakeManager,
+  inputEscape,
   loadWorld,
   patchedSites,
   sendWorld,
@@ -145,16 +146,68 @@ describe.skipIf(sites === undefined)('session-load-keeps-pending-settings', () =
   });
 });
 
-describe.skipIf(sites === undefined)('escape-keeps-turn-running', () => {
-  test('Esc while Droid works is swallowed without stopping the turn', () => {
+describe.skipIf(sites === undefined)('escape-twice-reaches-stop', () => {
+  test('the input box keeps swallowing a repeated Esc when no Esc was swallowed in the last second', () => {
     const world = escapeWorld(shipped());
-    expect(world.press({ working: 'streaming_assistant_message', pending: false })).toBe(true);
+    const input = inputEscape(shipped());
+    world.forget();
+    expect(input(true)).toBe(true);
+    expect(input(false)).toBe(false);
+  });
+
+  test('a repeated Esc within a second of a swallowed one falls through to the stop', () => {
+    const world = escapeWorld(shipped());
+    const input = inputEscape(shipped());
+    world.lastSwallowedAgo(500);
+    expect(input(true)).toBe(false);
+    world.lastSwallowedAgo(1000);
+    expect(input(true)).toBe(true);
+  });
+});
+
+describe.skipIf(sites === undefined)('escape-twice-stops-turn', () => {
+  const working = { working: 'streaming_assistant_message', pending: false };
+
+  test('one Esc while Droid works is swallowed without stopping the turn', () => {
+    const world = escapeWorld(shipped());
+    world.forget();
+    expect(world.press(working)).toBe(true);
+    world.forget();
     expect(world.press({ working: 'idle', pending: true })).toBe(true);
     expect(world.stops).toEqual([]);
   });
 
+  test('a second Esc within a second stops the turn, and the third starts a new count', () => {
+    const world = escapeWorld(shipped());
+    world.forget();
+    expect(world.press(working)).toBe(true);
+    expect(world.press(working)).toBe(true);
+    expect(world.stops).toEqual([1]);
+    expect(world.press(working)).toBe(true);
+    expect(world.stops).toEqual([1]);
+  });
+
+  test('a second Esc after a second only starts a new count', () => {
+    const world = escapeWorld(shipped());
+    world.lastSwallowedAgo(1000);
+    expect(world.press(working)).toBe(true);
+    expect(world.stops).toEqual([]);
+    world.lastSwallowedAgo(999);
+    expect(world.press(working)).toBe(true);
+    expect(world.stops).toEqual([1]);
+  });
+
+  test('a pending first message counts the same way', () => {
+    const world = escapeWorld(shipped());
+    world.forget();
+    expect(world.press({ working: 'idle', pending: true })).toBe(true);
+    expect(world.press({ working: 'idle', pending: true })).toBe(true);
+    expect(world.stops).toEqual([1]);
+  });
+
   test('Esc while idle falls through to the next layer', () => {
     const world = escapeWorld(shipped());
+    world.forget();
     expect(world.press({ working: 'idle', pending: false })).toBe(false);
     expect(world.stops).toEqual([]);
   });

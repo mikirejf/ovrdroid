@@ -1,4 +1,5 @@
 import { MS_PER_SECOND } from '../cli.ts';
+import { STOP_HINTS } from './escape-report.ts';
 import type { Frame, Session } from './session.ts';
 import {
   ENTER,
@@ -11,7 +12,6 @@ import {
 } from './session.ts';
 
 export const FIRST_SEND_PROMPT = 'Reply with the single word ok. Do not use tools.';
-const SPINNER_TEXT = '(Press ESC to stop)';
 const QUEUED_TEXT = 'queued';
 const REPLY_LINE = /^[^\p{L}\p{N}]*ok[^\p{L}\p{N}]*$/iu;
 const REPLY_TIMEOUT_MS = 60_000;
@@ -35,7 +35,7 @@ function firstAt(frames: readonly Frame[], matches: (line: string) => boolean): 
 export function readFirstSend(frames: readonly Frame[], text: string): FirstSendReading {
   return {
     echoMs: firstAt(frames, (line) => line.includes(text)),
-    spinnerMs: firstAt(frames, (line) => line.includes(SPINNER_TEXT)),
+    spinnerMs: firstAt(frames, (line) => STOP_HINTS.some((hint) => line.includes(hint))),
     replyMs: firstAt(frames, (line) => REPLY_LINE.test(line.trim())),
     queued: frames.some((frame) =>
       linesOf(frame).some((line) => line.toLowerCase().includes(QUEUED_TEXT)),

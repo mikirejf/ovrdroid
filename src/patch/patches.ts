@@ -231,14 +231,20 @@ export const patches: readonly Patch[] = [
     replace: 'return O});TF.displayName="DynamicMessageList";',
   },
   {
-    name: 'escape-keeps-turn-running',
+    name: 'escape-twice-stops-turn',
     find: 'if(Ss!=="idle"||JC)return V3(),!0;return!1};return Pr.subscribe(Ee,{layer:4})',
-    replace: 'if(Ss!=="idle"||JC)return!0;return!1};return Pr.subscribe(Ee,{layer:4})',
+    replace:
+      'if(Ss!=="idle"||JC){if(Date.now()-(globalThis.__odEscAt??0)<1e3)return globalThis.__odEscAt=0,V3(),!0;return globalThis.__odEscAt=Date.now(),!0}return!1};return Pr.subscribe(Ee,{layer:4})',
   },
   {
-    name: 'no-escape-stop-hint',
+    name: 'escape-twice-reaches-stop',
+    find: 'Gi=g(()=>Hr("escape",X),[Hr,X])',
+    replace: 'Gi=g(()=>Hr("escape",X)&&!(Date.now()-(globalThis.__odEscAt??0)<1e3),[Hr,X])',
+  },
+  {
+    name: 'escape-stop-hint-says-twice',
     find: '"(Please wait)":"(Press ESC to stop)"}',
-    replace: '"(Please wait)":""}',
+    replace: '"(Please wait)":"(Esc twice to stop)"}',
   },
   {
     name: 'rewind-stops-running-turn',

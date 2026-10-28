@@ -32,7 +32,7 @@ describe('readFirstSend', () => {
   test('patched: the message and the spinner show in the first frame', () => {
     const reading = readFirstSend(
       [
-        frame(30, `> ${TEXT}\n Thinking...  (Press ESC to stop)\n${box('')}`),
+        frame(30, `> ${TEXT}\n Thinking...  (Esc twice to stop)\n${box('')}`),
         frame(7000, `⛬  ok.\n${box('')}`),
       ],
       TEXT,
