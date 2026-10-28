@@ -28,10 +28,10 @@ pending submission and posts "request cancelled by user", and the send returns
 `$ODr`/`$ODc` flags it kept on the manager were deleted, and so was
 `first-message-shows-at-once-undo`. One Esc never triggers that stop: `escape-twice-stops-turn`
 swallows the first Esc while a turn runs or a submission is pending and calls stock's stop on a
-second Esc within one second, so a pending first message is withdrawn by a double Esc. The prompt
+second Esc within half a second, so a pending first message is withdrawn by a double Esc. The prompt
 input counts Esc presses itself and swallows every press after the first, so
-`escape-twice-reaches-stop` lets a repeated Esc through while one was swallowed in the last second;
-without it the second Esc never reaches the stop.
+`escape-twice-reaches-stop` lets a repeated Esc through while one was swallowed in the last half
+second; without it the second Esc never reaches the stop.
 
 `src/patch/__tests__/first-message-patches.test.ts` covers: show and Thinking before the session
 exists, a stop withdrawing it with nothing sent, a different session coming back, a failed session

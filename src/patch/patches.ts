@@ -234,12 +234,12 @@ export const patches: readonly Patch[] = [
     name: 'escape-twice-stops-turn',
     find: 'if(Ss!=="idle"||JC)return V3(),!0;return!1};return Pr.subscribe(Ee,{layer:4})',
     replace:
-      'if(Ss!=="idle"||JC){if(Date.now()-(globalThis.__odEscAt??0)<1e3)return globalThis.__odEscAt=0,V3(),!0;return globalThis.__odEscAt=Date.now(),!0}return!1};return Pr.subscribe(Ee,{layer:4})',
+      'if(Ss!=="idle"||JC){if(Date.now()-(globalThis.__odEscAt??0)<500)return globalThis.__odEscAt=0,V3(),!0;return globalThis.__odEscAt=Date.now(),!0}return!1};return Pr.subscribe(Ee,{layer:4})',
   },
   {
     name: 'escape-twice-reaches-stop',
     find: 'Gi=g(()=>Hr("escape",X),[Hr,X])',
-    replace: 'Gi=g(()=>Hr("escape",X)&&!(Date.now()-(globalThis.__odEscAt??0)<1e3),[Hr,X])',
+    replace: 'Gi=g(()=>Hr("escape",X)&&!(Date.now()-(globalThis.__odEscAt??0)<500),[Hr,X])',
   },
   {
     name: 'escape-stop-hint-says-twice',

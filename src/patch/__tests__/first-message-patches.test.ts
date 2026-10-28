@@ -147,7 +147,7 @@ describe.skipIf(sites === undefined)('session-load-keeps-pending-settings', () =
 });
 
 describe.skipIf(sites === undefined)('escape-twice-reaches-stop', () => {
-  test('the input box keeps swallowing a repeated Esc when no Esc was swallowed in the last second', () => {
+  test('the input box keeps swallowing a repeated Esc when no Esc was swallowed in the last half second', () => {
     const world = escapeWorld(shipped());
     const input = inputEscape(shipped());
     world.forget();
@@ -155,12 +155,12 @@ describe.skipIf(sites === undefined)('escape-twice-reaches-stop', () => {
     expect(input(false)).toBe(false);
   });
 
-  test('a repeated Esc within a second of a swallowed one falls through to the stop', () => {
+  test('a repeated Esc within half a second of a swallowed one falls through to the stop', () => {
     const world = escapeWorld(shipped());
     const input = inputEscape(shipped());
-    world.lastSwallowedAgo(500);
+    world.lastSwallowedAgo(250);
     expect(input(true)).toBe(false);
-    world.lastSwallowedAgo(1000);
+    world.lastSwallowedAgo(500);
     expect(input(true)).toBe(true);
   });
 });
@@ -177,7 +177,7 @@ describe.skipIf(sites === undefined)('escape-twice-stops-turn', () => {
     expect(world.stops).toEqual([]);
   });
 
-  test('a second Esc within a second stops the turn, and the third starts a new count', () => {
+  test('a second Esc within half a second stops the turn, and the third starts a new count', () => {
     const world = escapeWorld(shipped());
     world.forget();
     expect(world.press(working)).toBe(true);
@@ -187,12 +187,12 @@ describe.skipIf(sites === undefined)('escape-twice-stops-turn', () => {
     expect(world.stops).toEqual([1]);
   });
 
-  test('a second Esc after a second only starts a new count', () => {
+  test('a second Esc after half a second only starts a new count', () => {
     const world = escapeWorld(shipped());
-    world.lastSwallowedAgo(1000);
+    world.lastSwallowedAgo(500);
     expect(world.press(working)).toBe(true);
     expect(world.stops).toEqual([]);
-    world.lastSwallowedAgo(999);
+    world.lastSwallowedAgo(499);
     expect(world.press(working)).toBe(true);
     expect(world.stops).toEqual([1]);
   });
