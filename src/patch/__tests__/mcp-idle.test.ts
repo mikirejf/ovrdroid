@@ -322,11 +322,18 @@ describe('sleeping when idle', () => {
 
   test('removing a server cancels its idle timer', async () => {
     const world = await liveWorld();
-
     await world.hub.removeServer(SERVER);
+    expect([world.pending, world.hub.servers[SERVER]]).toEqual([[], undefined]);
+  });
 
-    expect(world.pending).toEqual([]);
-    expect(world.hub.servers[SERVER]).toBeUndefined();
+  test('sleeping releases the process ownership, and waking and removing leave none behind', async () => {
+    const world = await liveWorld();
+    await world.fireIdle();
+    const asleep = new Set(world.owned);
+    await world.hub.callTool(SERVER, 'click');
+    const awake = new Set(world.owned);
+    await world.hub.removeServer(SERVER);
+    expect([asleep, awake, world.owned]).toEqual([new Set(), new Set([FIRST_PID + 1]), new Set()]);
   });
 });
 

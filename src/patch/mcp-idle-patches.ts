@@ -38,10 +38,10 @@ const ARM =
 const SLEEP =
   'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname],$ODcache=this.toolsListCache.get($ODname);if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
   'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||$ODcache?.state!=="ready")return this.$ODMa($ODname);' +
-  'let $ODpid=$ODsrv.pid,$ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);$ODdorm.pid=$ODpid;' +
+  'let $ODpid=$ODsrv.pid,$ODrelease=this.ownershipReleases.get($ODname),$ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);$ODdorm.pid=$ODpid,this.ownershipReleases.delete($ODname);' +
   'this.toolsListCache.set($ODname,{state:"ready",list:{tools:$ODcache.list.tools}}),this.settledTools.delete($ODname);' +
   '$ODdorm.$ODMstop=(async()=>{try{$ODsrv.listenStream?.close(),await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
-  'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODdorm.pid=null})();' +
+  'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODrelease?.(),$ODdorm.pid=null})();' +
   'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname,pid:$ODpid});await $ODdorm.$ODMstop}' +
   'async $ODMsettle($ODname){let $ODsrv=this.servers[$ODname];await Promise.all([$ODsrv?.$ODMstop,$ODsrv?.$ODMb?.catch(()=>{})])}';
 
