@@ -14,8 +14,8 @@ import { openSettledSession } from './session.ts';
 import type { Session } from './session.ts';
 import { stubSettings } from './stub-model.ts';
 
-const DROID_TYPE = 'ovrdroid-busy-probe';
-const ALT_S = '\u001Bs';
+export const DROID_TYPE = 'ovrdroid-busy-probe';
+export const ALT_S = '\u001Bs';
 const ESCAPE = '\u001B';
 const VIEW_TITLE = 'Droids View';
 const VIEW_TIMEOUT_MS = 8000;
@@ -39,7 +39,7 @@ export interface BusySignalOptions {
   switchSession: boolean;
 }
 
-interface Fixture {
+export interface Fixture {
   env: Record<string, string>;
   release: () => void;
 }
@@ -60,7 +60,7 @@ function stopped(session: Session): true | undefined {
   return showsWorking(session) === undefined ? true : undefined;
 }
 
-function viewLines(session: Session): readonly string[] | undefined {
+export function viewLines(session: Session): readonly string[] | undefined {
   const lines = session.screen();
   return lines.some((line) => line.startsWith(VIEW_TITLE)) ? lines : undefined;
 }
@@ -91,7 +91,7 @@ class Recorder {
   }
 }
 
-interface Run {
+export interface Run {
   session: Session;
   recorder: Recorder;
   timeoutMs: number;
@@ -117,7 +117,7 @@ async function openAndCloseView({
   return lines ?? opened;
 }
 
-async function launchHeldSubagent({ session, recorder, timeoutMs }: Run): Promise<void> {
+export async function launchHeldSubagent({ session, recorder, timeoutMs }: Run): Promise<void> {
   recorder.mark('prompt');
   await send(session, `${LAUNCH_WORD} kept`);
   await waitFor(
@@ -140,9 +140,11 @@ async function finishHeldSubagent(
   recorder.mark('finished');
 }
 
+export type ScenarioOptions = Pick<BusySignalOptions, 'cwd' | 'timeout'>;
+
 interface Scenario {
   binary: string;
-  options: BusySignalOptions;
+  options: ScenarioOptions;
   fixture: Fixture;
 }
 
@@ -168,9 +170,9 @@ async function runScenario(
   return recorder;
 }
 
-async function withScenario(
+export async function withScenario(
   binary: string,
-  options: BusySignalOptions,
+  options: ScenarioOptions,
   drive: (run: Run, fixture: Fixture) => Promise<void>,
 ): Promise<Recorder> {
   const run = randomUUID().slice(0, 8);
