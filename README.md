@@ -435,15 +435,16 @@ set fits both builds. `bun run probe builds` checks it against the stock newest 
 platform (downloading and caching them); `--version <v>` checks another release instead, and it
 exits non-zero on drift.
 
-The Mac is the master: edit and push from there. When `ovrdroid update` installs to
-`~/.local/bin/droid`, it writes the version it installed to `droid-version` at the repo root. Commit
-and push that file with the patches. Each Linux host runs `ovrdroid-sync` (from the dotfiles) every
-15 minutes: it pulls `~/dev/ovrdroid` and runs `ovrdroid sync`, which installs the pinned version
-and applies the patch set, and does nothing when both are already in place. So every Linux host
-follows the Mac's exact Droid version within 15 minutes of a push, and never jumps to a newer
-release on its own. `dotfiles-sync` on the Mac runs the same step at once. Run `probe builds` before
-pushing a patch change, because a patch that fits only one platform makes that host's sync fail, and
-the host keeps its current Droid.
+The Mac is the master: edit and commit there. Every 15 minutes the Mac pushes `main` on its own
+(`ovrdroid-push` from the dotfiles), as long as the checkout is a clean `main`. When
+`ovrdroid update` installs to `~/.local/bin/droid`, it writes the version it installed to
+`droid-version` at the repo root. Commit that file with the patches. Each Linux host runs
+`ovrdroid-sync` (from the dotfiles) every 15 minutes: it pulls `~/dev/ovrdroid` and runs
+`ovrdroid sync`, which installs the pinned version and applies the patch set, and does nothing when
+both are already in place. So every Linux host follows the Mac's exact Droid version within 15
+minutes of a push, and never jumps to a newer release on its own. `dotfiles-sync` on the Mac runs
+the same step at once. Run `probe builds` before pushing a patch change, because a patch that fits
+only one platform makes that host's sync fail, and the host keeps its current Droid.
 
 On the Mac, `update` also runs the gate (`ovrdroid gate --target <build> --stock <stock>`) on the
 freshly built binary before it replaces the installed Droid: the build basics and the probes for
