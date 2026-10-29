@@ -435,7 +435,7 @@ set fits both builds. `bun run probe builds` checks it against the stock newest 
 platform (downloading and caching them); `--version <v>` checks another release instead, and it
 exits non-zero on drift.
 
-The Mac is the master: edit and commit there. Every 15 minutes the Mac pushes `main` on its own
+The Mac is the master: edit and commit there. Every hour the Mac pushes `main` on its own
 (`ovrdroid-push` from the dotfiles), as long as the checkout is a clean `main`. When
 `ovrdroid update` installs to `~/.local/bin/droid`, it writes the version it installed to
 `droid-version` at the repo root. Commit that file with the patches. Each Linux host runs

@@ -155,10 +155,10 @@ prints `markers not found (Droid version drift)`, load the `patching-droid-cli` 
 hosts.
 
 **The Mac is the master.** Edit and commit ovrdroid on the Mac. The dotfiles' `ovrdroid-push` pushes
-`main` every 15 minutes while the checkout is a clean `main`, so finish with a commit, not a dirty
-tree. `update` on the installed Droid pins its version in `droid-version`; commit it. The Linux
-hosts run `ovrdroid sync` on a timer, which installs that pinned version with the pushed patch set.
-Run `bun run probe builds` before pushing a patch change: a patch that fits only one platform breaks
+`main` every hour while the checkout is a clean `main`, so finish with a commit, not a dirty tree.
+`update` on the installed Droid pins its version in `droid-version`; commit it. The Linux hosts run
+`ovrdroid sync` on a timer, which installs that pinned version with the pushed patch set. Run
+`bun run probe builds` before pushing a patch change: a patch that fits only one platform breaks
 that host's sync.
 
 ## Update gate
