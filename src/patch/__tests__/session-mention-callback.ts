@@ -1,13 +1,11 @@
-import { blockEnd } from '../tokens.ts';
+import { arrowAt } from './first-message-harness.ts';
 
 export function callbackAround(text: string, anchor: string): string {
   const at = text.indexOf(anchor);
   if (at === -1) {
     throw new Error('the patched suggestions callback is missing');
   }
-  const start = text.lastIndexOf('async(', at);
-  const open = text.indexOf('=>{', start) + 2;
-  return text.slice(start, blockEnd(text, open) + 1);
+  return arrowAt(text, text.lastIndexOf('async(', at));
 }
 
 export function setterArrow(replace: string): string {
@@ -28,4 +26,15 @@ export function calleeAfter(source: string, pattern: RegExp): string {
 
 export function escaped(name: string): string {
   return name.replaceAll('$', String.raw`\$`);
+}
+
+export function cancelArrow(text: string, name: string, sequence: string): string {
+  const at = new RegExp(
+    String.raw`[^\w$]${escaped(name)}=[\w$]+\(\(\)=>\{if\(${escaped(sequence)}\.current\+=1,`,
+    'u',
+  ).exec(text)?.index;
+  if (at === undefined) {
+    throw new Error('the stock suggestion cancel callback is missing');
+  }
+  return arrowAt(text, text.indexOf('(()=>', at) + 1);
 }

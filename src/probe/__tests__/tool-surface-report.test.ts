@@ -13,6 +13,14 @@ function row(tools: readonly string[], assistantMessageId = 'a'): BodyRow {
   };
 }
 
+function chatRow(tools: readonly string[]): BodyRow {
+  return {
+    ...row([]),
+    route: 'openai_chat',
+    body: { tools: tools.map((name) => ({ type: 'function', function: { name } })) },
+  };
+}
+
 describe('readToolSurface', () => {
   test('reads the tool list of the last request', () => {
     const surface = readToolSurface([row(['Script']), row(['Script', 'TodoWrite'])], 'TodoWrite');
@@ -44,6 +52,24 @@ describe('readToolSurface', () => {
   test('has no reading when the request carries no tool list', () => {
     const noTools: BodyRow = { ...row([]), body: { model: 'm' } };
     expect(readToolSurface([noTools], 'TodoWrite')).toBeUndefined();
+  });
+});
+
+describe('readToolSurface on an openai_chat body', () => {
+  test('reads the names from tools[].function.name', () => {
+    const surface = readToolSurface([chatRow(['Script', 'TodoWrite'])], 'TodoWrite');
+    expect(surface?.names).toEqual(['Script', 'TodoWrite']);
+    expect(surface?.scriptOnly).toBe(true);
+    expect(surface?.direct).toBe(true);
+  });
+
+  test('says a tool is not direct when only Script carries it', () => {
+    expect(readToolSurface([chatRow(['Script', 'WaitForScript'])], 'Read')?.direct).toBe(false);
+  });
+
+  test('skips a tool entry that carries no name', () => {
+    const noName: BodyRow = { ...row([]), body: { tools: [{ type: 'function', function: {} }] } };
+    expect(readToolSurface([noName], 'Read')?.names).toEqual([]);
   });
 });
 

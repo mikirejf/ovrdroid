@@ -4,10 +4,18 @@ import path from 'node:path';
 
 import { MS_PER_SECOND, say, whole } from '../cli.ts';
 import { ovrdroidFile } from '../paths.ts';
+import { bodiesEnv, newBodiesFile } from './bodies.ts';
 import type { Drive } from './effort-switch-turn.ts';
 import { logOf, LOG_PATH, takeTurn } from './effort-switch-turn.ts';
 import type { TurnBust, TurnEnds, TurnName, TurnUsage } from './effort-switch-verdict.ts';
-import { bustsByTurn, switchRuling, switchVerdict, turnUsage } from './effort-switch-verdict.ts';
+import {
+  bodyRecord,
+  bustsByTurn,
+  compareLogged,
+  switchRuling,
+  switchVerdict,
+  turnUsage,
+} from './effort-switch-verdict.ts';
 import { CYCLE_EFFORT, lastShownEffort } from './effort.ts';
 import { jsonlAppender } from './jsonl.ts';
 import { openLiveSession, sessionFolder, withLiveDir } from './live-session.ts';
@@ -81,10 +89,15 @@ async function pressUntil(session: Session, to: string): Promise<Labels> {
   );
 }
 
+interface Places {
+  dir: string;
+  bodiesFile: string;
+}
+
 async function runSwitch(
   binary: string,
   options: EffortSwitchOptions,
-  dir: string,
+  { dir, bodiesFile }: Places,
 ): Promise<Measured> {
   const cwd = path.join(dir, 'work');
   mkdirSync(cwd);
@@ -94,6 +107,7 @@ async function runSwitch(
     model: options.model,
     effort: options.from,
     collect: true,
+    env: bodiesEnv(bodiesFile),
   });
   try {
     await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);
@@ -134,16 +148,21 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   say('  control: a second turn at the same effort, which should read it');
   say(`  switched: a third turn after Tab moves the status-line label to ${options.to}`);
   say(`Droid's own log (${LOG_PATH}) gives the cache numbers for each turn`);
+  say('the verdict rests on the request bodies: the binary must be a `probe build --bodies` build');
   say('');
   if (!options.yes) {
     say('nothing was sent; re-run with --yes to spend it');
     return;
   }
 
+  const bodiesFile = newBodiesFile('effort-switch');
+  say(`request bodies go to ${bodiesFile}`);
+  say('');
   const measured = await withLiveDir(
     'effort-switch',
-    async (dir) => await runSwitch(binary, options, dir),
+    async (dir) => await runSwitch(binary, options, { dir, bodiesFile }),
   );
+  const body = compareLogged(bodiesFile, measured.lines.control.at);
   const turns = {
     seed: turnUsage(measured.lines.seed),
     control: turnUsage(measured.lines.control),
@@ -154,7 +173,7 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   }
   say(`the status line showed "${measured.labels.from}", then "${measured.labels.to}" after Tab`);
   say('');
-  const outcomes = { efforts: measured.efforts, ...turns, busts: measured.busts };
+  const outcomes = { efforts: measured.efforts, ...turns, busts: measured.busts, body };
   say(switchVerdict(outcomes));
   await jsonlAppender(options.out)({
     t: new Date().toISOString(),
@@ -163,6 +182,7 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
     efforts: measured.efforts,
     turns,
     busts: measured.busts,
+    body: bodyRecord(body),
   });
   say('');
   say(`this run appended to ${options.out}`);

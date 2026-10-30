@@ -153,19 +153,19 @@ export function resumeMarkersOf(sessionId: string, file: string, text: string): 
   return markers;
 }
 
-function nameOf(model: string): string {
+export function shortModel(model: string): string {
   return model.startsWith(CUSTOM_PREFIX) ? model.slice(CUSTOM_PREFIX.length) : model;
 }
 
 export function familyOf(model: string): string {
-  const words = nameOf(model)
+  const words = shortModel(model)
     .split('-')
     .filter((segment) => !VERSION_SEGMENT.test(segment));
   return words.length === 0 ? model : words.join('-');
 }
 
 export function providerOf(model: string): string {
-  const [first = ''] = nameOf(model).split('-');
+  const [first = ''] = shortModel(model).split('-');
   return CLAUDE_NAMES.has(first) ? 'claude' : first;
 }
 

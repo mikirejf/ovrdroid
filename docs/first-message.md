@@ -73,6 +73,20 @@ It does not replace the TUI patches. Without each one, measured:
 What it adds is overlap. `probe first-send --at-paint`, 12 pairs: reply median 7.5s against 8.9s,
 faster in 8 of 12.
 
+## Shipped: `session-create-keeps-early-settings`
+
+An effort change made with Tab right after launch could be lost, in stock too. Droid keeps a
+settings change made before the session exists as pending settings, filed under the session id, and
+creates that id a moment after launch. A Tab press that lands before then is filed under no id, and
+creating the session picks up only the entry for its own id, so the change never reaches the
+session. The patch merges the no-id entry into the session's own when the session is created.
+
+The gate's `probe effort` caught it once on Droid 1.0.0 (2026-10-30), on a run that started faster
+than usual. Droid's log for that run lacks the `updateSessionSettings called` line that every
+passing run has; extra CPU load and rewriting the settings file did not reproduce it (12 of 12
+passed). `first-message-patches.test.ts` runs the create path on stock and patched source and shows
+stock dropping the change.
+
 ## Why the per-turn MCP gate keeps its 60s cap
 
 With the boot wait gone, the per-turn gate is all that keeps late MCP tools out of turn two. Late

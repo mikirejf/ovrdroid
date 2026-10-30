@@ -10,6 +10,7 @@ import type { Stand } from './session-mention-scope.ts';
 import { scoped, scopeOver } from './session-mention-scope.ts';
 
 const NAMES = [
+  'session-create-keeps-early-settings',
   'session-load-keeps-pending-settings',
   'first-message-shows-at-once',
   'escape-twice-stops-turn',
@@ -35,16 +36,16 @@ export function patchedSites(app: App): Sites {
   };
 }
 
-function renamed(rebase: Rebase): (name: string) => string {
+export function renamed(rebase: Rebase): (name: string) => string {
   return (name) => rebase.renames[name] ?? name;
 }
 
-function arrowAt(text: string, start: number): string {
+export function arrowAt(text: string, start: number): string {
   const open = text.indexOf('=>{', start) + 2;
   return text.slice(start, blockEnd(text, open) + 1);
 }
 
-function arrowBefore(text: string, rebase: Rebase): string {
+export function arrowBefore(text: string, rebase: Rebase): string {
   const at = text.indexOf(rebase.replace);
   if (at === -1) {
     throw new Error(`the ${rebase.name} payload is missing from the patched source`);
@@ -52,16 +53,24 @@ function arrowBefore(text: string, rebase: Rebase): string {
   return arrowAt(text, text.lastIndexOf('async(', at));
 }
 
-function groups(source: string, pattern: RegExp, what: string): Record<string, string> {
+export type Groups = (name: string) => string;
+
+export function groups(source: string, pattern: RegExp, what: string): Groups {
   const found = pattern.exec(source)?.groups;
   if (found === undefined) {
     throw new Error(`the stock ${what} no longer matches ${pattern.source}`);
   }
-  return found;
+  return (name) => {
+    const value = found[name];
+    if (value === undefined) {
+      throw new Error(`the stock ${what} has no ${name} group`);
+    }
+    return value;
+  };
 }
 
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters
-function evaluate<Fn>(source: string, stubs: Map<string, Stand>): Fn {
+export function evaluate<Fn>(source: string, stubs: Map<string, Stand>): Fn {
   return payloadFunction<[ReturnType<typeof scopeOver>], Fn>(
     ['$ODscope'],
     scoped(source),
@@ -82,7 +91,7 @@ interface SendInput {
   queuePlacement?: string;
 }
 
-type Settings = Record<string, string>;
+export type Settings = Record<string, string>;
 type KeyEvent = Record<string, boolean>;
 
 export class FakeManager {
@@ -210,16 +219,16 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     },
   };
   const stubs = new Map<string, Stand>([
-    [head['client'] ?? '', () => client],
-    [head['service'] ?? '', () => ({ getCurrentSessionId: () => world.currentId })],
-    [pending['set'] ?? '', submissions],
-    [pending['flag'] ?? '', () => null],
+    [head('client'), () => client],
+    [head('service'), () => ({ getCurrentSessionId: () => world.currentId })],
+    [pending('set'), submissions],
+    [pending('flag'), () => null],
     [named('Oe'), { current: null }],
-    [refs['creating'] ?? '', { current: null }],
-    [refs['live'] ?? '', { current: null }],
+    [refs('creating'), { current: null }],
+    [refs('live'), { current: null }],
     [named('Ln'), async () => await session.promise],
     [
-      ids['id'] ?? '',
+      ids('id'),
       () => {
         nextId += 1;
         return `id-${nextId}`;
@@ -228,9 +237,9 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     [named('l0'), (placement: string | undefined) => placement ?? 'end_of_turn'],
     [named('dk'), (content: Content) => content],
     [named('$He'), (images: string[] | undefined) => images],
-    [failure['log'] ?? '', () => null],
-    [failure['describe'] ?? '', (error: Error) => error.message],
-    [failure['notice'] ?? '', (text: string) => notices.push(text)],
+    [failure('log'), () => null],
+    [failure('describe'), (error: Error) => error.message],
+    [failure('notice'), (text: string) => notices.push(text)],
   ]);
   const send = evaluate<(input: SendInput) => Promise<string>>(source, stubs);
   world.send = async (message, queuePlacement) => {
@@ -289,8 +298,8 @@ export function loadWorld(sites: Sites): LoadWorld {
     },
   };
   const stubs = new Map<string, Stand>([
-    [head['client'] ?? '', () => client],
-    [head['deferred'] ?? '', { current: null }],
+    [head('client'), () => client],
+    [head('deferred'), { current: null }],
     [named('De'), { current: null }],
     [named('ot'), { current: pending }],
     [named('c4'), (settings: Settings) => Object.keys(settings).length > 0],
@@ -310,8 +319,9 @@ const ESCAPE_STAMP = '__odEscAt';
 export function inputEscape(sites: Sites): (counted: boolean) => boolean {
   const rebase = sites.rebase('escape-twice-reaches-stop');
   const named = renamed(rebase);
+  const opener = `=${named('g')}(`;
   const source = rebase.replace.slice(
-    rebase.replace.indexOf('=g(') + 3,
+    rebase.replace.indexOf(opener) + opener.length,
     rebase.replace.lastIndexOf(',['),
   );
   const handler = evaluate<(count: () => boolean) => () => boolean>(
@@ -340,13 +350,13 @@ export function escapeWorld(sites: Sites): EscapeWorld {
   const source = arrowAt(window, start);
   const stops: number[] = [];
   const stubs = new Map<string, Stand>([
-    [found['is'] ?? '', (_key: KeyEvent, name: string) => name === 'escape'],
-    [found['a'] ?? '', false],
-    [found['b'] ?? '', false],
-    [found['c'] ?? '', false],
-    [found['d'] ?? '', { current: false }],
-    [found['e'] ?? '', undefined],
-    [found['shell'] ?? '', { isExecuting: false }],
+    [found('is'), (_key: KeyEvent, name: string) => name === 'escape'],
+    [found('a'), false],
+    [found('b'), false],
+    [found('c'), false],
+    [found('d'), { current: false }],
+    [found('e'), undefined],
+    [found('shell'), { isExecuting: false }],
     [named('V3'), () => stops.push(1)],
   ]);
   const handler = evaluate<(working: string, pending: boolean) => (key: KeyEvent) => boolean>(

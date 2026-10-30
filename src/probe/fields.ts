@@ -59,3 +59,13 @@ export function entriesOf(fields: Fields, name: string): Fields[] {
   }
   return entries;
 }
+
+export function resultText(block: Fields): string {
+  const content = block.get('content');
+  if (typeof content === 'string') {
+    return content;
+  }
+  return entriesOf(block, 'content')
+    .map((part) => worded(part, 'text'))
+    .join('\n');
+}

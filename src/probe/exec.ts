@@ -85,7 +85,7 @@ export function workloadFor(stage: Stage, turn: TurnSpec): Workload {
     : turnWorkload(requireModel(turn.model), turn.prompt, turn.expect);
 }
 
-function clip(text: string): string {
+export function clip(text: string): string {
   const line = text.trim().split('\n').at(0) ?? '';
   return line.length > CLIP ? `${line.slice(0, CLIP)}\u2026` : line;
 }
@@ -113,7 +113,7 @@ interface ExecClock {
   timeoutMs: number;
 }
 
-async function timeRun(
+export async function timeRun(
   child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
   { binary, startedAt, timeoutMs }: ExecClock,
 ): Promise<ExecRun> {

@@ -20,6 +20,7 @@ import { openLiveSession, sessionFolder, transcriptsIn, withLiveDir } from './li
 import type { FinishedChild, Transcript } from './live-transcript.ts';
 import { finishedChild, parentOf, turnOutcome } from './live-transcript.ts';
 import { poll } from './poll.ts';
+import { inPool } from './pool.ts';
 
 const USAGE_LOG = ovrdroidFile('cache-usage.jsonl');
 const EFFORT = 'medium';
@@ -58,23 +59,6 @@ function jobsFor(binaries: readonly string[], runs: number): Job[] {
   return Array.from({ length: runs }, (_, at) =>
     binaries.map((binary, index) => ({ binary, label: labelOf(binary), index, run: at + 1 })),
   ).flat();
-}
-
-async function inPool<T, R>(
-  items: readonly T[],
-  width: number,
-  work: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  const queue = items.entries();
-  const lane = async (): Promise<void> => {
-    for (const [at, item] of queue) {
-      // oxlint-disable-next-line no-await-in-loop
-      results[at] = await work(item);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(width, items.length) }, lane));
-  return results;
 }
 
 function watchGrunt(folder: string): () => FinishedChild | undefined {

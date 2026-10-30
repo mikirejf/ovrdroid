@@ -1,10 +1,10 @@
 import path from 'node:path';
 
 import { whole } from '../cli.ts';
-import { entriesOf, fieldsOf, isObject, worded } from './fields.ts';
+import { entriesOf, fieldsOf, isObject, resultText, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
+import { STALE_REFUSAL } from './stale-edit-cases.ts';
 
-const REFUSAL_MARK = 'has been modified externally since it was last read';
 const REMINDER_MARK = 'modified externally since you last accessed';
 const LISTED_PATH = /^ {2}- (?<file>.+)$/gmu;
 const SINGLE_PATH =
@@ -89,16 +89,6 @@ interface Access {
   index: number;
 }
 
-function resultText(block: Fields): string {
-  const content = block.get('content');
-  if (typeof content === 'string') {
-    return content;
-  }
-  return entriesOf(block, 'content')
-    .map((part) => worded(part, 'text'))
-    .join('\n');
-}
-
 function classify(window: readonly AgentCall[], file: string): Cause {
   const name = path.basename(file);
   const shell = window.filter((call) => call.name === 'Execute');
@@ -156,7 +146,7 @@ class Transcript {
       }
       return;
     }
-    if (text.includes(REFUSAL_MARK)) {
+    if (text.includes(STALE_REFUSAL)) {
       const file = access?.file ?? REFUSED_PATH.exec(text)?.groups?.['file'] ?? '';
       this.record('refusal', file);
     }

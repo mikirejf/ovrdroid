@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
+import { WARM_MESSAGE_ID_PREFIX } from '../../patch/warmer-patches.ts';
+import type { BodyRow, JsonObject } from '../bodies.ts';
+import { compareBodies } from '../bodies.ts';
 import type { SwitchOutcomes, TurnUsage } from '../effort-switch-verdict.ts';
 import {
+  bodyRecord,
   bustsByTurn,
+  findRequests,
   switchRuling,
   switchVerdict,
   turnLine,
@@ -11,18 +16,53 @@ import {
 import type { BustLine, UsageLine } from '../logs.ts';
 
 const MODEL = 'custom:droidproxy:sonnet-5-5';
+const CONTROL_END = '2026-10-15T10:00:20.000Z';
+const CONTROL_END_MS = Date.parse(CONTROL_END);
 
 function turn(cacheRead: number, cacheWrite: number): TurnUsage {
   return { input: 3, cacheRead, cacheWrite };
 }
 
-function outcomes(switched: TurnUsage, busts: SwitchOutcomes['busts'] = []): SwitchOutcomes {
+function controlBody(): JsonObject {
+  return {
+    model: 'm',
+    tools: [{ name: 'Read' }],
+    system: [{ type: 'text', text: 'be brief' }],
+    messages: [{ role: 'user', content: 'say two' }],
+    output_config: { effort: 'high' },
+  };
+}
+
+function switchedBody(changes: JsonObject = {}): JsonObject {
+  return {
+    ...controlBody(),
+    messages: [
+      { role: 'user', content: 'say two' },
+      { role: 'assistant', content: 'two' },
+      { role: 'user', content: 'say three' },
+    ],
+    output_config: { effort: 'medium' },
+    ...changes,
+  };
+}
+
+function row(t: number, body: JsonObject, assistantMessageId = 'msg'): BodyRow {
+  return { t, sessionId: 's', assistantMessageId, route: 'anthropic', body };
+}
+
+function compared(switched: JsonObject = switchedBody()) {
+  return compareBodies(controlBody(), switched);
+}
+
+function outcomes(overrides: Partial<SwitchOutcomes> = {}): SwitchOutcomes {
   return {
     efforts: { seed: 'high', control: 'high', switched: 'medium' },
-    seed: turn(0, 24_000),
-    control: turn(24_000, 500),
-    switched,
-    busts,
+    seed: turn(13_594, 10_015),
+    control: turn(20_965, 2666),
+    switched: turn(23_631, 23),
+    busts: [],
+    body: compared(),
+    ...overrides,
   };
 }
 
@@ -62,184 +102,217 @@ function bustLine(at: string): BustLine {
   };
 }
 
-describe('switchVerdict rules on the switched turn against the control prefix', () => {
-  test('a read at or above 90% of the prefix kept the cache', () => {
-    expect(switchVerdict(outcomes(turn(24_384, 100)))).toBe(
-      'switching effort from "high" to "medium" kept the cache: read 24,384 of 24,500 cached tokens',
+describe('switchRuling reads the request bodies and the cache numbers', () => {
+  test('the usual history pattern is kept and carries no note', () => {
+    const ruling = switchRuling(outcomes());
+    expect(ruling.kind).toBe('kept');
+    expect(ruling.text.split('\n')).toEqual([
+      'switching effort from "high" to "medium" did not bust the cache: the switched request extended the control request with only the effort changed',
+      'control turn read 20,965 and wrote 2,666; switched turn read 23,631 and wrote 23',
+    ]);
+  });
+
+  test('a loss outside the request is kept, and says Droid is not the cause', () => {
+    const shifted = outcomes({
+      seed: turn(13_594, 9991),
+      control: turn(23_585, 94),
+      switched: turn(20_941, 2765),
+    });
+    const ruling = switchRuling(shifted);
+    expect(ruling.kind).toBe('kept');
+    expect(ruling.text.split('\n')[2]).toBe(
+      "the switched turn read 20,941 of the 23,679 the control turn had cached: Droid's request extended the previous one unchanged, so the 2,765 tokens it re-wrote were lost outside Droid's request. In most runs the same one-time loss lands on the control turn",
     );
   });
 
-  test('a read under 10% of the prefix re-wrote the cache', () => {
-    expect(switchVerdict(outcomes(turn(100, 24_400)))).toBe(
-      'switching effort from "high" to "medium" re-wrote the cache: read 100, wrote 24,400',
+  test('a cold seed is kept but says the dropped-conversation check could not run', () => {
+    const cold = outcomes({ seed: turn(0, 24_000), control: turn(21_814, 2744) });
+    const ruling = switchRuling({ ...cold, switched: turn(24_558, 25) });
+    expect(ruling.kind).toBe('kept');
+    expect(ruling.text.split('\n').at(-1)).toBe(
+      'the seed turn read nothing from the cache (a cold start), so the check that the switched turn read the conversation could not run',
     );
   });
 
-  test('a read between the two lines partly kept it and says both numbers', () => {
-    expect(switchVerdict(outcomes(turn(12_000, 12_500)))).toBe(
-      'switching effort from "high" to "medium" partly kept the cache: read 12,000 of 24,500 cached tokens, wrote 12,500',
+  test('a request that changed an earlier message is busted and names where', () => {
+    const edited = switchedBody({
+      messages: [
+        { role: 'user', content: 'say TWO' },
+        { role: 'assistant', content: 'two' },
+      ],
+    });
+    const ruling = switchRuling(outcomes({ body: compared(edited) }));
+    expect(ruling.kind).toBe('busted');
+    expect(ruling.text).toContain(
+      'the switched request does not extend the control request: it changed messages[0] (user item), at messages[0].content;',
+    );
+    expect(ruling.text).toContain('say two');
+    expect(ruling.text).toContain('say TWO');
+  });
+
+  test('a setting other than the effort changing is busted and lists it', () => {
+    const ruling = switchRuling(outcomes({ body: compared(switchedBody({ temperature: 0.5 })) }));
+    expect(ruling.kind).toBe('busted');
+    expect(ruling.text).toContain(
+      'the switched request changed a setting besides the effort (output_config): temperature',
     );
   });
 
-  test('a control that read nothing means the run cannot judge the switch', () => {
-    const missed: SwitchOutcomes = { ...outcomes(turn(24_000, 0)), control: turn(0, 24_000) };
-    expect(switchVerdict(missed)).toBe(
-      'the control turn at "high" read 0 from the cache, no more than the seed turn read (0), so the conversation never reached the cache and the run cannot judge the switch',
+  test('the effort alone changing in output_config is not a bust', () => {
+    expect(compared().settings).toEqual(['output_config']);
+    expect(switchRuling(outcomes()).kind).toBe('kept');
+  });
+
+  test('a not-append-only warning on the switched turn is busted and says what Droid saw', () => {
+    const warned = outcomes({
+      busts: [{ turn: 'switched', region: 'tools', kind: 'removed', index: 2 }],
+    });
+    const ruling = switchRuling(warned);
+    expect(ruling.kind).toBe('busted');
+    expect(ruling.text).toContain(
+      'Droid warned on the switched turn that the request was not append-only: mismatch in tools, kind removed, first at index 2',
     );
   });
 
-  test('a GPT run that logs no writes is judged on what the control turn read', () => {
-    const gpt: SwitchOutcomes = {
-      ...outcomes(turn(7680, 0)),
-      seed: turn(7680, 0),
-      control: turn(14_336, 0),
-    };
-    expect(switchVerdict(gpt)).toBe(
-      'switching effort from "high" to "medium" partly kept the cache: read 7,680 of 14,336 cached tokens, wrote 0',
-    );
-    expect(switchRuling(gpt).kind).toBe('busted');
+  test('a warning on an earlier turn does not bust the switch', () => {
+    const earlier = outcomes({
+      busts: [{ turn: 'seed', region: 'tools', kind: 'removed', index: 2 }],
+    });
+    expect(switchRuling(earlier).kind).toBe('kept');
   });
 
-  test('a GPT switched turn that read the whole conversation kept the cache', () => {
-    const gpt: SwitchOutcomes = {
-      ...outcomes(turn(14_336, 0)),
-      seed: turn(0, 0),
-      control: turn(11_904, 0),
-    };
-    expect(switchRuling(gpt).kind).toBe('kept');
-  });
-
-  test('a control that re-wrote the tail of a cold seed still lets the run judge the switch', () => {
-    const live: SwitchOutcomes = {
-      ...outcomes(turn(24_558, 25)),
-      seed: turn(0, 24_534),
-      control: turn(21_814, 2744),
-    };
-    expect(switchRuling(live).kind).toBe('kept');
-  });
-
-  test('a control that read less than the whole seed prompt still warmed if it read what the seed wrote', () => {
-    const live: SwitchOutcomes = {
-      ...outcomes(turn(25_003, 24)),
-      seed: turn(13_523, 11_457),
-      control: turn(22_260, 2743),
-    };
-    expect(switchVerdict(live)).toBe(
-      'switching effort from "high" to "medium" kept the cache: read 25,003 of 25,003 cached tokens',
+  test('a switched turn that read no more than the seed read lost the conversation', () => {
+    const dropped = outcomes({
+      seed: turn(13_594, 10_015),
+      control: turn(20_965, 2666),
+      switched: turn(13_594, 10_037),
+    });
+    const ruling = switchRuling(dropped);
+    expect(ruling.kind).toBe('busted');
+    expect(ruling.text).toContain(
+      'the switched turn read none of the conversation from the cache: it read 13,594, no more than the 13,594 the seed turn read',
     );
   });
 
-  test('a control that read only what the seed already read cannot judge the switch either', () => {
-    const empty: SwitchOutcomes = { ...outcomes(turn(0, 0)), seed: turn(24_000, 0) };
-    expect(switchVerdict(empty)).toBe(
-      'the control turn at "high" read 24,000 from the cache, no more than the seed turn read (24,000), so the conversation never reached the cache and the run cannot judge the switch',
-    );
-  });
-});
-
-describe('switchVerdict trusts the effort the transcript recorded, not the label', () => {
-  const unchanged =
-    'the effort did not change as intended: the seed turn ran at "high", the control turn at "high", the switched turn at "high", so the run cannot judge the switch';
-
-  test('a switched turn that still ran at the control effort makes no cache claim', () => {
-    const stuck: SwitchOutcomes = {
-      ...outcomes(turn(24_500, 0)),
-      efforts: { seed: 'high', control: 'high', switched: 'high' },
-    };
-    expect(switchVerdict(stuck)).toBe(unchanged);
+  test('every reason shows, one per line', () => {
+    const everything = outcomes({
+      body: compared(
+        switchedBody({ temperature: 0.5, messages: [{ role: 'user', content: 'x' }] }),
+      ),
+      busts: [{ turn: 'switched', region: 'tools', kind: 'removed', index: 2 }],
+      switched: turn(100, 24_000),
+    });
+    const lines = switchRuling(everything).text.split('\n');
+    expect(lines).toHaveLength(5);
+    expect(lines[0]).toBe('switching effort from "high" to "medium" busted the cache:');
   });
 
-  test('a seed and control at different efforts make no cache claim', () => {
-    const drifted: SwitchOutcomes = {
-      ...outcomes(turn(24_500, 0)),
-      efforts: { seed: 'medium', control: 'high', switched: 'low' },
-    };
-    expect(switchVerdict(drifted)).toBe(
-      'the effort did not change as intended: the seed turn ran at "medium", the control turn at "high", the switched turn at "low", so the run cannot judge the switch',
+  test('no request pair is undecided and says how to get one', () => {
+    const ruling = switchRuling({ ...outcomes(), body: undefined });
+    expect(ruling.kind).toBe('undecided');
+    expect(ruling.text).toContain('probe build --bodies');
+    expect(ruling.text).toContain('$OD_BODIES');
+  });
+
+  test('efforts that did not change are undecided, whatever the bodies say', () => {
+    const stuck = outcomes({ efforts: { seed: 'high', control: 'high', switched: 'high' } });
+    const ruling = switchRuling(stuck);
+    expect(ruling.kind).toBe('undecided');
+    expect(ruling.text).toBe(
+      'the effort did not change as intended: the seed turn ran at "high", the control turn at "high", the switched turn at "high", so the run cannot judge the switch',
     );
+  });
+
+  test('a seed and control at different efforts are undecided', () => {
+    const drifted = outcomes({ efforts: { seed: 'medium', control: 'high', switched: 'low' } });
+    expect(switchRuling(drifted).text).toContain(
+      'the seed turn ran at "medium", the control turn at "high", the switched turn at "low"',
+    );
+    expect(switchRuling(drifted).kind).toBe('undecided');
   });
 
   test('the efforts in the ruling are the transcript values', () => {
-    const low: SwitchOutcomes = {
-      ...outcomes(turn(24_500, 0)),
-      efforts: { seed: 'xhigh', control: 'xhigh', switched: 'low' },
-    };
-    expect(switchVerdict(low)).toBe(
-      'switching effort from "xhigh" to "low" kept the cache: read 24,500 of 24,500 cached tokens',
+    const low = outcomes({ efforts: { seed: 'xhigh', control: 'xhigh', switched: 'low' } });
+    expect(switchRuling(low).text).toContain('from "xhigh" to "low"');
+  });
+});
+
+describe('switchVerdict lists every warning once', () => {
+  test('a switched-turn warning already in the ruling is not repeated', () => {
+    const warned = outcomes({
+      busts: [{ turn: 'switched', region: 'system', kind: 'content-changed', index: 4 }],
+    });
+    const lines = switchVerdict(warned).split('\n');
+    expect(lines.filter((line) => line.includes('not append-only'))).toHaveLength(1);
+  });
+
+  test('a warning on an earlier turn follows the ruling', () => {
+    const earlier = outcomes({
+      busts: [{ turn: 'seed', region: 'tools', kind: 'removed', index: 2 }],
+    });
+    const lines = switchVerdict(earlier).split('\n');
+    expect(lines.at(-1)).toBe(
+      'Droid warned on the seed turn that the request was not append-only: mismatch in tools, kind removed, first at index 2',
     );
   });
 
-  test('a warning still shows when the effort did not change', () => {
-    const stuck: SwitchOutcomes = {
-      ...outcomes(turn(24_500, 0), [
-        { turn: 'switched', region: 'tools', kind: 'removed', index: 2 },
-      ]),
+  test('a warning still shows when the run cannot judge the switch', () => {
+    const stuck = outcomes({
       efforts: { seed: 'high', control: 'high', switched: 'high' },
-    };
+      busts: [{ turn: 'switched', region: 'tools', kind: 'removed', index: 2 }],
+    });
     expect(switchVerdict(stuck).split('\n')).toHaveLength(2);
   });
 });
 
-describe('switchVerdict names a not-append-only warning after the ruling', () => {
-  test('it says the turn, region, kind and index', () => {
-    const text = switchVerdict(
-      outcomes(turn(100, 24_400), [
-        { turn: 'switched', region: 'system', kind: 'content-changed', index: 4 },
-      ]),
-    );
-    expect(text.split('\n')).toEqual([
-      'switching effort from "high" to "medium" re-wrote the cache: read 100, wrote 24,400',
-      'Droid warned on the switched turn that the request was not append-only: mismatch in system, kind content-changed, first at index 4',
-    ]);
+describe('findRequests picks the control request and the one after it', () => {
+  const control = row(CONTROL_END_MS - 5000, controlBody());
+  const switched = row(CONTROL_END_MS + 8000, switchedBody());
+
+  test('the control is the last request at or before the control turn ended', () => {
+    const seed = row(CONTROL_END_MS - 20_000, controlBody());
+    expect(findRequests([seed, control, switched], CONTROL_END)).toEqual({ control, switched });
   });
 
-  test('a warning shows even when the run cannot judge the switch', () => {
-    const missed: SwitchOutcomes = {
-      ...outcomes(turn(0, 0), [{ turn: 'control', region: 'tools', kind: 'removed', index: 0 }]),
-      control: turn(0, 24_000),
-    };
-    expect(switchVerdict(missed).split('\n')).toHaveLength(2);
-    expect(switchVerdict(missed)).toContain('on the control turn');
+  test('a request at the very moment the control turn ended is the control', () => {
+    const atEnd = row(CONTROL_END_MS, controlBody());
+    expect(findRequests([control, atEnd, switched], CONTROL_END)?.control).toBe(atEnd);
+  });
+
+  test('one-shot and warm rows are skipped on both sides', () => {
+    const oneShot = row(CONTROL_END_MS - 1000, controlBody(), 'oneshot-title');
+    const warm = row(CONTROL_END_MS + 1000, controlBody(), `${WARM_MESSAGE_ID_PREFIX}1`);
+    expect(findRequests([control, oneShot, warm, switched], CONTROL_END)).toEqual({
+      control,
+      switched,
+    });
+  });
+
+  test('no request after the control turn means no pair', () => {
+    expect(findRequests([control], CONTROL_END)).toBeUndefined();
+  });
+
+  test('no request at or before the control turn means no pair', () => {
+    expect(findRequests([switched], CONTROL_END)).toBeUndefined();
+  });
+
+  test('an empty bodies file means no pair', () => {
+    expect(findRequests([], CONTROL_END)).toBeUndefined();
   });
 });
 
-describe('switchRuling says whether the switch busted the cache', () => {
-  test('a switched turn that read the prefix with no warning kept it', () => {
-    expect(switchRuling(outcomes(turn(24_384, 100))).kind).toBe('kept');
+describe('bodyRecord writes what the bodies showed', () => {
+  test('an extending request with only the effort changed', () => {
+    expect(bodyRecord(compared())).toEqual({ extends: true, settings: ['output_config'] });
   });
 
-  test('a switched turn that re-wrote the cache busted it', () => {
-    expect(switchRuling(outcomes(turn(100, 24_400))).kind).toBe('busted');
+  test('a request that changed the prompt', () => {
+    const edited = switchedBody({ messages: [{ role: 'user', content: 'x' }] });
+    expect(bodyRecord(compared(edited))?.extends).toBe(false);
   });
 
-  test('a switched turn that only partly read the prefix busted it', () => {
-    expect(switchRuling(outcomes(turn(12_000, 12_500))).kind).toBe('busted');
-  });
-
-  test('a not-append-only warning on the switched turn busts it even when the read was high', () => {
-    const warned = outcomes(turn(24_384, 100), [
-      { turn: 'switched', region: 'tools', kind: 'removed', index: 2 },
-    ]);
-    expect(switchRuling(warned).kind).toBe('busted');
-  });
-
-  test('a warning on an earlier turn does not bust the switch', () => {
-    const earlier = outcomes(turn(24_384, 100), [
-      { turn: 'seed', region: 'tools', kind: 'removed', index: 2 },
-    ]);
-    expect(switchRuling(earlier).kind).toBe('kept');
-  });
-
-  test('a run that cannot judge the switch is undecided, whatever the switched turn read', () => {
-    const missed: SwitchOutcomes = { ...outcomes(turn(0, 24_500)), control: turn(0, 24_000) };
-    const stuck: SwitchOutcomes = {
-      ...outcomes(turn(24_500, 0)),
-      efforts: { seed: 'high', control: 'high', switched: 'high' },
-    };
-    const empty: SwitchOutcomes = { ...outcomes(turn(0, 0)), seed: turn(24_000, 0) };
-    expect(switchRuling(missed).kind).toBe('undecided');
-    expect(switchRuling(stuck).kind).toBe('undecided');
-    expect(switchRuling(empty).kind).toBe('undecided');
+  test('no pair writes null', () => {
+    expect(bodyRecord()).toBeNull();
   });
 });
 

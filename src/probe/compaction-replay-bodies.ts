@@ -3,6 +3,7 @@ import {
   NO_MENTION_LINE,
   SUMMARIZE_LINE,
 } from '../patch/compaction-patches.ts';
+import { isList, isRecord } from './bodies.ts';
 import type { Json, JsonObject } from './bodies.ts';
 import { fieldsOf, worded } from './fields.ts';
 
@@ -40,14 +41,6 @@ const NO_CLAIM_SENTENCE = 'Do not mention this request. ';
 const ASK_LINES = [SUMMARIZE_LINE, NO_MENTION_LINE];
 const CUSTOM_BREAK = `\n\n${CUSTOM_INSTRUCTIONS_LEAD}\n`;
 const MESSAGE_BREAK = '\n\n---\n\n';
-
-function isList(value: Json | undefined): value is readonly Json[] {
-  return Array.isArray(value);
-}
-
-function isRecord(value: Json | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function asList(value: Json | undefined): readonly Json[] {
   return isList(value) ? value : [];

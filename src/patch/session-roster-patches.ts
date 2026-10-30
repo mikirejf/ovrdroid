@@ -68,10 +68,7 @@ export const sessionRosterPatches: readonly Patch[] = [
   {
     name: 'session-roster-model-lookup',
     find: STOCK_ROSTER_HEAD,
-    lookups: [
-      'function r7(f){let y=m().getCurrentSessionId()??void 0,',
-      'let A=pCe(f,I);if(A.length===0)',
-    ],
+    lookups: ['m().getSessionsForSelector(', 'let A=pCe(f,I);if(A.length===0)'],
     replace: `${MODEL_AND_DESCENDANTS}${STOCK_ROSTER_HEAD}`,
   },
   {

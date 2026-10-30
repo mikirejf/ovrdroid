@@ -52,9 +52,17 @@ async function loadCatalog(refresh: boolean): Promise<LoadedCatalog> {
   };
 }
 
-export async function modelPrice(droidId: string): Promise<ModelPrice> {
+export async function findModelPrices(
+  droidIds: readonly string[],
+): Promise<Map<string, ModelPrice | undefined>> {
   const [{ catalog }, customModels] = await Promise.all([loadCatalog(false), readCustomModels()]);
-  const [price] = resolvePrices(catalog, [droidId], customModels).priced;
+  const { priced } = resolvePrices(catalog, droidIds, customModels);
+  return new Map(droidIds.map((id) => [id, priced.find((price) => price.droidId === id)]));
+}
+
+export async function modelPrice(droidId: string): Promise<ModelPrice> {
+  const found = await findModelPrices([droidId]);
+  const price = found.get(droidId);
   if (price === undefined) {
     throw new Error(`no price known for ${droidId}; try \`probe prices --refresh ${droidId}\``);
   }

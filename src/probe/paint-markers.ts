@@ -1,6 +1,7 @@
 import { diffStatsPatches } from '../patch/diff-stats-patches.ts';
 import { logoPatches } from '../patch/logo.ts';
 import type { Patch } from '../patch/patches.ts';
+import { escapeRegex } from '../patch/tokens.ts';
 import { turnClockPatches } from '../patch/turn-clock-patches.ts';
 import { updateNoticePatches } from '../patch/update-notice-patches.ts';
 
@@ -9,7 +10,6 @@ export type FrameName = (typeof FRAME_NAMES)[number];
 export type PaintFrames = Partial<Record<FrameName, readonly string[] | undefined>>;
 
 const JS_ESCAPE = /\\u(?<unicode>[0-9A-Fa-f]{4})|\\x(?<byte>[0-9A-Fa-f]{2})/gu;
-const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 const AGE = String.raw`(?:<1m|\d+[mhd])`;
 const HEX = 16;
 
@@ -17,10 +17,6 @@ export function unescapeJs(text: string): string {
   return text.replaceAll(JS_ESCAPE, (_match, unicode?: string, byte?: string) =>
     String.fromCodePoint(Number.parseInt(unicode ?? byte ?? '', HEX)),
   );
-}
-
-function escaped(text: string): string {
-  return text.replaceAll(REGEX_SPECIAL, String.raw`\$&`);
 }
 
 function patchNamed(patches: readonly Patch[], name: string): Patch {
@@ -83,9 +79,9 @@ const NOTICE = groupsIn(
 
 export const UPDATE_FILE_UNDER_HOME = group(
   groupsIn(
-    patchNamed(updateNoticePatches, 'update-notice-writer').replace,
+    patchNamed(updateNoticePatches, 'auto-update-notice-only').replace,
     /homedir\(\)\+"\/(?<file>[^"]+)"/u,
-    'update-notice-writer',
+    'auto-update-notice-only',
   ),
   'file',
 );
@@ -175,14 +171,14 @@ export function paintMarkers(fixture: PaintFixture): Marker[] {
       patch: 'turn-clock-parts',
       frame: 'turn',
       shows: `${up}<1m ${down}<1m`,
-      found: hasMatch(new RegExp(`${escaped(up)}${AGE} ${escaped(down)}${AGE}`, 'u')),
+      found: hasMatch(new RegExp(`${escapeRegex(up)}${AGE} ${escapeRegex(down)}${AGE}`, 'u')),
     },
     {
       name: 'the cache clock',
       patch: 'turn-clock-parts',
       frame: 'turn',
       shows: `${cache}44m`,
-      found: hasMatch(new RegExp(`${escaped(cache)}${AGE}`, 'u')),
+      found: hasMatch(new RegExp(`${escapeRegex(cache)}${AGE}`, 'u')),
     },
     {
       name: 'the compact ovrdroid wordmark',

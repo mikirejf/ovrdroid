@@ -83,10 +83,7 @@ export const nestingPatches: readonly Patch[] = [
   {
     name: 'nesting-ledger-records-max-depth',
     find: STOCK_LEDGER_ADMISSION,
-    lookups: [
-      'E=t,T=lp({parentSessionId:g,parentToolUseId:f}),',
-      'R=t.isResume?hn(t.sessionId):void 0',
-    ],
+    lookups: ['E=t,x=va(a),R=t.isResume?hn(t.sessionId):void 0'],
     replace:
       'completionEvidenceVersion:x?iJ:1,maxDepth:E.maxDepth??R?.maxDepth};G=await _Re(K,o6())}',
   },

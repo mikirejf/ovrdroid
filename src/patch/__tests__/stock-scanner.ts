@@ -31,6 +31,13 @@ async function stockApp(target: string): Promise<App | undefined> {
 export const stockDroid =
   (await stockApp(INSTALLED_DROID)) ?? (await stockApp(backupPath(INSTALLED_DROID)));
 
+export function requireStock(): App {
+  if (stockDroid === undefined) {
+    throw new Error('no stock Droid to read');
+  }
+  return stockDroid;
+}
+
 export const stockText = stockDroid === undefined ? '' : joinApp(stockDroid);
 
 export function shipped(patches: readonly Patch[]) {

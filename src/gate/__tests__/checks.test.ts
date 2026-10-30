@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { PROBE_MODEL } from '../../probe/launch.ts';
 import { gateChecks } from '../checks.ts';
 import { itemsOf } from '../schedule.ts';
 
@@ -61,7 +62,13 @@ describe('gateChecks', () => {
       'bun run probe build --target /s/droid --bodies --out /g/droid-bodies',
     );
     expect(commandOf('tool-surface')).toBe('bun run probe tool-surface /g/droid-bodies');
-    expect(laneNames('live')).toContainEqual(['bodies-build', 'tool-surface']);
+    expect(laneNames('live')).toContainEqual(['bodies-build', 'tool-surface', 'effort-switch']);
+  });
+
+  test('runs the effort switch on the bodies binary, because its verdict reads request bodies', () => {
+    expect(commandOf('effort-switch')).toBe(
+      `bun run probe effort-switch /g/droid-bodies --model ${PROBE_MODEL} --yes`,
+    );
   });
 
   test('checks the release it gates, not the newest one', () => {
@@ -76,12 +83,11 @@ describe('gateChecks', () => {
   test('runs live checks four lanes at a time, longest first', () => {
     const live = phaseOf('live');
     expect(live.lanesAtOnce).toBe(4);
-    expect(laneNames('live').slice(0, 5)).toEqual([
+    expect(laneNames('live').slice(0, 4)).toEqual([
       ['digest-run'],
       ['warm'],
-      ['effort-switch'],
       ['cachekey'],
-      ['bodies-build', 'tool-surface'],
+      ['bodies-build', 'tool-surface', 'effort-switch'],
     ]);
   });
 

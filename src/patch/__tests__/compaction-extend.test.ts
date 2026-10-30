@@ -53,11 +53,15 @@ function withoutBreakpoints(message: Message): Message {
 
 const LAST_REPLY = textMessage('last-reply', 'assistant');
 
-function publish(): Published {
-  return payloadFunction<[], Published>(
-    [],
-    `var zh=new Map,eN=240000;${SEND}return"sender"}${EXPORTS}return globalThis.${REUSE_GLOBAL}`,
-  )();
+interface StoredSnapshot {
+  snapshot: Snapshot & { capturedAt: number };
+}
+
+function publish(stored = new Map<string, StoredSnapshot>()): Published {
+  return payloadFunction<[Map<string, StoredSnapshot>], Published>(
+    ['yi'],
+    `var LJ=240000;${SEND}return"sender"}${EXPORTS}return globalThis.${REUSE_GLOBAL}`,
+  )(stored);
 }
 
 interface Rebuild {
@@ -97,6 +101,19 @@ describe('compaction-reuse-exports', () => {
     const published = publish();
     expect(published.snapshot('none')).toBeUndefined();
     expect(await published.send(null, {})).toBe('sender');
+  });
+
+  test('reads the snapshot out of its stored entry and drops one older than four minutes', () => {
+    const { snapshot } = rebuildingSnapshot(nextRequest);
+    const fresh = { ...snapshot, capturedAt: Date.now() };
+    const published = publish(
+      new Map([
+        ['fresh', { snapshot: fresh }],
+        ['stale', { snapshot: { ...snapshot, capturedAt: Date.now() - 300_000 } }],
+      ]),
+    );
+    expect(published.snapshot('fresh')).toBe(fresh);
+    expect(published.snapshot('stale')).toBeUndefined();
   });
 
   test('extends the snapshot history with every message the snapshot missed', () => {

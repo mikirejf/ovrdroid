@@ -121,8 +121,12 @@ const PO_LOOKUP =
 
 const UU_LOOKUP = 'var Wre=()=>R().t("common:fileSuggestions.file"),r5=100;class uu{';
 
-const SUGGESTIONS_CLOSED =
-  'if(ao.current)clearTimeout(ao.current),ao.current=null;if(go.current)clearTimeout(go.current),go.current=null;On(!1)';
+const SUGGESTIONS_DEPS = '[zi,Ma,Ba,Yi,Mt,qt,Zt.status,Nn,_e,Pe,Ko]';
+
+const SUGGESTION_ENTER =
+  'if(N(to,"tab")||N(to,"return",{shift:!1,ctrl:!1}))return j({suggestion:xo[xt.current]';
+
+const PLAIN_KEY = '{ctrl:!1,shift:!1,altFamily:!1}';
 
 export const sessionMentionPatches: readonly Patch[] = [
   {
@@ -152,7 +156,7 @@ export const sessionMentionPatches: readonly Patch[] = [
   },
   {
     name: 'session-mention-suggest',
-    find: `${SUGGESTIONS_CLOSED},En([]),Qt(!1)},[zi,Ma,Ba,Mt,qt,Zt.status,Nn,_e,Pe,Ko])`,
+    find: `Yi(),En([]),Qt(!1)},${SUGGESTIONS_DEPS})`,
     lookups: [
       CALLBACK_START,
       UU_LOOKUP,
@@ -162,10 +166,10 @@ export const sessionMentionPatches: readonly Patch[] = [
       'await p().getSessionsForSelector(I())',
     ],
     replace:
-      `${SUGGESTIONS_CLOSED};let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);` +
-      'if(!$ODhash){En([]),Qt(!1);return}' +
+      'Yi();let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);' +
+      'if(!$ODhash){En([]),Qt(!1);return}$ODseq=Po.current;' +
       'let $ODseen=Ba.$ODfirst??=new Map,' +
-      '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,$ODs.cwd);$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
+      '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,p().getSessionsDirectory($ODs.cwd));$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
       'let $ODlast=uu.$ODsessionLast($ODpath);if($ODlast)$ODs.modifiedTime=new Date($ODlast.at)}return $ODseen.get($ODs.id)},' +
       '$ODshown=[],$ODshow=($ODall,$ODkeep)=>{let $ODopen=$ODkeep&&$ODshown.length>0,' +
       '$ODhere=uu.$ODsessionPlace(Ba.workingDirectory).label,' +
@@ -186,13 +190,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       '$ODload.then(($ODpool)=>{if(Ba.$ODload!==$ODload)return;let $ODfresh=Ba.$ODpool!==$ODpool;Ba.$ODpool=$ODpool;' +
       'if($ODseq===Po.current)$ODshow($ODpool);if($ODfresh)$ODscan($ODpool)},' +
       '($ODe)=>{if(Ba.$ODload===$ODload)Ba.$ODload=void 0;h($ODe,"Failed to load sessions for the # picker")})' +
-      '},[zi,Ma,Ba,Mt,qt,Zt.status,Nn,_e,Pe,Ko])',
-  },
-  {
-    name: 'session-mention-escape',
-    find: 'Hi=g(()=>mo.current&&ko(),[ko])',
-    lookups: ['Un=g(()=>{U(!1),z(!1)},[U,z])'],
-    replace: 'Hi=g(()=>{U(!1);return mo.current&&ko()},[ko,U])',
+      `},${SUGGESTIONS_DEPS})`,
   },
   {
     name: 'session-mention-service-drops',
@@ -201,22 +199,19 @@ export const sessionMentionPatches: readonly Patch[] = [
       'catch(E){return h(E,"Error occurred while fetching file suggestions"),[]}',
       'await p().getSessionsForSelector(I())',
     ],
-    find: 'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current),ao.current=null;if(go.current)clearTimeout(go.current),go.current=null;On(!1),En([]),Qt(!1),Ro(0)},[Ba])',
+    find: 'v(()=>{Yi(),En([]),Qt(!1),Ro(0)},[Ba])',
     replace:
-      'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current),ao.current=null;if(go.current)clearTimeout(go.current),go.current=null;On(!1),En([]),Qt(!1),Ro(0);' +
+      'v(()=>{Yi(),En([]),Qt(!1),Ro(0);' +
       `let $ODwarm=setTimeout(()=>{p().getSessionsForSelector(Ba.workingDirectory).catch(($ODe)=>h($ODe,"Failed to warm the # picker"))},${WARM_DELAY_MS});` +
       'return()=>{clearTimeout($ODwarm);if(uu.$ODredraw===Ba.$ODrefresh)uu.$ODredraw=void 0;Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=Ba.$ODrefresh=void 0}},[Ba])',
   },
   {
     name: 'session-mention-scope-key',
-    find: 'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
-    lookups: [
-      'g((Ct,to)=>{let{showSuggestions:vo,suggestions:xo}=G();if(vo&&xo.length>0){if(to.upArrow)',
-      UU_LOOKUP,
-    ],
+    find: SUGGESTION_ENTER,
+    lookups: [UU_LOOKUP],
     replace:
-      'if(xo[0].$ODsession&&(to.leftArrow||to.rightArrow)&&!to.ctrl&&!to.meta&&!to.shift)return uu.$ODsetWide(!!to.rightArrow),!0;' +
-      'if(to.tab||to.return&&!to.shift&&!to.ctrl)return j({suggestion:xo[xt.current]',
+      `if(xo[0].$ODsession&&(N(to,"leftArrow",${PLAIN_KEY})||N(to,"rightArrow",${PLAIN_KEY})))` +
+      `return uu.$ODsetWide(N(to,"rightArrow")),!0;${SUGGESTION_ENTER}`,
   },
   {
     name: 'session-mention-select',

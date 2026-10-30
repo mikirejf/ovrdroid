@@ -33,15 +33,10 @@ export const updateNoticePatches: readonly Patch[] = [
     find: 'if(!f)return l(u,"no-update"),"no-update";if(f.isRollback){',
     lookups: ['T("Rollback detected but rollbacks are disabled (CLI update service)",'],
     replace:
-      `if(!f)return ${UPDATE_FILE_WRITER_NAME}(null),l(u,"no-update"),"no-update";` +
+      `${UPDATE_FILE_WRITER}if(!f)return ${UPDATE_FILE_WRITER_NAME}(null),l(u,"no-update"),"no-update";` +
       `return ${UPDATE_FILE_WRITER_NAME}(f.version.version),` +
       'T("Auto-update blocked by ovrdroid; run ovrdroid update",{version:f.version.version}),' +
       'l(u,"skipped"),"skipped";if(f.isRollback){',
-  },
-  {
-    name: 'update-notice-writer',
-    find: 'var R=i({disableAutoUpdate:m().optional()});',
-    replace: `${UPDATE_FILE_WRITER}var R=i({disableAutoUpdate:m().optional()});`,
   },
   {
     name: 'update-notice-reader',

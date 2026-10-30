@@ -1,17 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { Command } from 'commander';
 
 import { count, guard, MS_PER_SECOND, say } from '../cli.ts';
-import { makeTempDir } from '../temp.ts';
-import { parseBodies } from './bodies.ts';
+import { bodiesEnv, newBodiesFile, parseBodies } from './bodies.ts';
 import { openLiveSession, submit, withLiveDir } from './live-session.ts';
 import { poll } from './poll.ts';
 import { SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import { describeToolSurface, readToolSurface } from './tool-surface-report.ts';
 
-const BODIES_VARIABLE = 'OD_BODIES';
 const PROMPT = 'Reply with the single word "ok". Do not use any tool.';
 const DEFAULT_MODEL = 'custom:droidproxy:sonnet-5-5';
 const DEFAULT_EFFORT = 'low';
@@ -31,9 +29,7 @@ function readRows(file: string) {
 }
 
 export async function toolSurface(binary: string, options: ToolSurfaceOptions): Promise<void> {
-  const out = path.resolve(options.out ?? path.join(makeTempDir('tool-surface'), 'bodies.jsonl'));
-  mkdirSync(path.dirname(out), { recursive: true });
-  writeFileSync(out, '');
+  const out = newBodiesFile('tool-surface', options.out);
   say(
     `${options.modelId} at effort ${options.effort}: is ${options.tool} on its direct tool list?`,
   );
@@ -46,7 +42,7 @@ export async function toolSurface(binary: string, options: ToolSurfaceOptions): 
       dir,
       model: options.modelId,
       effort: options.effort,
-      env: { [BODIES_VARIABLE]: out },
+      env: bodiesEnv(out),
     });
     try {
       await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);

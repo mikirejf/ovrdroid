@@ -254,7 +254,7 @@ program
 program
   .command('effort-switch')
   .description(
-    'press Tab to change reasoning effort mid-conversation in a real Droid session: does the next request still read the prompt cache?',
+    'MAKES A REAL MODEL CALL: press Tab to change reasoning effort mid-conversation in a real Droid session: does the next request extend the previous one with only the effort changed, and did the conversation stay in the prompt cache? The verdict rests on the request bodies, so the binary must be a `probe build --bodies` build',
   )
   .argument('<binary>')
   .option('-m, --model <id>', 'customModels entry to run the session on', DEFAULT_SWITCH_MODEL)

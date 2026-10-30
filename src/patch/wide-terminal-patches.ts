@@ -89,8 +89,8 @@ export const wideTerminalPatches: readonly Patch[] = [
   },
   {
     name: 'wide-terminal-command-catalog',
-    find: 'vim:{name:"vim",description:"Toggle vim keybindings for the chat input",category:"config"}}',
-    replace: `vim:{name:"vim",description:"Toggle vim keybindings for the chat input",category:"config"},${WIDTH_COMMAND}:{name:${JSON.stringify(WIDTH_COMMAND)},description:${JSON.stringify(COMMAND_DESCRIPTION)},category:"config"}}`,
+    find: 'vim:{name:"vim",description:"Toggle vim keybindings for the chat input",category:"config"},',
+    replace: `vim:{name:"vim",description:"Toggle vim keybindings for the chat input",category:"config"},${WIDTH_COMMAND}:{name:${JSON.stringify(WIDTH_COMMAND)},description:${JSON.stringify(COMMAND_DESCRIPTION)},category:"config"},`,
   },
   {
     name: 'wide-terminal-command',

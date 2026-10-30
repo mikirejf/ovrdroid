@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND, say, whole } from '../cli.ts';
 import { isStoredSummary } from '../patch/summary-format.ts';
-import { makeTempDir } from '../temp.ts';
+import { bodiesEnv, newBodiesFile } from './bodies.ts';
 import { describeRow, missingReuse, reuseRows, rowsFor } from './compaction-capture-report.ts';
 import { DEFAULT_DIGEST_FOLDER } from './digest-key.ts';
 import {
@@ -21,7 +21,6 @@ import { poll } from './poll.ts';
 import { SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import { compactionsOf } from './summaries-report.ts';
 
-const BODIES_VARIABLE = 'OD_BODIES';
 const AUTONOMY = ['--auto', 'medium'];
 const DIGEST_FILE = /^\d+-.*\.md$/u;
 
@@ -84,7 +83,7 @@ async function driveCapture({ binary, options, out, dir }: Drive): Promise<Captu
     model: options.modelId,
     effort: options.effort,
     args: AUTONOMY,
-    env: { [BODIES_VARIABLE]: out },
+    env: bodiesEnv(out),
   });
   try {
     await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);
@@ -124,9 +123,7 @@ export async function compactionCapture(
   binary: string,
   options: CompactionCaptureOptions,
 ): Promise<void> {
-  const out = path.resolve(options.out ?? path.join(makeTempDir('capture'), 'bodies.jsonl'));
-  mkdirSync(path.dirname(out), { recursive: true });
-  writeFileSync(out, '');
+  const out = newBodiesFile('capture', options.out);
   say(
     `${options.modelId} at effort ${options.effort} reads ${options.files} digest files, then /compress; request bodies go to ${out}`,
   );

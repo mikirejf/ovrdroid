@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { MAX_WARM_DELAY_MS, MIN_WARM_DELAY_MS, WARM_DELAY_ENV } from '../warmer-patches.ts';
+import {
+  MAX_WARM_DELAY_MS,
+  MIN_WARM_DELAY_MS,
+  WARM_DELAY_ENV,
+  warmerPatches,
+} from '../warmer-patches.ts';
+import { patchNamed, payloadFunction } from './payload.ts';
 import type { Reply } from './warmer-harness.ts';
 import {
   ANTHROPIC_DELAY_MS,
@@ -89,7 +95,10 @@ describe('when the timer fires', () => {
   test('a snapshot that is no longer the latest sends nothing', async () => {
     world.children = 2;
     world.request(1);
-    world.harness.snapshots.set(SESSION, snapshot(2));
+    world.harness.snapshots.set(SESSION, {
+      snapshot: snapshot(2),
+      capturedBy: new WeakRef(world.host),
+    });
 
     await world.fireCurrent();
 
@@ -255,6 +264,40 @@ describe('cancelling', () => {
     expect(world.harness.warm.has(SESSION)).toBe(false);
   });
 
+  test.each([
+    [
+      'the daemon closing the session (mY)',
+      () => {
+        world.harness.mY(SESSION);
+      },
+    ],
+    [
+      'the process host that captured the request disposing (nY)',
+      () => {
+        world.harness.nY(SESSION, world.host);
+      },
+    ],
+  ])('%s clears the pending timer and the snapshot', (_name, dispose) => {
+    world.request(1);
+
+    dispose();
+
+    expect(world.cleared).toEqual(world.timers.slice(0, 1));
+    expect(world.harness.warm.has(SESSION)).toBe(false);
+    expect(world.harness.snapshots.has(SESSION)).toBe(false);
+  });
+
+  test('another process host disposing (nY) leaves the pending timer and the snapshot', () => {
+    world.request(1);
+    const armed = world.harness.warm.get(SESSION);
+
+    world.harness.nY(SESSION, { name: 'other host' });
+
+    expect(world.cleared).toHaveLength(0);
+    expect(world.harness.warm.get(SESSION)).toBe(armed);
+    expect(world.harness.snapshots.has(SESSION)).toBe(true);
+  });
+
   test('a queued user message (vu) leaves the pending timer in place', () => {
     world.request(1);
     const armed = world.harness.warm.get(SESSION);
@@ -280,5 +323,33 @@ describe('cancelling', () => {
     expect(world.aborted).toBe(1);
     expect(world.timers).toHaveLength(2);
     expect(world.harness.warm.get(SESSION)?.snap.capturedAt).toBe(2);
+  });
+});
+
+describe('counting children', () => {
+  const CHILD_COUNT = patchNamed(warmerPatches, 'cache-warm-child-count').replace;
+  const countWith = payloadFunction<
+    [() => null, symbol, null, new () => object],
+    (sessionId: string) => number
+  >(['Se', 'vi', 'zt', 'ze'], `${CHILD_COUNT}0}return globalThis.__odKids`);
+
+  test.each([
+    [true, 1],
+    [false, 0],
+  ])('stock reporting running children as %p counts %d', (running, count) => {
+    const asked: string[] = [];
+    class Tracker {
+      readonly running = running;
+
+      hasRunningChildren(sessionId: string): boolean {
+        asked.push(sessionId);
+        return this.running;
+      }
+    }
+
+    const kids = countWith(() => null, Symbol('tracker'), null, Tracker);
+
+    expect(kids(SESSION)).toBe(count);
+    expect(asked).toEqual([SESSION]);
   });
 });

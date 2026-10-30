@@ -23,7 +23,7 @@ const IDENT_PART = /[\w$]/u;
 const DIGIT = /\d/u;
 const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/gu;
 
-function escape(text: string): string {
+export function escapeRegex(text: string): string {
   return text.replace(REGEX_SPECIAL, '\\$&');
 }
 
@@ -221,12 +221,12 @@ export function holePattern(text: string, known: ReadonlyMap<string, string> = n
   let source = '';
   for (const token of tokenize(text)) {
     if (token.kind === 'other') {
-      source += escape(token.text);
+      source += escapeRegex(token.text);
       continue;
     }
     const fixed = known.get(token.text);
     if (fixed !== undefined) {
-      source += escape(fixed);
+      source += escapeRegex(fixed);
       continue;
     }
     const seen = names.indexOf(token.text);

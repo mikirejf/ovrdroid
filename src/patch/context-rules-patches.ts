@@ -22,13 +22,13 @@ export const TRANSCRIPTS_LINE =
 export const contextRulesPatches: readonly Patch[] = [
   {
     name: 'cursor-rules-join-agents-md',
-    find: 'async function X(e){let t=await mpe({startPath:e});if(t.length===0)return Zi.getInstance().seedLoadedGuidelines([]),[];',
+    find: 'async function Y(e){let{guidelines:t,skipped:n}=await $fe({startPath:e}),i=x(n),s=n.map(',
     lookups: [
       'import tt from"fs";import Q from"os"',
-      'import K from"path";import*as p from"fs"',
-      'import{It,P,pe}from"/$bunfs/root/chunk-4h6zpn1h.js";import{En}from"/$bunfs/root/chunk-dw7b4jm3.js";import{o1,zC,Ite,TM}from"/$bunfs/root/chunk-kqtrcrqb.js"',
+      'import K from"path";import*as w from"fs"',
+      'this.gitRoot=En(this.cwd),this.homeDir=',
     ],
-    replace: `${ALWAYS_APPLY}${RULES_LOADER}async function X(e){let t=[...await mpe({startPath:e}),...await $ODrules(e)];if(t.length===0)return Zi.getInstance().seedLoadedGuidelines([]),[];`,
+    replace: `${ALWAYS_APPLY}${RULES_LOADER}async function Y(e){let{guidelines:$ODstock,skipped:n}=await $fe({startPath:e}),t=[...$ODstock,...await $ODrules(e)],i=x(n),s=n.map(`,
   },
   {
     name: 'cursor-rules-show-home-path',

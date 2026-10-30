@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { RunOptions } from '../cli.ts';
 import { messageOf, say } from '../cli.ts';
+import { cacheDir } from '../paths.ts';
 import { interleaveWith } from './ab.ts';
 import type { Measured, Recorder } from './counter-file.ts';
 import { counterRecorder, endSpan, withRecorder } from './counter-file.ts';
@@ -25,11 +25,13 @@ const PASTE_TIMEOUT_MS = 3000;
 const QUIET_MS = 1500;
 const ASK_TIMEOUT_MS = 30_000;
 const SLACK = 3;
+const CWD_ROOT = cacheDir('stream');
 
 export interface StreamCommandOptions extends ReplyPlan, RunOptions {}
 
 function settingsFile(stub: StubModel): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'ovrdroid-stream-'));
+  mkdirSync(CWD_ROOT, { recursive: true });
+  const dir = mkdtempSync(path.join(CWD_ROOT, 'cwd-'));
   const file = path.join(dir, 'settings.json');
   writeFileSync(file, JSON.stringify(stubSettings(stub.url)));
   return file;
@@ -79,6 +81,7 @@ export async function measureStream<R extends object>(
   try {
     return await withRecorder(recorder, async (recorderEnv) => {
       const { session } = await openSettledSession(binary, {
+        cwd: path.dirname(file),
         env: { FACTORY_RUNTIME_SETTINGS_PATH: file, ...recorderEnv },
       });
       try {
@@ -100,6 +103,9 @@ export async function stream(binaries: string[], options: StreamCommandOptions):
     `each run streams a ${replyText(plan.chars).length}-char markdown reply from a local stub model, in ${deltas} deltas of ${plan.chunk} chars every ${plan.gapMs}ms`,
   );
   say('cpu sums user and system time over the Droid process tree, read with ps before and after');
+  say(
+    `Droid starts in an empty folder under ${CWD_ROOT}, outside git, so the footer shows no diff stats; Droid must already trust that folder`,
+  );
 
   const measure = async (binary: string) =>
     await measureStream(binary, plan, counterRecorder).catch((error: unknown) => {

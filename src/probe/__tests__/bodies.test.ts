@@ -18,6 +18,14 @@ const REMINDER = {
 const ASK = { role: 'user', content: [{ type: 'input_text', text: 'run sleep' }] };
 const ANSWER = { role: 'assistant', content: [{ type: 'output_text', text: 'ok' }] };
 
+function marked(text: string): JsonObject {
+  return { role: 'user', content: [{ type: 'text', text, cache_control: { type: 'ephemeral' } }] };
+}
+
+function plain(text: string): JsonObject {
+  return { role: 'user', content: [{ type: 'text', text }] };
+}
+
 function body(input: readonly Json[], extra: JsonObject = {}): JsonObject {
   return { model: 'gpt', instructions: 'be brief', tools: TOOLS, input, stream: true, ...extra };
 }
@@ -106,6 +114,20 @@ describe('divergence compares in the order the cache reads, not the JSON order',
     const found = divergence(anthropic('sys', [ASK]), anthropic('other', [ASK]));
     expect(pathText(found?.path ?? [])).toBe('system[0].text');
   });
+
+  test('Anthropic: the cache breakpoint moving to the newest message is an extension', () => {
+    const anthropic = (messages: readonly Json[]): JsonObject => ({
+      model: 'claude',
+      tools: TOOLS,
+      system: [{ type: 'text', text: 'sys' }],
+      messages,
+    });
+    expect(
+      divergence(anthropic([marked('two')]), anthropic([plain('two'), ANSWER, marked('three')])),
+    ).toBeUndefined();
+    const found = divergence(anthropic([marked('two')]), anthropic([marked('twice'), ANSWER]));
+    expect(pathText(found?.path ?? [])).toBe('messages[0].content[0].text');
+  });
 });
 
 describe('pairBodies', () => {
@@ -124,6 +146,19 @@ describe('pairBodies', () => {
       'warm 2<request 2',
       'request 3<request 2',
     ]);
+  });
+
+  test('a one-shot request neither pairs nor becomes the base', () => {
+    const shots = [
+      row('a1', body([REMINDER, ASK])),
+      row('oneshot-title', { model: 'gpt', input: [ASK], instructions: 'title it' }),
+      row('a2', body([REMINDER, ASK, ANSWER])),
+    ];
+    const pairings = pairBodies(shots);
+    expect(pairings.map((pairing) => `${pairing.newName}<${pairing.oldName}`)).toEqual([
+      'request 2<request 1',
+    ]);
+    expect(pairings[0]?.divergence).toBeUndefined();
   });
 
   test('the report says it in words', () => {

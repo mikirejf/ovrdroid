@@ -8,9 +8,15 @@ import { findMarker } from '../patches.ts';
 import { rebaseAll } from '../rebase.ts';
 import { sessionMentionPatches } from '../session-mention-patches.ts';
 import { payloadFunction, rebasedNamed } from './payload.ts';
-import { callbackAround, calleeAfter, escaped, setterArrow } from './session-mention-callback.ts';
-import type { EscapePath, KeyResult, Warmup } from './session-mention-keys.ts';
-import { enterKey, escapeKeys, serviceEffect } from './session-mention-keys.ts';
+import {
+  callbackAround,
+  calleeAfter,
+  cancelArrow,
+  escaped,
+  setterArrow,
+} from './session-mention-callback.ts';
+import type { KeyEvent, KeyResult, Warmup } from './session-mention-keys.ts';
+import { enterKey, escapeKeys, namedKey, serviceEffect } from './session-mention-keys.ts';
 import type { Hash, Head, Item, Session } from './session-mention-picker.ts';
 import { picker, pickerReading } from './session-mention-picker.ts';
 import type { Stand } from './session-mention-scope.ts';
@@ -85,7 +91,7 @@ export interface Driver {
   readonly bash: { active: boolean };
   update: (text: string, cursor: number) => Promise<void>;
   close: () => void;
-  pressEscape: (path?: EscapePath) => KeyResult;
+  pressEscape: () => KeyResult;
   pressDown: () => void;
   pressEnter: () => string | undefined;
   pressScope: (key?: ScopeKey) => boolean;
@@ -106,11 +112,11 @@ interface Redraw {
 
 export type ScopeKey = 'right' | 'left' | 'shift-right' | 'ctrl-left';
 
-const SCOPE_KEYS: Record<ScopeKey, Record<string, boolean>> = {
-  right: { rightArrow: true },
-  left: { leftArrow: true },
-  'shift-right': { rightArrow: true, shift: true },
-  'ctrl-left': { leftArrow: true, ctrl: true },
+const SCOPE_KEYS: Record<ScopeKey, KeyEvent> = {
+  right: namedKey('rightArrow'),
+  left: namedKey('leftArrow'),
+  'shift-right': namedKey('rightArrow', { shift: true }),
+  'ctrl-left': namedKey('leftArrow', { ctrl: true }),
 };
 
 export type FirstMessages = Readonly<Record<string, string>>;
@@ -222,7 +228,9 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
           return await load.promise;
         },
         getCurrentSessionId: () => null,
-        getSessionMessagesPath: (id: string, cwd: string) => `${cwd}/${id}.jsonl`,
+        getSessionsDirectory: (cwd: string | undefined) =>
+          cwd === undefined ? '/sessions' : `/sessions/${cwd.replaceAll('/', '-')}`,
+        getSessionMessagesPath: (id: string, folder: string) => `${folder}/${id}.jsonl`,
       }),
     ],
   ]);
@@ -255,8 +263,14 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     scoped(setter),
   )(scope);
   stubs.set(named('Qt'), close);
+  const cancel = payloadFunction<[typeof scope], () => void>(
+    ['$ODscope'],
+    scoped(cancelArrow(patched, named('Yi'), named('Po'))),
+  )(scope);
+  stubs.set(named('Yi'), cancel);
   const hooks = {
     close,
+    cancel,
     isShown: () => suggestions.shown,
     rows: () => suggestions.items,
     entry,
@@ -265,11 +279,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
   const escape = escapeKeys(patched, rebased, hooks);
   const enter = enterKey(patched, rebased, hooks);
   const warmup: Warmup = { timers: [], cleared: [], loaded: [] };
-  const mount = serviceEffect(
-    rebased,
-    { sequence: stubs.get(named('Po')), search: stubs.get(named('uu')) },
-    warmup,
-  );
+  const mount = serviceEffect(rebased, { cancel, search: stubs.get(named('uu')) }, warmup);
   let unmount = mount(stubs.get(named('Ba')));
   const callbackFor = (service: Stand) =>
     payloadFunction<[typeof scope], (text: string, cursor: number) => Promise<void>>(
@@ -286,7 +296,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     selected: () => entry.selected,
     stockEscapes: escape.escapes,
     bash: escape.bash,
-    pressEscape: (path = 'key') => escape.press(path),
+    pressEscape: () => escape.press(),
     pressDown: () => {
       enter.down();
     },

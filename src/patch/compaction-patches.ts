@@ -100,10 +100,10 @@ const SUMMARIZER_END =
 export const compactionPatches: readonly Patch[] = [
   {
     name: 'compaction-reuse-exports',
-    find: 'function h4(t,o=eN){let i=zh.get(t);if(!i)return;if(Date.now()-i.capturedAt>o)return;return i}',
+    find: 'function wZ(t,o=LJ){let a=yi.get(t)?.snapshot;if(!a)return;if(Date.now()-a.capturedAt>o)return;return a}',
     replace:
-      'function h4(t,o=eN){let i=zh.get(t);if(!i)return;if(Date.now()-i.capturedAt>o)return;return i}' +
-      `Object.assign(globalThis.${REUSE_GLOBAL}??={},{snapshot:h4,extend:${EXTEND}});`,
+      'function wZ(t,o=LJ){let a=yi.get(t)?.snapshot;if(!a)return;if(Date.now()-a.capturedAt>o)return;return a}' +
+      `Object.assign(globalThis.${REUSE_GLOBAL}??={},{snapshot:wZ,extend:${EXTEND}});`,
   },
   {
     name: 'compaction-reuse-send',

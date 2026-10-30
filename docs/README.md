@@ -7,6 +7,17 @@ file for the area you are working on.
 Every number here came from a probe in `src/probe/`. Where a number was wrong, the file keeps the
 retraction, because how it went wrong is the reusable part.
 
+## Checks due
+
+Dated follow-ups. Run the check once it is due, record the result in its file, and delete the line.
+
+- 2026-11-06 and 2026-11-13: how often Opus calls Read or Grep top level now that they are
+  Script-only again ([script-mode.md](script-mode.md#open)).
+- 2026-11-13: which Edit refusals are left after the 2026-10-30 file-tracker fixes
+  ([stale-edits.md](stale-edits.md#open-items)).
+
+## Areas
+
 - [method.md](method.md): how to measure without fooling yourself. Read before any A/B, profile,
   memory reading, or probe run.
 - [startup.md](startup.md): time to paint, what is CPU and what is waiting, the settings watcher

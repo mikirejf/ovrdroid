@@ -61,8 +61,13 @@ describe.skipIf(stock === undefined)('a session load that finishes late', () => 
     input.view();
     await input.update('#pl', 3);
     input.view();
-    expect(input.transcriptsRead).toEqual(['/work/aaaa1111.jsonl', '/work/bbbb2222.jsonl']);
-    expect(input.suggestions.items[0]?.$ODhead?.text).toBe('typed into /work/bbbb2222.jsonl');
+    expect(input.transcriptsRead).toEqual([
+      '/sessions/-work/aaaa1111.jsonl',
+      '/sessions/-work/bbbb2222.jsonl',
+    ]);
+    expect(input.suggestions.items[0]?.$ODhead?.text).toBe(
+      'typed into /sessions/-work/bbbb2222.jsonl',
+    );
   });
 
   test('leaving the query drops the transcripts read with the pool', async () => {

@@ -6,17 +6,12 @@ import { guard, say } from '../cli.ts';
 import { FACTORY_SESSIONS } from '../paths.ts';
 import { describeGrade, gradeReply } from './digest-grade.ts';
 import { DEFAULT_DIGEST_FOLDER, describeKey, digestKey, readDigestFolder } from './digest-key.ts';
-import { finalReply } from './live-transcript.ts';
+import { finalReply, transcriptFileOf } from './live-transcript.ts';
 
 const TRANSCRIPT_SUFFIX = '.jsonl';
 
 interface DigestGradeOptions {
   folder: string;
-}
-
-function sessionTranscript(id: string): string | undefined {
-  const [file] = new Bun.Glob(`*/${id}.jsonl`).scanSync({ cwd: FACTORY_SESSIONS, absolute: true });
-  return file;
 }
 
 function transcriptReply(file: string): string {
@@ -33,7 +28,7 @@ function replyText(source: string): string {
       ? transcriptReply(source)
       : readFileSync(source, 'utf-8');
   }
-  const transcript = sessionTranscript(source);
+  const transcript = transcriptFileOf(source);
   if (transcript === undefined) {
     throw new Error(`${source} is neither a file nor a session id under ${FACTORY_SESSIONS}`);
   }

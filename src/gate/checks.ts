@@ -55,13 +55,13 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
         ],
       },
       probe('tool-surface', bodiesBuild),
+      probe('effort-switch', bodiesBuild, '--model', GATE_MODEL, '--yes'),
     ],
   };
 
   const live: Lane<Check>[] = [
     alone(probe('digest-run', target)),
     alone(probe('warm', target, '--yes')),
-    alone(probe('effort-switch', target, '--model', GATE_MODEL, '--yes')),
     alone(probe('cachekey', target)),
     bodies,
     alone(probe('effort-clear', target)),

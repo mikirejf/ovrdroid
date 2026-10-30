@@ -5,7 +5,13 @@ import fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import nodePath from 'node:path';
 
-import { CREDIT_NOTE, HOOK_DIFF_NOTE, fileTrackerPatches } from '../file-tracker-patches.ts';
+import {
+  beforeCall,
+  callEnd,
+  CREDIT_NOTE,
+  HOOK_DIFF_NOTE,
+  fileTrackerPatches,
+} from '../file-tracker-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
 interface Entry {
@@ -37,9 +43,11 @@ export class FakeTracker {
 
 export type Hooks = (event: string) => Promise<object[]>;
 
+export type Content = string | object;
+
 export interface ToolOutcome {
   results: object[];
-  result: string;
+  result: Content;
   modelContent: string | undefined;
 }
 
@@ -49,7 +57,7 @@ interface ToolCall {
   tracker: FakeTracker;
   id: string;
   hooks: Hooks;
-  result?: string;
+  result?: Content;
   modelContent?: string;
   name?: string;
   tool?: Tool;
@@ -57,7 +65,6 @@ interface ToolCall {
 }
 
 export const listenerPatch = patchNamed(fileTrackerPatches, 'file-tracker-listeners');
-export const beforeCallPatch = patchNamed(fileTrackerPatches, 'tool-call-start-stat');
 export const noticePatch = patchNamed(fileTrackerPatches, 'tool-call-done-notice');
 
 const install = payloadFunction<[() => FakeTracker, EventEmitter, typeof fsPromises], undefined>(
@@ -66,14 +73,14 @@ const install = payloadFunction<[() => FakeTracker, EventEmitter, typeof fsPromi
 );
 
 const afterTool = payloadFunction<
-  [Hooks, EventEmitter, { id: string; name: string }, string, string | undefined, Tool],
+  [Hooks, EventEmitter, { id: string; name: string }, Content, string | undefined, Tool],
   Promise<ToolOutcome>
 >(
   ['_o', 'process', 'd', 'result', 'transformed', 'tool'],
   'const I=()=>"/",JR=()=>"default",q="s",C="",w=0,o={abortController:{signal:{}}};' +
     'return(async function(){let{content:z,modelContent:re}={content:result,modelContent:transformed};' +
-    `${beforeCallPatch.replace.slice(beforeCallPatch.find.length)}await tool();` +
-    `let x=0,${noticePatch.replace};return{results:ie,result:z,modelContent:re}}).call({context:{},updateAction:undefined})`,
+    `try{${beforeCall('d.id', 'd.name')}await tool();` +
+    `let x=0,${noticePatch.replace};return{results:ie,result:z,modelContent:re}}finally{${callEnd('d.id')}}}).call({context:{},updateAction:undefined})`,
 );
 
 export const noteOf = payloadFunction<[], (path: string, before: string, after: string) => string>(
@@ -81,10 +88,10 @@ export const noteOf = payloadFunction<[], (path: string, before: string, after: 
   `${HOOK_DIFF_NOTE}return $ODnote`,
 )();
 
-export const creditNoteOf = payloadFunction<[], (name: string, paths: string[]) => string>(
+export const creditNoteOf = payloadFunction<
   [],
-  `${CREDIT_NOTE}return $ODcredited`,
-)();
+  (name: string, paths: string[], shared?: boolean) => string
+>([], `${CREDIT_NOTE}return $ODcredited`)();
 
 export const WRITE_RESULT = JSON.stringify({ success: true, message: 'Created', wasNewFile: true });
 

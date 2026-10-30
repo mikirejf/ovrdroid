@@ -182,6 +182,18 @@ lifecycle event tell you **when to look**, and read **when it happened** from st
 component, here `getSessionStateManager().getSessionManager(id)?.getDroidWorkingStateChangedAtMs()`.
 Every live test passed before this was caught by review; reproducing it needed a pane swap mid-turn.
 
+**A tool result is a string or a list of blocks.** Script and WaitForScript return a list of text
+blocks; most other tools return a string. A payload that appends to a result must handle every shape
+the result schema allows: the credit note joined a list as text, so the model saw
+`[object Object],[object Object]` instead of the Script output, about 200 times a day for 11 days.
+The tests passed because they only fed strings, and the model never complained. Feed the tests each
+shape the schema allows.
+
+**Tool calls overlap.** One message's Task, Script, MCP and Read calls run in parallel, and a
+Script's `Promise.all` runs its nested calls in parallel. A check that compares state before and
+after one call cannot tell which of two overlapping calls made a change; order the overlap with
+deferred promises in a test before you trust per-call attribution.
+
 **Confirm a probe exercises your feature before believing its number.** `probe keys` never submits a
 prompt, so a turn-scoped feature is switched off for the whole run; it still reported an 18ms
 difference. Counting bytes painted during a burst after a real turn put it at 89 bytes in 33,462.

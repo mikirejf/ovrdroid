@@ -27,6 +27,15 @@ Every row resolved.
 `baseUrl`, and a `sessionDefaultSettings.model`, through `FACTORY_RUNTIME_SETTINGS_PATH` only.
 Nothing in `~/.factory` changes, and the stream costs nothing.
 
+It starts Droid in an empty folder under `~/.cache/ovrdroid/stream`, outside git, because the gate
+runs from the repo. Inside a git repo the diff-stats footer (`diff-stats-without-pr`,
+`diff-stats-footer-without-pr`) paints `+393 -452 |` on every frame: 12 visible characters in 8
+colour codes, about 80 bytes. Ink rewrites the whole live area each frame, so a streamed reply of 55
+frames grows by about 3.7 KB. On Droid 1.0.0 (n=10) that read as a byte regression, and a build
+without those two patches matched stock (+43 bytes, CI -1392 to 1477) while keeping the CPU saving.
+It is the feature's price, not waste, so the probe leaves it out. Droid must already trust the
+folder; it does when your home folder is trusted.
+
 `probe resume` writes a synthetic, deterministic session: a `session_start` record (it needs an
 `owner`), message records and an `agent_turn_outcome`. The file goes under the sessions folder for a
 temporary directory in `~/.cache/ovrdroid/resume`, and the probe deletes it afterwards. It also

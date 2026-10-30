@@ -1,4 +1,9 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import nodePath from 'node:path';
+
+import { BODIES_VARIABLE } from '../patch/body-patches.ts';
 import { WARM_MESSAGE_ID_PREFIX } from '../patch/warmer-patches.ts';
+import { makeTempDir } from '../temp.ts';
 import { percent } from './cachekey.ts';
 
 export type Json = string | number | boolean | null | readonly Json[] | JsonObject;
@@ -58,6 +63,7 @@ const PROMPT_KEYS = new Set(CACHE_ORDER);
 const EXCERPT = 40;
 const REMINDER = '<system-reminder>';
 const ONE_SHOT_MESSAGE_ID_PREFIX = 'oneshot-';
+const CACHE_MARKER = 'cache_control';
 
 function toJson(value: unknown): Json {
   if (Array.isArray(value)) {
@@ -73,11 +79,11 @@ function toJson(value: unknown): Json {
   return null;
 }
 
-function isList(value: Json | undefined): value is readonly Json[] {
+export function isList(value: Json | undefined): value is readonly Json[] {
   return Array.isArray(value);
 }
 
-function isRecord(value: Json | undefined): value is JsonObject {
+export function isRecord(value: Json | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -99,6 +105,17 @@ function parseRow(line: string): BodyRow | undefined {
   };
 }
 
+export function newBodiesFile(name: string, out?: string): string {
+  const file = nodePath.resolve(out ?? nodePath.join(makeTempDir(name), 'bodies.jsonl'));
+  mkdirSync(nodePath.dirname(file), { recursive: true });
+  writeFileSync(file, '');
+  return file;
+}
+
+export function bodiesEnv(file: string) {
+  return { [BODIES_VARIABLE]: file };
+}
+
 export function parseBodies(text: string): BodyRow[] {
   return text
     .split('\n')
@@ -115,9 +132,23 @@ export function isOneShot(row: BodyRow): boolean {
   return row.assistantMessageId.startsWith(ONE_SHOT_MESSAGE_ID_PREFIX);
 }
 
+function withoutMarkers(value: Json): Json {
+  if (isList(value)) {
+    return value.map((item) => withoutMarkers(item));
+  }
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== CACHE_MARKER)
+        .map(([key, item]) => [key, withoutMarkers(item)]),
+    );
+  }
+  return value;
+}
+
 function promptOf(body: JsonObject): JsonObject {
   return Object.fromEntries(
-    CACHE_ORDER.filter((key) => key in body).map((key) => [key, body[key] ?? null]),
+    CACHE_ORDER.filter((key) => key in body).map((key) => [key, withoutMarkers(body[key] ?? null)]),
   );
 }
 
@@ -280,6 +311,13 @@ interface Named {
   row: BodyRow;
 }
 
+export function compareBodies(oldBody: JsonObject, newBody: JsonObject) {
+  return {
+    divergence: divergence(oldBody, newBody),
+    settings: settingsDiffer(oldBody, newBody),
+  };
+}
+
 function compare(older: Named, newer: Named): Pairing {
   const { row: oldRow } = older;
   const { row: newRow } = newer;
@@ -290,8 +328,7 @@ function compare(older: Named, newer: Named): Pairing {
     oldChars: promptText(oldRow.body).head.length,
     newChars: promptText(newRow.body).head.length,
     chained: 'previous_response_id' in newRow.body,
-    divergence: divergence(oldRow.body, newRow.body),
-    settings: settingsDiffer(oldRow.body, newRow.body),
+    ...compareBodies(oldRow.body, newRow.body),
   };
 }
 
@@ -302,7 +339,7 @@ export function pairBodies(rows: readonly BodyRow[]): Pairing[] {
     let real: Named | undefined;
     let reals = 0;
     let warms = 0;
-    for (const row of list) {
+    for (const row of list.filter((entry) => !isOneShot(entry))) {
       const warm = isWarm(row);
       const name = warm ? `warm ${(warms += 1)}` : `request ${(reals += 1)}`;
       if (real !== undefined) {

@@ -125,15 +125,14 @@ const PATCHED_DETAIL_OUTPUT =
 export const nestedSubagentUiPatches: readonly Patch[] = [
   {
     name: 'nested-subagent-ui-task-call-carries-id',
-    find: 's.set(a.id,{name:a.name,input:a.input}),o.push({type:"tool_call",toolName:a.name,status:"running",text:a.name,details:R(a.input),parameters:a.input,timestamp:d})',
-    replace:
-      's.set(a.id,{name:a.name,input:a.input}),o.push({type:"tool_call",toolName:a.name,toolUseId:a.id,status:"running",text:a.name,details:R(a.input),parameters:a.input,timestamp:d})',
+    find: 'update:{type:"tool_call",toolName:S.name,',
+    replace: 'update:{type:"tool_call",toolName:S.name,toolUseId:S.id,',
   },
   {
     name: 'nested-subagent-ui-task-result-carries-id',
-    find: 'let f=s.get(a.toolUseId);o.push({type:"tool_result",toolName:f?.name??a.toolUseId,',
+    find: '{type:"tool_result",toolName:c.call?.name??c.block.toolUseId,',
     replace:
-      'let f=s.get(a.toolUseId);o.push({type:"tool_result",toolName:f?.name??a.toolUseId,toolUseId:a.toolUseId,',
+      '{type:"tool_result",toolName:c.call?.name??c.block.toolUseId,toolUseId:c.block.toolUseId,',
   },
   {
     name: 'nested-subagent-ui-child-of-any-parent',

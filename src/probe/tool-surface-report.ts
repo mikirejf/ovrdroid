@@ -1,7 +1,6 @@
-import { isOneShot } from './bodies.ts';
-import type { BodyRow, Json, JsonObject } from './bodies.ts';
-
-const SCRIPT_TOOL = 'Script';
+import { SCRIPT_TOOL } from '../patch/file-tracker-patches.ts';
+import { isList, isOneShot, isRecord } from './bodies.ts';
+import type { BodyRow, Json } from './bodies.ts';
 
 export interface ToolSurface {
   names: readonly string[];
@@ -9,12 +8,8 @@ export interface ToolSurface {
   direct: boolean;
 }
 
-function isList(value: Json | undefined): value is readonly Json[] {
-  return Array.isArray(value);
-}
-
-function isRecord(value: Json | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !isList(value);
+function functionName(fn: Json | undefined): Json | undefined {
+  return isRecord(fn) ? fn['name'] : undefined;
 }
 
 export function readToolNames(rows: readonly BodyRow[]): string[] | undefined {
@@ -23,7 +18,7 @@ export function readToolNames(rows: readonly BodyRow[]): string[] | undefined {
     return undefined;
   }
   return tools.flatMap((tool) => {
-    const name = isRecord(tool) ? tool['name'] : undefined;
+    const name = isRecord(tool) ? (tool['name'] ?? functionName(tool['function'])) : undefined;
     return typeof name === 'string' ? [name] : [];
   });
 }

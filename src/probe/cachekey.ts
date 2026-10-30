@@ -26,7 +26,7 @@ function lineFields(line: string): Fields {
   }
 }
 
-function resultLine(stdout: string): Fields | undefined {
+export function resultLine(stdout: string): Fields | undefined {
   let found: Fields | undefined;
   for (const line of stdout.split('\n')) {
     const fields = lineFields(line.trim());

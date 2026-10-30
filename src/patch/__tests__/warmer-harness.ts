@@ -21,6 +21,15 @@ export interface Timer {
   unref: () => void;
 }
 
+export interface StoredSnapshot {
+  snapshot: Snapshot;
+  capturedBy: WeakRef<ProcessHost>;
+}
+
+export interface ProcessHost {
+  name: string;
+}
+
 interface WarmEntry {
   snap: Snapshot;
   timer: Timer;
@@ -93,9 +102,11 @@ interface Harness {
   pY: (snapshot: Snapshot) => void;
   vu: (sessionId: string) => void;
   LV: (sessionId: string) => void;
+  mY: (sessionId: string) => void;
+  nY: (sessionId: string, host: ProcessHost) => void;
   fire: (sessionId: string, entry: WarmEntry | undefined) => Promise<void>;
   warm: Map<string, WarmEntry>;
-  snapshots: Map<string, Snapshot>;
+  snapshots: Map<string, StoredSnapshot>;
 }
 
 export const SESSION = 'parent';
@@ -114,12 +125,13 @@ export const USAGE: Usage = {
 const MODEL = 'custom:droidproxy:claude';
 const ARM = patchNamed(warmerPatches, 'cache-warm-arm').replace;
 const CLOSE = patchNamed(warmerPatches, 'cache-warm-close').replace;
+const FORGET = patchNamed(warmerPatches, 'cache-warm-forget').replace;
 const STOCK_VU =
   'function vu(t){let s=Wa.get(t);if(!s)return;clearTimeout(s.timer),s.abortController?.abort(),Wa.delete(t)}';
-const EXPORTS = 'return{pY,vu,LV,fire:$ODWf,warm:$ODWt,snapshots:Qh}';
+const EXPORTS = 'return{pY,vu,LV,mY,nY,fire:$ODWf,warm:$ODWt,snapshots:Qh}';
 
 type HarnessBindings = [
-  Map<string, Snapshot>,
+  Map<string, StoredSnapshot>,
   () => void,
   Map<string, WarmEntry>,
   Map<string, WarmEntry>,
@@ -132,6 +144,7 @@ type HarnessBindings = [
   (deps: CoreDeps, options: CoreOptions) => StreamingCore,
   { env: Record<string, string> },
   ClockEnvironment,
+  () => ProcessHost,
 ];
 
 export function snapshot(capturedAt: number): Snapshot {
@@ -172,6 +185,7 @@ export class World {
   readonly clock = new ClockEnv();
   readonly env: Record<string, string> = {};
   readonly built: { deps: CoreDeps; options: CoreOptions }[] = [];
+  readonly host: ProcessHost = { name: 'process host' };
   aborted = 0;
   disposed = 0;
   children = 0;
@@ -201,8 +215,9 @@ export class World {
         '$client',
         'process',
         '$clockEnv',
+        'Dt',
       ],
-      `${ARM}${STOCK_VU}${CLOSE}${EXPORTS}`
+      `${ARM}${STOCK_VU}${CLOSE}${FORGET}${EXPORTS}`
         .replace(STREAMING_CORE_IMPORT, '{createLLMStreamingCore:$client}')
         .replace(CACHE_CLOCK_ENV, '$clockEnv'),
     );
@@ -226,6 +241,7 @@ export class World {
       (deps, options) => this.streamingCore(deps, options),
       { env: this.env },
       this.clock.environment(),
+      () => this.host,
     );
   }
 

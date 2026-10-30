@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
-import type { App } from '../../binary/graph.ts';
 import { joinApp } from '../../binary/graph.ts';
 import type { Patch } from '../patches.ts';
 import { rebaseAll } from '../rebase.ts';
 import { suggestionListPatches } from '../suggestion-list-patches.ts';
-import { blockEnd } from '../tokens.ts';
+import { arrowAt } from './first-message-harness.ts';
 import { payloadFunction } from './payload.ts';
 import type { Stand } from './session-mention-harness.ts';
 import { scoped, scopeOver, stock } from './session-mention-harness.ts';
+import { requireStock } from './stock-scanner.ts';
 
 const ROWS = 5;
 
@@ -20,24 +20,16 @@ interface Key {
 
 type Press = (key: Key) => number;
 
-function handlerAfter(text: string, anchor: string): string {
+function handlerAround(text: string, anchor: string): string {
   const at = text.indexOf(anchor);
   if (at === -1) {
     throw new Error('the patched list key handler is missing');
   }
-  const start = text.indexOf('(', at) + 1;
-  return text.slice(start, blockEnd(text, text.indexOf('=>{', start) + 2) + 1);
-}
-
-function stockApp(): App {
-  if (stock === undefined) {
-    throw new Error('no stock Droid to read');
-  }
-  return stock;
+  return arrowAt(text, text.lastIndexOf('(', text.lastIndexOf('=>{', at)));
 }
 
 function listDriver(patch: Patch, start: number): Press {
-  const app = stockApp();
+  const app = requireStock();
   const [rebase] = rebaseAll(
     [patch],
     app.map((module) => module.text),
@@ -47,12 +39,12 @@ function listDriver(patch: Patch, start: number): Press {
   }
   const renames = new Map(Object.entries(rebase.renames));
   const named = (name: string): string => renames.get(name) ?? name;
-  const handler = handlerAfter(joinApp(patchSource(app, [patch])), rebase.replace);
+  const handler = handlerAround(joinApp(patchSource(app, [patch])), rebase.replace);
   let selected = start;
   const rows = Array.from({ length: ROWS }, (_row, index) => ({ name: `row${index}` }));
   const stubs = new Map<string, Stand>([
     [
-      named('G'),
+      named('A'),
       () => ({
         showSuggestions: true,
         suggestions: rows,
@@ -61,21 +53,19 @@ function listDriver(patch: Patch, start: number): Press {
       }),
     ],
     [
-      named('kt'),
+      named('Nt'),
       (step: (index: number) => number) => {
         selected = step(selected);
       },
     ],
+    [named('N'), (key: Key, name: keyof Key) => key[name] === true],
   ]);
-  const press = payloadFunction<
-    [ReturnType<typeof scopeOver>],
-    (input: string, key: Key) => boolean
-  >(
+  const press = payloadFunction<[ReturnType<typeof scopeOver>], (key: Key) => boolean>(
     ['$ODscope'],
     scoped(handler),
   )(scopeOver(stubs));
   return (key) => {
-    press('', key);
+    press(key);
     return selected;
   };
 }

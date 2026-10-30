@@ -53,7 +53,7 @@ function finds(name: string): string {
 
 const STOCK_SOURCE = [
   `${finds('edit-check-takes-stale-test')}message:"bad path"};`,
-  'let a=await At(t);if(!a.wasRead)return{success:!1,message:"not read"};',
+  'let a=await At(t);if(!a.wasRead)return{success:!1,message:"not read"};let c=CA();',
   `${finds('edit-refusal-asks-stale-test')}message:"Error: File "+t+" has been modified externally since it was last read."};`,
   'return{success:!0,message:a.absolutePath}}',
   'async function wn(t){let{filePath:o,oldStr:a,newStr:c,changeAll:l=!1}=t,f=await EH(o);',

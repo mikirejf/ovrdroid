@@ -10,7 +10,6 @@ const FULL_CLOCK = 'cache 44m';
 export interface WarmLine {
   at: number;
   ok: boolean;
-  kids: number;
   cacheRead: number;
   cacheWrite: number;
 }
@@ -51,7 +50,6 @@ export function warmLinesOf(body: string, sessionId: string): WarmLine[] {
     .map((row) => ({
       at: counted(row, 't'),
       ok: row.get('ok') === true,
-      kids: counted(row, 'kids'),
       cacheRead: counted(row, 'cr'),
       cacheWrite: counted(row, 'cw'),
     }));
@@ -100,7 +98,7 @@ function firedCheck(run: WarmRun): WarmCheck {
   }
   return check(
     warm.ok,
-    `the warm request fired ${after}s after the launch prompt (delay ${seconds}s), with ${warm.kids} sub-agent(s) running`,
+    `the warm request fired ${after}s after the launch prompt (delay ${seconds}s), with sub-agents running`,
     `the warm request fired ${after}s after the launch prompt but failed or was aborted`,
   );
 }

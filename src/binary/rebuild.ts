@@ -6,6 +6,7 @@ import { BUILD_BUN_VERSION, ensureBun } from './bun.ts';
 import { assertSameEmbeds } from './embeds.ts';
 import type { App } from './graph.ts';
 import { embedName, readApp, readModules } from './graph.ts';
+import { assertPayloadNamesBound } from './payload-globals.ts';
 import { assertRefsResolve } from './refs.ts';
 
 const BINARY_MODE = 0o755;
@@ -40,11 +41,15 @@ export async function rebuildInto(
   assertSameEmbeds(stock, rebuilt);
   say('verified every embedded file survived the rebuild');
 
+  const rebuiltApp = readApp(rebuilt);
   assertRefsResolve(
-    readApp(rebuilt),
+    rebuiltApp,
     new Set(readModules(rebuilt).map((module) => embedName(module.name))),
   );
   say('verified every embedded path the app addresses resolves');
+
+  assertPayloadNamesBound(rebuiltApp);
+  say('verified every patch helper is declared in the module that calls it');
 
   chmodSync(out, BINARY_MODE);
   sign(out);

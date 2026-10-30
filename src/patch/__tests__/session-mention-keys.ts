@@ -1,15 +1,10 @@
 import type { Rebase } from '../rebase.ts';
-import { blockEnd } from '../tokens.ts';
-import { payloadFunction, rebasedNamed } from './payload.ts';
+import { arrowAt, evaluate, renamed } from './first-message-harness.ts';
+import { rebasedNamed } from './payload.ts';
 import { escaped } from './session-mention-callback.ts';
 import type { Stand } from './session-mention-scope.ts';
-import { scoped, scopeOver } from './session-mention-scope.ts';
-
-type Scope = ReturnType<typeof scopeOver>;
-type Stubs = Map<string, Stand>;
 
 export type KeyResult = boolean | string | null;
-export type EscapePath = 'key' | 'sequence' | 'callback';
 
 export interface Row {
   label: string;
@@ -26,42 +21,63 @@ export interface Entry {
 
 export interface Hooks {
   close: (shown: boolean) => void;
+  cancel: () => void;
   isShown: () => boolean;
   rows: () => readonly Row[];
   entry: Entry;
   picker: object;
 }
 
+export interface KeyEvent {
+  kind: string;
+  key: string;
+  modifiers: { ctrl: boolean; shift: boolean; alt: string };
+}
+
+interface KeyWant {
+  ctrl?: boolean;
+  shift?: boolean;
+  altFamily?: boolean;
+}
+
+export function namedKey(key: string, modifiers: Partial<KeyEvent['modifiers']> = {}): KeyEvent {
+  return {
+    kind: 'named',
+    key,
+    modifiers: { ctrl: false, shift: false, alt: 'none', ...modifiers },
+  };
+}
+
+function keyIs(event: KeyEvent, key: string, want: KeyWant = {}): boolean {
+  const { ctrl, shift, alt } = event.modifiers;
+  return (
+    event.kind === 'named' &&
+    event.key === key &&
+    (want.ctrl === undefined || ctrl === want.ctrl) &&
+    (want.shift === undefined || shift === want.shift) &&
+    (want.altFamily === undefined || (alt !== 'none') === want.altFamily)
+  );
+}
+
 export interface EscapeKeys {
   readonly escapes: string[];
   readonly bash: { active: boolean };
-  press: (path: EscapePath) => KeyResult;
+  press: () => KeyResult;
 }
 
 export interface EnterKey {
   readonly written: string[];
   press: () => boolean;
   down: () => boolean;
-  scope: (key: Record<string, boolean>) => boolean;
-}
-
-// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
-function evaluate<Fn>(source: string, stubs: Stubs): Fn {
-  return payloadFunction<[Scope], Fn>(['$ODscope'], scoped(source))(scopeOver(stubs));
-}
-
-function renamed(rebase: Rebase): (name: string) => string {
-  return (name) => rebase.renames[name] ?? name;
+  scope: (event: KeyEvent) => boolean;
 }
 
 function arrowAround(text: string, anchor: number, wrapper: string): string {
-  const start = text.lastIndexOf(`=${wrapper}((`, anchor) + wrapper.length + 2;
-  const open = text.indexOf('=>{', start) + 2;
-  return text.slice(start, blockEnd(text, open) + 1);
+  return arrowAt(text, text.lastIndexOf(`=${wrapper}((`, anchor) + wrapper.length + 2);
 }
 
 function callbackName(rebased: readonly Rebase[]): string {
-  return renamed(rebasedNamed(rebased, 'session-mention-escape'))('g');
+  return renamed(rebasedNamed(rebased, 'session-mention-close-cancels'))('g');
 }
 
 function group(match: RegExpExecArray | null, name: string, what: string): string {
@@ -72,108 +88,94 @@ function group(match: RegExpExecArray | null, name: string, what: string): strin
   return found;
 }
 
-function windowsAround(text: string, anchor: string): string[] {
-  const windows: string[] = [];
-  for (let at = text.indexOf(anchor); at !== -1; at = text.indexOf(anchor, at + 1)) {
-    windows.push(text.slice(Math.max(0, at - 400), at + 160));
-  }
-  return windows;
+function stockCloseMenus(
+  patched: string,
+  suggest: (name: string) => string,
+  hooks: Hooks,
+): () => void {
+  const close = new RegExp(
+    String.raw`=[\w$]+\((?<arrow>\(\)=>\{${escaped(suggest('Yi'))}\(\),${escaped(suggest('Qt'))}\(!1\),[\w$]+\(!1\)\}),\[`,
+    'u',
+  ).exec(patched);
+  return evaluate<() => void>(
+    group(close, 'arrow', 'closeAutocompleteMenus callback'),
+    new Map<string, Stand>([
+      [suggest('Yi'), hooks.cancel],
+      [suggest('Qt'), hooks.close],
+    ]),
+  );
 }
 
-export function escapeKeys(
+function stockBashEscape(
   patched: string,
-  rebased: readonly Rebase[],
-  { close, isShown }: Hooks,
-): EscapeKeys {
-  const rebase = rebasedNamed(rebased, 'session-mention-escape');
-  const named = renamed(rebase);
-  const hi = escaped(named('Hi'));
+  { name, wrapper }: { name: string; wrapper: string },
+  bash: { active: boolean },
+): () => boolean {
+  const arrow = new RegExp(
+    String.raw`[^\w$]${escaped(name)}=${escaped(wrapper)}\((?<arrow>\(\)=>(?<flag>[\w$]+)\.current&&(?<leave>[\w$]+)\(\)),\[`,
+    'u',
+  ).exec(patched);
+  return evaluate<() => boolean>(
+    group(arrow, 'arrow', 'bash-mode Esc callback'),
+    new Map<string, Stand>([
+      [
+        group(arrow, 'flag', 'bash-mode Esc callback'),
+        {
+          get current() {
+            return bash.active;
+          },
+        },
+      ],
+      [
+        group(arrow, 'leave', 'bash-mode Esc callback'),
+        () => {
+          bash.active = false;
+          return true;
+        },
+      ],
+    ]),
+  );
+}
+
+export function escapeKeys(patched: string, rebased: readonly Rebase[], hooks: Hooks): EscapeKeys {
+  const suggest = renamed(rebasedNamed(rebased, 'session-mention-suggest'));
   const escapes: string[] = [];
   const bash = { active: false };
-  const windows = windowsAround(patched, `if(${named('Hi')}())return`);
-  const keyMatcher = new RegExp(
+  const key = new RegExp(
     String.raw`\((?<key>[\w$]+)\)=>\{let\{showSuggestions:(?<list>[\w$]+),showCommands:(?<menu>[\w$]+)\}=(?<state>[\w$]+)\(\);` +
-      String.raw`if\(\k<key>\.escape&&!\k<list>&&!\k<menu>\)\{if\(${hi}\(\)\)return!0;if\((?<vim>[\w$]+)\(\)\)return!0;return (?<escape>[\w$]+)\(\)\}return!1\}`,
+      String.raw`if\((?<is>[\w$]+)\(\k<key>,"escape"\)&&!\k<list>&&!\k<menu>\)\{if\((?<close>[\w$]+)\(\),(?<bash>[\w$]+)\(\)\)return!0;` +
+      String.raw`if\((?<vim>[\w$]+)\(\)\)return!0;return (?<escape>[\w$]+)\(\)\}return!1\}`,
     'u',
+  ).exec(patched);
+  const what = 'Esc key handler';
+  const press = evaluate<(event: KeyEvent) => KeyResult>(
+    key?.[0] ?? '',
+    new Map<string, Stand>([
+      [
+        group(key, 'state', what),
+        () => ({ showSuggestions: hooks.isShown(), showCommands: false }),
+      ],
+      [group(key, 'is', what), keyIs],
+      [group(key, 'close', what), stockCloseMenus(patched, suggest, hooks)],
+      [
+        group(key, 'bash', what),
+        stockBashEscape(
+          patched,
+          { name: group(key, 'bash', what), wrapper: callbackName(rebased) },
+          bash,
+        ),
+      ],
+      [group(key, 'vim', what), () => false],
+      [
+        group(key, 'escape', what),
+        () => {
+          escapes.push('escape');
+          return 'stock escape';
+        },
+      ],
+    ]),
   );
-  const callbackMatcher = new RegExp(
-    String.raw`\(\)=>\{let\{showSuggestions:(?<list>[\w$]+),showCommands:(?<menu>[\w$]+)\}=[\w$]+\(\);if\(\k<list>\|\|\k<menu>\)\{[\w$]+\(\);return\}if\(${hi}\(\)\)return;if\([\w$]+\(\)\)return;[\w$]+\(\)\}`,
-    'u',
-  );
-  const key = windows.map((text) => keyMatcher.exec(text)).find((hit) => hit !== null) ?? null;
-  const callback =
-    windows.map((text) => callbackMatcher.exec(text)).find((hit) => hit !== null) ?? null;
-  const sequenceAt = patched.indexOf('==="[27u"){if(');
-  if (key === null || callback === null || sequenceAt === -1) {
-    throw new Error('the stock Esc key handlers are missing');
-  }
-  const names = {
-    state: group(key, 'state', 'Esc key handler'),
-    escape: group(key, 'escape', 'Esc key handler'),
-    vim: group(key, 'vim', 'Esc key handler'),
-  };
-  const stubs: Stubs = new Map<string, Stand>([
-    [names.state, () => ({ showSuggestions: isShown(), showCommands: false })],
-    [names.vim, () => false],
-    [
-      names.escape,
-      () => {
-        escapes.push('escape');
-        return 'stock escape';
-      },
-    ],
-  ]);
-  const sequence = arrowAround(patched, sequenceAt, callbackName(rebased));
-  const quit = new RegExp(
-    String.raw`\[27u"\)\{if\([\w$]+\|\|[\w$]+\)return (?<un>[\w$]+)\(\),!0;if\(${hi}\(\)\)return!0;if\([\w$]+\(\)\)return!0;return [\w$]+\(\)`,
-    'u',
-  ).exec(sequence);
-  stubs.set(group(quit, 'un', 'Esc sequence handler'), () => {
-    close(false);
-  });
-  stubs.set(
-    named('Hi'),
-    evaluate<() => boolean>(
-      rebase.replace.slice(rebase.replace.indexOf('=') + 1),
-      new Map<string, Stand>([
-        [named('g'), (run: () => boolean) => run],
-        [named('U'), close],
-        [
-          named('mo'),
-          {
-            get current() {
-              return bash.active;
-            },
-          },
-        ],
-        [
-          named('ko'),
-          () => {
-            bash.active = false;
-            return true;
-          },
-        ],
-      ]),
-    ),
-  );
-  const press = {
-    key: evaluate<(key: { escape: boolean }) => KeyResult>(key[0], stubs),
-    sequence: evaluate<(raw: string) => KeyResult>(sequence, stubs),
-    callback: evaluate<() => KeyResult | undefined>(callback[0], stubs),
-  };
-  return {
-    escapes,
-    bash,
-    press: (path) => {
-      if (path === 'key') {
-        return press.key({ escape: true });
-      }
-      if (path === 'sequence') {
-        return press.sequence('[27u');
-      }
-      return press.callback() ?? null;
-    },
-  };
+  return { escapes, bash, press: () => press(namedKey('escape')) };
 }
 
 export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hooks): EnterKey {
@@ -196,6 +198,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
     select,
     new Map<string, Stand>([
       [named('uu'), hooks.picker],
+      [renamed(rebasedNamed(rebased, 'session-mention-suggest'))('Yi'), hooks.cancel],
       [group(writes, 'text', 'select callback'), (text: string) => written.push(text)],
       [
         group(writes, 'cursor', 'select callback'),
@@ -205,9 +208,9 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       ],
     ]),
   );
-  const marker = /\.tab\|\|[\w$]+\.return&&!/u;
+  const marker = /"tab"\)\|\|[\w$]+\([\w$]+,"return"/u;
   let handlerAt = patched.indexOf('{suggestion:');
-  while (handlerAt !== -1 && !marker.test(patched.slice(Math.max(0, handlerAt - 90), handlerAt))) {
+  while (handlerAt !== -1 && !marker.test(patched.slice(Math.max(0, handlerAt - 120), handlerAt))) {
     handlerAt = patched.indexOf('{suggestion:', handlerAt + 1);
   }
   if (handlerAt === -1) {
@@ -215,7 +218,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   }
   const handler = arrowAround(patched, handlerAt, callbackName(rebased));
   const parts =
-    /let\{showSuggestions:[\w$]+,suggestions:[\w$]+\}=(?<state>[\w$]+)\(\);.*?\.upArrow\)return (?<move>[\w$]+)\(.*?return (?<select>[\w$]+)\(\{suggestion:[\w$]+\[(?<index>[\w$]+)\.current\],input:(?<input>[\w$]+)\.current,cursorPosition:(?<cursor>[\w$]+)\.current\}\),!0;if\([\w$]+\.escape\)return (?<un>[\w$]+)\(\)/u.exec(
+    /let\{showSuggestions:[\w$]+,suggestions:[\w$]+\}=(?<state>[\w$]+)\(\);.*?"upArrow"\)\)return (?<move>[\w$]+)\(.*?return (?<select>[\w$]+)\(\{suggestion:[\w$]+\[(?<index>[\w$]+)\.current\],input:(?<input>[\w$]+)\.current,cursorPosition:(?<cursor>[\w$]+)\.current\}\),!0;if\((?<is>[\w$]+)\([\w$]+,"escape"\)\)return (?<un>[\w$]+)\(\)/u.exec(
       handler,
     );
   const quiet = {
@@ -224,25 +227,27 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
     },
   };
   const scopeNamed = renamed(rebasedNamed(rebased, 'session-mention-scope-key'));
-  const press = evaluate<(event: string | null, key: Record<string, boolean>) => boolean>(
+  const what = 'suggestion key handler';
+  const press = evaluate<(event: KeyEvent) => boolean>(
     handler,
     new Map<string, Stand>([
       [scopeNamed('uu'), hooks.picker],
+      [group(parts, 'is', what), keyIs],
       [
-        group(parts, 'state', 'suggestion key handler'),
+        group(parts, 'state', what),
         () => ({ showSuggestions: hooks.isShown(), suggestions: hooks.rows() }),
       ],
       [
-        group(parts, 'move', 'suggestion key handler'),
+        group(parts, 'move', what),
         (advance: (at: number) => number) => {
           hooks.entry.keyIndex = advance(hooks.entry.keyIndex);
           hooks.entry.selected = hooks.entry.keyIndex;
         },
       ],
-      [group(parts, 'select', 'suggestion key handler'), selectRow],
-      [group(parts, 'index', 'suggestion key handler'), quiet],
+      [group(parts, 'select', what), selectRow],
+      [group(parts, 'index', what), quiet],
       [
-        group(parts, 'input', 'suggestion key handler'),
+        group(parts, 'input', what),
         {
           get current(): string {
             return hooks.entry.text;
@@ -250,7 +255,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
         },
       ],
       [
-        group(parts, 'cursor', 'suggestion key handler'),
+        group(parts, 'cursor', what),
         {
           get current(): number {
             return hooks.entry.cursor;
@@ -258,7 +263,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
         },
       ],
       [
-        group(parts, 'un', 'suggestion key handler'),
+        group(parts, 'un', what),
         () => {
           hooks.close(false);
         },
@@ -267,9 +272,9 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   );
   return {
     written,
-    press: () => press(null, { return: true }),
-    down: () => press(null, { downArrow: true }),
-    scope: (key) => press(null, key),
+    press: () => press(namedKey('return')),
+    down: () => press(namedKey('downArrow')),
+    scope: (event) => press(event),
   };
 }
 
@@ -281,7 +286,7 @@ export interface Warmup {
 
 export function serviceEffect(
   rebased: readonly Rebase[],
-  stands: { sequence: Stand; search: Stand },
+  stands: { cancel: Stand; search: Stand },
   warmup: Warmup,
 ): (service: Stand) => () => void {
   const rebase = rebasedNamed(rebased, 'session-mention-service-drops');
@@ -297,7 +302,7 @@ export function serviceEffect(
             cleanup = effect();
           },
         ],
-        [named('Po'), stands.sequence],
+        [named('Yi'), stands.cancel],
         [named('uu'), stands.search],
         ['setTimeout', (run: () => void, delay: number) => warmup.timers.push({ run, delay })],
         ['clearTimeout', (timer: number) => warmup.cleared.push(timer)],
@@ -312,8 +317,6 @@ export function serviceEffect(
           }),
         ],
         [named('h'), () => 0],
-        [named('ao'), { current: null }],
-        [named('go'), { current: null }],
         [named('Ba'), service],
       ]),
     );

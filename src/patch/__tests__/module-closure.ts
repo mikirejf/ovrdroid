@@ -117,6 +117,14 @@ export function closureOf(text: string, roots: readonly string[]): string {
     .join(';\n');
 }
 
+export function declarationText(text: string, name: string): string {
+  const unit = unitsFor(text).find((candidate) => candidate.declares.includes(name));
+  if (unit === undefined) {
+    throw new Error(`${name} is not declared at the top of the module`);
+  }
+  return unit.text;
+}
+
 export function declarationAround(text: string, position: number): string {
   const unit = unitAt(unitsFor(text), position);
   const name = unit?.declares[0];

@@ -201,6 +201,15 @@ still reaches the payload.
 Delete obsolete patches together with their tests. Record the evidence (the absent literal, the new
 code) in the commit, because a deleted patch leaves no other trace.
 
+A big release deserves the same question for patches that still match. Diff the stock code around
+each matching site between the two releases with minified names masked, and read only the sites
+that changed: a patch can keep matching while stock now does the job itself, or while the code it
+hooks only runs behind a feature flag that is off.
+
+Release notes describe features that are often server flags or skip custom models. Before deleting
+a patch because the notes say Droid now does it, find the flag or model list that decides it in
+the bundle, then launch stock on the model you use and look for the behaviour.
+
 ### Find the new site
 
 Start from a literal the minifier cannot rename (a log message, an event name, a `"draft-edited"`
@@ -297,6 +306,13 @@ only earlier gate is the rebase itself**, and it reports a name as captured when
 with an import in the new chunk fails `bun build` with `Cannot assign to import "Ie"`; the same
 mistake on a name that collides with nothing compiles clean and crashes at runtime instead.
 
+A helper one patch declares (`function $ODx`) and another patch calls works only while both land in
+the same module. Modules do not share top-level names, so when upstream splits the module the call
+becomes a read of an undefined global: it compiles, passes every probe that does not reach that
+path, and throws a `ReferenceError` at runtime. The rebuild now fails on it (`assertPayloadNamesBound`
+in `src/binary/payload-globals.ts`). Fix it by declaring the helper inside the payload that calls
+it, or publish it on purpose with `globalThis.$ODx=`.
+
 ## 4. Re-anchor the tests too
 
 `bun test` goes red on a release for two reasons, and only one of them is your patches. Tests that
@@ -339,7 +355,8 @@ platforms. Write any new one the same way:
   `export{…}` (`heredoc-shell.test.ts`).
 - Take a stock name from a patch's rebased `find` rather than writing the letter: count
   `rebase.find` from `rebaseAll`, never a raw `PATCH.find`, which is in one platform's names; and
-  read a captured binding with `renamed(rebase)` (`session-mention-keys.ts`).
+  read a captured binding with `renamed(rebase)` (`session-mention-keys.ts`). That includes the
+  markers a harness slices stock code on: an `indexOf('=g(')` breaks on the first rename.
 - Match a minified name with `[\w$]+`, never `\w+`: the minifier hands out `$`-prefixed names, and
   a regex that skips them breaks the release it first picks one.
 - Compare a stock piece with `holePattern`, which ignores minified names (`stock-source.test.ts`).
@@ -440,8 +457,22 @@ string Droid dropped a release earlier, a wait that returned on the launch resul
 completion notice, a cache rule stricter than Droid's own tail churn, a probe that sent a settings
 `${VAR}` api key literally. Fix the probe, with a test, before touching a patch.
 
+A check that fails once is not flaky until you have looked. Compare Droid's own log for the failed
+run with a passing run's: a step that never happened (a settings call missing) points at a real
+race, which stock usually shares. A cache check that fails on numbers alone has not shown Droid
+caused it: the provider or proxy can drop cached tokens on its own. Compare the request bodies
+(`probe build --bodies`) before blaming a patch, and judge whether the new request extends the old
+one, ignoring the `cache_control` marker that moves to the newest message every turn.
+
 Probes that read `~/.factory/settings.json` must expand `${VAR}` references the way Droid does
 (`expandEnv` in `src/probe/credentials.ts`).
+
+To find which patches cost a timing or byte check, build the copy without the suspects and rerun
+the probe against stock: `bun run probe build -t <stock> --without <patch names> -o <out>`. A
+patch that paints on every frame (a footer segment) costs bytes in `probe stream`, because Ink
+rewrites the whole live area each frame; that is the feature's price, not a regression. Probes
+that must not see such a feature start Droid in a folder that hides it (`probe stream` uses an
+empty folder outside git) and that Droid already trusts, or the trust dialog stalls the run.
 
 No gate looks at the screen. A patch that paints (header lines, logo accents, footer text) can
 build, pass every probe, and draw nothing or draw in the wrong place. Launch the copy and look.

@@ -5,7 +5,7 @@ export const STALE_EDIT_NOTE =
 
 const TOLERATE_PARAMETER = 'async function RY(t,o){if(!t||typeof t!=="string")return{success:!1,';
 
-const REFUSAL_HEAD = 'if(await CA().hasFileChangedExternally(a.absolutePath))return{success:!1,';
+const REFUSAL_HEAD = 'if(await c.hasFileChangedExternally(a.absolutePath))return{success:!1,';
 
 const EDIT_CHECKS =
   'let g=await RY(o,f);if(!g.success)return{success:!1,message:g.message,filePath:o};' +
@@ -32,7 +32,7 @@ export const staleEditPatches: readonly Patch[] = [
     name: 'edit-refusal-asks-stale-test',
     find: REFUSAL_HEAD,
     replace:
-      'if(await CA().hasFileChangedExternally(a.absolutePath)&&!($ODtolerate&&await $ODtolerate(a.absolutePath)))return{success:!1,',
+      'if(await c.hasFileChangedExternally(a.absolutePath)&&!($ODtolerate&&await $ODtolerate(a.absolutePath)))return{success:!1,',
   },
   {
     name: 'edit-accepts-stale-unique-match',

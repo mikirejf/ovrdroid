@@ -9,6 +9,7 @@ import { withTempDir } from '../temp.ts';
 import type { Fields } from './fields.ts';
 import { entriesOf, fieldsOf, worded } from './fields.ts';
 import { PROBE_SETTINGS } from './launch.ts';
+import { transcriptFileOf } from './live-transcript.ts';
 import { ENTER, openSettledSession } from './session.ts';
 
 const NOTICE_START = 'Background task ';
@@ -182,10 +183,8 @@ function findNotice(since: number, token: string): Notice | undefined {
 }
 
 function childLines(taskId: string): string[] | undefined {
-  for (const file of new Bun.Glob(`*/${taskId}.jsonl`).scanSync(FACTORY_SESSIONS)) {
-    return linesIn(path.join(FACTORY_SESSIONS, file));
-  }
-  return undefined;
+  const file = transcriptFileOf(taskId);
+  return file === undefined ? undefined : linesIn(file);
 }
 
 function parentPrompt(type: string, cwd: string, token: string): string {

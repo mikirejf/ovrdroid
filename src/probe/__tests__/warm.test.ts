@@ -13,7 +13,7 @@ import {
 const SENT = 1_000_000;
 const DELAY = 90_000;
 
-const WARM = { at: SENT + 97_000, ok: true, kids: 1, cacheRead: 24_347, cacheWrite: 0 };
+const WARM = { at: SENT + 97_000, ok: true, cacheRead: 24_347, cacheWrite: 0 };
 
 function passing(): WarmRun {
   return {
@@ -43,7 +43,7 @@ describe('warmChecks passes a run where the warmer kept the cache and the clock 
     const checks = warmChecks(passing());
     expect(warmPassed(checks)).toBe(true);
     expect(describeChecks(checks).split('\n')[0]).toBe(
-      'pass  the warm request fired 97s after the launch prompt (delay 90s), with 1 sub-agent(s) running',
+      'pass  the warm request fired 97s after the launch prompt (delay 90s), with sub-agents running',
     );
   });
 });
@@ -145,14 +145,12 @@ describe('warmLinesOf reads the warm rows of one session from cache-usage.jsonl'
       'not json',
       '',
     ].join('\n');
-    expect(warmLinesOf(body, 'a')).toEqual([
-      { at: 2, ok: true, kids: 1, cacheRead: 100, cacheWrite: 0 },
-    ]);
+    expect(warmLinesOf(body, 'a')).toEqual([{ at: 2, ok: true, cacheRead: 100, cacheWrite: 0 }]);
   });
 
   test('a failed warm with no usage reads as zero', () => {
     expect(warmLinesOf('{"t":5,"s":"a","warm":true,"kids":2,"ok":false}', 'a')).toEqual([
-      { at: 5, ok: false, kids: 2, cacheRead: 0, cacheWrite: 0 },
+      { at: 5, ok: false, cacheRead: 0, cacheWrite: 0 },
     ]);
   });
 });

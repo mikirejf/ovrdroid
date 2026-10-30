@@ -10,7 +10,7 @@ import { registerReleaseCommands } from './release-commands.ts';
 import { registerRenderCommands } from './render-commands.ts';
 import { registerResourceCommands } from './resource-commands.ts';
 import { registerSessionCommands } from './session-commands.ts';
-import { registerToolSurfaceCommand } from './tool-surface.ts';
+import { registerToolSurfaceCommands } from './tool-surface-commands.ts';
 import { registerTypingCommand } from './typing-command.ts';
 
 export function registerCommands(program: Command): void {
@@ -24,6 +24,6 @@ export function registerCommands(program: Command): void {
   registerDigestCommands(program);
   registerCompactionLiveCommands(program);
   registerTypingCommand(program);
-  registerToolSurfaceCommand(program);
+  registerToolSurfaceCommands(program);
   registerPaintCommands(program);
 }

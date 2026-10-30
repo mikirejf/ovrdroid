@@ -45,6 +45,10 @@ const CLIENT =
 
 const KIDS = 'function $ODWk($ODsid){try{return globalThis.__odKids?.($ODsid)??0}catch{return 0}}';
 
+const SNAPSHOT_STORE = 'Qh.set(t.sessionId,{snapshot:t,capturedBy:new WeakRef(Dt())})';
+const CHILD_TRACKER =
+  'function ST(){let e=Se(vi);if(e)return e;return zt??=new ze,zt}class he{detachedController=';
+
 const ARM =
   `function $ODWd($ODsnap){let $ODenv=Number(process.env.${WARM_DELAY_ENV});` +
   `return $ODenv>=${MIN_WARM_DELAY_MS}&&$ODenv<=${MAX_WARM_DELAY_MS}?$ODenv:ee($ODsnap.modelId).modelProvider==="anthropic"?${ANTHROPIC_WARM_DELAY_MS}:${OTHER_WARM_DELAY_MS}}` +
@@ -54,7 +58,7 @@ const CANCEL =
   'function $ODWc($ODsid){let $ODcell=$ODWt.get($ODsid);if(!$ODcell)return;clearTimeout($ODcell.timer),$ODcell.ac?.abort(),$ODWt.delete($ODsid)}';
 
 const FIRE =
-  'async function $ODWf($ODsid,$ODcell){if($ODWt.get($ODsid)!==$ODcell)return;let $ODsnap=$ODcell.snap,$ODlast=Qh.get($ODsid),$ODkids=!$ODlast||$ODlast===$ODsnap?$ODWk($ODsid):0;' +
+  'async function $ODWf($ODsid,$ODcell){if($ODWt.get($ODsid)!==$ODcell)return;let $ODsnap=$ODcell.snap,$ODlast=Qh.get($ODsid)?.snapshot,$ODkids=!$ODlast||$ODlast===$ODsnap?$ODWk($ODsid):0;' +
   'if(!$ODkids||p().currentSessionId!==$ODsid){$ODWt.delete($ODsid);return}' +
   'let $ODac=new AbortController,$ODres,$ODsent;$ODcell.ac=$ODac;' +
   `try{let{createLLMStreamingCore:$ODmake}=${STREAMING_CORE_IMPORT},$ODcore=${CLIENT};$ODsent=Date.now();` +
@@ -68,7 +72,7 @@ const FIRE =
 export const warmerPatches: readonly Patch[] = [
   {
     name: 'cache-warm-arm',
-    find: 'function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t)}',
+    find: `function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE}}`,
     lookups: [
       'function ee(t){return sw(t,{getCustomModels:()=>C().getCustomModels()',
       'function p(){let t=Te(IX);if(t)return t;if(!kv)kv=new Oi,',
@@ -76,7 +80,7 @@ export const warmerPatches: readonly Patch[] = [
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
       'return vo(()=>Xq(e))}catch(e){return Promise.reject(e)}}takePendingMissionMetadataSync(){',
     ],
-    replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),Qh.set(t.sessionId,t);try{$ODCs(t),$ODWa(t)}catch{}}`,
+    replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE};try{$ODCs(t),$ODWa(t)}catch{}}`,
   },
   {
     name: 'cache-warm-close',
@@ -85,18 +89,13 @@ export const warmerPatches: readonly Patch[] = [
   },
   {
     name: 'cache-warm-forget',
-    find: 'function mY(t){Qh.delete(t)}var V5=',
-    replace: 'function mY(t){$ODWc(t),Qh.delete(t)}var V5=',
+    find: 'function mY(t){Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)Qh.delete(t)}',
+    replace:
+      'function mY(t){$ODWc(t),Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)$ODWc(t),Qh.delete(t)}',
   },
   {
     name: 'cache-warm-child-count',
-    find: 'function Nme({sessionStateManager:e,taskId:t,afterMessageId:s}){',
-    lookups: [
-      'function qme(a,b){let c=new Map;for(let d of DE(b)){',
-      'async queueParentMessage(e){return await bE({client:N(),',
-    ],
-    replace:
-      'globalThis.__odKids=($ODsid)=>qme(N().getSessionStateManager(),$ODsid).filter(($ODkid)=>$ODkid.status==="running").length;' +
-      'function Nme({sessionStateManager:e,taskId:t,afterMessageId:s}){',
+    find: CHILD_TRACKER,
+    replace: `globalThis.__odKids=($ODsid)=>+ST().hasRunningChildren($ODsid);${CHILD_TRACKER}`,
   },
 ];

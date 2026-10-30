@@ -1,3 +1,4 @@
+import { isList, isRecord } from './bodies.ts';
 import type { BodyRow, Json, JsonObject } from './bodies.ts';
 import { compactionKind } from './compaction-replay-bodies.ts';
 import { parseJson } from './fields.ts';
@@ -41,24 +42,16 @@ const ID_CHARS = 8;
 const LINE_PREVIEW_CHARS = 80;
 const CACHE_CONTROL: JsonObject = { type: 'ephemeral' };
 
-function isObject(value: Json | undefined): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isList(value: Json | undefined): value is readonly Json[] {
-  return Array.isArray(value);
-}
-
 function textOf(value: Json | undefined): string {
   return typeof value === 'string' ? value : '';
 }
 
 function objectsAt(record: JsonObject, key: string): JsonObject[] {
   const value = record[key];
-  if (!isList(value) || !value.every((item) => isObject(item))) {
+  if (!isList(value) || !value.every((item) => isRecord(item))) {
     throw new TypeError(`expected "${key}" to be a list of objects`);
   }
-  return value.filter((item) => isObject(item));
+  return value.filter((item) => isRecord(item));
 }
 
 function isRecordLine(value: unknown): value is JsonObject {
@@ -100,7 +93,7 @@ function cached(block: JsonObject): JsonObject {
 
 function messageOf(record: JsonObject): Message | undefined {
   const { message } = record;
-  if (record['type'] !== 'message' || !isObject(message)) {
+  if (record['type'] !== 'message' || !isRecord(message)) {
     return undefined;
   }
   const content = objectsAt(message, 'content');
@@ -159,12 +152,12 @@ function cacheLast(messages: readonly Message[]): Message[] {
 function openingText(body: JsonObject): string {
   const { messages } = body;
   const first = isList(messages) ? messages[0] : undefined;
-  const content = isObject(first) ? first['content'] : undefined;
+  const content = isRecord(first) ? first['content'] : undefined;
   if (typeof content === 'string') {
     return content;
   }
   const block = isList(content) ? content[0] : undefined;
-  return isObject(block) ? textOf(block['text']) : '';
+  return isRecord(block) ? textOf(block['text']) : '';
 }
 
 function templateFor(templates: readonly BodyRow[], later: boolean): BodyRow {
@@ -231,7 +224,7 @@ function laterMessages(input: RebuildInput, position: Position): Message[] {
   const context = input.records.find(
     (record) => record['type'] === 'message' && textOf(record['id']).startsWith(CONTEXT_ID_PREFIX),
   );
-  if (previous === undefined || !isObject(anchor) || context === undefined) {
+  if (previous === undefined || !isRecord(anchor) || context === undefined) {
     throw new Error('the session has no context message, or the previous compaction has no anchor');
   }
   const transcript = transcriptBetween(input.records, {

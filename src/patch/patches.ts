@@ -190,6 +190,11 @@ export const patches: readonly Patch[] = [
       'await pt.loadSession({sessionId:dt}),De.current=dt;let $ODs=ot.current.get(dt);if(ot.current.delete(dt),$ODs&&c4($ODs))try{await pt.updateSessionSettings({sessionId:dt,...$ODs})}catch($ODx){r("[Daemon] Failed to sync pending session settings",{cause:$ODx})}return ae.emit(',
   },
   {
+    name: 'session-create-keeps-early-settings',
+    find: 'await ot.ensureConnectedAndGetController(),ln=qe(dn);',
+    replace: 'await ot.ensureConnectedAndGetController(),ln={...qe(null),...qe(dn)};',
+  },
+  {
     name: 'session-load-reads-loaded-settings',
     find: 'U=await t.loadSession(e.sessionId,x),H=Number(',
     lookups: [

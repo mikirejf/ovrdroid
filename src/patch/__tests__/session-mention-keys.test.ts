@@ -3,7 +3,6 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { SCAN_BATCH } from '../session-mention-patches.ts';
 import type { ScopeKey, Driver, FirstMessages, Session } from './session-mention-harness.ts';
 import { picker, session, sessionDriver, stock } from './session-mention-harness.ts';
-import type { EscapePath } from './session-mention-keys.ts';
 
 function withFirst(first: FirstMessages): Driver {
   if (stock === undefined) {
@@ -44,12 +43,10 @@ function chats(count: number): Session[] {
   return Array.from({ length: count }, (_, index) => session(`s${index}`, `Chat ${index}`, index));
 }
 
-const PATHS: EscapePath[] = ['key', 'sequence', 'callback'];
-
-describe.skipIf(stock === undefined).each(PATHS)('Esc through the %s handler', (path) => {
+describe.skipIf(stock === undefined)('stock Esc on the session list', () => {
   test('stops later refreshes from opening a list that had no rows', async () => {
     const input = await zeroMatch();
-    input.pressEscape(path);
+    input.pressEscape();
     await input.runAllBatches();
     expect(input.suggestions.shown).toBe(false);
     expect(shownIds(input)).toEqual([]);
@@ -58,7 +55,7 @@ describe.skipIf(stock === undefined).each(PATHS)('Esc through the %s handler', (
   test('in bash mode it leaves bash mode and stops later refreshes too', async () => {
     const input = await zeroMatch();
     input.bash.active = true;
-    input.pressEscape(path);
+    input.pressEscape();
     expect(input.bash.active).toBe(false);
     await input.runAllBatches();
     expect(input.suggestions.shown).toBe(false);
@@ -68,13 +65,13 @@ describe.skipIf(stock === undefined).each(PATHS)('Esc through the %s handler', (
   test('in bash mode the stock Esc handler is not reached, as in stock', async () => {
     const input = await zeroMatch();
     input.bash.active = true;
-    input.pressEscape(path);
+    input.pressEscape();
     expect(input.stockEscapes).toEqual([]);
   });
 
   test('outside bash mode the stock Esc handler runs once', async () => {
     const input = await zeroMatch();
-    input.pressEscape(path);
+    input.pressEscape();
     expect(input.stockEscapes).toEqual(['escape']);
     expect(input.bash.active).toBe(false);
   });

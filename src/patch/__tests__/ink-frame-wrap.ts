@@ -1,4 +1,4 @@
-import { blockEnd } from '../tokens.ts';
+import { arrowAt } from './first-message-harness.ts';
 import {
   moduleHolding,
   patchedApp,
@@ -33,10 +33,7 @@ function wrapperIn(text: string): Wrapping {
   const rebase = rebased('ink-frame-wrap-cache');
   const name = renamed(rebase, 'Gg');
   const open = text.indexOf(`${name}=(`);
-  const arrow = text.slice(
-    open + name.length + 1,
-    blockEnd(text, text.indexOf('=>{', open) + 2) + 1,
-  );
+  const arrow = arrowAt(text, open + name.length + 1);
   let calls = 0;
   const stubs = new Map<string, Stand>([
     [

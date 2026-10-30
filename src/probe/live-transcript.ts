@@ -1,7 +1,8 @@
+import { FACTORY_SESSIONS } from '../paths.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
 
-const HIDDEN_FROM_MODEL = 'user_only';
+export const HIDDEN_FROM_MODEL = 'user_only';
 const TURN_OUTCOME = 'agent_turn_outcome';
 
 export interface Transcript {
@@ -17,6 +18,18 @@ interface Turn {
   effort: string;
 }
 
+export function transcriptFileOf(sessionId: string): string | undefined {
+  const [file] = new Bun.Glob(`*/${sessionId}.jsonl`).scanSync({
+    cwd: FACTORY_SESSIONS,
+    absolute: true,
+  });
+  return file;
+}
+
+export function ofKind(blocks: readonly Fields[], kind: string): Fields[] {
+  return blocks.filter((block) => worded(block, 'type') === kind);
+}
+
 function turnOf(line: string): Turn | undefined {
   const fields = fieldsOfJson(line);
   if (worded(fields, 'type') !== 'message') {
@@ -28,17 +41,16 @@ function turnOf(line: string): Turn | undefined {
   }
   const content = message.get('content');
   const blocks = entriesOf(message, 'content');
-  const ofKind = (kind: string) => blocks.filter((block) => worded(block, 'type') === kind);
   return {
     role: worded(message, 'role'),
     text:
       typeof content === 'string'
         ? content
-        : ofKind('text')
+        : ofKind(blocks, 'text')
             .map((block) => worded(block, 'text'))
             .join(''),
-    toolUses: ofKind('tool_use').length,
-    toolResults: ofKind('tool_result').length,
+    toolUses: ofKind(blocks, 'tool_use').length,
+    toolResults: ofKind(blocks, 'tool_result').length,
     effort: worded(message, 'reasoningEffort'),
   };
 }

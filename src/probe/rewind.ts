@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import { MS_PER_SECOND } from '../cli.ts';
 import { FACTORY_DROIDS, FACTORY_SESSIONS, FACTORY_TASK_INVOCATIONS } from '../paths.ts';
 import { makeTempDir } from '../temp.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import { sessionFolderName } from './ledger.ts';
+import { transcriptFileOf } from './live-transcript.ts';
 import { poll } from './poll.ts';
 import type {
   ChatFiles,
@@ -168,10 +168,8 @@ function transcriptOf(session: string | undefined): string {
   if (session === undefined) {
     return '';
   }
-  for (const file of new Bun.Glob(`*/${session}.jsonl`).scanSync(FACTORY_SESSIONS)) {
-    return readText(path.join(FACTORY_SESSIONS, file));
-  }
-  return '';
+  const file = transcriptFileOf(session);
+  return file === undefined ? '' : readText(file);
 }
 
 function forkOf(folder: string, oldChat: string): string | undefined {
@@ -219,7 +217,7 @@ async function launchTask(session: Session, tag: TaskTag, callId: string): Promi
 
 async function rewindToLastMessage(session: Session): Promise<void> {
   await session.type(REWIND_COMMAND);
-  await delay(MENU_SETTLE_MS);
+  await Bun.sleep(MENU_SETTLE_MS);
   await session.type(ENTER);
   await settle(session);
   await session.type(ENTER);

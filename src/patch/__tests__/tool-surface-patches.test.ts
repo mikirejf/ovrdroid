@@ -23,8 +23,8 @@ function named(name: string) {
   return found;
 }
 
-const patch = named('direct-tools');
-const sonnetPatch = named('script-mode-sonnet');
+const patch = named('todo-write-direct');
+const sonnetPatch = named('script-mode-every-model');
 
 function buildGate(source: string): Gate {
   // SAFETY: the body is the shipped surface gate with its outer sets bound: the always-direct set, the script-bound set and the subagent tool.
@@ -45,31 +45,31 @@ const patched = admitsWith(buildGate(STOCK_GATE.replace(patch.find, patch.replac
 const MODES: readonly Mode[] = ['script_only', 'direct_only', 'mixed'];
 const SURFACES: readonly Surface[] = ['direct', 'script'];
 
-const DIRECT_TOOLS = ['TodoWrite', 'Read', 'Grep'];
+const TODO = 'TodoWrite';
 
-describe.each(DIRECT_TOOLS)('%s in script_only mode', (toolName) => {
+describe('TodoWrite in script_only mode', () => {
   test('the stock gate hides it from the direct list', () => {
-    expect(stock(toolName, 'direct', 'script_only')).toBe(false);
+    expect(stock(TODO, 'direct', 'script_only')).toBe(false);
   });
 
   test('is exposed directly', () => {
-    expect(patched(toolName, 'direct', 'script_only')).toBe(true);
+    expect(patched(TODO, 'direct', 'script_only')).toBe(true);
   });
 
   test('stays bound inside Script', () => {
-    expect(patched(toolName, 'script', 'script_only')).toBe(true);
+    expect(patched(TODO, 'script', 'script_only')).toBe(true);
   });
 });
 
-describe.each(DIRECT_TOOLS)('%s in the other modes', (toolName) => {
+describe('TodoWrite in the other modes', () => {
   test('direct_only keeps it on the direct list and out of Script', () => {
-    expect(patched(toolName, 'direct', 'direct_only')).toBe(true);
-    expect(patched(toolName, 'script', 'direct_only')).toBe(false);
+    expect(patched(TODO, 'direct', 'direct_only')).toBe(true);
+    expect(patched(TODO, 'script', 'direct_only')).toBe(false);
   });
 
   test('mixed matches the stock answer on both surfaces', () => {
     for (const surface of SURFACES) {
-      expect(patched(toolName, surface, 'mixed')).toBe(stock(toolName, surface, 'mixed'));
+      expect(patched(TODO, surface, 'mixed')).toBe(stock(TODO, surface, 'mixed'));
     }
   });
 });
@@ -80,16 +80,23 @@ describe('every other tool is gated as before', () => {
     expect(patched('Glob', 'script', 'script_only')).toBe(true);
   });
 
-  test.each(['Skill', 'Execute', 'Task', 'TodoWriteX', 'todowrite', 'grep', 'ReadX'])(
-    '%s matches the stock answer on every mode and surface',
-    (toolName) => {
-      for (const mode of MODES) {
-        for (const surface of SURFACES) {
-          expect(patched(toolName, surface, mode)).toBe(stock(toolName, surface, mode));
-        }
+  test.each([
+    'Skill',
+    'Execute',
+    'Task',
+    'Read',
+    'Grep',
+    'TodoWriteX',
+    'todowrite',
+    'grep',
+    'ReadX',
+  ])('%s matches the stock answer on every mode and surface', (toolName) => {
+    for (const mode of MODES) {
+      for (const surface of SURFACES) {
+        expect(patched(toolName, surface, mode)).toBe(stock(toolName, surface, mode));
       }
-    },
-  );
+    }
+  });
 });
 
 type Resolve = (session: { modelId: string; override?: Mode }) => Mode;
@@ -104,6 +111,7 @@ const _t=(id)=>id.startsWith("custom:");
 const registry=[
   {id:"custom:droidproxy:sonnet-5-5",model:"claude-sonnet-5-5"},
   {id:"custom:droidproxy:haiku-5-5",model:"claude-haiku-5-5"},
+  {id:"custom:droidproxy:api-haiku-5-5",model:"claude-haiku-5-5"},
   {id:"custom:droidproxy:opus-5-5",model:"claude-opus-5-5"},
   {id:"custom:droidproxy:gpt",model:"gpt-6.1-sol"},
   {id:"custom:mine:fast",model:"claude-sonnet-5-5"},
@@ -122,34 +130,27 @@ function buildResolver(source: string): Resolve {
 const stockMode = buildResolver(STOCK_RESOLVER);
 const patchedMode = buildResolver(STOCK_RESOLVER.replace(sonnetPatch.find, sonnetPatch.replace));
 
-describe('script mode on Sonnet', () => {
-  test.each(['claude-sonnet-5-5', 'claude-Sonnet-4-20250514', 'custom:droidproxy:sonnet-5-5'])(
+const SCRIPT_ONLY_PATCHED = [
+  'claude-sonnet-5-5',
+  'claude-Sonnet-4-20250514',
+  'custom:droidproxy:sonnet-5-5',
+  'custom:mine:fast',
+  'custom:droidproxy:haiku-5-5',
+  'custom:droidproxy:api-haiku-5-5',
+  'claude-haiku-5-5',
+  'claude-Haiku-4-5-20251001',
+  'custom:droidproxy:gpt',
+  'gpt-6.1-sol',
+  'custom:droidproxy:gpt-6-luna',
+  'custom:openrouter:inkling-free',
+];
+
+describe('script mode', () => {
+  test.each(SCRIPT_ONLY_PATCHED)(
     '%s runs script_only patched and direct_only on stock',
     (modelId) => {
       expect(stockMode({ modelId })).toBe('direct_only');
       expect(patchedMode({ modelId })).toBe('script_only');
-    },
-  );
-
-  test('a custom model whose id hides Sonnet is found by its underlying model', () => {
-    expect(stockMode({ modelId: 'custom:mine:fast' })).toBe('direct_only');
-    expect(patchedMode({ modelId: 'custom:mine:fast' })).toBe('script_only');
-  });
-
-  test('the override still wins once Sonnet is allowed', () => {
-    expect(patchedMode({ modelId: 'custom:droidproxy:sonnet-5-5', override: 'direct_only' })).toBe(
-      'direct_only',
-    );
-    expect(patchedMode({ modelId: 'claude-sonnet-5-5', override: 'mixed' })).toBe('mixed');
-  });
-});
-
-describe('script mode on other models', () => {
-  test.each(['custom:droidproxy:haiku-5-5', 'custom:droidproxy:gpt', 'claude-haiku-5-5'])(
-    '%s stays direct_only',
-    (modelId) => {
-      expect(stockMode({ modelId })).toBe('direct_only');
-      expect(patchedMode({ modelId })).toBe('direct_only');
     },
   );
 
@@ -161,7 +162,13 @@ describe('script mode on other models', () => {
     },
   );
 
-  test('the override still wins on a listed model', () => {
-    expect(patchedMode({ modelId: 'claude-opus-5-5', override: 'mixed' })).toBe('mixed');
+  test.each<[string, Mode]>([
+    ['custom:droidproxy:sonnet-5-5', 'direct_only'],
+    ['claude-sonnet-5-5', 'mixed'],
+    ['claude-haiku-5-5', 'mixed'],
+    ['gpt-6.1-sol', 'direct_only'],
+    ['claude-opus-5-5', 'mixed'],
+  ])('the override still wins on %s: %s', (modelId, override) => {
+    expect(patchedMode({ modelId, override })).toBe(override);
   });
 });
