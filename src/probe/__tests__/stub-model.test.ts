@@ -7,6 +7,7 @@ import {
   streamEvents,
   STUB_END,
   stubSettings,
+  TITLE_MARKER,
   toolBatchEvents,
   toolEvents,
 } from '../stub-model.ts';
@@ -150,6 +151,42 @@ describe('startStubModel', () => {
       };
       expect(await ask()).toContain('"type":"tool_use"');
       expect(textOf(await ask())).toBe(replyText(20));
+    } finally {
+      await stub.stop();
+    }
+  });
+
+  test('cuts the first reply short with no terminal event and serves later ones whole', async () => {
+    const stub = startStubModel({ chars: 300, chunk: 40, gapMs: 0 }, undefined, {
+      cutFirstReplyAfter: 2,
+    });
+    try {
+      const ask = async () => {
+        const response = await fetch(`${stub.url}/v1/messages`, { method: 'POST', body: '{}' });
+        return await response.text();
+      };
+      const cut = await ask();
+      expect(textOf(cut)).toBe(pieces(replyText(300), 40).slice(0, 2).join(''));
+      expect(cut).not.toContain('message_stop');
+      expect(textOf(await ask())).toBe(replyText(300));
+      expect(stub.served()).toEqual(['cut', 'full']);
+    } finally {
+      await stub.stop();
+    }
+  });
+
+  test('a title request does not use up the cut', async () => {
+    const stub = startStubModel({ chars: 300, chunk: 40, gapMs: 0 }, undefined, {
+      cutFirstReplyAfter: 2,
+    });
+    try {
+      const ask = async (body: string) => {
+        const response = await fetch(`${stub.url}/v1/messages`, { method: 'POST', body });
+        return await response.text();
+      };
+      expect(textOf(await ask(`write a title. ${TITLE_MARKER}`))).toBe('Stub title');
+      expect(await ask('{}')).not.toContain('message_stop');
+      expect(stub.served()).toEqual(['title', 'cut']);
     } finally {
       await stub.stop();
     }

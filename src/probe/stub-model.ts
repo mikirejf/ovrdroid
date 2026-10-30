@@ -229,18 +229,55 @@ export interface StubStream {
   endedAt: number;
 }
 
+export const TITLE_MARKER = 'Start new chat';
+const TITLE_REPLY = 'Stub title';
+
+export type ServedReply = 'full' | 'cut' | 'tool' | 'title';
+
 export interface StubModel {
   url: string;
   nextStream: () => Promise<StubStream>;
+  served: () => readonly ServedReply[];
   stop: () => Promise<void>;
 }
 
-export function startStubModel(plan: ReplyPlan, firstCall?: ToolCall): StubModel {
+export interface StubOptions {
+  cutFirstReplyAfter?: number;
+}
+
+export function startStubModel(
+  plan: ReplyPlan,
+  firstCall?: ToolCall,
+  options: StubOptions = {},
+): StubModel {
+  if (firstCall !== undefined && options.cutFirstReplyAfter !== undefined) {
+    throw new TypeError('the first reply is either a tool call or a cut-off reply, not both');
+  }
   const encoder = new TextEncoder();
   const replyEvents = streamEvents(pieces(replyText(plan.chars), plan.chunk));
   const toolCallEvents = firstCall === undefined ? undefined : toolEvents(firstCall);
+  const cutEvents =
+    options.cutFirstReplyAfter === undefined
+      ? undefined
+      : replyEvents.slice(0, 1 + options.cutFirstReplyAfter);
   let waiting = Promise.withResolvers<StubStream>();
-  let requests = 0;
+  const served: ServedReply[] = [];
+
+  const titleEvents = streamEvents([TITLE_REPLY]);
+  const nextReply = (body: string): [ServedReply, readonly string[]] => {
+    if (served.length === 0 && toolCallEvents !== undefined) {
+      return ['tool', toolCallEvents];
+    }
+    if (cutEvents !== undefined) {
+      if (body.includes(TITLE_MARKER)) {
+        return ['title', titleEvents];
+      }
+      if (served.every((kind) => kind === 'title')) {
+        return ['cut', cutEvents];
+      }
+    }
+    return ['full', replyEvents];
+  };
 
   const replyBody = (events: readonly string[]) =>
     new ReadableStream<Uint8Array>({
@@ -264,12 +301,12 @@ export function startStubModel(plan: ReplyPlan, firstCall?: ToolCall): StubModel
     hostname: '127.0.0.1',
     port: 0,
     async fetch(request) {
-      await request.arrayBuffer();
+      const body = await request.text();
       if (request.method !== 'POST' || !new URL(request.url).pathname.endsWith('/messages')) {
         return new Response('not found', { status: 404 });
       }
-      requests += 1;
-      const events = requests === 1 && toolCallEvents !== undefined ? toolCallEvents : replyEvents;
+      const [kind, events] = nextReply(body);
+      served.push(kind);
       return new Response(replyBody(events), { headers: { 'content-type': 'text/event-stream' } });
     },
   });
@@ -277,6 +314,7 @@ export function startStubModel(plan: ReplyPlan, firstCall?: ToolCall): StubModel
   return {
     url: `http://127.0.0.1:${server.port}`,
     nextStream: async () => await waiting.promise,
+    served: () => served,
     stop: async () => {
       await server.stop(true);
     },
