@@ -111,6 +111,7 @@ describe('a capped listing reads only the newest rows and the current project', 
       ['org', 2],
       ['org', '/work'],
     ]);
+    expect(database.statements[0]).toStartWith('SELECT');
     expect(database.statements[0]).toContain('ORDER BY modified_time_ms DESC LIMIT ?');
     expect(database.statements[1]).toEndWith('AND cwd = ?');
     expect(rows.map((entry) => entry.row.session_id)).toEqual(['a', 'b', 'c']);
