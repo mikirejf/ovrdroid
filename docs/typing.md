@@ -160,6 +160,21 @@ So the 1.2ms did not come back on a quiet machine, and under load the frame hook
 was busier. No patch was changed. The gate now fails a measure only when the interval clears a floor
 (echo 3ms, lag 16ms), see [method.md](method.md).
 
+## Droid 1.1.0: idle and busy keys (2026-10-31)
+
+Idle, `probe keys -r 8`, patched against stock: echo 3 vs 6ms median, paired -3.1ms (CI -3.5 to
+-2.7); lag -1.0ms.
+
+`probe busy-keys` (files `src/probe/busy-keys*.ts`) is new. It types into the input box while Droid
+is idle, streams a reply from a stub model, or runs a tool, and reports how long until each key
+shows on screen. `-t/--turns` resumes a long synthetic session first.
+
+With a 300-turn session the patched build echoed in about 5ms median and about 13ms worst while
+streaming, and in 2 to 12ms while a tool ran. These are single runs on a loaded machine, so they are
+not an A/B. The session list (`probe sessions`) opened in 80 to 90ms, and `/clear` took 49ms.
+
+No slowdown reproduced.
+
 ## Open items
 
 - `hasAnyAvailableModel` (`SettingsService.ts:1082`) runs the policy scan outside any `useMemo`.
@@ -167,3 +182,6 @@ was busier. No patch was changed. The gate now fails a measure only when the int
 - Re-run the render counter after a real session to confirm the transcript costs nothing.
 - The idle TTY health poll re-renders the root twice a second. Cheap, but it is the only reason an
   idle Droid renders.
+- Recording key latency in real sessions would show whether long real sessions slow typing.
+- `stub-model.ts` gives its one-shot tool reply to the first request, which on 1.1.0 is a request
+  with no tools, so the `probe busy-keys` tool phase may not run a real tool.

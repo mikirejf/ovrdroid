@@ -28,14 +28,14 @@ export interface ResumeOptions {
   turns: number;
 }
 
-interface Placed {
+export interface Placed {
   id: string;
   cwd: string;
   folder: string;
   marker: string;
 }
 
-function place(turns: number): Placed {
+export function place(turns: number): Placed {
   mkdirSync(CWD_ROOT, { recursive: true });
   const cwd = realpathSync(mkdtempSync(path.join(CWD_ROOT, 'cwd-')));
   const folder = path.join(FACTORY_SESSIONS, sessionFolderName(cwd));
@@ -51,7 +51,7 @@ function place(turns: number): Placed {
   return { id, cwd, folder, marker: fixture.lastMarker };
 }
 
-function remove(placed: Placed): void {
+export function remove(placed: Placed): void {
   rmSync(placed.folder, { recursive: true, force: true });
   rmSync(placed.cwd, { recursive: true, force: true });
 }
