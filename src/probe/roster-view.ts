@@ -27,6 +27,7 @@ import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
 const ARROW_DOWN = '\u001B[B';
 const WORKING_LINE = /\d+ droids? working/u;
 const ROSTER_WAIT_MS = 15_000;
+const OPEN_WAIT_MS = 2000;
 const DROID_TYPE = 'ovrdroid-roster-probe';
 const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Launches one more droid for the roster probe.\nmodel: inherit\nmaxDepth: 2\n---\nDo what the prompt says.\n`;
 
@@ -108,17 +109,11 @@ function showsWorking(session: Session): true | undefined {
   return session.screen().some((line) => WORKING_LINE.test(line)) ? true : undefined;
 }
 
-function listsBoth(session: Session): readonly string[] | undefined {
-  const lines = session.screen();
-  const has = (title: string): boolean =>
-    lines.some((line) => line.toLowerCase().includes(title.toLowerCase()));
-  const opened = lines.findIndex((line) => line.includes(ROSTER_FILTER));
-  const chips = lines.slice(opened + 1).filter((line) => line.includes(ROSTER_TITLES.model)).length;
-  return has(CHILD_TITLE) && has(GRANDCHILD_TITLE) && chips >= 2 ? lines : undefined;
+function rosterOpen(session: Session): true | undefined {
+  return session.screen().some((line) => line.includes(ROSTER_FILTER)) ? true : undefined;
 }
 
-async function openRoster(session: Session, timeoutMs: number): Promise<RosterEvidence> {
-  await send(session, NEST_WORD);
+async function waitForWorking(session: Session, timeoutMs: number): Promise<void> {
   try {
     await waitFor(
       'no droid working line appeared under the input box',
@@ -131,8 +126,31 @@ async function openRoster(session: Session, timeoutMs: number): Promise<RosterEv
       cause: error,
     });
   }
-  await settle(session);
+}
+
+async function pressDownWhileWorking(session: Session, deadline: number): Promise<void> {
+  await waitForWorking(session, Math.max(0, deadline - performance.now()));
   session.press(ARROW_DOWN);
+  if ((await poll(() => rosterOpen(session), OPEN_WAIT_MS)) || performance.now() > deadline) {
+    return;
+  }
+  await pressDownWhileWorking(session, deadline);
+}
+
+function listsBoth(session: Session): readonly string[] | undefined {
+  const lines = session.screen();
+  const has = (title: string): boolean =>
+    lines.some((line) => line.toLowerCase().includes(title.toLowerCase()));
+  const opened = lines.findIndex((line) => line.includes(ROSTER_FILTER));
+  const chips = lines.slice(opened + 1).filter((line) => line.includes(ROSTER_TITLES.model)).length;
+  return has(CHILD_TITLE) && has(GRANDCHILD_TITLE) && chips >= 2 ? lines : undefined;
+}
+
+async function openRoster(session: Session, timeoutMs: number): Promise<RosterEvidence> {
+  await send(session, NEST_WORD);
+  await waitForWorking(session, timeoutMs);
+  await settle(session);
+  await pressDownWhileWorking(session, performance.now() + ROSTER_WAIT_MS);
   const lines = await poll(() => listsBoth(session), ROSTER_WAIT_MS);
   return { lines, last: session.screen(), titles: ROSTER_TITLES };
 }
