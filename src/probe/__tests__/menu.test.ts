@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
+import { plain } from '../ansi.ts';
 import { FOOTER_TEXT, LOADING_TEXT, readFrames } from '../menu.ts';
-import { plain } from '../session.ts';
 
 function frame(text: string, atMs = 0) {
   return { atMs, text };

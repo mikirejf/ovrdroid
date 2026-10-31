@@ -1,5 +1,5 @@
+import { plain } from './ansi.ts';
 import type { Frame } from './session.ts';
-import { plain } from './session.ts';
 
 export const PENDING_TOOL = 'Execute';
 

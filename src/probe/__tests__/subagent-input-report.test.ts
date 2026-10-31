@@ -7,12 +7,12 @@ import type { SubagentInputEvidence } from '../subagent-input-report.ts';
 const WIDTH = 118;
 const MAGENTA = '\u001B[35m';
 
-const labelTop = `┏━━ SUBAGENT ${'━'.repeat(WIDTH - 15)}┓`;
-const boldBody = `${'┃ > Enter to steer · Ctrl+Enter to queue'.padEnd(WIDTH - 1)}┃`;
-const boldBottom = `┗${'━'.repeat(WIDTH - 2)}┛`;
-const roundTop = `╭${'─'.repeat(WIDTH - 2)}╮`;
-const roundBody = `${'│ >'.padEnd(WIDTH - 1)}│`;
-const roundBottom = `╰${'─'.repeat(WIDTH - 2)}╯`;
+const labelTop = `━━━ SUBAGENT ${'━'.repeat(WIDTH - 13)}`;
+const heavyBody = '  > Enter to steer · Ctrl+Enter to queue';
+const heavyBottom = '━'.repeat(WIDTH);
+const lightTop = '─'.repeat(WIDTH);
+const lightBody = '  >';
+const lightBottom = '─'.repeat(WIDTH);
 
 function chat(box: string[], above: string[]): string[] {
   return [
@@ -25,8 +25,8 @@ function chat(box: string[], above: string[]): string[] {
   ];
 }
 
-const SUBAGENT_BOX = [labelTop, boldBody, boldBottom];
-const MAIN_BOX = [roundTop, roundBody, roundBottom];
+const SUBAGENT_BOX = [labelTop, heavyBody, heavyBottom];
+const MAIN_BOX = [lightTop, lightBody, lightBottom];
 const SUBAGENT_ABOVE = [' ⡄ Thinking...  (Esc twice to stop)'];
 const MAIN_ABOVE = ['   LAUNCH kept', '', '⛬  ok'];
 const MAGENTA_BYTES = `\u001B[38;2;238;238;238mStub Stream\u001B[39m\r\n${MAGENTA}${labelTop}\r\n`;
@@ -44,29 +44,49 @@ function failures(evidence: SubagentInputEvidence): string[] {
 }
 
 describe('the subagent input box verdicts', () => {
-  test('a bold magenta labelled box in the subagent and a round box in main pass in plain words', () => {
+  test('heavy magenta rules with a label in the subagent and light rules in main pass in plain words', () => {
     const verdicts = subagentInputVerdicts(PASSING);
     expect(anyFailed(verdicts)).toBe(false);
     expect(describeVerdicts(verdicts)).toBe(
       [
-        'pass  subagent box: bold magenta border with SUBAGENT label',
-        'pass  main box: stock round border, no SUBAGENT label',
+        'pass  subagent box: heavy magenta rules with SUBAGENT label, no side glyphs',
+        'pass  main box: plain light rules, no side glyphs, no SUBAGENT label',
       ].join('\n'),
     );
   });
 
-  test('a subagent box with a bold border but no label fails on the label alone', () => {
-    const top = `┏${'━'.repeat(WIDTH - 2)}┓`;
-    const found = failures({ ...PASSING, subagent: chat([top, boldBody, boldBottom], []) });
+  test('a heavy subagent box with no label fails on the label alone', () => {
+    const found = failures({
+      ...PASSING,
+      subagent: chat([heavyBottom, heavyBody, heavyBottom], []),
+    });
     expect(found).toHaveLength(1);
-    expect(found[0]).toContain('top edge is not "┏━━ SUBAGENT ━…┓"');
+    expect(found[0]).toContain('top edge is not "━━━ SUBAGENT ━…"');
   });
 
   test('a label with extra words after SUBAGENT fails', () => {
-    const top = `┏━━ SUBAGENT · title · model ${'━'.repeat(WIDTH - 36)}┓`;
-    const found = failures({ ...PASSING, subagent: chat([top, boldBody, boldBottom], []) });
+    const top = `━━━ SUBAGENT · title · model ${'━'.repeat(WIDTH - 34)}`;
+    const found = failures({ ...PASSING, subagent: chat([top, heavyBody, heavyBottom], []) });
     expect(found).toHaveLength(1);
     expect(found[0]).toContain('top edge is not');
+  });
+
+  test('a bottom rule drawn light fails on the bottom edge alone', () => {
+    const found = failures({
+      ...PASSING,
+      subagent: chat([labelTop, heavyBody, lightBottom], SUBAGENT_ABOVE),
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('bottom edge is not a heavy rule');
+  });
+
+  test('a side or corner glyph left in the subagent box fails', () => {
+    const found = failures({
+      ...PASSING,
+      subagent: chat([labelTop, `${heavyBody} ┃`, heavyBottom], SUBAGENT_ABOVE),
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('still draws a side or corner glyph');
   });
 
   test('a label drawn in another colour fails on the colour alone', () => {
@@ -93,14 +113,14 @@ describe('the subagent input box verdicts', () => {
     expect(failures({ ...PASSING, bytesAfterSwitch: bytes })).toHaveLength(1);
   });
 
-  test('the stock round box in the subagent fails the border, the label and the colour', () => {
+  test('the main box in the subagent fails the bottom edge and the label', () => {
     const found = failures({
       ...PASSING,
       subagent: chat(MAIN_BOX, SUBAGENT_ABOVE),
       bytesAfterSwitch: '\r\n',
     });
     expect(found).toHaveLength(1);
-    expect(found[0]).toContain('the border is not the bold one');
+    expect(found[0]).toContain('bottom edge is not a heavy rule');
     expect(found[0]).toContain('top edge is not');
     expect(found[0]).toContain('never drawn');
   });
@@ -117,11 +137,19 @@ describe('the subagent input box verdicts', () => {
     expect(found[0]).toContain('SUBAGENT leaked into the main session');
   });
 
-  test('the bold box staying in the main session fails the border and the leak check', () => {
+  test('the heavy box staying in the main session fails the rules and the leak check', () => {
     const found = failures({ ...PASSING, main: chat(SUBAGENT_BOX, MAIN_ABOVE) });
     expect(found).toHaveLength(1);
-    expect(found[0]).toContain('the border is not the stock round one');
+    expect(found[0]).toContain('edges are not plain light rules');
     expect(found[0]).toContain('SUBAGENT leaked');
+  });
+
+  test('the stock round box in main fails: it still draws side glyphs', () => {
+    const round = ['╭──────╮', '│ >    │', '╰──────╯'];
+    const found = failures({ ...PASSING, main: chat(round, MAIN_ABOVE) });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('edges are not plain light rules');
+    expect(found[0]).toContain('still draws a side or corner glyph');
   });
 
   test('a main screen with no box fails once', () => {

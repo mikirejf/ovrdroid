@@ -1,10 +1,9 @@
 import type { Series } from './ab.ts';
 import { summarise } from './ab.ts';
+import { SHELL_BOX_BOTTOM_LEFT, SYNC_START } from './input-box.ts';
 import { paintDetector } from './launch.ts';
 import type { Measure } from './regressions.ts';
 
-const SYNC_START = '\u001B[?2026h';
-const BOX_BOTTOM_LEFT = '╰';
 export const TYPING_START_FLOOR_MS = 20;
 
 export interface TypingStartRun {
@@ -24,7 +23,7 @@ export class StartupTimeline {
     const window = this.tail + text;
     const syncAt = window.indexOf(SYNC_START);
     const before = syncAt === -1 ? window : window.slice(0, syncAt);
-    if (this.shellAt === undefined && !this.synced && before.includes(BOX_BOTTOM_LEFT)) {
+    if (this.shellAt === undefined && !this.synced && before.includes(SHELL_BOX_BOTTOM_LEFT)) {
       this.shellAt = atMs;
     }
     this.synced ||= syncAt !== -1;

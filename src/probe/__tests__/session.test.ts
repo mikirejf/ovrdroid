@@ -2,7 +2,8 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { cutFrames, openSession, plain } from '../session.ts';
+import { plain } from '../ansi.ts';
+import { cutFrames, openSession } from '../session.ts';
 import { PAINT_OUTPUT, rejection, script, scriptDir, START_HOOK } from './scripts.ts';
 
 const dir = scriptDir('session');

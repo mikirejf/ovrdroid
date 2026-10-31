@@ -11,15 +11,24 @@ stand.
 ## The early input shell and the real app frame
 
 Droid 0.245.0 draws an early input shell (`startEarlyInputShell`, startup boundary `shell_paint`)
-about 80 to 100ms after spawn: logo, tip and an input box with its `╰` bottom border, no footer,
-written without synchronized output. The real app frame arrives later and is the first output that
-contains `\e[?2026h` (synchronized output start). The shell is off under `--resume`.
+about 80 to 100ms after spawn: logo, tip and a boxed input (`╭│╰`, drawn by Droid's own shell on
+stock and patched alike), no footer, written without synchronized output. The real app frame arrives
+later and is the first output that contains `\e[?2026h` (synchronized output start). The shell is
+off under `--resume`.
 
 Until 2026-10-21 `probe ab` and every probe that waits for paint matched `╰`, so they timed the
 shell. A startup regression anywhere after ~100ms was invisible to `ab`, and probes that type at
 paint typed into the shell. `paintDetector` in `src/probe/launch.ts` now reports paint only once a
-`\e[?2026h` has been seen and a `╰` follows it (same chunk or later; the sync start can arrive in a
-chunk of its own).
+`\e[?2026h` has been seen and a whole input box follows it (same chunk or later; the sync start can
+arrive in a chunk of its own).
+
+Since Droid 1.1.0 the patched build draws no corners or sides on that box (`copy-select-*`), so `╰`
+no longer marks it. The detector now looks for the box itself, in either shape: stock is a `╭` line,
+a `│ >` row and a `╰` line; patched is a `─` or `━` rule, a `  >` row and a second rule. Whatever
+reads the box goes through `src/probe/input-box.ts`. Checked on a stock and a patched launch
+(120x40, saved trimmed as `src/probe/__tests__/app-frame-*.fixture.json`): the shell chunks never
+count, and both builds count in chunk 13 of the capture, the chunk where the old `╰` match fired on
+stock (the old match never fires on the patched capture).
 
 `probe ab` on 2026-10-21, Droid 0.245.0, time to the real app frame in ms, paired and interleaved,
 load average 3.5 to 7 (22 other Droid sessions open):
@@ -310,12 +319,12 @@ starts delay the real app frame. Droid's early input shell holds deferred startu
 input is idle (100ms quiet, capped 500ms after the first key), so a patch that moves work to after
 paint can land that work in the typing window. `probe ab` never types and cannot see it.
 
-Each run spawns the build, waits for the shell's input box (first `╰`, no sync frame), writes `/`
-then backspace every gap ms until the app frame (`paintDetector`), then exits as `launch` does. It
-reports shell paint and app paint in ms from spawn and how many key pairs were typed. Runs are
-paired and interleaved per gap; the probe fails when the target is slower than stock with
-confidence, Bonferroni-corrected across the gaps. It also fails if the app never paints within 20s
-or paints with no shell to type into.
+Each run spawns the build, waits for the shell's input box (first `╰`, no sync frame; the shell is
+Droid's own and draws it on patched builds too), writes `/` then backspace every gap ms until the
+app frame (`paintDetector`), then exits as `launch` does. It reports shell paint and app paint in ms
+from spawn and how many key pairs were typed. Runs are paired and interleaved per gap; the probe
+fails when the target is slower than stock with confidence, Bonferroni-corrected across the gaps. It
+also fails if the app never paints within 20s or paints with no shell to type into.
 
 Both binaries are copied into one fresh scratch directory under the temp dir and measured from
 there: each `fs.watch` costs in proportion to the entries in the binary's directory (~10 times more

@@ -3,12 +3,11 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { ovrdroidFile } from '../paths.ts';
+import { appFrameDetector, SYNC_START } from './input-box.ts';
 import { ledgerHooks } from './ledger.ts';
 import { Ledger } from './owned-sessions.ts';
 
-const SYNC_START = '\u001B[?2026h';
-const BOX_BOTTOM_LEFT = '╰';
-export const PAINT_OUTPUT = `${SYNC_START}${BOX_BOTTOM_LEFT}`;
+export const PAINT_OUTPUT = `${SYNC_START}status\n───\n  > \n───\n`;
 export const TERMINAL_SIZE = { cols: 120, rows: 40 } as const;
 const CTRL_C = '\u0003';
 const ESC = '\u001B';
@@ -55,27 +54,7 @@ export function probeAnswerer(): (terminal: Bun.Terminal, text: string) => void 
   };
 }
 
-export function paintDetector(): (text: string) => boolean {
-  let tail = '';
-  let synced = false;
-  let painted = false;
-
-  return (text) => {
-    if (painted) {
-      return true;
-    }
-    const window = tail + text;
-    if (synced) {
-      painted = text.includes(BOX_BOTTOM_LEFT);
-    } else {
-      const start = window.indexOf(SYNC_START);
-      synced = start !== -1;
-      painted = synced && window.slice(start + SYNC_START.length).includes(BOX_BOTTOM_LEFT);
-    }
-    tail = window.slice(1 - SYNC_START.length);
-    return painted;
-  };
-}
+export const paintDetector = appFrameDetector;
 
 export interface LaunchOptions {
   env?: LaunchEnv;

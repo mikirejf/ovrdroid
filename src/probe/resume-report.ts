@@ -1,10 +1,10 @@
 import type { Series } from './ab.ts';
 import { summarise } from './ab.ts';
+import { boxSpans, hasInputBox } from './input-box.ts';
 import type { Measure } from './regressions.ts';
 import type { Frame } from './session.ts';
 
 const TRUST_PROMPT = 'Trust this folder?';
-const BOX_BOTTOM_LEFT = '╰';
 
 export interface ResumeReading {
   paintMs: number;
@@ -37,7 +37,7 @@ export function asksForTrust(frames: readonly Frame[]): boolean {
 }
 
 export function readResume(frames: readonly Frame[], inputs: ResumeInputs): ResumeReading {
-  const paint = frames.find((frame) => frame.text.includes(BOX_BOTTOM_LEFT));
+  const paint = frames.find((frame) => hasInputBox(frame.text));
   const landed = frames.find((frame) => frame.text.includes(inputs.marker));
   const last = frames.at(-1);
   if (paint === undefined || landed === undefined || last === undefined) {
@@ -61,13 +61,8 @@ export interface RedrawInputs {
   cpuMs: number;
 }
 
-function boxBottom(cols: number): string {
-  return `${BOX_BOTTOM_LEFT}${'─'.repeat(cols - 2)}╯`;
-}
-
 export function redrawn(frames: readonly Frame[], marker: string, cols: number): boolean {
-  const border = boxBottom(cols);
-  return frames.some((frame) => frame.text.includes(marker) && frame.text.includes(border));
+  return frames.some((frame) => frame.text.includes(marker) && boxSpans(frame.text, cols));
 }
 
 export function readRedraw(frames: readonly Frame[], inputs: RedrawInputs): RedrawReading {

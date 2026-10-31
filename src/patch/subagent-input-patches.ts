@@ -5,8 +5,7 @@ const SUBAGENT_COLOR = 'magenta';
 
 export const IS_SUBAGENT = 'gP?.some(($ODt)=>$ODt.name==="subagent")??!1';
 
-export const HEAVY_TOP =
-  '.replace(/[\\u256D\\u2500\\u256E]/g,($ODc)=>({"\\u256D":"\\u250F","\\u2500":"\\u2501","\\u256E":"\\u2513"})[$ODc])';
+export const HEAVY_TOP = '.replaceAll("\\u2500","\\u2501")';
 
 const STOCK_DETECT_TAIL =
   'gP=Loe??(Wo===m().getCurrentSessionId()?m().getCurrentSessionTags():void 0),kg=en(gP??void 0),';

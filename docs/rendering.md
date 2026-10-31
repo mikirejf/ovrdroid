@@ -180,6 +180,12 @@ commits. The row count in the erase step always matches, and the screen equals a
 
 The system prompt also asks the model to put commands in fenced code blocks.
 
+Selecting with the terminal copies every glyph on screen, so the markdown blockquote bar `│` and the
+chat input box sides (`│`) are gone (`copy-select-*` in `src/patch/copy-select-patches.ts`, checked
+by `probe copy-select`, which fails on stock). The box keeps its top and bottom rules; its text sits
+in the same columns. The early shell, markdown table separators and the second blockquote renderer
+(`json-render`, never listed to the model) still draw `│`.
+
 ## Off the root: todos, message snapshot, roster (Droid 1.1.0, 2026-10-31)
 
 `probe renders-log -d 2` over my own sessions (2 days, 615 processes, 934s of React render time)

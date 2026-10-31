@@ -1,10 +1,10 @@
+import { draftOf, linesOf } from './input-box.ts';
 import type { Frame } from './session.ts';
-import { ENTER, INPUT_PREFIX, msOrNever, openClearMenu, openSettledSession } from './session.ts';
+import { ENTER, msOrNever, openClearMenu, openSettledSession } from './session.ts';
 
 export const TYPED_AFTER_CLEAR = 'typed while the new session starts';
 const BUSY_TEXT = 'Starting new session';
 const READY_TEXT = 'New session created';
-const BOX_EDGE = '│';
 const QUIET_MS = 2500;
 const TIMEOUT_MS = 30_000;
 
@@ -15,19 +15,12 @@ export interface ClearReading {
   kept: boolean;
 }
 
-function inputOf(frame: Frame): string | undefined {
-  const line = frame.text.split('\n').find((row) => row.includes(INPUT_PREFIX));
-  if (line === undefined) {
-    return undefined;
-  }
-  const text = line.slice(line.indexOf(INPUT_PREFIX) + INPUT_PREFIX.length).trimEnd();
-  return (text.endsWith(BOX_EDGE) ? text.slice(0, -BOX_EDGE.length) : text).trimEnd();
-}
-
 export function readClear(frames: readonly Frame[], typed: string): ClearReading {
   const busy = frames.findLast((frame) => frame.text.includes(BUSY_TEXT));
   const ready = frames.find((frame) => frame.text.includes(READY_TEXT));
-  const input = frames.map((frame) => inputOf(frame)).findLast((text) => text !== undefined);
+  const input = frames
+    .map((frame) => draftOf(linesOf(frame.text)))
+    .findLast((text) => text !== undefined);
   return {
     busyMs: busy?.atMs,
     readyMs: ready?.atMs,

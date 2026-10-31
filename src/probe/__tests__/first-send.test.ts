@@ -1,26 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 
 import { describeFirstSend, readFirstSend } from '../first-send.ts';
-import type { Frame } from '../session.ts';
+import { flatBox, frame, stockBox } from './screens.ts';
 
 const TEXT = 'Reply with ok';
-
-function box(input: string): string {
-  return `╭────╮\n│ > ${input}   │\n╰────╯`;
-}
-
-function frame(atMs: number, text: string): Frame {
-  return { atMs, text };
-}
 
 describe('readFirstSend', () => {
   test('stock: the message waits for the session, then the reply arrives', () => {
     const reading = readFirstSend(
       [
-        frame(10, box(TEXT)),
-        frame(40, box('')),
-        frame(6200, `> ${TEXT}\n Thinking...  (Press ESC to stop)\n${box('')}`),
-        frame(8100, `> ${TEXT}\n⛬  ok\n${box('')}`),
+        frame(10, stockBox(TEXT)),
+        frame(40, stockBox('')),
+        frame(6200, `> ${TEXT}\n Thinking...  (Press ESC to stop)\n${stockBox('')}`),
+        frame(8100, `> ${TEXT}\n⛬  ok\n${stockBox('')}`),
       ],
       TEXT,
     );
@@ -32,8 +24,8 @@ describe('readFirstSend', () => {
   test('patched: the message and the spinner show in the first frame', () => {
     const reading = readFirstSend(
       [
-        frame(30, `> ${TEXT}\n Thinking...  (Esc twice to stop)\n${box('')}`),
-        frame(7000, `⛬  ok.\n${box('')}`),
+        frame(30, `> ${TEXT}\n Thinking...  (Esc twice to stop)\n${stockBox('')}`),
+        frame(7000, `⛬  ok.\n${stockBox('')}`),
       ],
       TEXT,
     );
@@ -46,8 +38,8 @@ describe('readFirstSend', () => {
   test('any working label counts as the spinner', () => {
     const reading = readFirstSend(
       [
-        frame(20, `> ${TEXT}\n${box('')}`),
-        frame(90, `> ${TEXT}\n Streaming...  (Press ESC to stop)\n${box('')}`),
+        frame(20, `> ${TEXT}\n${stockBox('')}`),
+        frame(90, `> ${TEXT}\n Streaming...  (Press ESC to stop)\n${stockBox('')}`),
       ],
       TEXT,
     );
@@ -58,20 +50,32 @@ describe('readFirstSend', () => {
   });
 
   test('a label without the stop hint is not the spinner', () => {
-    const reading = readFirstSend([frame(20, `> ${TEXT}\nThinking...\n${box('')}`)], TEXT);
+    const reading = readFirstSend([frame(20, `> ${TEXT}\nThinking...\n${stockBox('')}`)], TEXT);
 
     expect(reading.spinnerMs).toBeUndefined();
   });
 
   test('the text in the input box does not count as shown', () => {
-    const reading = readFirstSend([frame(10, box(TEXT))], TEXT);
+    const reading = readFirstSend([frame(10, stockBox(TEXT))], TEXT);
 
     expect(reading.echoMs).toBeUndefined();
     expect(describeFirstSend(reading)).toContain('did not run');
   });
 
+  test('the text in the patched input box does not count as shown either', () => {
+    const reading = readFirstSend(
+      [frame(10, flatBox(TEXT)), frame(50, `> ${TEXT}\n${flatBox('')}`)],
+      TEXT,
+    );
+
+    expect(reading.echoMs).toBe(50);
+  });
+
   test('a queued notice is flagged', () => {
-    const reading = readFirstSend([frame(10, `> ${TEXT}\n1 message queued\n${box('')}`)], TEXT);
+    const reading = readFirstSend(
+      [frame(10, `> ${TEXT}\n1 message queued\n${stockBox('')}`)],
+      TEXT,
+    );
 
     expect(reading.queued).toBe(true);
     expect(describeFirstSend(reading)).toContain('waited behind a busy session');

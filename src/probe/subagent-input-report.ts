@@ -1,9 +1,13 @@
 import type { Verdict } from './busy-signal-report.ts';
+import type { InputBox } from './input-box.ts';
+import { findInputBox } from './input-box.ts';
 
 const LABEL_WORD = 'SUBAGENT';
-const MAGENTA_LABEL_START = '\u001B[35m┏━━ ';
-const BOX_TOP = /^[┏╭]/u;
-const LABEL_TOP = new RegExp(`^┏━━ ${LABEL_WORD} ━+┓$`, 'u');
+const MAGENTA_LABEL_START = '\u001B[35m━━━ ';
+const LABEL_TOP = new RegExp(`^━━━ ${LABEL_WORD} ━+$`, 'u');
+const HEAVY_RULE = /^━+$/u;
+const LIGHT_RULE = /^─+$/u;
+const BORDER_GLYPH = /[┃┏┓┗┛│╭╮╰╯]/u;
 
 export interface SubagentInputEvidence {
   subagent: readonly string[];
@@ -11,45 +15,13 @@ export interface SubagentInputEvidence {
   bytesAfterSwitch: string;
 }
 
-interface Box {
-  top: string;
-  body: string;
-  bottom: string;
+function shown(box: InputBox): string {
+  return [box.topLine, ...box.rows, box.bottomLine].join(' / ');
 }
 
-function boxOf(lines: readonly string[]): Box | undefined {
-  const at = lines.findLastIndex((line) => BOX_TOP.test(line));
-  if (at === -1) {
-    return undefined;
-  }
-  const row = (index: number) => (lines[index] ?? '').trimEnd();
-  return { top: row(at), body: row(at + 1), bottom: row(at + 2) };
-}
-
-interface Frame {
-  topLeft: string;
-  topRight: string;
-  side: string;
-  bottomLeft: string;
-  bottomRight: string;
-}
-
-const BOLD: Frame = { topLeft: '┏', topRight: '┓', side: '┃', bottomLeft: '┗', bottomRight: '┛' };
-const ROUND: Frame = { topLeft: '╭', topRight: '╮', side: '│', bottomLeft: '╰', bottomRight: '╯' };
-
-function framed(box: Box, frame: Frame): boolean {
-  return (
-    box.top.startsWith(frame.topLeft) &&
-    box.top.endsWith(frame.topRight) &&
-    box.body.startsWith(frame.side) &&
-    box.body.endsWith(frame.side) &&
-    box.bottom.startsWith(frame.bottomLeft) &&
-    box.bottom.endsWith(frame.bottomRight)
-  );
-}
-
-function shown(box: Box): string {
-  return `${box.top} / ${box.body} / ${box.bottom}`;
+function glyphProblems(box: InputBox): string[] {
+  const stray = [box.topLine, ...box.rows, box.bottomLine].find((line) => BORDER_GLYPH.test(line));
+  return stray === undefined ? [] : [`the box still draws a side or corner glyph: ${stray}`];
 }
 
 function colourProblems(bytes: string): string[] {
@@ -66,29 +38,33 @@ function colourProblems(bytes: string): string[] {
 }
 
 function subagentProblems({ subagent, bytesAfterSwitch }: SubagentInputEvidence): string[] {
-  const box = boxOf(subagent);
+  const box = findInputBox(subagent);
   if (box === undefined) {
     return ['no input box on screen'];
   }
   return [
-    ...(framed(box, BOLD) ? [] : [`the border is not the bold one, the box reads ${shown(box)}`]),
-    ...(LABEL_TOP.test(box.top)
+    ...(HEAVY_RULE.test(box.bottomLine)
       ? []
-      : [`the top edge is not "┏━━ ${LABEL_WORD} ━…┓", it reads ${box.top}`]),
+      : [`the bottom edge is not a heavy rule, the box reads ${shown(box)}`]),
+    ...(LABEL_TOP.test(box.topLine)
+      ? []
+      : [`the top edge is not "━━━ ${LABEL_WORD} ━…", it reads ${box.topLine}`]),
+    ...glyphProblems(box),
     ...colourProblems(bytesAfterSwitch),
   ];
 }
 
 function mainProblems({ main }: SubagentInputEvidence): string[] {
-  const box = boxOf(main);
+  const box = findInputBox(main);
   if (box === undefined) {
     return ['no input box on screen'];
   }
   const leaked = main.find((line) => line.includes(LABEL_WORD));
   return [
-    ...(framed(box, ROUND)
+    ...(LIGHT_RULE.test(box.topLine) && LIGHT_RULE.test(box.bottomLine)
       ? []
-      : [`the border is not the stock round one, the box reads ${shown(box)}`]),
+      : [`the edges are not plain light rules, the box reads ${shown(box)}`]),
+    ...glyphProblems(box),
     ...(leaked === undefined
       ? []
       : [`${LABEL_WORD} leaked into the main session: ${leaked.trim()}`]),
@@ -103,7 +79,15 @@ function verdict(who: string, problems: readonly string[], passed: string): Verd
 
 export function subagentInputVerdicts(evidence: SubagentInputEvidence): Verdict[] {
   return [
-    verdict('subagent', subagentProblems(evidence), `bold magenta border with ${LABEL_WORD} label`),
-    verdict('main', mainProblems(evidence), `stock round border, no ${LABEL_WORD} label`),
+    verdict(
+      'subagent',
+      subagentProblems(evidence),
+      `heavy magenta rules with ${LABEL_WORD} label, no side glyphs`,
+    ),
+    verdict(
+      'main',
+      mainProblems(evidence),
+      `plain light rules, no side glyphs, no ${LABEL_WORD} label`,
+    ),
   ];
 }

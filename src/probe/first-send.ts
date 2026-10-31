@@ -1,9 +1,9 @@
 import { MS_PER_SECOND } from '../cli.ts';
 import { STOP_HINTS } from './escape-report.ts';
+import { linesOf as screenLines, withoutInputBox } from './input-box.ts';
 import type { Frame, Session } from './session.ts';
 import {
   ENTER,
-  INPUT_PREFIX,
   msOrNever,
   openClearMenu,
   openSession,
@@ -25,7 +25,7 @@ export interface FirstSendReading {
 }
 
 function linesOf(frame: Frame): string[] {
-  return frame.text.split('\n').filter((line) => !line.includes(INPUT_PREFIX));
+  return withoutInputBox(screenLines(frame.text));
 }
 
 function firstAt(frames: readonly Frame[], matches: (line: string) => boolean): number | undefined {

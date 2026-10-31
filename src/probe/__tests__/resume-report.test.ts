@@ -12,6 +12,7 @@ import {
 
 const MARKER = 'LAST-REPLY';
 const BOX = '╭───╮\n│ > │\n╰───╯';
+const FLAT_BOX = '───\n  > \n───';
 const LAYOUT = { turns: 150, quietMs: 1500, resizeCols: 100 };
 
 const FRAMES = [
@@ -45,6 +46,17 @@ describe('readResume times the resume from spawn', () => {
     });
   });
 
+  test('the patched box, which has no corners, times the paint too', () => {
+    const frames = [
+      { atMs: 420, text: 'Checking authentication...' },
+      { atMs: 500, text: `logo\n${FLAT_BOX}` },
+      { atMs: 1300, text: `turn 1 ... ${MARKER}\n${FLAT_BOX}` },
+    ];
+    const reading = readResume(frames, { marker: MARKER, spawnOffsetMs: 20, bytes: 1 });
+    expect(reading.paintMs).toBe(480);
+    expect(reading.landedMs).toBe(1280);
+  });
+
   test('a resume whose last reply never shows is an error, not a fast run', () => {
     expect(() =>
       readResume(FRAMES.slice(0, 2), { marker: MARKER, spawnOffsetMs: 0, bytes: 0 }),
@@ -61,6 +73,10 @@ describe('asksForTrust spots the folder trust dialog', () => {
 
 function boxOf(cols: number): string {
   return `╭${'─'.repeat(cols - 2)}╮\n│ > │\n╰${'─'.repeat(cols - 2)}╯`;
+}
+
+function flatBoxOf(cols: number): string {
+  return `${'─'.repeat(cols)}\n  > \n${'─'.repeat(cols)}`;
 }
 
 const NARROW = 100;
@@ -90,6 +106,12 @@ describe('readRedraw reads the frames after the resize', () => {
 
   test('a late frame still drawn at the old width is not the redraw', () => {
     const late = [{ atMs: 18, text: `turn 1 ... ${MARKER}\n${boxOf(WIDE)}` }];
+    expect(redrawn(late, MARKER, NARROW)).toBe(false);
+    expect(redrawn(late, MARKER, WIDE)).toBe(true);
+  });
+
+  test('the patched box is measured by the width of its rules', () => {
+    const late = [{ atMs: 18, text: `turn 1 ... ${MARKER}\n${flatBoxOf(WIDE)}` }];
     expect(redrawn(late, MARKER, NARROW)).toBe(false);
     expect(redrawn(late, MARKER, WIDE)).toBe(true);
   });

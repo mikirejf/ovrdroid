@@ -9,7 +9,10 @@ import {
 
 const SYNC_START = '\u001B[?2026h';
 const SHELL = 'logo\ntip\n╭────╮\n│ > │\n╰────╯';
-const FRAME = `${SYNC_START}frame\n╭────╮\n│ > │\n╰────╯`;
+const STOCK_BOX = '╭────╮\n│ > │\n╰────╯';
+const PATCHED_BOX = '────\n  > \n────';
+const FRAME = `${SYNC_START}frame\n${STOCK_BOX}`;
+const PATCHED_FRAME = `${SYNC_START}frame\n${PATCHED_BOX}`;
 
 function timelineOf(...chunks: [number, string][]): StartupTimeline {
   const timeline = new StartupTimeline();
@@ -30,6 +33,12 @@ describe('StartupTimeline', () => {
     expect(timeline.appAt).toBe(760);
   });
 
+  test('stamps the app at the patched frame, whose box has no corners', () => {
+    const timeline = timelineOf([100, SHELL], [700, PATCHED_FRAME]);
+    expect(timeline.shellAt).toBe(100);
+    expect(timeline.appAt).toBe(700);
+  });
+
   test('keeps the first stamp when more boxes arrive', () => {
     const timeline = timelineOf([100, SHELL], [200, SHELL], [700, FRAME], [800, FRAME]);
     expect(timeline.shellAt).toBe(100);
@@ -43,7 +52,7 @@ describe('StartupTimeline', () => {
   });
 
   test('stamps the shell from the part of a chunk before the sync start', () => {
-    const timeline = timelineOf([100, `${SHELL}${SYNC_START}frame`], [500, '╰']);
+    const timeline = timelineOf([100, `${SHELL}${SYNC_START}frame`], [500, `\n${STOCK_BOX}`]);
     expect(timeline.shellAt).toBe(100);
     expect(timeline.appAt).toBe(500);
   });
@@ -52,7 +61,7 @@ describe('StartupTimeline', () => {
     const cut = 4;
     const timeline = timelineOf(
       [100, SYNC_START.slice(0, cut)],
-      [110, `${SYNC_START.slice(cut)}╰`],
+      [110, `${SYNC_START.slice(cut)}${STOCK_BOX}`],
     );
     expect(timeline.shellAt).toBeUndefined();
     expect(timeline.appAt).toBe(110);

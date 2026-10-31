@@ -33,9 +33,9 @@ describe('the label line takes the heavy box characters', () => {
     `return ($ODline)=>$ODline${HEAVY_TOP}`,
   )();
 
-  test('corners and rules turn heavy, the text stays', () => {
-    expect(heavy('\u256D\u2500\u2500 SUBAGENT \u2500\u2500\u256E')).toBe(
-      '\u250F\u2501\u2501 SUBAGENT \u2501\u2501\u2513',
+  test('rules turn heavy, the text stays', () => {
+    expect(heavy('\u2500\u2500\u2500 SUBAGENT \u2500\u2500')).toBe(
+      '\u2501\u2501\u2501 SUBAGENT \u2501\u2501',
     );
   });
 });

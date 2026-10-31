@@ -9,8 +9,18 @@ describe('keysInBox', () => {
     expect(keysInBox(lines)).toBe(5);
   });
 
+  test('counts the same keys in the patched box, which has no side glyphs', () => {
+    const lines = ['Zed says hi', '────────', '  > ZZZ', '    ZZ', '────────'];
+
+    expect(keysInBox(lines)).toBe(5);
+  });
+
   test('is zero before anything is typed', () => {
     expect(keysInBox(['╭──╮', '│ >  │', '╰──╯'])).toBe(0);
+  });
+
+  test('is zero when the screen has no input box', () => {
+    expect(keysInBox(['ZZZ'])).toBe(0);
   });
 });
 

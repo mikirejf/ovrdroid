@@ -1,4 +1,5 @@
 import { codeCopyPatches } from './code-copy-patches.ts';
+import { copySelectPatches } from './copy-select-patches.ts';
 import { highlightPatches } from './highlight-patches.ts';
 import { inkFramePatches } from './ink-frame-patches.ts';
 import type { Patch } from './patches.ts';
@@ -21,6 +22,7 @@ export const renderPatches: readonly Patch[] = [
   ...streamRenderPatches,
   ...highlightPatches,
   ...codeCopyPatches,
+  ...copySelectPatches,
   ...rootRenderPatches,
   ...shimmerPatches,
   ...rerenderPatches,

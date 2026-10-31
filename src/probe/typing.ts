@@ -1,5 +1,6 @@
+import { findInputBox } from './input-box.ts';
+
 export const TYPED_KEY = 'Z';
-const BOX_ROW = '│ ';
 
 export interface TypingReading {
   sent: number;
@@ -10,12 +11,8 @@ export interface TypingReading {
 }
 
 export function keysInBox(lines: readonly string[], key: string = TYPED_KEY): number {
-  return (
-    lines
-      .filter((line) => line.startsWith(BOX_ROW))
-      .join('')
-      .split(key).length - 1
-  );
+  const rows = findInputBox(lines)?.rows ?? [];
+  return rows.join('').split(key).length - 1;
 }
 
 export function readTyping(sentAt: readonly number[], shownAt: readonly number[]): TypingReading {

@@ -3,6 +3,7 @@ import type { Command } from 'commander';
 import { choice, count, guard } from '../cli.ts';
 import { INSTALLED_DROID } from '../paths.ts';
 import { registerBusyKeysCommand } from './busy-keys-commands.ts';
+import { registerCopySelectCommand } from './copy-select-command.ts';
 import { counters, DEFAULT_KEYS } from './counters-run.ts';
 import { DEFAULT_DAYS, rendersLog } from './renders-log-run.ts';
 import { DEFAULT_TOP, RENDER_SCENARIOS, renders } from './renders-run.ts';
@@ -15,6 +16,7 @@ const RENDERS_RUNS = 3;
 export function registerRenderCommands(program: Command): void {
   registerStreamCommands(program);
   registerBusyKeysCommand(program);
+  registerCopySelectCommand(program);
   registerResumeCommands(program);
 
   program
