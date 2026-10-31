@@ -2,12 +2,14 @@ import { isStoredSummary } from '../patch/summary-format.ts';
 import { compactRowsFor } from './compaction-fallback-report.ts';
 import { gradeReply, ITEM_COUNT } from './digest-grade.ts';
 import type { DigestKey } from './digest-key.ts';
+import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import type { Transcript } from './live-transcript.ts';
-import { childOf, finalReply } from './live-transcript.ts';
+import { childOf, finalReply, ofKind } from './live-transcript.ts';
 import { compactionsOf } from './summaries-report.ts';
 
 const DECIMALS = 2;
 const REUSE_PATHS = ['reuse', 'reuse-extended'];
+export const SCRIPT_TOOL = 'Script';
 
 export interface StoredSummary {
   chars: number;
@@ -24,6 +26,7 @@ export interface RunResult {
   compactions: number;
   paths: string[];
   summaries: StoredSummary[];
+  scriptCalls: number;
   timedOut: boolean;
   seconds: number;
 }
@@ -51,6 +54,18 @@ export interface BinarySummary {
   nonSummaries: number;
   timeouts: number;
   uncompacted: readonly number[];
+  scripted: readonly number[];
+}
+
+export function toolCallCount(text: string, tool: string): number {
+  return text.split('\n').flatMap((line) => {
+    const fields = fieldsOfJson(line);
+    if (worded(fields, 'type') !== 'message') {
+      return [];
+    }
+    const uses = ofKind(entriesOf(fieldsOf(fields.get('message')), 'content'), 'tool_use');
+    return uses.filter((use) => worded(use, 'name') === tool);
+  }).length;
 }
 
 export function runResult(evidence: RunEvidence): RunResult {
@@ -78,6 +93,7 @@ export function runResult(evidence: RunEvidence): RunResult {
       chars: text.length,
       isSummary: isStoredSummary(text),
     })),
+    scriptCalls: child === undefined ? 0 : toolCallCount(child.text, SCRIPT_TOOL),
     timedOut,
     seconds,
   };
@@ -110,6 +126,7 @@ export function summariseBinary(binary: string, results: readonly RunResult[]): 
     uncompacted: results
       .filter((result) => result.compactions === 0 && result.paths.length === 0)
       .map((result) => result.run),
+    scripted: results.filter((result) => result.scriptCalls > 0).map((result) => result.run),
   };
 }
 
@@ -137,6 +154,11 @@ export function digestFindings(summary: BinarySummary): string[] {
       `${summary.binary}: runs ${summary.uncompacted.join(', ')} compacted zero times, so they did not exercise compaction`,
     );
   }
+  if (summary.scripted.length > 0) {
+    findings.push(
+      `${summary.binary}: the helper of runs ${summary.scripted.join(', ')} called ${SCRIPT_TOOL}, so direct mode did not hold`,
+    );
+  }
   if (!REUSE_PATHS.some((path) => summary.paths.has(path))) {
     findings.push(
       `${summary.binary}: no compaction took the reuse path (paths logged: ${pathCounts(summary.paths)}), so compaction-reuse-prefix was not exercised`,
@@ -155,6 +177,7 @@ export function describeRun(result: RunResult): string {
   return [
     `${result.binary} run ${result.run}: ${score}`,
     `${result.compactions} stored (${flags} not summaries), paths: ${paths}`,
+    `${result.scriptCalls} ${SCRIPT_TOOL} calls`,
     result.timedOut ? 'TIMED OUT' : `${Math.round(result.seconds)}s`,
   ].join('; ');
 }
@@ -174,6 +197,9 @@ export function describeBinary(summary: BinarySummary): string[] {
     `  timeouts: ${summary.timeouts}`,
     ...summary.uncompacted.map(
       (run) => `  run ${run} compacted zero times, so it tests nothing about compaction`,
+    ),
+    ...summary.scripted.map(
+      (run) => `  run ${run}: the helper called ${SCRIPT_TOOL}, so it did not run in direct mode`,
     ),
   ];
 }

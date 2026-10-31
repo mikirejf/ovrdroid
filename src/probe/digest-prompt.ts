@@ -1,11 +1,26 @@
+import { PROBE_MODEL } from './launch.ts';
+
+export const DIGEST_READER = 'ovrdroid-digest-reader';
+
+export const DIGEST_READER_FILE = [
+  '---',
+  `name: ${DIGEST_READER}`,
+  'description: Reads the digest files for the ovrdroid digest-run probe and answers questions about them.',
+  `model: ${PROBE_MODEL}`,
+  'reasoningEffort: medium',
+  '---',
+  'Do the task your prompt gives you, exactly as it says. Your parent reads only your final reply, so the final reply carries every finding, including the ones from before a compaction.',
+  '',
+].join('\n');
+
 export const DIGEST_PARENT_PROMPT = [
-  'Call the Task tool exactly once, with subagent_type "grunt", description "Digests read test", and as its prompt the text after the line PROMPT below, word for word. Do no other work and call no other tool. When the subagent returns, reply with its reply word for word.',
+  `Call the Task tool exactly once, with subagent_type "${DIGEST_READER}", description "Digests read test", and as its prompt the text after the line PROMPT below, word for word. Do no other work and call no other tool. When the subagent returns, reply with its reply word for word.`,
   '',
   'PROMPT',
   '',
   'Read-only lookup. Do not edit any file outside /tmp.',
   '',
-  'Folder: /Users/andrej/dev/delegation-study/grunt-haiku/digests-haiku/ (84 files, 01-*.md to 84-*.md). Read every file in full, one file per call, in number order, so that the whole text of each file comes back to you. List the folder once to learn the file names. Then, if you have a Script tool, every Script that reads a file is exactly this one statement with the file path filled in, and nothing else: `text(await tools.Read({ file_path: "<path>" }))`. No loops, no variables, no regular expressions, no second file in the same Script. Without a Script tool, call the Read tool once per file. Do not use grep, rg, sed, head, or any code that parses, filters, or summarises the files: the point is to read each file yourself and answer from what you read.',
+  'Folder: /Users/andrej/dev/delegation-study/grunt-haiku/digests-haiku/ (84 files, 01-*.md to 84-*.md). List the folder once to learn the file names. Then read every file in full with the Read tool, one file per call, in number order, so that the whole text of each file comes back to you. Do not use grep, rg, sed, head, or any code that parses, filters, or summarises the files: the point is to read each file yourself and answer from what you read.',
   '',
   'Answer all six items:',
   '',

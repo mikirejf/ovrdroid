@@ -12,6 +12,7 @@ import {
   digestFindings,
   runResult,
   summariseBinary,
+  toolCallCount,
 } from '../digest-run-report.ts';
 import type { RunEvidence, RunResult } from '../digest-run-report.ts';
 
@@ -58,7 +59,11 @@ function parentTranscript(): string {
   ].join('\n');
 }
 
-function gruntTranscript(reply: string, stored: readonly string[]): string {
+function scriptCall(): string {
+  return message('assistant', [{ type: 'tool_use', id: 'toolu_1', name: 'Script', input: {} }]);
+}
+
+function gruntTranscript(reply: string, stored: readonly string[], calls: string[] = []): string {
   return [
     JSON.stringify({ type: 'session_start', id: 'grunt', callingSessionId: 'parent' }),
     ...stored.map((summaryText, at) =>
@@ -69,6 +74,7 @@ function gruntTranscript(reply: string, stored: readonly string[]): string {
         summaryText,
       }),
     ),
+    ...calls,
     message('assistant', [{ type: 'text', text: reply }]),
   ].join('\n');
 }
@@ -131,6 +137,22 @@ describe('runResult reads one finished session from its files', () => {
     expect(scored.summaries.map((stored) => stored.isSummary)).toEqual([true, false, false]);
   });
 
+  test('counts no Script call for a helper that read with Read', () => {
+    expect(runResult(evidence()).scriptCalls).toBe(0);
+  });
+
+  test('counts the Script calls in the helper transcript', () => {
+    const scripted = runResult(
+      evidence({
+        transcripts: [
+          { id: 'parent', text: parentTranscript() },
+          { id: 'grunt', text: gruntTranscript(RIGHT, [], [scriptCall(), scriptCall()]) },
+        ],
+      }),
+    );
+    expect(scripted.scriptCalls).toBe(2);
+  });
+
   test('gives a wrong answer a lower score', () => {
     const wrong = runResult(
       evidence({
@@ -179,11 +201,29 @@ function aRun(run: number, overrides: Partial<RunResult> = {}): RunResult {
     compactions: 1,
     paths: ['reuse'],
     summaries: [{ chars: 900, isSummary: true }],
+    scriptCalls: 0,
     timedOut: false,
     seconds: 60,
     ...overrides,
   };
 }
+
+describe('toolCallCount', () => {
+  test('counts tool_use blocks by name and ignores other tools, results and junk lines', () => {
+    const text = [
+      scriptCall(),
+      message('assistant', [
+        { type: 'tool_use', name: 'Read' },
+        { type: 'tool_use', name: 'Script' },
+      ]),
+      message('user', [{ type: 'tool_result', name: 'Script' }]),
+      JSON.stringify({ type: 'compaction_state', name: 'Script' }),
+      'not json',
+    ].join('\n');
+    expect(toolCallCount(text, 'Script')).toBe(2);
+    expect(toolCallCount(text, 'Read')).toBe(1);
+  });
+});
 
 describe('summariseBinary and describeBinary', () => {
   const results = [
@@ -233,7 +273,7 @@ describe('summariseBinary and describeBinary', () => {
 
   test('describeRun gives one line per session', () => {
     expect(describeRun(aRun(2, { scores: [1, 0.5], total: 1.5 }))).toBe(
-      'droid-a run 2: 1.50 of 6 (1.00 0.50); 1 stored (0 not summaries), paths: reuse; 60s',
+      'droid-a run 2: 1.50 of 6 (1.00 0.50); 1 stored (0 not summaries), paths: reuse; 0 Script calls; 60s',
     );
   });
 });
@@ -251,6 +291,12 @@ describe('digestFindings', () => {
     expect(
       findings([aRun(1, { paths: ['reuse', 'not-summary'], compactions: 2 }), aRun(2)]),
     ).toEqual([]);
+  });
+
+  test('a helper that called Script is a finding, because direct mode did not hold', () => {
+    expect(findings([aRun(1), aRun(2, { scriptCalls: 3 })])).toEqual([
+      'droid-a: the helper of runs 2 called Script, so direct mode did not hold',
+    ]);
   });
 
   test('a timed-out session is a finding', () => {
