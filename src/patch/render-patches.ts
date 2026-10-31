@@ -5,8 +5,11 @@ import type { Patch } from './patches.ts';
 import { renderProfilePatches } from './render-profile-patches.ts';
 import { rerenderPatches } from './rerender-patches.ts';
 import { rootRenderPatches } from './root-render-patches.ts';
+import { rosterRenderPatches } from './roster-render-patches.ts';
 import { shimmerPatches } from './shimmer-patches.ts';
+import { snapshotRenderPatches } from './snapshot-render-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
+import { todoRenderPatches } from './todo-render-patches.ts';
 
 export const MAIN_MARKDOWN_SCOPE = 'main';
 
@@ -21,6 +24,9 @@ export const renderPatches: readonly Patch[] = [
   ...rootRenderPatches,
   ...shimmerPatches,
   ...rerenderPatches,
+  ...todoRenderPatches,
+  ...snapshotRenderPatches,
+  ...rosterRenderPatches,
   ...renderProfilePatches,
   {
     name: 'resume-expand-once',

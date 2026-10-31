@@ -4,6 +4,7 @@ import path from 'node:path';
 import { CONFIG_LOAD, CONFIG_PATHS, configSave } from './ovrdroid-config.ts';
 import type { Patch } from './patches.ts';
 import { PAYLOAD_PREFIX } from './rebase.ts';
+import { SNAPSHOT_STORE_READ } from './snapshot-render-patches.ts';
 import { freeNames, renameIn } from './tokens.ts';
 
 export const RENDERS_VARIABLE = 'OD_RENDERS';
@@ -273,8 +274,7 @@ function causePatch(name: string, rest: string): Patch {
   };
 }
 
-const SNAPSHOT_BUILD =
-  '{snapshotVersion:O,streamingVersion:F}=k0e(D.getStore(),A),K=E.current;if(K.ssm===f&&K.sessionId===y&&K.updateMode===A&&K.snapshotVersion===O&&K.streamingVersion===F)return K.messages;let G=[...f.getDisplayMessages(y)];';
+const SNAPSHOT_RETURN = 'snapshotVersion:O,streamingVersion:F,messages:G},G}';
 
 const WORKING_SET = 'updateDroidWorkingState(t){if(this.droidWorkingState===t)return;';
 
@@ -286,8 +286,10 @@ export const recorderFeedPatches: readonly Patch[] = [
   causePatch('render-profile-cause-coalesced', 'add(t),this.scheduleCoalescedNotify()}'),
   {
     name: 'render-profile-snapshot',
-    find: SNAPSHOT_BUILD,
-    replace: `${SNAPSHOT_BUILD}globalThis.$ODr?.snapshot(G,D.getStore());`,
+    find: SNAPSHOT_RETURN,
+    lookups: [SNAPSHOT_STORE_READ],
+    replace:
+      'snapshotVersion:O,streamingVersion:F,messages:G},globalThis.$ODr?.snapshot(G,D.getStore()),G}',
   },
   {
     name: 'render-profile-working',

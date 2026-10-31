@@ -180,6 +180,65 @@ commits. The row count in the erase step always matches, and the screen equals a
 
 The system prompt also asks the model to put commands in fenced code blocks.
 
+## Off the root: todos, message snapshot, roster (Droid 1.1.0, 2026-10-31)
+
+`probe renders-log -d 2` over my own sessions (2 days, 615 processes, 934s of React render time)
+showed where the root still spends its time. The root component (the main screen) took about 47% of
+render time, about 2ms per render with about 400 hooks. `MessageList` took about 18%. The root
+re-rendered because of these hooks:
+
+| Root hook                                      | Changes | Why                                                    |
+| :--------------------------------------------- | ------: | :----------------------------------------------------- |
+| Session roster store (`()=>this.roster.model`) |    ~75k | Any roster change gives a new model                    |
+| Message snapshot                               |    ~65k | About 10% came with no message event                   |
+| Todo hook                                      |    ~32k | Returned a fresh `{todos}` on every store version bump |
+
+`todo-snapshot-stable` and `todo-panel-memo` (`src/patch/todo-render-patches.ts`). The todo hook
+returns the previous object when every todo has the same own keys with `===` values. The todo panel
+is wrapped in React memo.
+
+`snapshot-stable-messages` (`src/patch/snapshot-render-patches.ts`). On a snapshot cache miss it
+reuses the cached message array when the session state manager, session id, update mode, streaming
+version and the store's messages version are unchanged and every element is `===`. A message change
+sent without `message_thread_updated` stays safe, because the store raises its messages version at
+the next notify, before the store version moves. The `render-profile-snapshot` recorder anchor moved
+to the return tail, so it records only new arrays.
+
+`roster-render-split*` (7 patches, `src/patch/roster-render-patches.ts`). The root subscribes to a
+value-compared facts snapshot of the roster (identity, loaded, working count, needs-you count, lead
+session id), which is all the root's own render reads. The status line under the input box, the
+roster pane and the pane-height hook each subscribe to the live model themselves. The controller
+gets the model through a getter, so its callbacks read the newest model. On the mission path no
+store is passed and every reader falls back to the root's model, as stock.
+
+Measured with `probe renders -r 3`: the full set against `probe build --without` the three families,
+median of 3, unpaired, so nothing here is resolved.
+
+| Scenario | Count                           | Without → with                               |
+| :------- | :------------------------------ | :------------------------------------------- |
+| stream   | Root renders                    | 42 → 42                                      |
+| stream   | React render time               | 168.5 → 137.3ms                              |
+| stream   | Root self time                  | 67.8 → 55.7ms                                |
+| stream   | Message snapshot changes        | 40 → 38                                      |
+| stream   | Of those, with no message event | 6 → 3                                        |
+| resume   | Render time                     | 241.7 → 238.2ms                              |
+| resize   | Render time                     | 69.2 → 65.0ms                                |
+| typing   | Render time                     | 16.6 → 21.6ms (one root render, 1.2 → 3.7ms) |
+| menu     | Render time                     | 12.7 → 16.6ms                                |
+| pending  | Render time                     | 11.8 → 10.8ms                                |
+
+Resume, resize, typing, menu and pending are within noise. The scripted scenarios run no subagent
+and change no todos, so they do not reach the roster and todo triggers. The real effect is for
+`probe renders-log` over real sessions after the build has been in use.
+
+The `probe roster-view` race. The probe failed about 1 run in 10 on both the new build and the build
+without the patches (an instrumented baseline failed run 12 of 15 with the same screen). The child
+droid's working count drops to 0 for about 4s while it hands over to the grandchild. When the
+probe's 1.5s settle ended inside that dip, Down was pressed while stock's own open gate (needs a
+droid working or needing you) was false. The probe now presses Down only while the working line
+shows, and retries if the roster does not open within 2s, inside the same 15s budget. 15 of 15
+passed after.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)
@@ -231,9 +290,15 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
   two zod parses and an OpenTelemetry span per text delta. I did not trace it to its receivers.
 - The spinner (125ms ticker) and the stream throttle (100ms) run on separate timers. All spinners
   and shimmers already share the one 125ms timer.
-- About 76% of root renders in the logs come from the message store snapshot. Its key is the store's
-  `version`, which every event raises (metadata, settings, todos, working state), so `MessageList`
-  gets a new `groupedMessages` even when no message changed. Keying the snapshot on transcript
-  events only would cut that, but a message change sent without `message_thread_updated` would leave
-  the transcript stale. Not measured.
+- `snapshot-stable-messages` now reuses the message array when no message changed. What is left is
+  the root still rendering on each version bump (the snapshot hook itself). Read how much from
+  `probe renders-log`.
 - `getDecompMissionId()` has the same uncached summary read that `decomp-miss-cache` fixed.
+- Measure `todo-snapshot-stable`, `snapshot-stable-messages` and `roster-render-split*` with
+  `probe renders-log` after a few days of use and compare with the 2-day baseline above.
+- The chat input gets a fresh `onRewindShortcut` prop on root renders.
+- The background-task panel (`OQ`/`UQ` in the probe output) re-renders on every root render, because
+  `onFocusReturn` and `onProcessKilled` are fresh callbacks (42 of 42 renders in the stream
+  scenario).
+- `stub-model.ts` gives its one-shot tool reply to the first request, which on 1.1.0 is a request
+  with no tools, so `probe renders -s tool` and `pending` may not exercise a real tool call.
