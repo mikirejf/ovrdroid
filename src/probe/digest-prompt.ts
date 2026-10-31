@@ -5,7 +5,7 @@ export const DIGEST_PARENT_PROMPT = [
   '',
   'Read-only lookup. Do not edit any file outside /tmp.',
   '',
-  'Folder: /Users/andrej/dev/delegation-study/grunt-haiku/digests-haiku/ (84 files, 01-*.md to 84-*.md). Read every file in full with the Read tool, one file per call, in number order. Do not use grep, rg, sed, head, or scripts to answer: the point is to read each file.',
+  'Folder: /Users/andrej/dev/delegation-study/grunt-haiku/digests-haiku/ (84 files, 01-*.md to 84-*.md). Read every file in full, one file per call, in number order, so that the whole text of each file comes back to you. List the folder once to learn the file names. Then, if you have a Script tool, every Script that reads a file is exactly this one statement with the file path filled in, and nothing else: `text(await tools.Read({ file_path: "<path>" }))`. No loops, no variables, no regular expressions, no second file in the same Script. Without a Script tool, call the Read tool once per file. Do not use grep, rg, sed, head, or any code that parses, filters, or summarises the files: the point is to read each file yourself and answer from what you read.',
   '',
   'Answer all six items:',
   '',

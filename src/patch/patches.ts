@@ -95,10 +95,10 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'model-alias-lookup-set',
-    find: 'if(o in Mn)return o;if(Object.values(Mn).includes(o))return o;return}',
+    find: 'if(Object.values(Mn).includes(o))return o;return}',
     lookups: ['return yt(a)==="gpt-6-astra"}'],
     replace:
-      'if(o in Mn)return o;if((yt.$o!==Mn&&(yt.$o=Mn,yt.$s=new Set(Object.values(Mn))),yt.$s).has(o))return o;return}',
+      'if((yt.$o!==Mn&&(yt.$o=Mn,yt.$s=new Set(Object.values(Mn))),yt.$s).has(o))return o;return}',
   },
   {
     name: 'ink-string-width-grapheme-memo',

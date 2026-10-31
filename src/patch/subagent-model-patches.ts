@@ -92,6 +92,8 @@ export const TASK_CONFIG_LOOKUP = 'static async buildStreamJsonRpcTaskConfig(t,o
 
 const LOAD_DROIDS_LOOKUP = 'y=await Do().loadAllDroids(),S=o?.sessionExecutionContext';
 
+const BUILT_INS_LOOKUP = 'k=m().getCurrentSessionTags(),g=oO(k).map((h)=>h.name)';
+
 const LAUNCH_MODEL_LOOKUP =
   'let R=v.type==="custom"?v.droid:Ele(v.config),b=[...Cs()],A=(Q)=>vi.validateModel(Q,b).valid,D=C().resolveModelWithFallback(R.metadata.model,A),F=';
 
@@ -171,19 +173,15 @@ export const subagentModelPatches: readonly Patch[] = [
   },
   {
     name: 'task-launch-splits-model-and-matches-name',
-    find: `${TASK_CONFIG_LOOKUP}if(t.resume){`,
-    lookups: [LAUNCH_MODEL_LOOKUP, LOAD_DROIDS_LOOKUP, 'oO().map((p)=>p.name)'],
+    find: `${TASK_CONFIG_LOOKUP}if(t.resume){let X=await Do().loadAllDroids(),`,
+    lookups: [LAUNCH_MODEL_LOOKUP, BUILT_INS_LOOKUP],
     replace:
       `${TASK_CONFIG_LOOKUP}$ODresume(t);let $ODdroids=await Do().loadAllDroids();` +
       'if(typeof t.subagent_type==="string")t.subagent_type=$ODname(t.subagent_type,' +
-      '[...$ODdroids.map(($ODd)=>$ODd.metadata.name),...oO().map(($ODb)=>$ODb.name)]);' +
+      '[...$ODdroids.map(($ODd)=>$ODd.metadata.name),' +
+      '...oO(o?.sessionExecutionContext?.sessionTags??m().getCurrentSessionTags()).map(($ODb)=>$ODb.name)]);' +
       'let $ODl=$ODsplit(t,($ODm)=>vi.validateModel($ODm,[...Cs()]).valid,$ODids);' +
-      'if(t.resume){',
-  },
-  {
-    name: 'task-resume-reuses-the-loaded-droids',
-    find: 'Q=await Do().loadAllDroids(),ge=hn(t.resume)',
-    replace: 'Q=$ODdroids,ge=hn(t.resume)',
+      'if(t.resume){let X=$ODdroids,',
   },
   {
     name: 'task-launch-reuses-the-loaded-droids',

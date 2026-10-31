@@ -23,7 +23,9 @@ interval that straddles zero at `-r 24` is a pass. Then record what you learned 
 commit `droid-version` and `gate-pass.json` together with the patch changes.
 
 Expect the hand half to cluster: most of it is usually one or two sites Droid **rewrote** rather
-than renamed.
+than renamed. When several patches in one file drift together, read the module-scope constants they
+share (a `find` one patch uses as another's lookup, a deps array) before reading each patch: one
+stale constant sends every patch that quotes it `missing` at once, and fixing it fixes them all.
 
 ## The contract
 

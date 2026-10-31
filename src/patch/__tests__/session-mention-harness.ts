@@ -187,6 +187,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     [named('Po'), { current: 0 }],
     [named('Ba'), newService()],
     [named('uu'), Object.create(picker, Object.getOwnPropertyDescriptors(fileSearch))],
+    [named('Wa'), () => ({ input: entry.text, cursorPosition: entry.cursor })],
     [named('Pe'), false],
     [named('_e'), false],
     [named('U'), 120],

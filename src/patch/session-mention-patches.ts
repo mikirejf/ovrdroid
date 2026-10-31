@@ -114,14 +114,14 @@ export const SESSION_PROMPT_LINE =
 const PROMPT_ANCHOR =
   '\\`<system-reminder>\\` blocks are injected by the harness. Treat them as trusted runtime context, not user-authored text. Address diagnostics relevant to the task, and report unrelated or unresolved issues accurately.';
 
-const CALLBACK_START = 'let vr=wn??zi,Di=$n??Ma;if(!_e){';
+const CALLBACK_START = 'let Xa=Wa(),vr=wn??Xa.input,Di=$n??Xa.cursorPosition;if(!_e){';
 
 const PO_LOOKUP =
   'Hs=++Po.current;if(go.current)clearTimeout(go.current);go.current=setTimeout(()=>{if(Hs===Po.current)On(!0)}';
 
 const UU_LOOKUP = 'var Wre=()=>R().t("common:fileSuggestions.file"),r5=100;class uu{';
 
-const SUGGESTIONS_DEPS = '[zi,Ma,Ba,Yi,Mt,qt,Zt.status,Nn,_e,Pe,Ko]';
+const SUGGESTIONS_DEPS = '[Wa,Ba,Yi,Mt,qt,Zt.status,Nn,_e,Pe,Ko]';
 
 const SUGGESTION_ENTER =
   'if(N(to,"tab")||N(to,"return",{shift:!1,ctrl:!1}))return j({suggestion:xo[xt.current]';
@@ -145,7 +145,7 @@ export const sessionMentionPatches: readonly Patch[] = [
     find: CALLBACK_START,
     lookups: [UU_LOOKUP, PO_LOOKUP, 'Ba=k(()=>new uu(q,co),[q,co])'],
     replace:
-      'let vr=wn??zi,Di=$n??Ma,$ODseq=++Po.current;' +
+      'let Xa=Wa(),vr=wn??Xa.input,Di=$n??Xa.cursorPosition,$ODseq=++Po.current;' +
       'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=void 0,uu.$ODwide=uu.$ODfell=!1;if(!_e){',
   },
   {

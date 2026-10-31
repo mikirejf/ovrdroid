@@ -79,16 +79,19 @@ interface LaunchResult {
   type: string;
 }
 
-type Launcher = (call: TaskCall) => Promise<LaunchResult>;
+interface CallContext {
+  sessionExecutionContext?: { sessionTags?: readonly string[] };
+}
+
+type Launcher = (call: TaskCall, context?: CallContext) => Promise<LaunchResult>;
 
 const STOCK_LAUNCHER =
   'static async buildStreamJsonRpcTaskConfig(t,o,a){' +
-  'if(t.resume){let Q=await Do().loadAllDroids(),ge=hn(t.resume)?.subagentType;return{kind:"resume",droids:Q,type:t.subagent_type}}' +
+  'if(t.resume){let X=await Do().loadAllDroids(),re=m();return{kind:"resume",droids:X,type:t.subagent_type}}' +
   'let{subagent_type:l}=t,y=await Do().loadAllDroids(),S=o?.sessionExecutionContext;return{kind:"launch",droids:y,type:l}}';
 
 const LAUNCHER_PATCHES = [
   'task-launch-splits-model-and-matches-name',
-  'task-resume-reuses-the-loaded-droids',
   'task-launch-reuses-the-loaded-droids',
 ];
 
@@ -119,17 +122,26 @@ interface Settings {
 const MODEL_TOOLS: ModelTools = { validateModel: (id) => ({ valid: isKnown(id) }) };
 const SETTINGS: Settings = { getCustomModels: () => [] };
 
+const MISSION_TAG = 'mission';
+const SESSION = { getCurrentSessionTags: (): readonly string[] => [] };
+
+function builtInsFor(tags: readonly string[] | undefined): { name: string }[] {
+  return tags?.includes(MISSION_TAG) === true
+    ? [{ name: 'worker' }, { name: 'mission-worker' }]
+    : [{ name: 'worker' }];
+}
+
 const makeLauncher = payloadFunction<
   [
     () => Registry,
-    () => null,
     ModelTools,
     () => string[],
-    () => { name: string }[],
+    typeof builtInsFor,
+    () => typeof SESSION,
     () => Settings,
   ],
   { buildStreamJsonRpcTaskConfig: Launcher }
->(['Do', 'hn', 'vi', 'Cs', 'oO', 'C'], `${TASK_HELPERS}return class{${patchedSource()}}`);
+>(['Do', 'vi', 'Cs', 'oO', 'm', 'C'], `${TASK_HELPERS}return class{${patchedSource()}}`);
 
 function launcherOf(counter: { loads: number }, droids: readonly Droid[]): Launcher {
   const registry: Registry = {
@@ -141,10 +153,10 @@ function launcherOf(counter: { loads: number }, droids: readonly Droid[]): Launc
   };
   return makeLauncher(
     () => registry,
-    () => null,
     MODEL_TOOLS,
     () => [...KNOWN],
-    () => [{ name: 'worker' }],
+    builtInsFor,
+    () => SESSION,
     () => SETTINGS,
   ).buildStreamJsonRpcTaskConfig;
 }
@@ -189,5 +201,21 @@ describe('the Task launcher loads the droid registry once per call', () => {
       launcherOf({ loads: 0 }, droids)({ subagent_type: 'poteto-agent', resume: 'abc', ...extra }),
     );
     expect(message).toContain(`${field} applies only to a new launch`);
+  });
+});
+
+describe('the loose name match sees only the built-ins this session can launch', () => {
+  const call = { subagent_type: 'Mission Worker' };
+
+  test('a built-in hidden from this session is left as given', async () => {
+    const result = await launcherOf({ loads: 0 }, [])(call);
+    expect(result.type).toBe('Mission Worker');
+  });
+
+  test('the call context tags decide which built-ins it sees', async () => {
+    const result = await launcherOf({ loads: 0 }, [])(call, {
+      sessionExecutionContext: { sessionTags: [MISSION_TAG] },
+    });
+    expect(result.type).toBe('mission-worker');
   });
 });
