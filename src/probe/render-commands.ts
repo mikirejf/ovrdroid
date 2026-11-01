@@ -5,6 +5,7 @@ import { INSTALLED_DROID } from '../paths.ts';
 import { registerBusyKeysCommand } from './busy-keys-commands.ts';
 import { registerCopySelectCommand } from './copy-select-command.ts';
 import { counters, DEFAULT_KEYS } from './counters-run.ts';
+import { registerFrameGapCommand } from './frame-gap-command.ts';
 import { DEFAULT_DAYS, rendersLog } from './renders-log-run.ts';
 import { DEFAULT_TOP, RENDER_SCENARIOS, renders } from './renders-run.ts';
 import { registerResumeCommands } from './resume-commands.ts';
@@ -18,6 +19,7 @@ export function registerRenderCommands(program: Command): void {
   registerBusyKeysCommand(program);
   registerCopySelectCommand(program);
   registerResumeCommands(program);
+  registerFrameGapCommand(program);
 
   program
     .command('counters')

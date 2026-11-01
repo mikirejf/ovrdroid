@@ -245,6 +245,54 @@ droid working or needing you) was false. The probe now presses Down only while t
 shows, and retries if the roster does not open within 2s, inside the same 15s budget. 15 of 15
 passed after.
 
+## Blank rows under the footer after the frame shrinks (Droid 1.1.0, 2026-11-01)
+
+The bug: after a turn ends, a background droid finishes, or the "1 droid working" line goes away,
+the screen shows blank rows under the last footer line (the status line) instead of the one cursor
+row. Pasting an image fixes it. Stock does this too; none of our patches causes it.
+
+The stock cause is Ink's log-update. It rewrites the live frame in place: erase the old frame's rows
+upward, then write the new frame from that top row. A frame that loses k rows therefore ends k rows
+higher and leaves k blank rows under it. Only a resize sets `viewportRepaintPending`, which repaints
+the screen anchored to the bottom. That is why a resize or the image paste brings the footer back.
+
+The resize repaint is not safe for a shrink. It redraws the visible screen from the tail of
+`fullStaticOutput`, after hiding the cursor (`\e[?25l`, not a clear). After a shrink of k rows it
+would draw k more static lines at the top of the screen, and those lines already sit at the bottom
+of scrollback, so scrolling up would show them twice.
+
+`ink-shrink-repaint*` (5 patches, `src/patch/ink-frame-patches.ts`) pads the frame instead. Ink now
+remembers where on screen the frame's top row is and how tall the frame was. When the old frame
+reached the bottom row and the new one is shorter, it puts blank lines in front of the new frame so
+that it still ends on the bottom row. The gap moves above the "Auto (High)" line, inside the live
+frame. The next static output writes over those blank rows, so they do not reach scrollback. The
+patch writes no scrollback, clears nothing, and keeps stock's behaviour for a frame that never
+reached the bottom or that is at least as tall as the screen. A guess that is too low only falls
+back to stock. The state starts over on `invalidateOutput` and on a resize that only changes height.
+The resize repaint sets it exactly.
+
+`probe frame-gap <binary>` checks this. A stub model streams a 40-paragraph reply on a 120x40 screen
+and launches a background droid. The probe then reads the screen after the turn ends and again after
+the droid finishes. It also checks that scrollback plus screen hold each reply line exactly once.
+
+| Binary                             | After the turn ended | After the droid finished | Reply lines once |
+| :--------------------------------- | -------------------: | -----------------------: | :--------------- |
+| stock 1.1.0, run 1                 |           0 rows gap |               2 rows gap | yes              |
+| stock 1.1.0, run 2                 |           3 rows gap |               2 rows gap | yes              |
+| patched, with `ink-shrink-repaint` |           0 rows gap |               0 rows gap | yes, both runs   |
+
+The first stage on stock depends on how far the frame shrank by the time the screen went quiet, so
+it varies from run to run. The second stage failed on stock in every run and passed on this build in
+every run.
+
+A scratch run of the same scenario that recorded every frame showed stock at 2 to 3 extra blank rows
+at the end, the build before this patch at 1, and this build at 0 for every frame after the reply
+finished.
+
+Cost, against `probe build --without` the five patches, paired, not resolved: `probe stream -r 8`
+CPU +82.5ms (CI -70.8 to 235.8), wall -17.6ms (CI -65.7 to 30.5); `probe resume` (n=10) resize
+redraw -7.3ms (CI -18.7 to 4.2), input box -27.2ms (CI -64.9 to 10.6).
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)
