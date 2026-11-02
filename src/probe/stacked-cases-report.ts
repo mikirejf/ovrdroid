@@ -3,7 +3,7 @@ import { chainsIn, flatten } from './stacked-report.ts';
 
 export const APPROVAL_COMMAND = 'echo stacked-approval';
 export const CASE_REQUESTS = 4;
-export const CASE_TALLY = 'Read 2 files · Execute 1 command';
+export const CASE_TALLY = 'Read 1 file › Execute 1 command › Read 1 file';
 const PENDING_TALLY = 'Read 1 file';
 const PENDING_HEADER = `Execute ${APPROVAL_COMMAND}`;
 const APPROVE_OPTION = 'Yes, allow';

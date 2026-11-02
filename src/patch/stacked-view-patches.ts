@@ -90,18 +90,22 @@ export const SUBTITLE =
   'let $ODcmd=$ODc.toolInput?.command;' +
   'return typeof $ODcmd==="string"?$ODcmd.split("\\n").map(($ODp)=>$ODp.trim()).filter(Boolean).join(" ")||null:null}';
 
+export const SEGMENTS =
+  'function $ODsegments($ODtools){' +
+  'let $ODout=[];' +
+  'for(let $ODc of $ODtools){let $ODlast=$ODout.at(-1);if($ODlast?.[0]===$ODc.toolName)$ODlast[1].push($ODc);else $ODout.push([$ODc.toolName,[$ODc]])}' +
+  'return $ODout}';
+
 export const STACK_VIEW =
   'function $ODStack({group:$ODg}){' +
-  'let $ODsegs=new Map;' +
-  'for(let $ODc of $ODg.tools){let $ODs=$ODsegs.get($ODc.toolName)??[];$ODs.push($ODc),$ODsegs.set($ODc.toolName,$ODs)}' +
-  'let $ODlist=[...$ODsegs],$ODsub=$ODg.$ODopen?$ODsubtitle($ODg.tools.at(-1)):null;' +
+  'let $ODlist=$ODsegments($ODg.tools),$ODsub=$ODg.$ODopen?$ODsubtitle($ODg.tools.at(-1)):null;' +
   'return l(c,{flexDirection:"column",marginLeft:3,children:[' +
   't(c,{flexDirection:"row",flexWrap:"wrap",children:$ODlist.map(([$ODname,$ODcalls],$ODi)=>{' +
   'let $ODfailed=$ODcalls.filter(($ODc)=>$ODc.isError===!0).length,$ODstate=cbe($ODcalls),$ODcount=$ODcalls.length,' +
-  '$ODsep=$ODi<$ODlist.length-1?t(o,{color:a.text.muted,children:" \\xB7 "}):null;' +
+  '$ODsep=$ODi<$ODlist.length-1?t(o,{color:a.text.muted,children:" \\u203A "}):null;' +
   'return l(c,{children:[t(S2,{text:Uu($ODname),isPending:$ODstate==="active",color:$ODstate==="not-executed"?a.text.muted:Xxe}),' +
   't(o,{color:VW,children:" "+$ODcount+" "+LA($ODcallNouns.get($ODname)??"call",$ODcount)}),' +
-  '$ODfailed>0?t(o,{color:a.error,children:", "+$ODfailed+" failed"}):null,$ODsep]},$ODname)})}),' +
+  '$ODfailed>0?t(o,{color:a.error,children:", "+$ODfailed+" failed"}):null,$ODsep]},$ODi)})}),' +
   '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
 
 const UNITS_FIND =
@@ -174,7 +178,7 @@ export const stackedViewPatches: readonly Patch[] = [
     ],
     replace:
       `var Xxe=a.toolName,VW=a.toolParam;${TABLES}` +
-      `${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${SUMMARIZE}${THINKING_ROW}${STACK}${SUBTITLE}${STACK_VIEW}`,
+      `${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${SUMMARIZE}${THINKING_ROW}${STACK}${SUBTITLE}${SEGMENTS}${STACK_VIEW}`,
   },
   {
     name: 'stacked-view-draw',

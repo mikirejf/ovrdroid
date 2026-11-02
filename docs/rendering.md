@@ -331,9 +331,10 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
 
 `general.toolResultDisplay` takes a third value, `stacked` (`src/patch/stacked-view-patches.ts`,
 Droid 1.1.0). In the main chat, each run of consecutive non-inline tool calls draws as one line,
-`Read 2 files · Grep 1 search · Execute 2 commands, 1 failed`. While the run is open, a dim
-` ↳ <subtitle>` line shows the latest call. Expanded and compact draw as before, and the transcript
-panel is untouched.
+`Read 2 files › Grep 1 search › Read 1 file › Execute 2 commands, 1 failed`. Segments follow the
+order the calls ran in; only neighbouring calls of the same tool share a count (`$ODsegments`).
+While the run is open, a dim ` ↳ <subtitle>` line shows the latest call. Expanded and compact draw
+as before, and the transcript panel is untouched.
 
 - **Folding.** `$ODstack` runs over the units that `t0` returns in MessageList. Calls join the open
   run. Items for which `iD` draws nothing pass through and leave the run open: hidden thinking,
@@ -380,24 +381,24 @@ panel is untouched.
   the block stays one unit. Without that, a long thinking block grew a second
   `Thinking: <first words of the next paragraph>` row while it streamed (reproduced with the stub,
   not guessed).
-- **Measured on screen** (stub turn of Read, Read, Grep, Execute ok, Execute exit 1, Edit, Read,
-  text). The run grows in place: `Read 1 file`, `Read 2 files`, `· Grep 1 search`,
-  `· Execute 1 command`, `Execute 2 commands, 1 failed`. It then commits without its ↳ line, the
-  Edit draws with its diff preview, and the trailing `Read 1 file` commits when the turn ends.
-  Scrollback holds no duplicate partial lines. `probe stacked` also opens the turn with a thinking
-  block (`**Planning the run**\n\nI will read the files first.`, sent as three deltas, the stream
-  held after the second). It checks that one `Thinking: Planning the run` row shows mid-stream with
-  no body fragment, that the row is single and above the tally line at the end, that the body never
-  draws, and that Ctrl+O shows the full text. With the cut skip removed the probe fails: the held
-  frame holds a second row, `Thinking: I will read`.
+- **Measured on screen** (stub turn of Read, Grep, Read, Execute ok, Execute exit 1, Edit, Read,
+  text). The run grows in place to
+  `Read 1 file › Grep 1 search › Read 1 file › Execute 2 commands, 1 failed`. It then commits
+  without its ↳ line, the Edit draws with its diff preview, and the trailing `Read 1 file` commits
+  when the turn ends. Scrollback holds no duplicate partial lines. `probe stacked` also opens the
+  turn with a thinking block (`**Planning the run**\n\nI will read the files first.`, sent as three
+  deltas, the stream held after the second). It checks that one `Thinking: Planning the run` row
+  shows mid-stream with no body fragment, that the row is single and above the tally line at the
+  end, that the body never draws, and that Ctrl+O shows the full text. With the cut skip removed the
+  probe fails: the held frame holds a second row, `Thinking: I will read`.
 - **Measured: approval and switching** (`probe stacked`, two more stub sessions of Read, Execute,
   Read). With the command on the deny list, the frame while it waits shows `Read 1 file` with its ↳
   line, the `Execute echo stacked-approval` block and the prompt; after Enter scrollback holds one
-  `Read 2 files · Execute 1 command` and no copy of the command. The previous build left
-  `Read 1 file`, the Execute block, `Read 1 file`. Switching through `/settings` to expanded shows
-  the three stock blocks, and back to stacked one line again; the previous build stayed expanded
-  after switching back. The probe sets `FACTORY_DISABLE_SETTINGS_PERSISTENCE`, because the settings
-  toggle otherwise writes `~/.factory/settings.json`.
+  `Read 1 file › Execute 1 command › Read 1 file` and no copy of the command. The previous build
+  left `Read 1 file`, the Execute block, `Read 1 file`. Switching through `/settings` to expanded
+  shows the three stock blocks, and back to stacked one line again; the previous build stayed
+  expanded after switching back. The probe sets `FACTORY_DISABLE_SETTINGS_PERSISTENCE`, because the
+  settings toggle otherwise writes `~/.factory/settings.json`.
 
 ## Open items
 

@@ -1,6 +1,6 @@
 import { THINKING_ROWS } from '../patch/stacked-view-patches.ts';
 
-export const TALLY = 'Read 2 files · Grep 1 search · Execute 2 commands, 1 failed';
+export const TALLY = 'Read 1 file › Grep 1 search › Read 1 file › Execute 2 commands, 1 failed';
 export const TAIL_TALLY = 'Read 1 file';
 export const TURN_REQUESTS = 8;
 export const OLD_LINE = 'first-old-line';
@@ -45,7 +45,7 @@ interface Chain {
 const TOOLS = '[A-Z][A-Za-z]+';
 const NOUNS = 'other calls?|files?|searches|search|patterns?|directories|directory|URLs?|commands?';
 const SEGMENT = `${TOOLS} \\d+ (?:${NOUNS})(?:, \\d+ failed)?`;
-const CHAIN = new RegExp(`${SEGMENT}(?: · ${SEGMENT})*`, 'gu');
+const CHAIN = new RegExp(`${SEGMENT}(?: › ${SEGMENT})*`, 'gu');
 const STATS_LINE = /↳[^+]*\+\d+\D*-\d+/u;
 const EDIT_STATS = /↳[^+]*\+1\b\D*-1\b/u;
 const SUBTITLE_MARK = '↳';
@@ -80,7 +80,10 @@ function count(total: number, thing: string): string {
 function readTally(chains: readonly Chain[], editAt: number): Finding {
   const before = chains.filter((chain) => chain.start < editAt && chain.text === TALLY);
   if (before.length === 1) {
-    return { pass: true, says: 'the reads, the grep and both commands share one line' };
+    return {
+      pass: true,
+      says: 'the reads, the grep and both commands share one line, in the order they ran',
+    };
   }
   const found = chains.filter((chain) => chain.start < editAt).map((chain) => chain.text);
   return {

@@ -64,7 +64,7 @@ describe('readStacked', () => {
     const findings = readStacked(capture(turn()));
     expect(findings.filter((finding) => !finding.pass)).toEqual([]);
     expect(findings.map((finding) => finding.says)).toContain(
-      'the reads, the grep and both commands share one line',
+      'the reads, the grep and both commands share one line, in the order they ran',
     );
   });
 
@@ -78,7 +78,9 @@ describe('readStacked', () => {
   test('still passes when the tally wraps between segments', () => {
     expect(
       failures(
-        turn({ head: ['  Read 2 files · Grep 1 search ·', '  Execute 2 commands, 1 failed'] }),
+        turn({
+          head: ['  Read 1 file › Grep 1 search › Read 1 file ›', '  Execute 2 commands, 1 failed'],
+        }),
       ),
     ).toEqual([]);
   });
@@ -89,8 +91,8 @@ describe('readStacked', () => {
   });
 
   test('names a partial copy that sits directly above the full line with its own segments', () => {
-    const [says] = failures(turn({ head: ['  Read 2 files · Grep 1 search', `  ${TALLY}`] }));
-    expect(says).toContain("'Read 2 files · Grep 1 search'");
+    const [says] = failures(turn({ head: ['  Read 1 file › Grep 1 search', `  ${TALLY}`] }));
+    expect(says).toContain("'Read 1 file › Grep 1 search'");
   });
 
   test('names a leftover subtitle line after the turn ended', () => {
@@ -222,6 +224,15 @@ describe('readTranscript', () => {
   });
 });
 
+describe('call order', () => {
+  test('fails on a tally that merges the two reads, as the per-tool tally drew it', () => {
+    const [says] = failures(
+      turn({ head: ['  Read 2 files · Grep 1 search · Execute 2 commands, 1 failed'] }),
+    );
+    expect(says).toContain(`no single line before the Edit reads '${TALLY}'`);
+  });
+});
+
 describe('readMidRun', () => {
   test('passes a frame with the counts so far and the latest call under them', () => {
     expect(readMidRun(MID_RUN).every((finding) => finding.pass)).toBe(true);
@@ -233,8 +244,9 @@ describe('readMidRun', () => {
   });
 
   test('fails when the tally shows fewer counts than the calls made', () => {
-    const [says] = readMidRun(['  Read 2 files · Grep 1 search · Execute 1 command', '   ↳ true']);
-    expect(says?.says).toContain("'Read 2 files · Grep 1 search · Execute 1 command'");
+    const partial = 'Read 1 file › Grep 1 search › Read 1 file › Execute 1 command';
+    const [says] = readMidRun([`  ${partial}`, '   ↳ true']);
+    expect(says?.says).toContain(`'${partial}'`);
   });
 
   test('fails on a stale partial copy in the frame', () => {

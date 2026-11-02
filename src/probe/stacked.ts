@@ -39,8 +39,8 @@ function plan(dir: string, token: string): ToolCall[] {
   const file = (name: string) => path.join(dir, name);
   const calls: Pick<ToolCall, 'name' | 'input'>[] = [
     { name: 'Read', input: { file_path: file('a.txt') } },
-    { name: 'Read', input: { file_path: file('b.txt') } },
     { name: 'Grep', input: { pattern: 'needle', path: dir, output_mode: 'content' } },
+    { name: 'Read', input: { file_path: file('b.txt') } },
     { name: 'Execute', input: { command: 'true', riskLevel: 'low' } },
     { name: 'Execute', input: { command: 'false', riskLevel: 'low' } },
     {
@@ -289,7 +289,7 @@ function printFrame(title: string, frame: readonly string[] | undefined): void {
 
 export async function stacked(binary: string, options: StackedOptions): Promise<void> {
   say(
-    'a stub model opens with a thinking block, then reads two files, greps, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line with the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
+    'a stub model opens with a thinking block, then reads a file, greps, reads another, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line in call order with the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
   );
   const capture = await captureStacked(binary, options.display);
   const cases = await runStackedCases(binary);
@@ -313,7 +313,7 @@ export function registerStackedCommand(program: Command): void {
   program
     .command('stacked')
     .description(
-      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then reads, a grep, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line with the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
+      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then a read, a grep, a read, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line in call order with the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
     )
     .argument('<binary>')
     .option(
