@@ -1,4 +1,5 @@
-import { fieldsOf, worded } from './fields.ts';
+import type { Fields } from './fields.ts';
+import { fieldsOf, fieldsOfJson, worded } from './fields.ts';
 
 export type Expectation = 'pass' | 'block';
 
@@ -13,6 +14,24 @@ const DOLLAR = '$';
 const AT = '@';
 const ANTHROPIC_PREFIX = ['sk', 'ant', 'api03', ''].join('-');
 const DIGITALOCEAN_PREFIX = ['dop', 'v1', ''].join('_');
+
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const KEY_ROWS = 5;
+const KEY_ROW_LENGTH = 64;
+
+export function fakePrivateKey(kind = 'PRIVATE KEY'): string {
+  const dashes = '-----';
+  const body = Array.from({ length: KEY_ROWS }, (_unused, row) =>
+    Array.from(
+      { length: KEY_ROW_LENGTH },
+      (_ignored, at) => BASE64[(row * 13 + at * 7) % BASE64.length],
+    ).join(''),
+  );
+  return [`${dashes}BEGIN ${kind}${dashes}`, ...body, `${dashes}END ${kind}${dashes}`].join('\n');
+}
+
+const FAKE_KEY = fakePrivateKey();
+const AWS_ACCESS_KEY = ['AKIA', 'QYLPMRTSVWXZ2345'].join('');
 
 function passes(path: string, line: string): ShieldCase {
   return { path, line, expect: 'pass' };
@@ -83,6 +102,15 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
     'src/config.ts',
     `export const k = '${ANTHROPIC_PREFIX}1FBzA51kBVI3zc1Y5qqC9VDaM1PbKwblZ2DsvOKP'`,
   ),
+  passes('apps/server/test/support/fake-tls-cert.ts', FAKE_KEY),
+  passes('src/__fixtures__/k.ts', FAKE_KEY),
+  passes('foo/bar.test.ts', FAKE_KEY),
+  passes('x/tests/k.pem', FAKE_KEY),
+  blocks('src/server/tls.ts', FAKE_KEY),
+  blocks('config/key.pem', FAKE_KEY),
+  blocks('deploy/.env', FAKE_KEY),
+  blocks('docs/tls.md', FAKE_KEY),
+  blocks('test/support/aws.ts', `export const k = '${AWS_ACCESS_KEY}'`),
   blocks(
     'src/do.ts',
     `export const t = '${DIGITALOCEAN_PREFIX}66865f80adb6dcd633d4a12b9656b7d891dbfe16114305fed1067654ce57f098'`,
@@ -152,6 +180,21 @@ function pathsOf(entries: readonly string[]): string[] {
   });
 }
 
+const SCRIPT_FAILURE = /^\{.*\}$/mu;
+
+function failureText(message: string): string {
+  const json = SCRIPT_FAILURE.exec(message)?.[0];
+  const inner = json === undefined ? '' : worded(fieldsOfJson(json), 'error');
+  return inner === '' ? message : inner;
+}
+
+function runsCommit(parameters: Fields): boolean {
+  return (
+    worded(parameters, 'command').includes(SHIELD_COMMIT) ||
+    worded(parameters, 'script').includes(SHIELD_COMMIT)
+  );
+}
+
 export function commitResult(stdout: string): ToolResult | undefined {
   const commits = new Set<string>();
   for (const line of stdout.split('\n')) {
@@ -160,16 +203,13 @@ export function commitResult(stdout: string): ToolResult | undefined {
     }
     const event = fieldsOf(JSON.parse(line));
     const type = worded(event, 'type');
-    if (
-      type === 'tool_call' &&
-      worded(fieldsOf(event.get('parameters')), 'command').includes(SHIELD_COMMIT)
-    ) {
+    if (type === 'tool_call' && runsCommit(fieldsOf(event.get('parameters')))) {
       commits.add(worded(event, 'id'));
     }
     if (type === 'tool_result' && commits.has(worded(event, 'id'))) {
       const failure = worded(fieldsOf(event.get('error')), 'message');
       return event.get('isError') === true
-        ? { isError: true, text: failure }
+        ? { isError: true, text: failureText(failure) }
         : { isError: false, text: worded(event, 'value') };
     }
   }

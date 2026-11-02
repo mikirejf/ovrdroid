@@ -78,7 +78,11 @@ export const EXTRA_PREFIX_RULES: readonly PrefixRule[] = [
   },
 ];
 
-const CODE_PATH = String.raw`/\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|go|rs|rb|java|kt|swift|c|cc|cpp|h|hpp|cs|php|scala|lua|vue|svelte|dart|ex|exs|css|scss|md|mdx|txt|rst|html|htm)\x22?$|(?:^\x22?|\/)(?:__tests__|__fixtures__|fixtures|tests?|docs)(?:\/|\x22?$)|\.(?:test|spec|test-support)\.[^\/]*$|(?:^\x22?|\/)\.env\.(?:example|sample|template)\x22?$/i`;
+const TEST_PATH = String.raw`(?:^\x22?|\/)(?:__tests__|__fixtures__|fixtures|tests?)(?:\/|\x22?$)|\.(?:test|spec|test-support)\.[^\/]*$`;
+
+const CODE_PATH = String.raw`/\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|go|rs|rb|java|kt|swift|c|cc|cpp|h|hpp|cs|php|scala|lua|vue|svelte|dart|ex|exs|css|scss|md|mdx|txt|rst|html|htm)\x22?$|(?:^\x22?|\/)docs(?:\/|\x22?$)|${TEST_PATH}|(?:^\x22?|\/)\.env\.(?:example|sample|template)\x22?$/i`;
+
+const TEST_ONLY_PATH = `/${TEST_PATH}/i`;
 
 const NAME_PART = String.raw`(?:[a-z]{5,12}|[a-z\d]{1,4})`;
 
@@ -99,10 +103,10 @@ export const shieldPatches: readonly Patch[] = [
       't.push({ruleId:o,start:A,end:Z,guessing:f,blocking:!f||v!==void 0&&!v.recovered&&Zi(v.value)})',
   },
   {
-    name: 'shield-code-paths-skip-guessing-rules',
+    name: 'shield-paths-skip-rules',
     find: 'cL(P.content).find(({blocking:N})=>N)',
     lookups: ['if(od(m,f)||ad(m)){v=[];return}'],
-    replace: `cL(P.content).find(({blocking:N,guessing:$ODguess})=>N&&!($ODguess&&${CODE_PATH}.test(m)))`,
+    replace: `cL(P.content).find(({blocking:N,guessing:$ODguess,ruleId:$ODrule})=>N&&!($ODguess&&${CODE_PATH}.test(m))&&!(/^private-key/.test($ODrule)&&${TEST_ONLY_PATH}.test(m)))`,
   },
   {
     name: 'shield-dotted-names-read-as-words',

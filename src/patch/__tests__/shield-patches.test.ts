@@ -7,7 +7,7 @@ import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 import type { Finding, LineMatcher } from './stock-scanner.ts';
 import { lineMatcherIn, scannerText, stockDroid } from './stock-scanner.ts';
 
-const PATH_PATCH = patchNamed(shieldPatches, 'shield-code-paths-skip-guessing-rules');
+const PATH_PATCH = patchNamed(shieldPatches, 'shield-paths-skip-rules');
 
 describeStrayNames(shieldPatches);
 

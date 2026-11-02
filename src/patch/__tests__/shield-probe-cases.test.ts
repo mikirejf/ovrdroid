@@ -12,7 +12,7 @@ type Search = (cL: LineMatcher, P: { content: string }, m: string) => Finding | 
 
 const search = payloadFunction<Parameters<Search>, ReturnType<Search>>(
   ['cL', 'P', 'm'],
-  `return ${patchNamed(shieldPatches, 'shield-code-paths-skip-guessing-rules').replace}`,
+  `return ${patchNamed(shieldPatches, 'shield-paths-skip-rules').replace}`,
 );
 
 function blocks(match: LineMatcher, path: string, line: string): boolean {

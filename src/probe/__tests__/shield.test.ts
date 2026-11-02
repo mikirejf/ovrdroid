@@ -71,6 +71,58 @@ describe('commitResult finds what the commit printed', () => {
   });
 });
 
+function scriptCall(id: string, command: string = SHIELD_COMMIT) {
+  const script = `const r = await tools.Execute({command:${JSON.stringify(command)}});\ntext(JSON.stringify(r));`;
+  return { type: 'tool_call', id, toolName: 'Script', parameters: { script } };
+}
+
+function scriptFailed(id: string, text: string) {
+  const inner = JSON.stringify({
+    toolCallId: id,
+    status: 'failed',
+    error: `Error: tools.Execute: Error executing command: ${text}`,
+  });
+  return failedResult(id, `[Script failed · 0.2 s elapsed · after call 1 (Execute)]\n${inner}`);
+}
+
+describe('a commit run from inside a Script', () => {
+  const blocked = blockedText({ count: 1, files: ['.env'], patterns: ['.env:1: KEY=****'] });
+
+  test('a block is read out of the Script failure', () => {
+    const reading = readShield(
+      stream(scriptCall('s'), scriptFailed('s', blocked), { type: 'completion' }),
+    );
+    expect(reading.outcome).toBe('blocked');
+    expect(reading.flagged).toEqual(['.env']);
+    expect(reading.patterns).toEqual(['.env:1: KEY=****']);
+  });
+
+  test('a Script that committed is a commit', () => {
+    const reading = readShield(
+      stream(scriptCall('s'), {
+        type: 'tool_result',
+        id: 's',
+        isError: false,
+        value: '{"output":"[main abc] probe\\n\\n[Process exited with code 0]","exitCode":0}',
+      }),
+    );
+    expect(reading.outcome).toBe('committed');
+  });
+
+  test('a Script that ran another command is not the commit', () => {
+    expect(
+      readShield(stream(scriptCall('s', 'git status'), scriptFailed('s', blocked))).outcome,
+    ).toBe('not-run');
+  });
+
+  test('a failure that is not JSON is read as written', () => {
+    expect(commitResult(stream(scriptCall('s'), failedResult('s', 'boom')))).toEqual({
+      isError: true,
+      text: 'boom',
+    });
+  });
+});
+
 describe('readShield', () => {
   test('a block lists the files and the patterns it printed', () => {
     const reading = readShield(
