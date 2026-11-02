@@ -327,6 +327,31 @@ removed.
 
 React concurrency is still a loss. See [react-concurrency.md](react-concurrency.md).
 
+## Stacked tool calls
+
+`general.toolResultDisplay` takes a third value, `stacked` (`src/patch/stacked-view-patches.ts`,
+Droid 1.1.0). In the main chat, each run of consecutive non-inline tool calls draws as one line,
+`Read 2 files · Grep 1 search · Execute 2 commands, 1 failed`. While the run is open, a dim
+` ↳ <subtitle>` line shows the latest call. Expanded and compact draw as before, and the transcript
+panel is untouched.
+
+- **Folding.** `$ODstack` runs over the units that `t0` returns in MessageList. Calls join the open
+  run. Items for which `iD` draws nothing pass through and leave the run open: hidden thinking,
+  quiet hooks, and TodoWrite, which the main view never draws. An inline tool closes the run, as do
+  a call awaiting permission, a pinned unit, and anything else that draws.
+- **Staying live.** The root's `rb=xs!=="idle"` (droid working state) reaches MessageList as
+  `$ODturn`. The last run is open only while it is true. `Xz` treats an open run as live, so `eK`
+  keeps it, and everything after it, in the dynamic region. Ink's `<Static>` never sees a run that
+  can still grow. Stock commits a group as soon as its member calls settle, so a stacked run that
+  stock rules committed early would print a second partial line.
+- **Script.** Nested calls are ordinary items and join the run. The outer Script draws nothing, as
+  in stock.
+- **Measured on screen** (stub turn of Read, Read, Grep, Execute ok, Execute exit 1, Edit, Read,
+  text). The run grows in place: `Read 1 file`, `Read 2 files`, `· Grep 1 search`,
+  `· Execute 1 command`, `Execute 2 commands, 1 failed`. It then commits without its ↳ line, the
+  Edit draws with its diff preview, and the trailing `Read 1 file` commits when the turn ends.
+  Scrollback holds no duplicate partial lines.
+
 ## Open items
 
 - Tail-only reprint on resize and resume. A resize still re-renders every message: React, yoga and

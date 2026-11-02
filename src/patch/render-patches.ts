@@ -2,13 +2,13 @@ import { codeCopyPatches } from './code-copy-patches.ts';
 import { copySelectPatches } from './copy-select-patches.ts';
 import { highlightPatches } from './highlight-patches.ts';
 import { inkFramePatches } from './ink-frame-patches.ts';
-import type { Patch } from './patches.ts';
 import { renderProfilePatches } from './render-profile-patches.ts';
 import { rerenderPatches } from './rerender-patches.ts';
 import { rootRenderPatches } from './root-render-patches.ts';
 import { rosterRenderPatches } from './roster-render-patches.ts';
 import { shimmerPatches } from './shimmer-patches.ts';
 import { snapshotRenderPatches } from './snapshot-render-patches.ts';
+import { stackedViewPatches } from './stacked-view-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
 import { todoRenderPatches } from './todo-render-patches.ts';
 
@@ -17,7 +17,7 @@ export const MAIN_MARKDOWN_SCOPE = 'main';
 const COMMITTED_LIST =
   't(t4,{units:$e.committedUnits,contentWidth:y,headerWidth:E,staticKey:ot,compact:be,showThinking:F,permissionToolIds:K,pendingPermissionToolIds:G})';
 
-export const renderPatches: readonly Patch[] = [
+export const renderPatches = [
   ...inkFramePatches,
   ...streamRenderPatches,
   ...highlightPatches,
@@ -30,6 +30,7 @@ export const renderPatches: readonly Patch[] = [
   ...snapshotRenderPatches,
   ...rosterRenderPatches,
   ...renderProfilePatches,
+  ...stackedViewPatches,
   {
     name: 'resume-expand-once',
     find: 'expandUiMessages(){if(this.renderLimit===null)return!1;let t=un(this.store.getMessages()).length,o=this.renderLimit*2;if(o>=t)this.renderLimit=null;else this.renderLimit=o;return this.store.notifyMessagesChanged(),this.renderLimit!==null}',
