@@ -2,6 +2,9 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   describeFindings,
+  LONG_END,
+  LONG_FILLER,
+  LONG_START,
   NEW_LINE,
   OLD_LINE,
   readMidRun,
@@ -19,12 +22,23 @@ import {
 
 const EDIT = ['  Edit /tmp/work/a.txt', '   ↳ +1 -1', `    1 - ${OLD_LINE}`, `    1 + ${NEW_LINE}`];
 
-function turn(overrides: { head?: string[]; tail?: string[]; thinking?: string[] } = {}): string[] {
+const FILLERS = Array.from({ length: 18 }, () => LONG_FILLER).join(' ');
+const LONG_ROWS = [`   Thinking: ${LONG_START} ${FILLERS}`, `   ${FILLERS}`, `   ${FILLERS}`];
+
+interface Overrides {
+  head?: string[];
+  tail?: string[];
+  thinking?: string[];
+  long?: string[];
+}
+
+function turn(overrides: Overrides = {}): string[] {
   return [
     '> Go through the files.',
     ...(overrides.thinking ?? [`   ${THINKING_ROW}`]),
     ...(overrides.head ?? [`  ${TALLY}`]),
     ...EDIT,
+    ...(overrides.long ?? LONG_ROWS),
     ...(overrides.tail ?? [`  ${TAIL_TALLY}`]),
     '  ⛬ done',
   ];
@@ -139,7 +153,7 @@ describe('the thinking row', () => {
 
   test('fails when the row shows twice, as a leftover continuation would', () => {
     const [says] = failures(turn({ thinking: [THINKING_ROW, THINKING_ROW] }));
-    expect(says).toContain('2 such rows and 2');
+    expect(says).toContain("2 such rows and 3 'Thinking:' labels");
   });
 
   test('fails when the body is drawn', () => {
@@ -153,6 +167,22 @@ describe('the thinking row', () => {
     expect(failures(screen)).toEqual([
       'the thinking row should sit above the tally line of the tool run that follows it',
     ]);
+  });
+});
+
+describe('the long thinking block', () => {
+  test('passes when the sentence fills three rows and its end is hidden', () => {
+    expect(failures(turn())).toEqual([]);
+  });
+
+  test('fails on one truncated row, as the single-row display drew it', () => {
+    const [says] = failures(turn({ long: [`   Thinking: ${LONG_START} ${LONG_FILLER} …`] }));
+    expect(says).toContain('1 row of the sentence');
+  });
+
+  test('fails when the whole sentence shows, end included', () => {
+    const [says] = failures(turn({ long: [...LONG_ROWS, `   ${FILLERS}`, `   ${LONG_END}.`] }));
+    expect(says).toContain(`4 rows of the sentence, and shows its last word '${LONG_END}'`);
   });
 });
 

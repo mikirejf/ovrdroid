@@ -62,12 +62,14 @@ export const RUN_UNIT =
 
 export const SUMMARIZE = String.raw`function $ODsummarize($ODtext){let $ODheads=[...$ODtext.matchAll(/^[^\S\n]*\*\*([^*\n]+)\*\*[^\S\n]*$/gm)],$ODline=$ODheads.length>0?$ODheads.at(-1)[1]:$ODtext.replaceAll("**","").trim().split(/(?<=[.?!])\s|\n/)[0];return $ODline.replace(/\s+/g," ").trim()}`;
 
+export const THINKING_ROWS = 3;
+
 export const THINKING_ROW =
   'function $ODThinkingRow({block:$ODb,contentWidth:$ODw}){' +
   'let $ODtext=$ODb.type==="redacted_thinking"?u().t("common:thinking.contentEncrypted"):$ODsummarize($ODb.thinking||"");' +
   'if(!$ODtext)return null;' +
-  'return t(c,{marginLeft:3,width:Math.max(1,$ODw-3),children:' +
-  't(o,{color:a.text.muted,italic:!0,wrap:"truncate-end",children:u().t("common:thinking.thinkingLabel")+" "+$ODtext})})}';
+  `return t(c,{marginLeft:3,width:Math.max(1,$ODw-3),maxHeight:${THINKING_ROWS},overflow:"hidden",children:` +
+  't(o,{color:a.text.muted,italic:!0,wrap:"wrap",children:u().t("common:thinking.thinkingLabel")+" "+$ODtext})})}';
 
 export const STACK =
   'function $ODstack($ODunits,$ODopts){' +

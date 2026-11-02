@@ -10,6 +10,7 @@ import {
   SUMMARIZE,
   TABLES,
   THINKING_ROW,
+  THINKING_ROWS,
 } from '../stacked-view-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
@@ -34,7 +35,13 @@ interface Block {
 
 interface Element {
   type: string;
-  props: { children?: Element | string; width?: number; marginLeft?: number };
+  props: {
+    children?: Element | string;
+    width?: number;
+    marginLeft?: number;
+    maxHeight?: number;
+    overflow?: string;
+  };
 }
 
 const OPTIONS = { open: false, showThinking: true, awaiting: () => false };
@@ -149,18 +156,23 @@ function textOf(element: Element | null): Element | undefined {
 }
 
 describe('the thinking row', () => {
-  test('is one muted italic Text that truncates, with the label and the summary', () => {
+  test('is one muted italic Text that wraps within a clipped box, with the label and the summary', () => {
     const element = row({
       block: { thinking: '**Planning the run**\n\nI will read the files first.' },
       contentWidth: 80,
     });
-    expect(element?.props).toMatchObject({ marginLeft: 3, width: 77 });
+    expect(element?.props).toMatchObject({
+      marginLeft: 3,
+      width: 77,
+      maxHeight: THINKING_ROWS,
+      overflow: 'hidden',
+    });
     expect(textOf(element)).toMatchObject({
       type: 'Text',
       props: {
         color: 'muted',
         italic: true,
-        wrap: 'truncate-end',
+        wrap: 'wrap',
         children: 'Thinking: Planning the run',
       },
     });

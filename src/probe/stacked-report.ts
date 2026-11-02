@@ -1,3 +1,5 @@
+import { THINKING_ROWS } from '../patch/stacked-view-patches.ts';
+
 export const TALLY = 'Read 2 files · Grep 1 search · Execute 2 commands, 1 failed';
 export const TAIL_TALLY = 'Read 1 file';
 export const TURN_REQUESTS = 8;
@@ -15,6 +17,11 @@ export const THINKING_DELTAS = [
 export const THINKING_TEXT = THINKING_DELTAS.join('');
 const BODY_FRAGMENT = THINKING_BODY.slice(0, BODY_SPLIT);
 export const THINKING_ROW = `Thinking: ${THINKING_TITLE}`;
+export const LONG_START = 'Weighing the last read';
+export const LONG_FILLER = 'lorem';
+export const LONG_END = 'unseen';
+export const LONG_THINKING = `${LONG_START} ${Array.from({ length: 80 }, () => LONG_FILLER).join(' ')} ${LONG_END}. Second sentence.`;
+const LONG_ROW = `Thinking: ${LONG_START}`;
 
 export interface StackedCapture {
   served: number;
@@ -189,11 +196,11 @@ function readThinking(lines: readonly string[], text: string): Finding[] {
   const rowAt = text.indexOf(THINKING_ROW);
   const tallyAt = text.indexOf(TALLY);
   return [
-    rows === 1 && labels === 1
+    rows === 1 && labels === 2
       ? { pass: true, says: `the thinking block draws as one row, '${THINKING_ROW}'` }
       : {
           pass: false,
-          says: `the thinking block should draw as one '${THINKING_ROW}' row, but scrollback has ${count(rows, 'such row')} and ${count(labels, "'Thinking:' label")}`,
+          says: `the thinking block should draw as one '${THINKING_ROW}' row, next to the long block's label, but scrollback has ${count(rows, 'such row')} and ${count(labels, "'Thinking:' label")}, not 2`,
         },
     body === 0
       ? { pass: true, says: 'the thinking body is not drawn' }
@@ -210,6 +217,22 @@ function readThinking(lines: readonly string[], text: string): Finding[] {
   ];
 }
 
+export function readLongThinking(lines: readonly string[]): Finding {
+  const labelled = lines.some((line) => line.includes(LONG_ROW));
+  const rows = lines.filter((line) => line.includes(LONG_FILLER)).length;
+  const ended = lines.some((line) => line.includes(LONG_END));
+  if (labelled && rows === THINKING_ROWS && !ended) {
+    return {
+      pass: true,
+      says: `a first sentence too long for ${THINKING_ROWS} rows wraps onto ${THINKING_ROWS} rows and is cut off there`,
+    };
+  }
+  return {
+    pass: false,
+    says: `a first sentence too long for ${THINKING_ROWS} rows should fill exactly ${THINKING_ROWS} rows under '${LONG_ROW}' and hide its end, but scrollback has ${labelled ? 'that row' : 'no such row'}, ${count(rows, 'row')} of the sentence, and ${ended ? 'shows' : 'hides'} its last word '${LONG_END}'`,
+  };
+}
+
 function readCapture(capture: StackedCapture): Finding[] {
   const lines = capture.screen;
   const text = flatten(lines);
@@ -224,6 +247,7 @@ function readCapture(capture: StackedCapture): Finding[] {
     readExecuteBlocks(lines),
     readPartials(chains, editAt),
     ...readThinking(lines, text),
+    readLongThinking(lines),
   ];
 }
 

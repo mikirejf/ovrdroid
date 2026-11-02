@@ -364,8 +364,9 @@ panel is untouched.
   stock rules committed early would print a second partial line.
 - **Script.** Nested calls are ordinary items and join the run. The outer Script draws nothing, as
   in stock.
-- **Thinking.** With Show thinking on, each thinking block draws as one row, `Thinking: <summary>`,
-  in the same muted italic as stock, cut at the row width (`wrap:"truncate-end"`). The summary is
+- **Thinking.** With Show thinking on, each thinking block draws as `Thinking: <summary>` in the
+  same muted italic as stock. The summary wraps and is clipped at 3 rows (`THINKING_ROWS`, a
+  `maxHeight` box with `overflow:"hidden"`), so a long first sentence shows whole. The summary is
   the text of the last `**Title**` line when the thinking has one (GPT reasoning summaries start
   each part with one), else the first sentence, whitespace collapsed. A redacted block reads
   `Thinking: [Content encrypted]`; a block with no text draws nothing. `$ODstack` marks each

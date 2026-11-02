@@ -18,6 +18,7 @@ import {
   NEW_LINE,
   OLD_LINE,
   readStacked,
+  LONG_THINKING,
   THINKING_DELTAS,
   TURN_REQUESTS,
 } from './stacked-report.ts';
@@ -74,8 +75,8 @@ interface Reply {
   tail: string[];
 }
 
-function thinkingReply(toolEvents: readonly string[]): Reply {
-  const deltas = THINKING_DELTAS.map((thinking) =>
+function thinkingReply(toolEvents: readonly string[], texts: readonly string[]): Reply {
+  const deltas = texts.map((thinking) =>
     sse({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking } }),
   );
   const [start = '', ...rest] = toolEvents;
@@ -108,7 +109,13 @@ function replyEvents(calls: readonly ToolCall[], step: number): Reply {
     return { head: streamEvents(['done']), tail: [] };
   }
   const events = toolBatchEvents([call]);
-  return step === 0 ? thinkingReply(events) : { head: events, tail: [] };
+  if (step === 0) {
+    return thinkingReply(events, THINKING_DELTAS);
+  }
+  if (step === calls.length - 1) {
+    return thinkingReply(events, [LONG_THINKING]);
+  }
+  return { head: events, tail: [] };
 }
 
 function streamed(reply: Reply, gate: Promise<unknown>): Response {
@@ -282,7 +289,7 @@ function printFrame(title: string, frame: readonly string[] | undefined): void {
 
 export async function stacked(binary: string, options: StackedOptions): Promise<void> {
   say(
-    'a stub model opens with a thinking block, then reads two files, greps, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, do the non-edit calls share one growing line with the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
+    'a stub model opens with a thinking block, then reads two files, greps, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line with the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
   );
   const capture = await captureStacked(binary, options.display);
   const cases = await runStackedCases(binary);
@@ -306,7 +313,7 @@ export function registerStackedCommand(program: Command): void {
   program
     .command('stacked')
     .description(
-      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then reads, a grep, two commands (one failing), an edit and a read: does the thinking draw as one summary row, do the non-edit calls collapse into one growing line with the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
+      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then reads, a grep, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line with the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
     )
     .argument('<binary>')
     .option(
