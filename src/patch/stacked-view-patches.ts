@@ -38,14 +38,20 @@ export const TABLES =
   `var $ODinlineTools=new Set(${JSON.stringify(INLINE_TOOLS)}),` +
   `$ODcallNouns=new Map(${JSON.stringify(CALL_NOUNS)});`;
 
+export const HOOKS_SHOW =
+  'function $ODhooksShow($ODh){' +
+  'return $ODh!==void 0&&f().getShowHookOutput()&&!uD($ODh)&&[$ODh.before,$ODh.after].some(($ODl)=>$ODl.length>0&&!cw($ODl))}';
+
 export const RUN_CALLS =
-  'function $ODrunCalls($ODu,$ODopts){' +
+  'function $ODrunCalls($ODu){' +
   'if($ODu.pinnedToStatic===!0)return;' +
+  'if($ODhooksShow($ODu.kind==="collapsed-group"?$ODu.group.associatedHooks:$ODu.associatedHooks))return;' +
   'let $ODcalls=$ODu.kind==="collapsed-group"?$ODu.group.tools:$ODu.kind==="item"&&va($ODu.item)?[$ODu.item]:void 0;' +
-  'if($ODcalls?.every(($ODc)=>!$ODinlineTools.has($ODc.toolName)&&!$ODopts.inline($ODc.id)))return $ODcalls}';
+  'if($ODcalls?.every(($ODc)=>!$ODinlineTools.has($ODc.toolName)))return $ODcalls}';
 
 export const DRAWS_NOTHING =
-  'function $ODdrawsNothing($ODu,$ODopts){return $ODu.kind==="item"&&iD($ODu.item,80,void 0,$ODopts.showThinking,{})===null}';
+  'function $ODdrawsNothing($ODu,$ODopts){' +
+  'return $ODu.kind==="item"&&iD($ODu.item,80,void 0,$ODopts.showThinking,$ODhooksShow($ODu.associatedHooks)?{associatedHooks:$ODu.associatedHooks}:{})===null}';
 
 export const RUN_UNIT =
   'function $ODrunUnit($ODrun,$ODopen){' +
@@ -70,7 +76,8 @@ export const STACK =
   'if($ODdrawsNothing($ODu,$ODopts)){$ODout.push($ODu);continue}' +
   'if($ODu.kind==="item"&&!va($ODu.item)&&$ODu.item.messageType==="thinking"&&$ODu.item.thinkingBlock!==void 0){' +
   '$ODrun=void 0,$ODout.push({...$ODu,item:{...$ODu.item,$ODsummary:!0}});continue}' +
-  'let $ODcalls=$ODrunCalls($ODu,$ODopts);' +
+  'let $ODcalls=$ODrunCalls($ODu);' +
+  'if($ODcalls?.some(($ODc)=>$ODopts.awaiting($ODc.id))){$ODout.push($ODu);continue}' +
   'if($ODcalls){if(!$ODrun)$ODrun={$ODrun:!0,calls:[],ids:[]},$ODout.push($ODrun);$ODrun.calls.push(...$ODcalls),$ODrun.ids.push(...$ODu.sourceIds);continue}' +
   '$ODrun=void 0,$ODout.push($ODu)}' +
   'return $ODout.map(($ODu)=>$ODu.$ODrun===!0?$ODrunUnit($ODu,$ODu===$ODrun&&$ODopts.open):$ODu)}';
@@ -99,6 +106,8 @@ const UNITS_FIND =
   'xe=f().getToolResultDisplay()==="compact",ue=b({staticKey:M,cuts:new Map}),' +
   'Ce=k(()=>{let We=ue.current.staticKey===M?ue.current.cuts:new Map,gt=Nz(We,ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt))));return ue.current={staticKey:M,cuts:gt},gt},[ie,M]),';
 
+const UNITS_KEY = 'Ne=b(void 0),ke=b(void 0),Fe=b([]),$e=M,';
+
 const UNITS_OPTIONS =
   '{includeHeader:!0,reskin:!0,staticToolIds:le,view:{kind:"chat",showThinking:A},streamingCuts:Ce}';
 
@@ -113,7 +122,18 @@ const UNITS_HEAD = UNITS_FIND.replace(
   .replace('},[ie,M]),', '},[ie,M,$ODstacked]),');
 
 const UNITS_STACKED =
-  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:A,inline:($ODid)=>L?.has($ODid)===!0||K?.has($ODid)===!0||le?.has($ODid)===!0}):$ODunits}';
+  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:A,awaiting:($ODid)=>K?.has($ODid)===!0}):$ODunits}';
+
+const REPRINT_FIND =
+  'qe=b({baseStaticKey:$e,epoch:0});ur(()=>{Ne.current=Ye;let We=qe.current,tt=We.baseStaticKey===Ye.baseStaticKey&&Ye.epoch>We.epoch;' +
+  'if(qe.current={baseStaticKey:Ye.baseStaticKey,epoch:Ye.epoch},tt)ee?.()},[Ye,ee]);';
+
+export const REPRINT = REPRINT_FIND.replace(
+  'qe=b({baseStaticKey:$e,epoch:0})',
+  'qe=b({baseStaticKey:$e,epoch:0,$ODstacked:$ODstacked})',
+)
+  .replace('&&Ye.epoch>We.epoch;', '&&Ye.epoch>We.epoch||We.$ODstacked!==$ODstacked;')
+  .replace('epoch:Ye.epoch}', 'epoch:Ye.epoch,$ODstacked:$ODstacked}');
 
 export const stackedViewPatches: readonly Patch[] = [
   {
@@ -141,6 +161,8 @@ export const stackedViewPatches: readonly Patch[] = [
       'return iD(g,y,void 0,v.showThinking,v)}',
       'function Jxe(g){let y=g.toolInput;if(!y)return null;switch(g.toolName){case"Read":',
       'function zW(g,y){let S=he(g),M=(process.stdout.columns||80)-tbe;',
+      'ie=f().getShowHookOutput()&&[re?.before??[],re?.after??[]].some((le)=>le.length>0&&!cw(le));',
+      'function uD(g){if(!g)return!1;return(Array.isArray(g)?g:QS(g)).some((S)=>S.hookStatus==="executing")}',
       'function cbe(g){let y=g.map((S)=>Xw({status:S.status,result:S.result,isError:S.isError,executionPhase:S.executionPhase}));',
       'function LA(g,y){if(y===1)return g;if(g==="search")return"searches";',
       're=oe?.name??Uu(v)',
@@ -150,7 +172,7 @@ export const stackedViewPatches: readonly Patch[] = [
     ],
     replace:
       `var Xxe=a.toolName,VW=a.toolParam;${TABLES}` +
-      `${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${SUMMARIZE}${THINKING_ROW}${STACK}${SUBTITLE}${STACK_VIEW}`,
+      `${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${SUMMARIZE}${THINKING_ROW}${STACK}${SUBTITLE}${STACK_VIEW}`,
   },
   {
     name: 'stacked-view-draw',
@@ -178,9 +200,14 @@ export const stackedViewPatches: readonly Patch[] = [
   },
   {
     name: 'stacked-view-units',
-    find: `${UNITS_FIND}Ie=k(()=>t0(ie,${UNITS_OPTIONS}),[le,ie,A,Ce])`,
+    find: `${UNITS_FIND}Ie=k(()=>t0(ie,${UNITS_OPTIONS}),[le,ie,A,Ce]),${UNITS_KEY}`,
     lookups: ['showThinking:A=!1,permissionToolIds:L,staticToolIds:V,pendingPermissionToolIds:K,'],
-    replace: `${UNITS_HEAD}Ie=k(()=>{let $ODunits=t0(ie,${UNITS_OPTIONS});${UNITS_STACKED},[le,ie,A,Ce,$ODstacked,$ODturn,L,K])`,
+    replace: `${UNITS_HEAD}Ie=k(()=>{let $ODunits=t0(ie,${UNITS_OPTIONS});${UNITS_STACKED},[le,ie,A,Ce,$ODstacked,$ODturn,K]),${UNITS_KEY.replace('$e=M,', '$e=$ODstacked?M+":stacked":M,')}`,
+  },
+  {
+    name: 'stacked-view-mode-reprint',
+    find: REPRINT_FIND,
+    replace: REPRINT,
   },
   {
     name: 'stacked-view-turn-running',

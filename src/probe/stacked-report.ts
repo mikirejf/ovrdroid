@@ -46,11 +46,11 @@ const EXECUTE_HEADER = /\bExecute\s+(?:true|false)\b/u;
 const EDIT_HEADER = new RegExp(`\\bEdit\\s+\\S*${EDIT_FILE.replace('.', '\\.')}`, 'gu');
 const LATEST_CALL = /^\s*↳\s+false(?:\s|$)/u;
 
-function flatten(lines: readonly string[]): string {
+export function flatten(lines: readonly string[]): string {
   return lines.join(' ').replaceAll(/\s+/gu, ' ');
 }
 
-function chainsIn(text: string): Chain[] {
+export function chainsIn(text: string): Chain[] {
   return [...text.matchAll(CHAIN)].map((hit) => ({
     text: hit[0],
     start: hit.index,

@@ -338,7 +338,25 @@ panel is untouched.
 - **Folding.** `$ODstack` runs over the units that `t0` returns in MessageList. Calls join the open
   run. Items for which `iD` draws nothing pass through and leave the run open: hidden thinking,
   quiet hooks, and TodoWrite, which the main view never draws. An inline tool closes the run, as do
-  a call awaiting permission, a pinned unit, and anything else that draws.
+  a pinned unit and anything else that draws.
+- **Hooks.** A call or stock group whose hooks stock would draw does not fold: it draws as stock,
+  hook rows included, and closes the run. The rule is stock's (`Tu`, `iD`): Show hook output is on
+  and a before or after list is not quiet (`cw`). Quiet hooks fold. A hook that is still running
+  folds until it settles, because the open run stays in the dynamic region; splitting the run for it
+  would commit the part before it, and a quiet hook would then leave a second partial line. Stock
+  1.1.0 drew no tool hook rows at all in the stub harness (PostToolUse exit 1, exit 2, stdout
+  without `suppressOutput`, PreToolUse exit 1; expanded and Ctrl+O alike), so this is covered by
+  unit tests only.
+- **Approval.** Only a call in `pendingPermissionToolIds` (the calls of the open confirmation) stays
+  out of the run: it draws as stock, so its block and prompt show, and the run before it stays open,
+  so nothing is committed while it waits. Once approved it joins the run as a `command`.
+  `permissionToolIds` is not read: the root keeps every id that ever asked until the session
+  changes. Nothing is pinned to Static for an Execute: `staticToolIds` and the pending part of
+  MessageList's `le` only take ExitSpecMode plans and ProposeMission, both inline.
+- **Switching modes.** MessageList's `baseStaticKey` carries `:stacked` in stacked mode, and the
+  layout effect that calls `onStaticEpochReset` on an epoch bump also calls it when the mode moves
+  into or out of stacked. That clears the terminal and reprints the history once in the new mode.
+  Expanded and compact share a key, as in stock.
 - **Staying live.** The root's `rb=xs!=="idle"` (droid working state) reaches MessageList as
   `$ODturn`. The last run is open only while it is true. `Xz` treats an open run as live, so `eK`
   keeps it, and everything after it, in the dynamic region. Ink's `<Static>` never sees a run that
@@ -371,6 +389,14 @@ panel is untouched.
   no body fragment, that the row is single and above the tally line at the end, that the body never
   draws, and that Ctrl+O shows the full text. With the cut skip removed the probe fails: the held
   frame holds a second row, `Thinking: I will read`.
+- **Measured: approval and switching** (`probe stacked`, two more stub sessions of Read, Execute,
+  Read). With the command on the deny list, the frame while it waits shows `Read 1 file` with its ↳
+  line, the `Execute echo stacked-approval` block and the prompt; after Enter scrollback holds one
+  `Read 2 files · Execute 1 command` and no copy of the command. The previous build left
+  `Read 1 file`, the Execute block, `Read 1 file`. Switching through `/settings` to expanded shows
+  the three stock blocks, and back to stacked one line again; the previous build stayed expanded
+  after switching back. The probe sets `FACTORY_DISABLE_SETTINGS_PERSISTENCE`, because the settings
+  toggle otherwise writes `~/.factory/settings.json`.
 
 ## Open items
 

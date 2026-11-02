@@ -5,6 +5,8 @@ import { patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import {
   DRAWS_NOTHING,
+  HOOKS_SHOW,
+  REPRINT,
   RUN_CALLS,
   RUN_UNIT,
   STACK,
@@ -58,7 +60,7 @@ type Unit = ItemUnit | GroupUnit;
 interface StackOptions {
   open: boolean;
   showThinking: boolean;
-  inline: (id: string) => boolean;
+  awaiting: (id: string) => boolean;
 }
 
 interface Helpers {
@@ -75,7 +77,7 @@ const helpers = payloadFunction<
   Helpers
 >(
   ['va', 'iD', 'Jxe'],
-  `${TABLES}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}${SUBTITLE}` +
+  `${TABLES}${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}${SUBTITLE}` +
     'return{stack:$ODstack,subtitle:$ODsubtitle}',
 )(
   isCall,
@@ -99,7 +101,7 @@ function group(...ids: string[]): GroupUnit {
   };
 }
 
-const CLOSED: StackOptions = { open: false, showThinking: false, inline: () => false };
+const CLOSED: StackOptions = { open: false, showThinking: false, awaiting: () => false };
 const OPEN: StackOptions = { ...CLOSED, open: true };
 
 function runs(units: Unit[]): string[][] {
@@ -189,15 +191,19 @@ describe('folding calls into runs', () => {
     expect(unitLabels(out)).toEqual(['run:1', 'e1', 'run:1']);
   });
 
-  test('a call awaiting permission closes the run so its prompt still shows', () => {
+  test('a call awaiting approval draws on its own and leaves the run open', () => {
     const out = helpers.stack(
-      [toolCall('r1', 'Read'), toolCall('x1', 'Execute'), toolCall('r2', 'Read')],
-      {
-        ...CLOSED,
-        inline: (id) => id === 'x1',
-      },
+      [toolCall('r1', 'Read'), toolCall('x1', 'Execute', { status: 'pending' })],
+      { ...OPEN, awaiting: (id) => id === 'x1' },
     );
-    expect(unitLabels(out)).toEqual(['run:1', 'x1', 'run:1']);
+    expect(unitLabels(out)).toEqual(['run:1', 'x1']);
+    const [run] = out;
+    expect(run?.kind === 'collapsed-group' && run.group.$ODopen).toBe(true);
+  });
+
+  test('once approved the call joins the run it waited in', () => {
+    const units = [toolCall('r1', 'Read'), toolCall('x1', 'Execute'), toolCall('r2', 'Read')];
+    expect(runs(helpers.stack(units, CLOSED))).toEqual([['r1', 'x1', 'r2']]);
   });
 
   test('a unit already pinned to scrollback is left as it is', () => {
@@ -302,6 +308,58 @@ interface LiveUnit {
   group?: { $ODlive?: boolean };
   item?: { sourceMessageStreaming?: boolean };
 }
+
+interface ReprintRef {
+  current: { baseStaticKey: string; epoch: number; $ODstacked?: boolean } | undefined;
+}
+
+describe('switching display modes', () => {
+  test('the static key carries stacked so the committed list resets', () => {
+    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-units');
+    expect(replace).toContain('$e=$ODstacked?M+":stacked":M,');
+  });
+
+  test('a switch into or out of stacked clears and reprints, expanded to compact does not', () => {
+    const ref: ReprintRef = { current: undefined };
+    let resets = 0;
+    const effect = payloadFunction<
+      [
+        (initial: ReprintRef['current']) => ReprintRef,
+        (run: () => void) => void,
+        () => void,
+        string,
+        { baseStaticKey: string; epoch: number },
+        boolean,
+        { current: unknown },
+      ],
+      undefined
+    >(['b', 'ur', 'ee', '$e', 'Ye', '$ODstacked', 'Ne'], `var qe;${REPRINT}`);
+    const render = (stacked: boolean, epoch = 0) => {
+      const key = stacked ? '1:stacked' : '1';
+      effect(
+        (initial) => {
+          ref.current ??= initial;
+          return ref;
+        },
+        (run) => {
+          run();
+        },
+        () => {
+          resets += 1;
+        },
+        key,
+        { baseStaticKey: key, epoch },
+        stacked,
+        { current: undefined },
+      );
+      return resets;
+    };
+    expect([render(true), render(true), render(false), render(false), render(true)]).toEqual([
+      0, 0, 1, 1, 2,
+    ]);
+    expect(render(true, 1)).toBe(3);
+  });
+});
 
 describe('keeping the open run live', () => {
   const patch = patchNamed(stackedViewPatches, 'stacked-view-open-run-live');

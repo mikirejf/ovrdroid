@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   DRAWS_NOTHING,
+  HOOKS_SHOW,
   RUN_CALLS,
   RUN_UNIT,
   STACK,
@@ -36,12 +37,15 @@ interface Element {
   props: { children?: Element | string; width?: number; marginLeft?: number };
 }
 
-const OPTIONS = { open: false, showThinking: true, inline: () => false };
+const OPTIONS = { open: false, showThinking: true, awaiting: () => false };
 
 const stack = payloadFunction<
   [(item: Message) => boolean, (item: Message) => object | null],
   (units: Unit[], options: typeof OPTIONS) => Unit[]
->(['va', 'iD'], `${TABLES}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}return $ODstack`)(
+>(
+  ['va', 'iD'],
+  `${TABLES}${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}return $ODstack`,
+)(
   () => false,
   (item) => (item.drawsNothing === true ? null : {}),
 );
