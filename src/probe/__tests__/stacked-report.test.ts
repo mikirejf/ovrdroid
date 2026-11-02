@@ -5,17 +5,24 @@ import {
   NEW_LINE,
   OLD_LINE,
   readMidRun,
+  readMidThinking,
   readStacked,
+  readTranscript,
   TAIL_TALLY,
   TALLY,
+  THINKING_BODY,
+  THINKING_DELTAS,
+  THINKING_ROW,
+  THINKING_TEXT,
   TURN_REQUESTS,
 } from '../stacked-report.ts';
 
 const EDIT = ['  Edit /tmp/work/a.txt', '   ↳ +1 -1', `    1 - ${OLD_LINE}`, `    1 + ${NEW_LINE}`];
 
-function turn(overrides: { head?: string[]; tail?: string[] } = {}): string[] {
+function turn(overrides: { head?: string[]; tail?: string[]; thinking?: string[] } = {}): string[] {
   return [
     '> Go through the files.',
+    ...(overrides.thinking ?? [`   ${THINKING_ROW}`]),
     ...(overrides.head ?? [`  ${TALLY}`]),
     ...EDIT,
     ...(overrides.tail ?? [`  ${TAIL_TALLY}`]),
@@ -25,8 +32,11 @@ function turn(overrides: { head?: string[]; tail?: string[] } = {}): string[] {
 
 const MID_RUN = ['> Go through the files.', `  ${TALLY}`, '   ↳ false', ' ⠙ Working...'];
 
+const STREAMING = ['> Go through the files.', `  ${THINKING_ROW}`, ' ⠙ Thinking...'];
+const TRANSCRIPT = ['Thinking:', ...THINKING_TEXT.replaceAll('**', '').split('\n')];
+
 function capture(screen: string[], midRun: string[] | undefined = MID_RUN) {
-  return { served: TURN_REQUESTS, screen, midRun };
+  return { served: TURN_REQUESTS, screen, midRun, transcript: TRANSCRIPT, midThinking: STREAMING };
 }
 
 function failures(screen: string[], midRun?: string[]): string[] {
@@ -112,6 +122,73 @@ describe('readStacked', () => {
   test('fails when no mid-run frame was captured', () => {
     const findings = readStacked({ served: TURN_REQUESTS, screen: turn() });
     expect(findings.at(-1)?.pass).toBe(false);
+  });
+});
+
+describe('the thinking row', () => {
+  test('passes one summary row above the tally line', () => {
+    expect(readStacked(capture(turn())).map((finding) => finding.says)).toContain(
+      `the thinking block draws as one row, '${THINKING_ROW}'`,
+    );
+  });
+
+  test('fails when the thinking block is not drawn at all', () => {
+    const [says] = failures(turn({ thinking: [] }));
+    expect(says).toContain('but scrollback has 0 such rows');
+  });
+
+  test('fails when the row shows twice, as a leftover continuation would', () => {
+    const [says] = failures(turn({ thinking: [THINKING_ROW, THINKING_ROW] }));
+    expect(says).toContain('2 such rows and 2');
+  });
+
+  test('fails when the body is drawn', () => {
+    const [says] = failures(turn({ thinking: [THINKING_ROW, `   ${THINKING_BODY}`] }));
+    expect(says).toContain(`the thinking body '${THINKING_BODY}' is drawn 1 time`);
+  });
+
+  test('fails when the row sits below the tool run', () => {
+    const screen = turn({ thinking: [] });
+    screen.splice(-1, 0, THINKING_ROW);
+    expect(failures(screen)).toEqual([
+      'the thinking row should sit above the tally line of the tool run that follows it',
+    ]);
+  });
+});
+
+describe('readMidThinking', () => {
+  test('passes a frame with one summary row and no streamed body', () => {
+    expect(readMidThinking(STREAMING).every((finding) => finding.pass)).toBe(true);
+  });
+
+  test('fails on a continuation row and the streamed body, as a cut thinking block leaves', () => {
+    const [rows, body] = readMidThinking([...STREAMING, '  Thinking: I will read']);
+    expect(rows?.says).toContain("holds 1 such row and 2 'Thinking:' labels");
+    expect(body?.pass).toBe(false);
+  });
+
+  test('fails when no frame was captured', () => {
+    expect(readMidThinking().every((finding) => !finding.pass)).toBe(true);
+  });
+
+  test('the deltas the stub streams join into the full thinking text', () => {
+    expect(THINKING_DELTAS.join('')).toBe(THINKING_TEXT);
+  });
+});
+
+describe('readTranscript', () => {
+  test('passes a frame with the title and the body', () => {
+    expect(readTranscript(TRANSCRIPT).pass).toBe(true);
+  });
+
+  test('fails when only the title shows, as a summary row would leave it', () => {
+    const finding = readTranscript([THINKING_ROW]);
+    expect(finding.pass).toBe(false);
+    expect(finding.says).toContain('only the title');
+  });
+
+  test('fails when no frame was captured', () => {
+    expect(readTranscript().pass).toBe(false);
   });
 });
 

@@ -346,11 +346,31 @@ panel is untouched.
   stock rules committed early would print a second partial line.
 - **Script.** Nested calls are ordinary items and join the run. The outer Script draws nothing, as
   in stock.
+- **Thinking.** With Show thinking on, each thinking block draws as one row, `Thinking: <summary>`,
+  in the same muted italic as stock, cut at the row width (`wrap:"truncate-end"`). The summary is
+  the text of the last `**Title**` line when the thinking has one (GPT reasoning summaries start
+  each part with one), else the first sentence, whitespace collapsed. A redacted block reads
+  `Thinking: [Content encrypted]`; a block with no text draws nothing. `$ODstack` marks each
+  thinking item `$ODsummary`, and the `FM_2` thinking branch draws `$ODThinkingRow` for a marked
+  item. The marked row closes the open tool run, as shown thinking does in stock. Ctrl+O and
+  Alt+Up/Down render from `FM_2` and the history window without the mark, so they keep the full
+  text; expanded and compact never mark.
+- **Thinking and streaming cuts.** `streamingCuts` splits a streaming message at each finished
+  markdown block and gives every part its own unit, so a part holds only its own slice of the text.
+  A summary needs the whole text, so in stacked mode the cut computation skips thinking messages and
+  the block stays one unit. Without that, a long thinking block grew a second
+  `Thinking: <first words of the next paragraph>` row while it streamed (reproduced with the stub,
+  not guessed).
 - **Measured on screen** (stub turn of Read, Read, Grep, Execute ok, Execute exit 1, Edit, Read,
   text). The run grows in place: `Read 1 file`, `Read 2 files`, `· Grep 1 search`,
   `· Execute 1 command`, `Execute 2 commands, 1 failed`. It then commits without its ↳ line, the
   Edit draws with its diff preview, and the trailing `Read 1 file` commits when the turn ends.
-  Scrollback holds no duplicate partial lines.
+  Scrollback holds no duplicate partial lines. `probe stacked` also opens the turn with a thinking
+  block (`**Planning the run**\n\nI will read the files first.`, sent as three deltas, the stream
+  held after the second). It checks that one `Thinking: Planning the run` row shows mid-stream with
+  no body fragment, that the row is single and above the tally line at the end, that the body never
+  draws, and that Ctrl+O shows the full text. With the cut skip removed the probe fails: the held
+  frame holds a second row, `Thinking: I will read`.
 
 ## Open items
 

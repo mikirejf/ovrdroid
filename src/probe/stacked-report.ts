@@ -4,11 +4,24 @@ export const TURN_REQUESTS = 8;
 export const OLD_LINE = 'first-old-line';
 export const NEW_LINE = 'first-new-line';
 export const EDIT_FILE = 'a.txt';
+const BODY_SPLIT = 11;
+export const THINKING_TITLE = 'Planning the run';
+export const THINKING_BODY = 'I will read the files first.';
+export const THINKING_DELTAS = [
+  `**${THINKING_TITLE}**\n\n`,
+  THINKING_BODY.slice(0, BODY_SPLIT),
+  THINKING_BODY.slice(BODY_SPLIT),
+];
+export const THINKING_TEXT = THINKING_DELTAS.join('');
+const BODY_FRAGMENT = THINKING_BODY.slice(0, BODY_SPLIT);
+export const THINKING_ROW = `Thinking: ${THINKING_TITLE}`;
 
 export interface StackedCapture {
   served: number;
   screen: readonly string[];
   midRun?: readonly string[];
+  transcript?: readonly string[];
+  midThinking?: readonly string[];
 }
 
 export interface Finding {
@@ -169,6 +182,34 @@ export function readMidRun(frame: readonly string[]): Finding[] {
   ];
 }
 
+function readThinking(lines: readonly string[], text: string): Finding[] {
+  const rows = lines.filter((line) => line.includes(THINKING_ROW)).length;
+  const labels = text.split('Thinking:').length - 1;
+  const body = text.split(THINKING_BODY.replace(/\.$/u, '')).length - 1;
+  const rowAt = text.indexOf(THINKING_ROW);
+  const tallyAt = text.indexOf(TALLY);
+  return [
+    rows === 1 && labels === 1
+      ? { pass: true, says: `the thinking block draws as one row, '${THINKING_ROW}'` }
+      : {
+          pass: false,
+          says: `the thinking block should draw as one '${THINKING_ROW}' row, but scrollback has ${count(rows, 'such row')} and ${count(labels, "'Thinking:' label")}`,
+        },
+    body === 0
+      ? { pass: true, says: 'the thinking body is not drawn' }
+      : {
+          pass: false,
+          says: `the thinking body '${THINKING_BODY}' is drawn ${count(body, 'time')}; only its '**title**' summary should show`,
+        },
+    rowAt !== -1 && (tallyAt === -1 || rowAt < tallyAt)
+      ? { pass: true, says: 'the thinking row sits above the tool run, which is still one line' }
+      : {
+          pass: false,
+          says: 'the thinking row should sit above the tally line of the tool run that follows it',
+        },
+  ];
+}
+
 function readCapture(capture: StackedCapture): Finding[] {
   const lines = capture.screen;
   const text = flatten(lines);
@@ -182,7 +223,50 @@ function readCapture(capture: StackedCapture): Finding[] {
     readSubtitles(lines),
     readExecuteBlocks(lines),
     readPartials(chains, editAt),
+    ...readThinking(lines, text),
   ];
+}
+
+export function readMidThinking(frame?: readonly string[]): Finding[] {
+  if (frame === undefined) {
+    return [
+      { pass: false, says: 'no mid-thinking frame was captured, so live streaming was not tested' },
+    ];
+  }
+  const text = flatten(frame);
+  const rows = text.split(THINKING_ROW).length - 1;
+  const labels = text.split('Thinking:').length - 1;
+  const body = text.split(BODY_FRAGMENT).length - 1;
+  return [
+    rows === 1 && labels === 1
+      ? { pass: true, says: 'while the thinking streams, the frame holds one summary row' }
+      : {
+          pass: false,
+          says: `while the thinking streams, the frame should hold one '${THINKING_ROW}' row, and holds ${count(rows, 'such row')} and ${count(labels, "'Thinking:' label")}`,
+        },
+    body === 0
+      ? { pass: true, says: 'while the thinking streams, its streamed body is not drawn' }
+      : {
+          pass: false,
+          says: `while the thinking streams, its body '${BODY_FRAGMENT}' is drawn ${count(body, 'time')}`,
+        },
+  ];
+}
+
+export function readTranscript(frame?: readonly string[]): Finding {
+  if (frame === undefined) {
+    return {
+      pass: false,
+      says: 'no Ctrl+O frame was captured, so the full thinking was not tested',
+    };
+  }
+  const text = flatten(frame);
+  return text.includes(THINKING_BODY) && text.includes(THINKING_TITLE)
+    ? { pass: true, says: 'the Ctrl+O transcript still shows the full thinking text' }
+    : {
+        pass: false,
+        says: `the Ctrl+O transcript should show the full thinking ('${THINKING_TITLE}' and '${THINKING_BODY}'), and the frame has ${text.includes(THINKING_TITLE) ? 'only the title' : 'neither'}`,
+      };
 }
 
 export function readStacked(capture: StackedCapture): Finding[] {
@@ -196,6 +280,8 @@ export function readStacked(capture: StackedCapture): Finding[] {
   }
   return [
     ...readCapture(capture),
+    readTranscript(capture.transcript),
+    ...readMidThinking(capture.midThinking),
     ...(capture.midRun === undefined
       ? [{ pass: false, says: 'no mid-run frame was captured, so the growing line was not tested' }]
       : readMidRun(capture.midRun)),

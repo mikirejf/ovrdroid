@@ -54,11 +54,22 @@ export const RUN_UNIT =
   'group:{kind:"collapsed-tool-group",id:"tool-group-"+$ODfirst,toolName:$ODrun.calls[0].toolName,tools:$ODrun.calls,' +
   '$ODstack:!0,$ODopen:$ODopen,$ODlive:$ODopen||$ODrun.calls.some(($ODc)=>$ODc.sourceMessageStreaming===!0)}}}';
 
+export const SUMMARIZE = String.raw`function $ODsummarize($ODtext){let $ODheads=[...$ODtext.matchAll(/^[^\S\n]*\*\*([^*\n]+)\*\*[^\S\n]*$/gm)],$ODline=$ODheads.length>0?$ODheads.at(-1)[1]:$ODtext.replaceAll("**","").trim().split(/(?<=[.?!])\s|\n/)[0];return $ODline.replace(/\s+/g," ").trim()}`;
+
+export const THINKING_ROW =
+  'function $ODThinkingRow({block:$ODb,contentWidth:$ODw}){' +
+  'let $ODtext=$ODb.type==="redacted_thinking"?u().t("common:thinking.contentEncrypted"):$ODsummarize($ODb.thinking||"");' +
+  'if(!$ODtext)return null;' +
+  'return t(c,{marginLeft:3,width:Math.max(1,$ODw-3),children:' +
+  't(o,{color:a.text.muted,italic:!0,wrap:"truncate-end",children:u().t("common:thinking.thinkingLabel")+" "+$ODtext})})}';
+
 export const STACK =
   'function $ODstack($ODunits,$ODopts){' +
   'let $ODout=[],$ODrun;' +
   'for(let $ODu of $ODunits){' +
   'if($ODdrawsNothing($ODu,$ODopts)){$ODout.push($ODu);continue}' +
+  'if($ODu.kind==="item"&&!va($ODu.item)&&$ODu.item.messageType==="thinking"&&$ODu.item.thinkingBlock!==void 0){' +
+  '$ODrun=void 0,$ODout.push({...$ODu,item:{...$ODu.item,$ODsummary:!0}});continue}' +
   'let $ODcalls=$ODrunCalls($ODu,$ODopts);' +
   'if($ODcalls){if(!$ODrun)$ODrun={$ODrun:!0,calls:[],ids:[]},$ODout.push($ODrun);$ODrun.calls.push(...$ODcalls),$ODrun.ids.push(...$ODu.sourceIds);continue}' +
   '$ODrun=void 0,$ODout.push($ODu)}' +
@@ -94,7 +105,12 @@ const UNITS_OPTIONS =
 const UNITS_HEAD = UNITS_FIND.replace(
   'xe=f().getToolResultDisplay()==="compact",',
   `$ODmode=f().getToolResultDisplay(),xe=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
-);
+)
+  .replace(
+    'ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt)))',
+    'ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt))&&!($ODstacked&&tt.messageType==="thinking"))',
+  )
+  .replace('},[ie,M]),', '},[ie,M,$ODstacked]),');
 
 const UNITS_STACKED =
   'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:A,inline:($ODid)=>L?.has($ODid)===!0||K?.has($ODid)===!0||le?.has($ODid)===!0}):$ODunits}';
@@ -130,16 +146,23 @@ export const stackedViewPatches: readonly Patch[] = [
       're=oe?.name??Uu(v)',
       't(S2,{text:re,isPending:A==="active",color:L}),l(o,{color:VW,children:[" ",ie," ",LA(le,ie)]}),q>0&&t(o,{color:a.error',
       'if(vM(g))return t(c,{width:"100%",marginTop:1,',
+      'u().t("common:thinking.contentEncrypted")',
     ],
     replace:
       `var Xxe=a.toolName,VW=a.toolParam;${TABLES}` +
-      `${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}${SUBTITLE}${STACK_VIEW}`,
+      `${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${SUMMARIZE}${THINKING_ROW}${STACK}${SUBTITLE}${STACK_VIEW}`,
   },
   {
     name: 'stacked-view-draw',
     find: 'if(vM(g))return t(c,{width:"100%",marginTop:1,children:t(iM,{group:g,contentWidth:y,compact:v.compact})}',
     replace:
       'if(vM(g))return t(c,{width:"100%",marginTop:1,children:g.$ODstack===!0?t($ODStack,{group:g}):t(iM,{group:g,contentWidth:y,compact:v.compact})}',
+  },
+  {
+    name: 'stacked-view-thinking-row',
+    find: 'if(g.messageType==="thinking"&&g.thinkingBlock){if(!S)return null;return t(oV,{thinking:{thinkingBlocks:[g.thinkingBlock]},contentWidth:y,',
+    replace:
+      'if(g.messageType==="thinking"&&g.thinkingBlock){if(!S)return null;if(g.$ODsummary===!0)return t($ODThinkingRow,{block:g.thinkingBlock,contentWidth:y});return t(oV,{thinking:{thinkingBlocks:[g.thinkingBlock]},contentWidth:y,',
   },
   {
     name: 'stacked-view-open-run-live',
