@@ -93,7 +93,7 @@ export const SUBTITLE =
 export const SEGMENTS =
   'function $ODsegments($ODtools){' +
   'let $ODout=[];' +
-  'for(let $ODc of $ODtools){let $ODlast=$ODout.at(-1);if($ODlast?.[0]===$ODc.toolName)$ODlast[1].push($ODc);else $ODout.push([$ODc.toolName,[$ODc]])}' +
+  'for(let $ODc of $ODtools){let $ODlast=$ODout.at(-1);if($ODc.toolName!=="Skill"&&$ODlast?.[0]===$ODc.toolName)$ODlast[1].push($ODc);else $ODout.push([$ODc.toolName,[$ODc]])}' +
   'return $ODout}';
 
 export const STACK_VIEW =
@@ -102,10 +102,11 @@ export const STACK_VIEW =
   'return l(c,{flexDirection:"column",marginLeft:3,children:[' +
   't(c,{flexDirection:"row",flexWrap:"wrap",children:$ODlist.map(([$ODname,$ODcalls],$ODi)=>{' +
   'let $ODfailed=$ODcalls.filter(($ODc)=>$ODc.isError===!0).length,$ODstate=cbe($ODcalls),$ODcount=$ODcalls.length,' +
+  '$ODskill=$ODname==="Skill"?$ODcalls[0].toolInput?.skill:void 0,' +
   '$ODsep=$ODi<$ODlist.length-1?t(o,{color:a.text.muted,children:" \\u203A "}):null;' +
   'return l(c,{children:[t(S2,{text:Uu($ODname),isPending:$ODstate==="active",color:$ODstate==="not-executed"?a.text.muted:Xxe}),' +
-  't(o,{color:VW,children:" "+$ODcount+" "+LA($ODcallNouns.get($ODname)??"call",$ODcount)}),' +
-  '$ODfailed>0?t(o,{color:a.error,children:", "+$ODfailed+" failed"}):null,$ODsep]},$ODi)})}),' +
+  't(o,{color:VW,children:" "+(typeof $ODskill==="string"?$ODskill:$ODcount+" "+LA($ODcallNouns.get($ODname)??"call",$ODcount))}),' +
+  '$ODfailed>0?t(o,{color:a.error,children:" ("+$ODfailed+" failed)"}):null,$ODsep]},$ODi)})}),' +
   '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
 
 const MODE_FIND =

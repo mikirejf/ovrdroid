@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { Command } from 'commander';
@@ -18,6 +18,7 @@ import {
   NEW_LINE,
   OLD_LINE,
   readStacked,
+  SKILLS,
   LONG_THINKING,
   THINKING_DELTAS,
   TURN_REQUESTS,
@@ -29,7 +30,7 @@ import type { ToolCall } from './stub-model.ts';
 const MODEL = 'stub-stacked';
 const STUB_NAME = 'Stub Stream';
 const PROMPT = 'Go through the files.';
-const HOLD_AT = 5;
+const HOLD_AT = 7;
 const HOLD_TIMEOUT_MS = 30_000;
 const TURN_TIMEOUT_MS = 60_000;
 const MID_RUN_QUIET_MS = 800;
@@ -41,6 +42,7 @@ function plan(dir: string, token: string): ToolCall[] {
     { name: 'Read', input: { file_path: file('a.txt') } },
     { name: 'Grep', input: { pattern: 'needle', path: dir, output_mode: 'content' } },
     { name: 'Read', input: { file_path: file('b.txt') } },
+    ...SKILLS.map((skill) => ({ name: 'Skill', input: { skill } })),
     { name: 'Execute', input: { command: 'true', riskLevel: 'low' } },
     { name: 'Execute', input: { command: 'false', riskLevel: 'low' } },
     {
@@ -132,6 +134,14 @@ function streamed(reply: Reply, gate: Promise<unknown>): Response {
 }
 
 function writeProject(dir: string): void {
+  for (const skill of SKILLS) {
+    const folder = path.join(dir, '.factory', 'skills', skill);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(
+      path.join(folder, 'SKILL.md'),
+      `---\nname: ${skill}\ndescription: Fixture for the stacked skill display probe.\n---\nContinue the file checks.\n`,
+    );
+  }
   writeFileSync(path.join(dir, EDIT_FILE), `${OLD_LINE}\nsecond line\n`);
   writeFileSync(path.join(dir, 'b.txt'), 'needle in b\n');
   writeFileSync(path.join(dir, 'c.txt'), 'plain c\n');
@@ -289,7 +299,7 @@ function printFrame(title: string, frame: readonly string[] | undefined): void {
 
 export async function stacked(binary: string, options: StackedOptions): Promise<void> {
   say(
-    'a stub model opens with a thinking block, then reads a file, greps, reads another, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line in call order with the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
+    'a stub model opens with a thinking block, then reads a file, greps, reads another, loads two skills, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line in call order with both skill names visible and the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
   );
   const capture = await captureStacked(binary, options.display);
   const cases = await runStackedCases(binary);
@@ -313,7 +323,7 @@ export function registerStackedCommand(program: Command): void {
   program
     .command('stacked')
     .description(
-      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then a read, a grep, a read, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line in call order with the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
+      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then a read, a grep, a read, two skill loads, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line in call order with both skill names visible and the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
     )
     .argument('<binary>')
     .option(

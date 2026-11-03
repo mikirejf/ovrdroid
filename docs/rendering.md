@@ -340,7 +340,7 @@ React concurrency is still a loss. See [react-concurrency.md](react-concurrency.
 
 `general.toolResultDisplay` takes a third value, `stacked` (`src/patch/stacked-view-patches.ts`,
 Droid 1.1.0). In the main chat, each run of consecutive non-inline tool calls draws as one line,
-`Read 2 files › Grep 1 search › Read 1 file › Execute 2 commands, 1 failed`. Segments follow the
+`Read 2 files › Grep 1 search › Read 1 file › Execute 2 commands (1 failed)`. Segments follow the
 order the calls ran in; only neighbouring calls of the same tool share a count (`$ODsegments`).
 While the run is open, a dim ` ↳ <subtitle>` line shows the latest call. Expanded and compact draw
 as before, and the transcript panel is untouched.
@@ -408,6 +408,16 @@ as before, and the transcript panel is untouched.
   shows the three stock blocks, and back to stacked one line again; the previous build stayed
   expanded after switching back. The probe sets `FACTORY_DISABLE_SETTINGS_PERSISTENCE`, because the
   settings toggle otherwise writes `~/.factory/settings.json`.
+- **Skill names and failures** (Droid 1.2.0, 2026-11-03). Each Skill call gets its own segment,
+  `Skill <name>`, including neighbouring or repeated loads. The name comes from `toolInput.skill`
+  and remains after the run closes; before that input arrives the call count still shows. Failure
+  counts stay red and now use parentheses, `(1 failed)`.
+  `bun run probe stacked /Users/andrej/.local/bin/droid --print` failed on the previous installed
+  build (n=1), which displayed `Skill 2 calls`.
+  `bun run probe stacked /tmp/droid-stacked-skills --print` passed on the candidate (n=1): both
+  fixture skills loaded and their names showed in call order while the run was open and after it
+  closed, followed by `Execute 2 commands (1 failed)`. Approval, switching modes and scrollback
+  checks passed too.
 
 ## Open items
 

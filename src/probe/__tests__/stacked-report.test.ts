@@ -11,6 +11,7 @@ import {
   readMidThinking,
   readStacked,
   readTranscript,
+  SKILLS,
   TAIL_TALLY,
   TALLY,
   THINKING_BODY,
@@ -64,7 +65,7 @@ describe('readStacked', () => {
     const findings = readStacked(capture(turn()));
     expect(findings.filter((finding) => !finding.pass)).toEqual([]);
     expect(findings.map((finding) => finding.says)).toContain(
-      'the reads, the grep and both commands share one line, in the order they ran',
+      'the reads, the grep, both skill names and both commands share one line, in the order they ran',
     );
   });
 
@@ -79,7 +80,11 @@ describe('readStacked', () => {
     expect(
       failures(
         turn({
-          head: ['  Read 1 file › Grep 1 search › Read 1 file ›', '  Execute 2 commands, 1 failed'],
+          head: [
+            '  Read 1 file › Grep 1 search › Read 1 file ›',
+            ...SKILLS.map((skill) => `  Skill ${skill} ›`),
+            '  Execute 2 commands (1 failed)',
+          ],
         }),
       ),
     ).toEqual([]);
@@ -225,9 +230,30 @@ describe('readTranscript', () => {
 });
 
 describe('call order', () => {
+  test('fails when the failure count uses a comma instead of parentheses', () => {
+    const tally = TALLY.replace(' (1 failed)', ', 1 failed');
+    expect(failures(turn({ head: [`  ${tally}`] }))[0]).toContain(
+      `no single line before the Edit reads '${TALLY}'`,
+    );
+  });
+
+  test('fails when skill names are replaced with a call count', () => {
+    const tally = TALLY.replace(/Skill [\w-]+ › Skill [\w-]+/u, 'Skill 2 calls');
+    expect(failures(turn({ head: [`  ${tally}`] }))[0]).toContain(
+      `no single line before the Edit reads '${TALLY}'`,
+    );
+  });
+
+  test('fails when one of two neighbouring skills disappears', () => {
+    const tally = TALLY.replace(`Skill ${SKILLS[1]} › `, '');
+    expect(failures(turn({ head: [`  ${tally}`] }))[0]).toContain(
+      `no single line before the Edit reads '${TALLY}'`,
+    );
+  });
+
   test('fails on a tally that merges the two reads, as the per-tool tally drew it', () => {
     const [says] = failures(
-      turn({ head: ['  Read 2 files · Grep 1 search · Execute 2 commands, 1 failed'] }),
+      turn({ head: ['  Read 2 files · Grep 1 search · Execute 2 commands (1 failed)'] }),
     );
     expect(says).toContain(`no single line before the Edit reads '${TALLY}'`);
   });

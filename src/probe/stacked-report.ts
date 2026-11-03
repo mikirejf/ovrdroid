@@ -1,8 +1,10 @@
 import { THINKING_ROWS } from '../patch/stacked-view-patches.ts';
 
-export const TALLY = 'Read 1 file › Grep 1 search › Read 1 file › Execute 2 commands, 1 failed';
+export const SKILLS = ['stacked-first', 'stacked-second'] as const;
+const SKILL_TALLY = SKILLS.map((skill) => `Skill ${skill}`).join(' › ');
+export const TALLY = `Read 1 file › Grep 1 search › Read 1 file › ${SKILL_TALLY} › Execute 2 commands (1 failed)`;
 export const TAIL_TALLY = 'Read 1 file';
-export const TURN_REQUESTS = 8;
+export const TURN_REQUESTS = 10;
 export const OLD_LINE = 'first-old-line';
 export const NEW_LINE = 'first-new-line';
 export const EDIT_FILE = 'a.txt';
@@ -44,7 +46,7 @@ interface Chain {
 
 const TOOLS = '[A-Z][A-Za-z]+';
 const NOUNS = 'other calls?|files?|searches|search|patterns?|directories|directory|URLs?|commands?';
-const SEGMENT = `${TOOLS} \\d+ (?:${NOUNS})(?:, \\d+ failed)?`;
+const SEGMENT = `(?:${TOOLS} \\d+ (?:${NOUNS})|Skill [\\w-]+)(?: \\(\\d+ failed\\))?`;
 const CHAIN = new RegExp(`${SEGMENT}(?: › ${SEGMENT})*`, 'gu');
 const STATS_LINE = /↳[^+]*\+\d+\D*-\d+/u;
 const EDIT_STATS = /↳[^+]*\+1\b\D*-1\b/u;
@@ -82,7 +84,7 @@ function readTally(chains: readonly Chain[], editAt: number): Finding {
   if (before.length === 1) {
     return {
       pass: true,
-      says: 'the reads, the grep and both commands share one line, in the order they ran',
+      says: 'the reads, the grep, both skill names and both commands share one line, in the order they ran',
     };
   }
   const found = chains.filter((chain) => chain.start < editAt).map((chain) => chain.text);
