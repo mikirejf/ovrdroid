@@ -170,6 +170,7 @@ interface Conversion {
   rawHistory: Message[];
   lastSummary: string;
   reminders: string[];
+  keepHistoryReminders: boolean;
 }
 
 interface Converted {
@@ -200,7 +201,7 @@ interface Stored {
 }
 
 describe('compaction-reuse-extender', () => {
-  test('rebuilds the next request from the live history with the reminders, summary and cache options of the snapshot', () => {
+  test('rebuilds the next request from the live history with the reminders, summary, pin and cache options of the snapshot', () => {
     const history = [textMessage('turn-1')];
     const loop: LoopState = {
       llmCore: {
@@ -210,19 +211,16 @@ describe('compaction-reuse-extender', () => {
       lastSummaryRef: 'summary at snapshot',
     };
     const stored: Stored[] = [];
-    let toolVariant = 'variant at snapshot';
+    const reminders = ['tool catalog', 'skills reminder', 'subagent reminder'];
     const capture = payloadFunction<unknown[], Stored>(
-      ['Nn', 'VU', 'yo', 'br', 'un', 'Pt', 'v', 'We', 'DJ'],
+      ['Yn', 'Ot', 'jt', 'M', 'Be', 'DJ'],
       `let jn={sessionId:"s",${EXTENDER}return jn`,
     );
     const snapshot = capture.call(
       loop,
       (input: Conversion): Converted => ({ converted: input }),
-      (catalog: string, variant: string) => `${catalog} for ${variant}`,
-      'tool catalog',
-      () => toolVariant,
-      'skills reminder',
-      'subagent reminder',
+      reminders,
+      true,
       'session',
       'model',
       (entry: Stored) => {
@@ -232,7 +230,6 @@ describe('compaction-reuse-extender', () => {
 
     expect(stored).toEqual([snapshot]);
     loop.lastSummaryRef = 'summary written later';
-    toolVariant = 'variant written later';
     history.push(LAST_REPLY);
     const ask = textMessage('ask');
     expect(snapshot.odExtend(ask)).toEqual({
@@ -240,11 +237,8 @@ describe('compaction-reuse-extender', () => {
         converted: {
           rawHistory: [textMessage('turn-1'), LAST_REPLY, ask],
           lastSummary: 'summary at snapshot',
-          reminders: [
-            'tool catalog for variant at snapshot',
-            'skills reminder',
-            'subagent reminder',
-          ],
+          reminders: ['tool catalog', 'skills reminder', 'subagent reminder'],
+          keepHistoryReminders: true,
         },
       },
       options: { sessionId: 'session', modelId: 'model' },

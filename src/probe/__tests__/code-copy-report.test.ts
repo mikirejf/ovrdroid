@@ -2,12 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   conversationAbove,
+  countLiveCommandRedraws,
   describeCodeCopy,
   describeInlineCode,
   describeLiveFrames,
   describeRedraw,
   describeWideCommand,
-  liveFramesClipped,
   readCodeCopy,
   readRedraw,
   readWideCommand,
@@ -203,31 +203,53 @@ describe('readRedraw', () => {
   });
 });
 
-describe('liveFramesClipped', () => {
+describe('countLiveCommandRedraws', () => {
   const cols = 40;
   const clipped = COMMAND.slice(0, cols - 3);
+  const spinner = ' Streaming... (Esc twice to stop)';
+  const erase = (rows: number) => `${ESC}[G${ESC}[K${`${ESC}[1A${ESC}[K`.repeat(rows)}`;
 
-  test('counts the frames that draw the command cut at the terminal edge', () => {
+  test('counts a clipped command only when the next frame erases its row', () => {
     const reply = [
-      `${FRAME}   ${ESC}[1m${clipped}${ESC}[22m\r\nfooter`,
-      `${FRAME}${ESC}[1A${ESC}[K   ${clipped}\r\nfooter`,
-      `${FRAME}   ${COMMAND}\r\nfooter`,
-      `${FRAME}nothing about it\r\n`,
+      `${FRAME}   ${ESC}[1m${clipped}${ESC}[22m\r\n${spinner}\r\n`,
+      `${FRAME}${erase(2)}nothing about it\r\n`,
     ].join('');
-    expect(liveFramesClipped(reply, COMMAND, cols)).toBe(2);
+    expect(countLiveCommandRedraws(reply, COMMAND, cols)).toBe(1);
+  });
+
+  test('counts a whole command whose terminal-wrapped rows are erased', () => {
+    const reply = `${FRAME}   ${COMMAND}\r\n${spinner}\r\n${FRAME}${erase(4)}next`;
+    expect(countLiveCommandRedraws(reply, COMMAND, cols)).toBe(1);
+  });
+
+  test('rejects an erase that counts logical lines but misses wrapped rows', () => {
+    const reply = `${FRAME}   ${COMMAND}\r\n${spinner}\r\n${FRAME}${erase(2)}next`;
+    expect(countLiveCommandRedraws(reply, COMMAND, cols)).toBe(0);
+  });
+
+  test('does not count a static command above the area erased by the next frame', () => {
+    const reply = `${FRAME}   ${COMMAND}\r\n${spinner}\r\n${FRAME}${erase(1)}${spinner}\r\n`;
+    expect(countLiveCommandRedraws(reply, COMMAND, cols)).toBe(0);
+  });
+
+  test('does not count a full repaint or a finished command', () => {
+    const repaint = `${FRAME}   ${COMMAND}\r\n${spinner}\r\n${FRAME}${ESC}[2J${ESC}[Hnext`;
+    const finished = `${FRAME}   ${COMMAND}\r\n${LIVE_FOOTER}\r\n${FRAME}${erase(4)}next`;
+    expect(countLiveCommandRedraws(repaint, COMMAND, cols)).toBe(0);
+    expect(countLiveCommandRedraws(finished, COMMAND, cols)).toBe(0);
   });
 
   test('ignores a frame that wraps the command into shorter lines', () => {
-    const reply = `${FRAME}   ${COMMAND.slice(0, 30)}\r\n   ${COMMAND.slice(30)}\r\n`;
-    expect(liveFramesClipped(reply, COMMAND, cols)).toBe(0);
+    const reply = `${FRAME}   ${COMMAND.slice(0, 30)}\r\n   ${COMMAND.slice(30)}\r\n${spinner}\r\n${FRAME}${erase(4)}next`;
+    expect(countLiveCommandRedraws(reply, COMMAND, cols)).toBe(0);
   });
 
   test('says a run with no live frame proves nothing about the redraw', () => {
     expect(describeLiveFrames(0, COMMAND, cols)).toBe(
-      'no live frame drew the 82-char command, so the redraw check proves nothing: slow the stream down',
+      'no live redraw erased the 82-char command, so the redraw check proves nothing',
     );
     expect(describeLiveFrames(20, COMMAND, cols)).toBe(
-      '20 live frames drew the 82-char command cut at column 40, so the redraw never held a line wider than the terminal',
+      '20 live redraws erased the 82-char command and all its wrapped rows at 40 columns',
     );
   });
 });

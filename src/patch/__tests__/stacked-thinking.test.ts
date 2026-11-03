@@ -195,9 +195,9 @@ describe('the thinking row', () => {
 
 describe('wiring', () => {
   test('streaming cuts skip thinking messages so the head row sees the whole text', () => {
-    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-units');
-    expect(replace).toContain('&&!($ODstacked&&tt.messageType==="thinking")');
-    expect(replace).toContain('},[ie,M,$ODstacked]),');
+    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-mode');
+    expect(replace).toContain('&&!($ODstacked&&p2.messageType==="thinking")');
+    expect(replace).toContain('},[n1,M,$ODstacked]),');
   });
 
   test('the thinking branch draws the summary row only for a marked item', () => {

@@ -13,11 +13,11 @@ import {
 import type { CodeCopyReading, RedrawReading, WideCommandReading } from './code-copy-report.ts';
 import {
   describeCodeCopy,
+  countLiveCommandRedraws,
   describeInlineCode,
   describeLiveFrames,
   describeRedraw,
   describeWideCommand,
-  liveFramesClipped,
   readCodeCopy,
   readRedraw,
   readWideCommand,
@@ -181,7 +181,7 @@ export function readCapture(capture: CodeCopyCapture, options: CodeCopyOptions):
     wideReply: readWideCommand(screens.live, INLINE_LONG_COMMAND, options.cols),
     wideResize: readWideCommand(screens.resized, INLINE_LONG_COMMAND, options.resizeTo),
     redraw: readRedraw(screens.live, screens.repainted),
-    liveFrames: liveFramesClipped(capture.reply, INLINE_LONG_COMMAND, options.cols),
+    liveFrames: countLiveCommandRedraws(capture.reply, INLINE_LONG_COMMAND, options.cols),
   };
 }
 

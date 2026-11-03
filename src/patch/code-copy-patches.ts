@@ -19,8 +19,11 @@ const STOCK_BLOCK = `return l(c,{flexDirection:"column",borderLeft:!0,borderColo
 
 const FLAT_BLOCK = `if(A.${UNWRAP_KEY})return l(c,{flexDirection:"column",width:A.maxWidth,children:[${LABEL},t(globalThis.${CODE_COPY_GLOBAL}.wrap.Provider,{value:"${UNWRAPPED}",children:t(c,{flexDirection:"column",width:"100%",children:bse(O,A,D)})})]},E);`;
 
-const MESSAGE_MARKDOWN =
-  'f.messageType==="markdown"?t(Da,{maxWidth:y,color:f.role==="assistant"?a.markdown.heading:f.role==="tool"?a.toolName:q,children:Q})';
+const ASSISTANT_CONFIG =
+  'V=y(()=>({...E!==void 0&&k!==void 0&&D!==void 0&&{mentionClaims:{scope:E,owner:k,keys:';
+
+const TOOL_MARKDOWN =
+  'C.messageType==="markdown"?t(yt,{maxWidth:L,color:C.role==="tool"?a.toolName:e1,children:C1})';
 
 export const NO_BREAK_SPACE = '\u00A0';
 
@@ -120,10 +123,18 @@ export const codeCopyPatches: readonly Patch[] = [
   },
   {
     name: 'code-copy-transcript-markdown',
-    find: MESSAGE_MARKDOWN,
-    replace: MESSAGE_MARKDOWN.replace(
-      't(Da,{maxWidth:y,',
-      `t(Da,{maxWidth:y,config:globalThis.${CODE_COPY_GLOBAL}.config,`,
+    find: ASSISTANT_CONFIG,
+    replace: ASSISTANT_CONFIG.replace(
+      'V=y(()=>({',
+      `V=y(()=>({...globalThis.${CODE_COPY_GLOBAL}.config,`,
+    ),
+  },
+  {
+    name: 'code-copy-tool-markdown',
+    find: TOOL_MARKDOWN,
+    replace: TOOL_MARKDOWN.replace(
+      't(yt,{maxWidth:L,',
+      `t(yt,{maxWidth:L,config:globalThis.${CODE_COPY_GLOBAL}.config,`,
     ),
   },
 ];

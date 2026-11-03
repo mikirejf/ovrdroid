@@ -24,7 +24,7 @@ export const usagePatches: readonly Patch[] = [
   },
   {
     name: 'cache-usage-log-promote',
-    find: 'Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),',
-    replace: `Zh.set(t,{capturedAt:s.capturedAt,attemptedAt:Date.now()}),${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:s.modelId,promote:!0}),`,
+    find: 'y.attempted={capturedAt:l.capturedAt,attemptedAt:Date.now()};await zte(g,{sessionId:t,modelId:l.modelId,',
+    replace: `y.attempted={capturedAt:l.capturedAt,attemptedAt:Date.now()};${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:l.modelId,promote:!0});await zte(g,{sessionId:t,modelId:l.modelId,`,
   },
 ];

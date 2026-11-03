@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { applies } from '../rebase.ts';
 import { SUBAGENT_ROWS, SUBAGENT_TAB_ID, subagentsTabPatches } from '../subagents-tab-patches.ts';
 import { describeStrayNames, payloadFunction } from './payload.ts';
-import { shipped, stockDroid } from './stock-scanner.ts';
+import { shipped, stockDroid, stockText } from './stock-scanner.ts';
 
 describeStrayNames(subagentsTabPatches);
 
@@ -183,6 +183,10 @@ describe('searching the Subagents tab', () => {
   });
 });
 
+function helpersLeftOut(text: string): number {
+  return text.match(/\.archivedAt&&![\w$]+\.isSubagent\b/gu)?.length ?? 0;
+}
+
 describe('the shipped binary', () => {
   const { patchedText, rebasedNamed } = shipped(subagentsTabPatches);
 
@@ -201,7 +205,7 @@ describe('the shipped binary', () => {
     });
 
     test('every list tab but Favorites and Archived leaves helpers out', () => {
-      expect(patchedText.match(/!g\.isSubagent/gu)).toHaveLength(3);
+      expect(helpersLeftOut(patchedText) - helpersLeftOut(stockText)).toBe(3);
     });
   });
 });

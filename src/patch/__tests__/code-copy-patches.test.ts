@@ -25,6 +25,7 @@ interface Props {
   paddingLeft?: number;
   maxWidth?: number;
   config?: object;
+  color?: string;
   wrap?: string;
   style?: { textWrap?: string };
 }
@@ -63,6 +64,11 @@ const TEXT = 'Text';
 const CODE = element('Highlighted', {});
 const PROVIDER = { name: 'wrap provider' };
 const COPY_CONFIG = { [UNWRAP_KEY]: true };
+
+interface MarkdownConfig {
+  [UNWRAP_KEY]?: boolean;
+  mentionClaims?: { scope: string; owner: string; keys: string[] };
+}
 
 function codeBlock(config: { [UNWRAP_KEY]?: boolean }): Node {
   const patch = patchNamed(codeCopyPatches, 'code-copy-block-unwrapped');
@@ -118,13 +124,27 @@ describe('a code block anywhere else', () => {
 });
 
 describe('the transcript message', () => {
-  test('hands the markdown renderer the shared config that switches the flat code block on', () => {
+  test('an assistant reply hands the markdown renderer the shared config beside the mention claims', () => {
     const patch = patchNamed(codeCopyPatches, 'code-copy-transcript-markdown');
+    const config = payloadFunction<unknown[], MarkdownConfig>(
+      ['y', 'E', 'k', 'D', 'globalThis'],
+      `let ${patch.replace}D.split(",")}}}),[]);return V`,
+    )((build: () => MarkdownConfig) => build(), 'scope', 'owner', 'a,b', {
+      [CODE_COPY_GLOBAL]: { config: COPY_CONFIG },
+    });
+    expect(config).toEqual({
+      ...COPY_CONFIG,
+      mentionClaims: { scope: 'scope', owner: 'owner', keys: ['a', 'b'] },
+    });
+  });
+
+  test('a tool message hands the markdown renderer the shared config', () => {
+    const patch = patchNamed(codeCopyPatches, 'code-copy-tool-markdown');
     const node = payloadFunction<unknown[], Node>(
-      ['f', 't', 'Da', 'y', 'a', 'q', 'Q', 'globalThis'],
+      ['C', 't', 'yt', 'L', 'a', 'e1', 'C1', 'globalThis'],
       `return ${patch.replace}:null`,
     )(
-      { messageType: 'markdown', role: 'assistant' },
+      { messageType: 'markdown', role: 'tool' },
       element,
       'Markdown',
       60,
@@ -134,6 +154,7 @@ describe('the transcript message', () => {
       { [CODE_COPY_GLOBAL]: { config: COPY_CONFIG } },
     );
     expect(node.props.config).toBe(COPY_CONFIG);
+    expect(node.props.color).toBe('blue');
     expect(node.props.maxWidth).toBe(60);
   });
 });

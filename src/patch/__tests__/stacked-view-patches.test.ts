@@ -143,7 +143,7 @@ describe.skipIf(stock === undefined)(
           .map((module) => module.text)
           .join('\n');
         expect(text).toContain('function $ODStack(');
-        expect(text).toContain('a.Stacked="stacked"');
+        expect(text).toContain('.Stacked="stacked"})');
       },
       SLOW_PATCH_MS,
     );
@@ -305,6 +305,7 @@ describe('the setting', () => {
 
 interface LiveUnit {
   kind: string;
+  awaitsImages?: boolean;
   group?: { $ODlive?: boolean };
   item?: { sourceMessageStreaming?: boolean };
 }
@@ -315,8 +316,8 @@ interface ReprintRef {
 
 describe('switching display modes', () => {
   test('the static key carries stacked so the committed list resets', () => {
-    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-units');
-    expect(replace).toContain('$e=$ODstacked?M+":stacked":M,');
+    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-static-key');
+    expect(replace).toContain('g1=$ODstacked?M+":stacked":M,');
   });
 
   test('a switch into or out of stacked clears and reprints, expanded to compact does not', () => {
@@ -363,7 +364,10 @@ describe('switching display modes', () => {
 
 describe('keeping the open run live', () => {
   const patch = patchNamed(stackedViewPatches, 'stacked-view-open-run-live');
-  const live = payloadFunction<[], (unit: LiveUnit) => boolean>([], `${patch.replace}return Xz`)();
+  const live = payloadFunction<[], (unit: LiveUnit) => boolean>(
+    [],
+    `${patch.replace}(C.kind==="item"||C.kind==="proposal-body")&&C.item.sourceMessageStreaming===!0}return Wr1`,
+  )();
 
   test('an open stacked run counts as live', () => {
     expect(live({ kind: 'collapsed-group', group: { $ODlive: true } })).toBe(true);
@@ -374,7 +378,8 @@ describe('keeping the open run live', () => {
     expect(live({ kind: 'collapsed-group', group: {} })).toBe(false);
   });
 
-  test('a streaming item stays live as in stock', () => {
+  test('a streaming item and an item awaiting images stay live as in stock', () => {
     expect(live({ kind: 'item', item: { sourceMessageStreaming: true } })).toBe(true);
+    expect(live({ kind: 'item', awaitsImages: true, item: {} })).toBe(true);
   });
 });

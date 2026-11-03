@@ -19,7 +19,7 @@ export const MOVE_TASKS =
   'return $ODmoved.length>0});return $ODmoved};';
 
 const FORK =
-  'let S=await c.forkSession(l,{kind:"beforeMessage",messageId:t},a,l,"rewind",' +
+  'S=await c.forkSession(l,{kind:"beforeMessage",messageId:t},a,l,"rewind",' +
   '{preserveCurrentSession:!0,keepPromptCacheKey:!0,extraTags:[{name:m6,metadata:{[Aye]:l}}]});';
 
 const FORK_LOOKUPS = [

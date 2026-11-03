@@ -62,7 +62,7 @@ describe.skipIf(stock === undefined)('the shipped AskUser tool definition', () =
 });
 
 const SPEC_REMINDER =
-  /function [\w$]+\(\{isAskUserEnabled:[\w$]+,usesCreateEditTools:[\w$]+\}\)\{/u;
+  /function [\w$]+\(\{isAskUserEnabled:[\w$]+,usesCreateEditTools:[\w$]+(?:,[\w$]+:[\w$]+)*\}\)\{/u;
 
 interface ReminderFlags {
   isAskUserEnabled: boolean;

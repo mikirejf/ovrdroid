@@ -125,7 +125,9 @@ Fix by reason:
   pick a different use of the same binding. A lookup made only of short names and punctuation
   (`X=!1,Y=()=>{`) is unique as literal text but matches many places by shape. Widen it within the
   same declaration list until a literal or a dotted name pins it. `probe grep` counts literals, not
-  shapes, so it cannot tell you this.
+  shapes, so it cannot tell you this. Such a lookup can break with its own site untouched, when
+  upstream adds a same-shaped function elsewhere in the module. Diff its old and new matches before
+  porting anything.
 - `no-lookup` with no match: usually only the snippet's **surroundings** moved, not the binding it
   captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
   the names the `replace` uses plus just enough text to match once in its module. A lookup only
@@ -376,6 +378,9 @@ platforms. Write any new one the same way:
   file's finds in one build's names. Re-anchoring one patch means rewriting the rest of the file's
   finds in the same build's names, or the harness defines a function under one build's name and
   calls it under another's.
+- A harness that evaluates several stock functions from one module breaks when upstream moves one
+  into another chunk. Evaluate each in its own chunk's scope and hand the names one imports from
+  the other in as overrides, read from the importer's `import` header.
 - The 400-line lint limit applies to test harnesses too. Move a helper into its own file
   (`mcp-fake-fs.ts`, `scanner-source.ts`) instead of trimming code.
 

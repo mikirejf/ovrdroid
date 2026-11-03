@@ -46,9 +46,8 @@ export const counterPatches: readonly Patch[] = [
   },
   {
     name: 'counter-message-list',
-    find: 'onStaticEpochReset:Y,activeMachineId:ee,activeMachineName:te})=>{',
-    replace:
-      'onStaticEpochReset:Y,activeMachineId:ee,activeMachineName:te})=>{globalThis.$ODc.list++;',
+    find: 'activeMachineName:t1,remoteImageScope:r1})=>{',
+    replace: 'activeMachineName:t1,remoteImageScope:r1})=>{globalThis.$ODc.list++;',
   },
   {
     name: 'counter-markdown',

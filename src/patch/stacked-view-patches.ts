@@ -108,27 +108,31 @@ export const STACK_VIEW =
   '$ODfailed>0?t(o,{color:a.error,children:", "+$ODfailed+" failed"}):null,$ODsep]},$ODi)})}),' +
   '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
 
-const UNITS_FIND =
-  'xe=f().getToolResultDisplay()==="compact",ue=b({staticKey:M,cuts:new Map}),' +
-  'Ce=k(()=>{let We=ue.current.staticKey===M?ue.current.cuts:new Map,gt=Nz(We,ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt))));return ue.current={staticKey:M,cuts:gt},gt},[ie,M]),';
+const MODE_FIND =
+  's1=f().getToolResultDisplay()==="compact",c1=b({staticKey:M,cuts:new Map}),' +
+  'd1=y(()=>{let Y1=c1.current.staticKey===M?c1.current.cuts:new Map,H1=wr1(Y1,n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))));return c1.current={staticKey:M,cuts:H1},H1},[n1,M]),';
 
-const UNITS_KEY = 'Ne=b(void 0),ke=b(void 0),Fe=b([]),$e=M,';
-
-const UNITS_OPTIONS =
-  '{includeHeader:!0,reskin:!0,staticToolIds:le,view:{kind:"chat",showThinking:A},streamingCuts:Ce}';
-
-const UNITS_HEAD = UNITS_FIND.replace(
-  'xe=f().getToolResultDisplay()==="compact",',
-  `$ODmode=f().getToolResultDisplay(),xe=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
+export const MODE = MODE_FIND.replace(
+  's1=f().getToolResultDisplay()==="compact",',
+  `$ODmode=f().getToolResultDisplay(),s1=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
 )
   .replace(
-    'ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt)))',
-    'ie.filter((tt)=>!(("toolName"in tt)&&("status"in tt))&&!($ODstacked&&tt.messageType==="thinking"))',
+    'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2)))',
+    'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))&&!($ODstacked&&p2.messageType==="thinking"))',
   )
-  .replace('},[ie,M]),', '},[ie,M,$ODstacked]),');
+  .replace('},[n1,M]),', '},[n1,M,$ODstacked]),');
+
+const UNITS_OPTIONS =
+  '{includeHeader:!0,reskin:!0,staticToolIds:i1,view:{kind:"chat",showThinking:D},images:f1,streamingCuts:d1}';
+
+const UNITS_DEPS = '[i1,f1,L1,n1,D,d1]';
 
 const UNITS_STACKED =
-  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:A,awaiting:($ODid)=>K?.has($ODid)===!0}):$ODunits}';
+  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:D,awaiting:($ODid)=>q?.has($ODid)===!0}):$ODunits}';
+
+const STATIC_KEY_FIND = 'g1=M,D1=y(()=>jr1({previousState:b1.current,units:h1,';
+
+export const STATIC_KEY = STATIC_KEY_FIND.replace('g1=M,', 'g1=$ODstacked?M+":stacked":M,');
 
 const REPRINT_FIND =
   'qe=b({baseStaticKey:$e,epoch:0});ur(()=>{Ne.current=Ye;let We=qe.current,tt=We.baseStaticKey===Ye.baseStaticKey&&Ye.epoch>We.epoch;' +
@@ -194,9 +198,9 @@ export const stackedViewPatches: readonly Patch[] = [
   },
   {
     name: 'stacked-view-open-run-live',
-    find: 'function Xz(g){return(g.kind==="item"||g.kind==="proposal-body")&&g.item.sourceMessageStreaming===!0}',
+    find: 'function Wr1(C){return C.kind==="item"&&C.awaitsImages===!0||',
     replace:
-      'function Xz(g){return g.kind==="collapsed-group"&&g.group.$ODlive===!0||(g.kind==="item"||g.kind==="proposal-body")&&g.item.sourceMessageStreaming===!0}',
+      'function Wr1(C){return C.kind==="collapsed-group"&&C.group.$ODlive===!0||C.kind==="item"&&C.awaitsImages===!0||',
   },
   {
     name: 'stacked-view-turn-prop',
@@ -205,10 +209,20 @@ export const stackedViewPatches: readonly Patch[] = [
       'showThinking:A=!1,$ODturn:$ODturn=!1,permissionToolIds:L,staticToolIds:V,pendingPermissionToolIds:K,',
   },
   {
+    name: 'stacked-view-mode',
+    find: MODE_FIND,
+    replace: MODE,
+  },
+  {
     name: 'stacked-view-units',
-    find: `${UNITS_FIND}Ie=k(()=>t0(ie,${UNITS_OPTIONS}),[le,ie,A,Ce]),${UNITS_KEY}`,
-    lookups: ['showThinking:A=!1,permissionToolIds:L,staticToolIds:V,pendingPermissionToolIds:K,'],
-    replace: `${UNITS_HEAD}Ie=k(()=>{let $ODunits=t0(ie,${UNITS_OPTIONS});${UNITS_STACKED},[le,ie,A,Ce,$ODstacked,$ODturn,K]),${UNITS_KEY.replace('$e=M,', '$e=$ODstacked?M+":stacked":M,')}`,
+    find: `h1=y(()=>Ld(n1,${UNITS_OPTIONS}),${UNITS_DEPS});`,
+    lookups: ['showThinking:D=!1,permissionToolIds:R,staticToolIds:V,pendingPermissionToolIds:q,'],
+    replace: `h1=y(()=>{let $ODunits=Ld(n1,${UNITS_OPTIONS});${UNITS_STACKED},${UNITS_DEPS.replace(']', ',$ODstacked,$ODturn,q]')});`,
+  },
+  {
+    name: 'stacked-view-static-key',
+    find: STATIC_KEY_FIND,
+    replace: STATIC_KEY,
   },
   {
     name: 'stacked-view-mode-reprint',

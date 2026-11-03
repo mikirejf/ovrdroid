@@ -5,6 +5,7 @@ import type { Rebase } from '../rebase.ts';
 import { rebaseAll } from '../rebase.ts';
 import { streamRenderPatches } from '../stream-render-patches.ts';
 import { sourceApp, STOCK, textOf } from './ink-frame-harness.ts';
+import { closureOf } from './module-closure.ts';
 import { payloadFunction } from './payload.ts';
 import type { Stand } from './session-mention-harness.ts';
 
@@ -35,7 +36,7 @@ interface Binding {
   exported: string;
 }
 
-function importBindings(text: string): Map<string, Binding> {
+export function importBindings(text: string): Map<string, Binding> {
   const bindings = new Map<string, Binding>();
   for (const match of text.matchAll(IMPORT_STATEMENT)) {
     const from = match.groups?.['from'] ?? '';
@@ -133,6 +134,16 @@ export function evaluateProgram<Result>(program: Program): Result {
     ['$ODscope'],
     `with($ODscope){${program.source};return{${program.returns.join(',')}}}`,
   )(chunks.scopeOver(program.moduleText, program.overrides));
+}
+
+export function closureValue(chunk: string, name: string): Stand {
+  const text = textOf(sourceApp(), chunk);
+  return evaluateProgram<Record<string, Stand>>({
+    moduleText: text,
+    source: closureOf(text, [name]),
+    returns: [name],
+    overrides: new Map(),
+  })[name];
 }
 
 function writeRefused(): never {

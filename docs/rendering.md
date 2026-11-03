@@ -178,6 +178,15 @@ width and never erased. The live area clips each line at the terminal width, so 
 command shows cut at the edge (20 live frames at 80 columns) and appears whole once its block
 commits. The row count in the erase step always matches, and the screen equals a full repaint.
 
+Checked again on 2026-11-03 with `probe code-copy` on patched Droid 1.1.0 and the 1.2.0 candidate
+(one run each). Both draw the whole 124-character command while it streams, rather than clipping it.
+Ink counts the terminal-wrapped rows with `Math.ceil(width / columns)` before erasing the frame. The
+old probe rejected both builds because it required clipping. It now counts a live command only when
+the next frame erases far enough upward to cover it and all its wrapped rows. The candidate
+exercised 21 such redraws and the installed build 22. Both kept commands intact after the reply and
+resize, and their final conversation matched a full repaint. A static command above the erased area,
+a full repaint, or an erase that misses wrapped rows does not count.
+
 The system prompt also asks the model to put commands in fenced code blocks.
 
 Selecting with the terminal copies every glyph on screen, so the markdown blockquote bar `│` and the

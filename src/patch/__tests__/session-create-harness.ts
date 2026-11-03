@@ -17,7 +17,7 @@ export function createWorld(sites: Sites, unpatched = false): CreateWorld {
   const source = unpatched ? patched.replace(rebase.replace, rebase.find) : patched;
   const head = groups(
     source,
-    /^async\(\)=>\{let [\w$]+=(?<client>[\w$]+)\(\),[\w$]+=null,[\w$]+=null;try\{let [\w$]+=(?<service>[\w$]+)\(\),[\w$]+=[\w$]+\.getCurrentSessionId\(\)\?\?void 0;[\w$]+=[\w$]+\?\?null;let [\w$]+=[\w$]+!==void 0\?(?<snapshot>[\w$]+)\(\):void 0,[\w$]+=[\w$]+\.getCurrentSessionTags\(\),[\w$]+=(?<cwd>[\w$]+)\(\);/u,
+    /^async\(\)=>\{let [\w$]+=(?<client>[\w$]+)\(\),[\w$]+=null,[\w$]+=null,[\w$]+=(?<generation>[\w$]+)\.current;try\{let [\w$]+=(?<service>[\w$]+)\(\),[\w$]+=[\w$]+\.getCurrentSessionId\(\)\?\?void 0;[\w$]+=[\w$]+\?\?null;let [\w$]+=[\w$]+!==void 0\?(?<snapshot>[\w$]+)\(\):void 0,[\w$]+=[\w$]+\.getCurrentSessionTags\(\),[\w$]+=(?<cwd>[\w$]+)\(\);/u,
     'session create head',
   );
   const defaults = groups(
@@ -37,7 +37,7 @@ export function createWorld(sites: Sites, unpatched = false): CreateWorld {
   );
   const failure = groups(
     source,
-    /catch\((?<error>[\w$]+)\)\{if\([\w$]+\)(?<keep>[\w$]+)\.current\.set\([\w$]+,[^;]*?\);return (?<log>[\w$]+)\(\k<error>,"\[Daemon\] Failed to create session"\),(?<notice>[\w$]+)\((?<describe>[\w$]+)\(/u,
+    /catch\((?<error>[\w$]+)\)\{if\([\w$]+&&\([\w$]+!==null\|\|[\w$]+\.current===[\w$]+\)\)(?<keep>[\w$]+)\.current\.set\([\w$]+,[^;]*?\);return (?<log>[\w$]+)\(\k<error>,"\[Daemon\] Failed to create session"\),(?<notice>[\w$]+)\((?<describe>[\w$]+)\(/u,
     'session create failure',
   );
   const pending = new Map<string | null, Settings>();
@@ -74,6 +74,7 @@ export function createWorld(sites: Sites, unpatched = false): CreateWorld {
     ],
     [head('snapshot'), () => null],
     [head('cwd'), () => '/work'],
+    [head('generation'), { current: 0 }],
     [defaults('read'), () => ({ reasoningEffort: 'medium' })],
     [
       named('qe'),

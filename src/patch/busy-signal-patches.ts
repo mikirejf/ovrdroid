@@ -35,7 +35,7 @@ export const busySignalPatches: readonly Patch[] = [
     find: STOCK_STATUS_MOUNT,
     lookups: [
       'ssm=N().getSessionStateManager();changes=Ts("SessionRosterStore"',
-      'let A=qme(U,I);if(A.length===0)return GP;',
+      'if(!I)return GP;let A=qme(U,I);if(A.length===0)return GP;',
     ],
     replace: `${BUSY_SIGNAL_PAYLOAD}${PATCHED_STATUS_MOUNT}`,
   },

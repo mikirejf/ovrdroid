@@ -7,6 +7,10 @@ const SGR = /\u001B\[[0-9;:]*m/gu;
 const OSC = /\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/gu;
 // oxlint-disable-next-line no-control-regex
 const CURSOR_SEQUENCE = /\u001B\[[0-9;?]*[A-Za-z]/gu;
+// oxlint-disable-next-line no-control-regex
+const FRAME_PREFIX = /^(?:\u001B\[[0-9;?]*[A-Za-z]|\r|\n)*/u;
+// oxlint-disable-next-line no-control-regex
+const CURSOR_UP = /\u001B\[(?<rows>\d*)A/gu;
 const FRAME_START = '\u001B[?2026h';
 const HEAD_CHARS = 16;
 const RESUME_CHARS = 8;
@@ -74,23 +78,48 @@ export function describeCodeCopy(reading: CodeCopyReading, command: string, when
   return `${when}: the last copy breaks after ${reading.brokenAfter} of ${command.length} chars, where Droid wrote "${reading.gap}", so a copy carries that break into the shell`;
 }
 
-export function liveFramesClipped(reply: string, command: string, cols: number): number {
+function erasedRows(frame: string): number {
+  const prefix = FRAME_PREFIX.exec(withoutStyles(frame))?.[0] ?? '';
+  if (prefix.includes('\u001B[2J') || prefix.includes('\u001B[H')) {
+    return 0;
+  }
+  let rows = 0;
+  for (const match of prefix.matchAll(CURSOR_UP)) {
+    rows += Math.max(1, Number(match.groups?.['rows'] ?? ''));
+  }
+  return rows;
+}
+
+export function countLiveCommandRedraws(reply: string, command: string, cols: number): number {
   const head = command.slice(0, HEAD_CHARS);
-  return reply.split(FRAME_START).filter((frame) =>
-    withoutStyles(frame)
-      .replaceAll(CURSOR_SEQUENCE, '')
-      .split('\n')
-      .some(
-        (line) => line.includes(head) && !line.includes(command) && Bun.stringWidth(line) === cols,
-      ),
-  ).length;
+  const frames = reply.split(FRAME_START);
+  return frames.filter((frame, at) => {
+    const text = withoutStyles(frame).replaceAll(CURSOR_SEQUENCE, '').replaceAll('\r', '');
+    if (!STOP_HINTS.some((hint) => text.includes(hint))) {
+      return false;
+    }
+    const lines = text.split('\n');
+    const commandLine = lines.findIndex(
+      (line) => line.includes(head) && (line.includes(command) || Bun.stringWidth(line) === cols),
+    );
+    if (commandLine === -1) {
+      return false;
+    }
+    let rowsToCommand = 0;
+    const tail = lines.slice(commandLine);
+    for (const [index, line] of tail.entries()) {
+      const wrapped = Math.ceil(Bun.stringWidth(line) / cols);
+      rowsToCommand += index === tail.length - 1 ? Math.max(0, wrapped - 1) : Math.max(1, wrapped);
+    }
+    return rowsToCommand > 0 && erasedRows(frames[at + 1] ?? '') >= rowsToCommand;
+  }).length;
 }
 
 export function describeLiveFrames(frames: number, command: string, cols: number): string {
   if (frames === 0) {
-    return `no live frame drew the ${command.length}-char command, so the redraw check proves nothing: slow the stream down`;
+    return `no live redraw erased the ${command.length}-char command, so the redraw check proves nothing`;
   }
-  return `${frames} live frames drew the ${command.length}-char command cut at column ${cols}, so the redraw never held a line wider than the terminal`;
+  return `${frames} live redraws erased the ${command.length}-char command and all its wrapped rows at ${cols} columns`;
 }
 
 export interface Session {
