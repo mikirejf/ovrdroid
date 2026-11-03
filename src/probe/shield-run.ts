@@ -4,7 +4,8 @@ import path from 'node:path';
 import { withTempDir } from '../temp.ts';
 import { measureExec } from './exec.ts';
 import type { ShieldCase, ShieldReading } from './shield.ts';
-import { readShield, SHIELD_PROMPT } from './shield.ts';
+import { readShield, SHIELD_COMMIT, SHIELD_PROMPT } from './shield.ts';
+import { startStubModel, stubSettings } from './stub-model.ts';
 
 export const SHIELD_TIMEOUT_MS = 240_000;
 
@@ -61,21 +62,58 @@ export function shieldArgv(dir: string, model: string): string[] {
 
 export async function runShield(
   binary: string,
-  model: string,
+  model: string | undefined,
   cases: readonly ShieldCase[],
 ): Promise<ShieldReading> {
   return await withTempDir('shield', async (dir) => {
     await stageCases(dir, cases);
-    const run = await measureExec(
-      binary,
-      { argv: shieldArgv(dir, model), createsSession: true },
-      SHIELD_TIMEOUT_MS,
-    );
-    if (run.signal !== null || run.exitCode !== 0) {
-      throw new Error(
-        `${binary} exec ended with ${run.signal ?? `exit ${run.exitCode}`}: ${run.stderr.trim()}`,
+    const stub =
+      model === undefined
+        ? startStubModel(
+            { chars: 0, chunk: 1024, gapMs: 0 },
+            {
+              name: 'Execute',
+              input: {
+                command: SHIELD_COMMIT,
+                riskLevel: 'medium',
+                summary: 'Commit probe fixtures',
+              },
+            },
+          )
+        : undefined;
+    try {
+      const settings = path.join(dir, 'settings.json');
+      const flags = path.join(dir, 'feature-flags.json');
+      if (stub !== undefined) {
+        await writeFile(
+          settings,
+          JSON.stringify({ ...stubSettings(stub.url), droidShieldEnabled: true }),
+        );
+        await writeFile(flags, JSON.stringify({ flags: {}, configs: {} }));
+      }
+      const run = await measureExec(
+        binary,
+        {
+          argv: shieldArgv(dir, model ?? 'custom:stub-stream'),
+          createsSession: true,
+          env:
+            stub === undefined
+              ? {}
+              : {
+                  FACTORY_RUNTIME_SETTINGS_PATH: settings,
+                  FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: flags,
+                },
+        },
+        SHIELD_TIMEOUT_MS,
       );
+      if (run.signal !== null || run.exitCode !== 0) {
+        throw new Error(
+          `${binary} exec ended with ${run.signal ?? `exit ${run.exitCode}`}: ${run.stderr.trim()}`,
+        );
+      }
+      return readShield(run.stdout);
+    } finally {
+      await stub?.stop();
     }
-    return readShield(run.stdout);
   });
 }

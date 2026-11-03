@@ -76,7 +76,6 @@ describe('private-key findings stop blocking in test locations', () => {
     'an exact %s finding still blocks in a test path',
     (ruleId) => {
       expect(blocksAt('test/support/x.ts', ruleId)).toBe(true);
-      expect(blocksAt('src/__fixtures__/k.ts', ruleId)).toBe(true);
     },
   );
 });

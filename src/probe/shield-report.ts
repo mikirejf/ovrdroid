@@ -15,6 +15,7 @@ import {
 
 export interface ShieldOptions {
   model: string | undefined;
+  stub: boolean;
 }
 
 function labelsFor(binaries: readonly string[]): string[] {
@@ -33,7 +34,7 @@ function judge(run: ShieldRun): JudgedRun {
 }
 
 export async function shield(binaries: string[], options: ShieldOptions): Promise<void> {
-  const model = requireModel(options.model);
+  const model = options.stub ? undefined : requireModel(options.model);
   const labels = labelsFor(binaries);
   const readings = await Promise.all(
     binaries.map(async (binary) => await runShield(binary, model, SHIELD_CASES)),
@@ -42,7 +43,9 @@ export async function shield(binaries: string[], options: ShieldOptions): Promis
   const unjudged = runs.filter((run) => !hasVerdict(run.reading));
   const judged = runs.filter((run) => hasVerdict(run.reading)).map((run) => judge(run));
 
-  say(`one commit of ${SHIELD_CASES.length} staged files, run by ${model} through exec`);
+  say(
+    `one commit of ${SHIELD_CASES.length} staged files, run by ${model ?? 'a local stub'} through exec`,
+  );
   say('BLOCKED means Droid-Shield stopped the commit on that file; the mark says it was wrong');
   say('');
   if (judged.length > 0) {

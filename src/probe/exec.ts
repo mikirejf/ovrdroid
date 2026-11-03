@@ -1,4 +1,5 @@
 import { summarise } from './ab.ts';
+import type { LaunchEnv } from './launch.ts';
 import { launchEnv, race } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
 
@@ -45,6 +46,7 @@ export interface Expectation {
 export interface ExecCall {
   argv: readonly string[];
   createsSession: boolean;
+  env?: LaunchEnv;
 }
 
 export interface Workload extends ExecCall {
@@ -152,7 +154,7 @@ export async function timeRun(
 
 export async function measureExec(
   binary: string,
-  { argv, createsSession }: ExecCall,
+  { argv, createsSession, env }: ExecCall,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ExecRun> {
   const ledger = new Ledger();
@@ -162,7 +164,7 @@ export async function measureExec(
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
-      env: launchEnv(ledger.env),
+      env: launchEnv({ ...env, ...ledger.env }),
     });
     ledger.adopt(child);
     if (createsSession) {

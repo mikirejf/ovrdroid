@@ -32,6 +32,8 @@ export function fakePrivateKey(kind = 'PRIVATE KEY'): string {
 
 const FAKE_KEY = fakePrivateKey();
 const AWS_ACCESS_KEY = ['AKIA', 'QYLPMRTSVWXZ2345'].join('');
+const BROWSER_API_KEY = ['AIzaSy', 'Q7mL2rT9wX4pN8cV3bF6hJ1kD5sG0yZ_eUa'.slice(0, 33)].join('');
+const SAVED_HTML = `<script>ytcfg.set({"INNERTUBE_API_KEY":"${BROWSER_API_KEY}"});</script>`;
 
 function passes(path: string, line: string): ShieldCase {
   return { path, line, expect: 'pass' };
@@ -76,6 +78,12 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
     'tests/fixtures/page.html',
     `<meta name="x" content="x" data-token="K9woqjNNk6xCHDGesiz8Wvvj">`,
   ),
+  passes('apps/evals/fixtures/page.html', SAVED_HTML),
+  passes('apps/evals/fixtures-pages-holdout/page.html', SAVED_HTML),
+  passes('apps/evals/fixtures_holdout/page.json', `{"apiKey":"${BROWSER_API_KEY}"}`),
+  passes('src/__fixtures__/aws.ts', `export const k = '${AWS_ACCESS_KEY}'`),
+  passes('apps/evals/fixtures-pages-holdout/key.pem', FAKE_KEY),
+  blocks('src/browser-config.ts', SAVED_HTML),
   passes(
     'design-system/audit/typography.json',
     '  "styleToken": "typography.p22-mackinac-pro.h6-18-bold",',

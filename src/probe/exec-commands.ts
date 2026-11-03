@@ -37,5 +37,6 @@ export function registerExecCommands(program: Command): void {
     .description('which staged files does Droid-Shield block on commit, and does it miss a secret?')
     .argument('<binaries...>')
     .option('-m, --model <id>', 'model that runs the commit', defaultModel())
+    .option('--stub', 'run the commit through a local stub, with no paid model calls', false)
     .action(guard(shield));
 }
