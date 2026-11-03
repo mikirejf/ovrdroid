@@ -4,6 +4,7 @@ import { nestedSubagentUiPatches } from './nested-subagent-ui-patches.ts';
 import { nestingPatches } from './nesting-patches.ts';
 import type { Patch } from './patches.ts';
 import { rewindPatches } from './rewind-patches.ts';
+import { sessionHistoryPatches } from './session-history-patches.ts';
 import { sessionRosterPatches } from './session-roster-patches.ts';
 import { subagentInputPatches } from './subagent-input-patches.ts';
 import { subagentLaunchPatches } from './subagent-launch-patches.ts';
@@ -16,6 +17,7 @@ export const subagentPatches: readonly Patch[] = [
   ...nestedSubagentUiPatches,
   ...rewindPatches,
   ...droidsViewPatches,
+  ...sessionHistoryPatches,
   ...sessionRosterPatches,
   ...busySignalPatches,
   ...subagentInputPatches,

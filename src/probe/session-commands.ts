@@ -40,7 +40,9 @@ import {
 export function registerSessionCommands(program: Command): void {
   program
     .command('highlight')
-    .description('ask for a code block in a real session: do lazily loaded chunks still resolve?')
+    .description(
+      'render a code block from a local stub model in a real session: do lazily loaded chunks still resolve?',
+    )
     .argument('<binary>')
     .action(guard(highlight));
 

@@ -1,6 +1,12 @@
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { MS_PER_SECOND } from '../cli.ts';
+import { withTempDir } from '../temp.ts';
+import { serveReply } from './reply-server.ts';
 import type { Frame } from './session.ts';
 import { openSettledSession, sendAndRead } from './session.ts';
+import { stubSettings } from './stub-model.ts';
 
 export const HIGHLIGHT_PROMPT =
   'Reply with one fenced javascript code block containing console.log(1). Do not use tools.';
@@ -9,6 +15,7 @@ const CRASH_TEXT = 'Cannot find module';
 const MISSING_MODULE = /Cannot find module '(?<name>[^']+)'/gu;
 const REPLY_TIMEOUT_MS = 120_000;
 const QUIET_MS = 2000;
+const STUB_REPLY = '```javascript\nconsole.log(1);\n```';
 
 export interface HighlightReading {
   replied: boolean;
@@ -45,12 +52,23 @@ export function describeHighlight(reading: HighlightReading): string {
 }
 
 export async function askForHighlight(binary: string): Promise<HighlightReading> {
-  const { session } = await openSettledSession(binary);
-  return await sendAndRead(session, {
-    text: HIGHLIGHT_PROMPT,
-    read: readHighlight,
-    done: (reading) => reading.replied || reading.crashed,
-    timeoutMs: REPLY_TIMEOUT_MS,
-    quietMs: QUIET_MS,
-  });
+  const server = serveReply(STUB_REPLY, STUB_REPLY.length, 0);
+  try {
+    return await withTempDir('highlight', async (dir) => {
+      const settings = path.join(dir, 'settings.json');
+      writeFileSync(settings, JSON.stringify(stubSettings(server.url)));
+      const { session } = await openSettledSession(binary, {
+        env: { FACTORY_RUNTIME_SETTINGS_PATH: settings },
+      });
+      return await sendAndRead(session, {
+        text: HIGHLIGHT_PROMPT,
+        read: readHighlight,
+        done: (reading) => reading.replied || reading.crashed,
+        timeoutMs: REPLY_TIMEOUT_MS,
+        quietMs: QUIET_MS,
+      });
+    });
+  } finally {
+    await server.stop();
+  }
 }

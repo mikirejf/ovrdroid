@@ -140,7 +140,9 @@ async function finishHeldSubagent(
   recorder.mark('finished');
 }
 
-export type ScenarioOptions = Pick<BusySignalOptions, 'cwd' | 'timeout'>;
+export interface ScenarioOptions extends Pick<BusySignalOptions, 'cwd' | 'timeout'> {
+  sharedProcessAgents?: boolean;
+}
 
 interface Scenario {
   binary: string;
@@ -185,7 +187,13 @@ export async function withScenario(
     const settingsFile = path.join(dir, 'settings.json');
     writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
     const flagsFile = path.join(dir, 'feature-flags.json');
-    writeFileSync(flagsFile, JSON.stringify({ flags: { droids_view: true }, configs: {} }));
+    writeFileSync(
+      flagsFile,
+      JSON.stringify({
+        flags: { droids_view: true, shared_process_agents: options.sharedProcessAgents },
+        configs: {},
+      }),
+    );
     const fixture: Fixture = {
       release: stub.release,
       env: {

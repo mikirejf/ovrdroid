@@ -9,7 +9,8 @@ numbers are noisy and n is small. Memory numbers are steadier.
 - Subagents run **inside the parent TUI process**, because the `shared_process_agents` flag is on
   for this account (cached in `~/.factory/cache/feature-flags.json`).
 - Separate processes are heavier. A patch that forced them was built, measured and dropped.
-- The parent keeps a higher footprint after subagents end, but it is not a leak.
+- In the earlier measurements below, the parent's higher footprint after subagents ended was not a
+  leak. Saved helper previews had a separate lifecycle bug, fixed below.
 - What fills the machine is orphaned dev servers, not subagents.
 
 ## How subagents run
@@ -36,6 +37,44 @@ The `nesting-*` patches turn nested delegation on and read three limits from the
 
 A droid's own `maxDepth` (default 1) can stop its subagents earlier, but never lets them go deeper
 than this ceiling.
+
+## Fixed: reading finished helpers must not reopen their runtimes
+
+Investigated 2026-11-04, reported on Droid 0.251.0 and still present in stock 1.2.0. In session
+`7fbbe3b8-c06a-45da-bd61-55eed7d04317`, the log recorded six active descendants at 2026-11-03
+23:12:49 UTC, but 49 registered helper runtimes at 23:12:56. Together with the parent they filled
+the in-process host's hard limit of 50. The working-helper count in the UI was not the number of
+occupied host slots.
+
+The session roster reads saved replies for finished helpers through `daemon.get_session_messages`.
+The client ran `ensureSessionLoaded` before that read, reopening a full runtime when the helper was
+known but unloaded. The TUI disables inactivity cleanup by default, and evicting the UI's cached
+session does not close the runtime. Preview reads could therefore leave finished helpers occupying
+slots indefinitely. The daemon's history handler already reads the saved transcript directly and
+does not need a running agent.
+
+`session-history-read-without-runtime-load` adds that history method to the client's existing set of
+requests that must not load a runtime first. Live operations keep their normal load behavior. The
+patch does not raise any limit or change inactivity cleanup for actual working sessions.
+
+The unit regression reads 64 completed-session histories without loading a runtime and checks that
+live message and settings operations still load theirs. `probe history-preview <binary>` finishes
+stub-model helpers, opens their roster previews and checks the process's log for runtime reloads. It
+requires a saved reply to appear and hosting logs to be present, so an unexercised run cannot pass.
+It makes no paid model calls.
+
+On copied Droid 1.2.0 binaries with the same existing patch set, the control reopened all three
+completed helpers when their saved replies appeared. With the history exemption, the same probe
+showed the saved replies and reopened none. Both runs confirmed that hosting logs were captured from
+the tested process. The probe explicitly enables in-process hosting and expands the Done group,
+rather than relying on feature-flag defaults or accepting a collapsed roster as a pass.
+
+The rebuilt copy also launched and rendered its lazy-loaded JavaScript highlighting. The highlight
+probe now supplies its code block through the existing local stub server, so this required smoke
+check no longer spends model credits.
+
+Running sessions need a restart after installing the fix to release runtimes already reopened by the
+old code. No task-store deletion is needed.
 
 ## In-process is lighter
 
