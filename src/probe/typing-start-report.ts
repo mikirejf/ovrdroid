@@ -1,6 +1,6 @@
 import type { Series } from './ab.ts';
 import { summarise } from './ab.ts';
-import { SHELL_BOX_BOTTOM_LEFT, SYNC_START } from './input-box.ts';
+import { findInputBox, hasInputBox, SYNC_START } from './input-box.ts';
 import { paintDetector } from './launch.ts';
 import type { Measure } from './regressions.ts';
 
@@ -16,21 +16,37 @@ export class StartupTimeline {
   shellAt: number | undefined;
   appAt: number | undefined;
   private readonly isAppPainted = paintDetector();
-  private tail = '';
+  private shellOutput = '';
   private synced = false;
 
   feed(text: string, atMs: number): void {
-    const window = this.tail + text;
-    const syncAt = window.indexOf(SYNC_START);
-    const before = syncAt === -1 ? window : window.slice(0, syncAt);
-    if (this.shellAt === undefined && !this.synced && before.includes(SHELL_BOX_BOTTOM_LEFT)) {
-      this.shellAt = atMs;
+    if (!this.synced) {
+      const window = this.shellOutput + text;
+      const syncAt = window.indexOf(SYNC_START);
+      const before = syncAt === -1 ? window : window.slice(0, syncAt);
+      if (this.shellAt === undefined && hasInputBox(before)) {
+        this.shellAt = atMs;
+      }
+      this.synced = syncAt !== -1;
+      this.shellOutput = this.synced ? '' : window;
     }
-    this.synced ||= syncAt !== -1;
-    this.tail = window.slice(1 - SYNC_START.length);
     if (this.appAt === undefined && this.isAppPainted(text)) {
       this.appAt = atMs;
     }
+  }
+}
+
+export function assertFlatStartupBox(lines: readonly string[], stage: string): void {
+  const box = findInputBox(lines);
+  if (
+    box === undefined ||
+    !/^[─━]+$/u.test(box.topLine) ||
+    !/^[─━]+$/u.test(box.bottomLine) ||
+    lines
+      .slice(box.top + 1, box.bottom)
+      .some((line) => !line.startsWith('  ') || line.endsWith('│'))
+  ) {
+    throw new Error(`${stage}: expected a complete flat input box without corners or sides`);
   }
 }
 

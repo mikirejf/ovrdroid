@@ -12,7 +12,17 @@ const LABELED_BOX_BODY =
 
 const PLAIN_BOX_SIDES = 'borderDimColor:!V,width:E,paddingX:Eh.paddingX,';
 
+const EARLY_INPUT_BOX = String.raw`function OTe({handoff:e,width:n,windowsLike:t}){let o=HV(t),r={color:a.border},s=e.draft.length===0,i=D2({wrappedLayout:N2({value:s?e.placeholder:e.draft,maxLineWidth:qM(n)}),cursorOffset:s?0:e.cursor}),l=s?{dim:!0}:void 0,c=[{text:"\u2500".repeat(Math.max(0,n-2)),style:r}],u=[];u.push(o.hasBorder?[{text:"\u256D",style:r},...c,{text:"\u256E",style:r}]:[]);for(let p=0;p<i.displayLines.length;p++){let x=i.displayLines[p]??"",m=[];if(o.hasBorder)m.push({text:"\u2502",style:r});if(m.push({text:" ".repeat(o.paddingX)}),m.push({text:p===0?"> ":"  ",style:{color:a.primary}}),p===i.cursorLine){let{cursorCol:h}=i;m.push({text:x.slice(0,h),style:l}),m.push({text:x[h]??" ",style:{inverse:!0}}),m.push({text:x.slice(h+1),style:l})}else m.push({text:x,style:l});if(o.hasBorder)m.push({text:" ".repeat(Math.max(0,n-mt(m)-1))}),m.push({text:"\u2502",style:r});u.push(m)}return u.push(o.hasBorder?[{text:"\u2570",style:r},...c,{text:"\u256F",style:r}]:[]),u}`;
+
 export const copySelectPatches: readonly Patch[] = [
+  {
+    name: 'copy-select-early-input-flat',
+    find: EARLY_INPUT_BOX,
+    replace: EARLY_INPUT_BOX.replaceAll(
+      /\\u(?:256D|256E|2570|256F)/gu,
+      String.raw`\u2500`,
+    ).replaceAll(String.raw`\u2502`, ' '),
+  },
   {
     name: 'copy-select-blockquote-flat',
     find: BLOCKQUOTE_BAR,

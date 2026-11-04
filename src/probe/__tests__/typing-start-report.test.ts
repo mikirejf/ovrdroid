@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
+import { hasInputBox, linesOf } from '../input-box.ts';
 import type { TypingStartRun } from '../typing-start-report.ts';
 import {
+  assertFlatStartupBox,
   describeTypingStart,
   StartupTimeline,
   typingStartMeasure,
@@ -27,6 +29,55 @@ function run(shellMs: number, appMs: number, pairs = 20): TypingStartRun {
 }
 
 describe('StartupTimeline', () => {
+  test.each([STOCK_BOX, PATCHED_BOX])(
+    'accepts either complete shell across every chunk boundary: %s',
+    (box) => {
+      for (let cut = 0; cut <= box.length; cut += 1) {
+        const first = box.slice(0, cut);
+        const timeline = timelineOf([100, first], [110, box.slice(cut)], [700, PATCHED_FRAME]);
+        expect(timeline.shellAt).toBe(hasInputBox(first) ? 100 : 110);
+        expect(timeline.appAt).toBe(700);
+      }
+    },
+  );
+
+  test.each([STOCK_BOX, PATCHED_BOX])(
+    'never calls synchronized boxes a shell at any split: %s',
+    (box) => {
+      const frame = `${SYNC_START}${box}`;
+      for (let cut = 0; cut <= frame.length; cut += 1) {
+        const timeline = timelineOf([100, frame.slice(0, cut)], [110, frame.slice(cut)]);
+        expect(timeline.shellAt).toBeUndefined();
+        expect(timeline.appAt).toBe(
+          hasInputBox(frame.slice(SYNC_START.length, cut)) && cut >= SYNC_START.length ? 100 : 110,
+        );
+      }
+    },
+  );
+
+  test('handles individual characters, including the sync marker', () => {
+    const timeline = new StartupTimeline();
+    for (const char of PATCHED_BOX) {
+      timeline.feed(char, 100);
+    }
+    for (const char of PATCHED_FRAME) {
+      timeline.feed(char, 700);
+    }
+    expect(timeline.shellAt).toBe(100);
+    expect(timeline.appAt).toBe(700);
+  });
+
+  test('recognizes a flat shell and app arriving in one chunk', () => {
+    const timeline = timelineOf([100, `${PATCHED_BOX}\n${PATCHED_FRAME}`]);
+    expect(timeline.shellAt).toBe(100);
+    expect(timeline.appAt).toBe(100);
+  });
+
+  test('does not count a corner or incomplete rule without an input as shell paint', () => {
+    const timeline = timelineOf([100, '╰\n────\n'], [110, SYNC_START], [120, PATCHED_BOX]);
+    expect(timeline.shellAt).toBeUndefined();
+    expect(timeline.appAt).toBe(120);
+  });
   test('stamps the shell at the first box and the app at the first synchronized box', () => {
     const timeline = timelineOf([90, 'probe'], [100, SHELL], [130, '/'], [760, FRAME]);
     expect(timeline.shellAt).toBe(100);
@@ -71,6 +122,34 @@ describe('StartupTimeline', () => {
     const timeline = timelineOf([100, SHELL], [400, 'echo']);
     expect(timeline.shellAt).toBe(100);
     expect(timeline.appAt).toBeUndefined();
+  });
+});
+
+describe('assertFlatStartupBox', () => {
+  test('rejects the rounded shell even when followed by a flat app later', () => {
+    expect(() => {
+      assertFlatStartupBox(linesOf(STOCK_BOX), 'first shell');
+    }).toThrow('first shell');
+  });
+
+  test('accepts blank, typed, multiline and resized flat inputs', () => {
+    for (const box of [
+      PATCHED_BOX,
+      '────\n  > typed\n    next row\n────',
+      `${'─'.repeat(100)}\n  > typed\n${'─'.repeat(100)}`,
+    ]) {
+      expect(() => {
+        assertFlatStartupBox(linesOf(box), 'shell');
+      }).not.toThrow();
+    }
+  });
+
+  test('rejects missing boxes and surviving corners or sides', () => {
+    for (const box of ['', '────\n  > typed │\n────', '───╮\n  > typed\n────']) {
+      expect(() => {
+        assertFlatStartupBox(linesOf(box), 'shell');
+      }).toThrow('shell');
+    }
   });
 });
 

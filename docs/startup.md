@@ -11,10 +11,9 @@ stand.
 ## The early input shell and the real app frame
 
 Droid 0.245.0 draws an early input shell (`startEarlyInputShell`, startup boundary `shell_paint`)
-about 80 to 100ms after spawn: logo, tip and a boxed input (`╭│╰`, drawn by Droid's own shell on
-stock and patched alike), no footer, written without synchronized output. The real app frame arrives
-later and is the first output that contains `\e[?2026h` (synchronized output start). The shell is
-off under `--resume`.
+about 80 to 100ms after spawn: logo, tip and a boxed input (stock uses `╭│╰`), no footer, written
+without synchronized output. The real app frame arrives later and is the first output that contains
+`\e[?2026h` (synchronized output start). The shell is off under `--resume`.
 
 Until 2026-10-21 `probe ab` and every probe that waits for paint matched `╰`, so they timed the
 shell. A startup regression anywhere after ~100ms was invisible to `ab`, and probes that type at
@@ -29,6 +28,23 @@ reads the box goes through `src/probe/input-box.ts`. Checked on a stock and a pa
 (120x40, saved trimmed as `src/probe/__tests__/app-frame-*.fixture.json`): the shell chunks never
 count, and both builds count in chunk 13 of the capture, the chunk where the old `╰` match fired on
 stock (the old match never fires on the patched capture).
+
+On Droid 1.2.0, `copy-select-early-input-flat` also flattens the separate manual shell renderer:
+four corners become `─` and both side cells become spaces. Layout, wrapping, cursor placement and
+the Windows-like branch stay unchanged. Initial paint, typing redraws and resize use this same
+renderer; the shell still accepts input immediately and hands its draft to the full app. The shell
+has no model/footer data yet, so this matches input borders, not the entire startup screen.
+
+Checked 2026-11-04, Droid 1.2.0, one border check per build:
+
+```bash
+bun run probe typing-start ~/.local/bin/droid ~/.local/bin/droid --check-borders
+bun run probe typing-start ~/.local/bin/droid /tmp/ovrdroid-input-border.AFnu9W/droid --check-borders
+```
+
+The previous installed digest `66a5dc7925db` failed at the first shell (rounded). Candidate
+`34742133feaa`, Bun 1.4.3, passed first shell and typing at 120 columns, then resize and app handoff
+at 100 columns, preserving `startup-border` throughout. No prompt was submitted.
 
 `probe ab` on 2026-10-21, Droid 0.245.0, time to the real app frame in ms, paired and interleaved,
 load average 3.5 to 7 (22 other Droid sessions open):
@@ -319,12 +335,16 @@ starts delay the real app frame. Droid's early input shell holds deferred startu
 input is idle (100ms quiet, capped 500ms after the first key), so a patch that moves work to after
 paint can land that work in the typing window. `probe ab` never types and cannot see it.
 
-Each run spawns the build, waits for the shell's input box (first `╰`, no sync frame; the shell is
-Droid's own and draws it on patched builds too), writes `/` then backspace every gap ms until the
-app frame (`paintDetector`), then exits as `launch` does. It reports shell paint and app paint in ms
-from spawn and how many key pairs were typed. Runs are paired and interleaved per gap; the probe
-fails when the target is slower than stock with confidence, Bonferroni-corrected across the gaps. It
-also fails if the app never paints within 20s or paints with no shell to type into.
+Each run spawns the build, waits for a complete round or flat input box before any sync frame,
+writes `/` then backspace every gap ms until the app frame (`paintDetector`), then exits as `launch`
+does. It reports shell paint and app paint in ms from spawn and how many key pairs were typed. Runs
+are paired and interleaved per gap; the probe fails when the target is slower than stock with
+confidence, Bonferroni-corrected across the gaps. It also fails if the app never paints within 20s
+or paints with no shell to type into.
+
+`probe typing-start <stock> <target> --check-borders` checks only the target, without submitting a
+prompt: the first shell, pre-handoff typing, a 120-to-100-column resize and the app handoff must all
+have flat input borders. It fails if handoff happens before those early redraws are captured.
 
 Both binaries are copied into one fresh scratch directory under the temp dir and measured from
 there: each `fs.watch` costs in proportion to the entries in the binary's directory (~10 times more

@@ -3,8 +3,12 @@ import { describe, expect, test } from 'bun:test';
 import { patchSource } from '../../binary/apply.ts';
 import { joinApp } from '../../binary/graph.ts';
 import { copySelectPatches } from '../copy-select-patches.ts';
-import { applies } from '../rebase.ts';
+import type { Patch } from '../patches.ts';
+import type { Rebase } from '../rebase.ts';
+import { applies, rebasePatch } from '../rebase.ts';
 import { subagentInputPatches } from '../subagent-input-patches.ts';
+import { freeNames, renameIn } from '../tokens.ts';
+import { closureOf, declarationText } from './module-closure.ts';
 import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 import { requireStock, shipped, stockDroid, stockText } from './stock-scanner.ts';
 
@@ -199,6 +203,171 @@ describe.skipIf(stockDroid === undefined)('Ink in the shipped binary', () => {
 });
 
 const { patchedText, rebasedNamed } = shipped(copySelectPatches);
+
+interface ShellSpan {
+  text: string;
+  style?: { color?: string; dim?: boolean; inverse?: boolean };
+}
+
+type ShellRenderer = (options: {
+  handoff: { draft: string; placeholder: string; cursor: number };
+  width: number;
+  windowsLike: boolean;
+}) => ShellSpan[][];
+
+const SHELL_EDGES = /[╭╮╰╯│]/gu;
+
+function flatShellText(text: string): string {
+  return text.replaceAll(SHELL_EDGES, (glyph) => (glyph === '│' ? ' ' : '─'));
+}
+
+function wrapShellFixture(text: string, width: number): string[] {
+  const rows: string[] = [];
+  for (let at = 0; at < text.length; at += width) {
+    rows.push(text.slice(at, at + width));
+  }
+  return rows;
+}
+
+function resolveShellPatch(patch: Patch, modules: readonly string[]): Rebase {
+  const rebased = rebasePatch(patch, modules);
+  if (!applies(rebased)) {
+    throw new Error(`${patch.name}: ${rebased.status}`);
+  }
+  return rebased;
+}
+
+function shellName(rebased: Rebase, original: string): string {
+  return rebased.renames[original] ?? original;
+}
+
+function captureShell(modules: readonly string[]) {
+  const patch = resolveShellPatch(
+    patchNamed(copySelectPatches, 'copy-select-early-input-flat'),
+    modules,
+  );
+  const source = modules.find((module) => module.includes(patch.find));
+  if (source === undefined) {
+    throw new Error('the resolved early input renderer has no module');
+  }
+  const root = shellName(patch, 'OTe');
+  const widths = resolveShellPatch(
+    {
+      name: 'shell-span-width',
+      find: 'function mt(e){return e.reduce((n,t)=>n+ee(t.text),0)}',
+      replace: '',
+    },
+    [declarationText(source, shellName(patch, 'mt'))],
+  );
+  const wrapping = resolveShellPatch(
+    {
+      name: 'shell-line-wrap',
+      find: 'function Q(e,n){return ee(e)>n?ic(e,n):[e.normalize("NFC")]}',
+      replace: '',
+    },
+    [closureOf(source, [root])],
+  );
+  return {
+    source,
+    patch,
+    root,
+    parameters: [shellName(patch, 'a'), shellName(widths, 'ee'), shellName(wrapping, 'ic')],
+  };
+}
+
+function shippedShell() {
+  return captureShell(requireStock().map((module) => module.text));
+}
+
+function shellRenderer(fixture: ReturnType<typeof captureShell>, patched: boolean): ShellRenderer {
+  const { source, patch, root, parameters } = fixture;
+  const text = patched ? source.replace(patch.find, patch.replace) : source;
+  return payloadFunction<unknown[], ShellRenderer>(
+    parameters,
+    `${closureOf(text, [root])};return ${root}`,
+  )({ border: 'gray', primary: 'magenta' }, Bun.stringWidth, wrapShellFixture);
+}
+
+describe.skipIf(stockDroid === undefined)('the captured early input renderer', () => {
+  test('the fixture is the complete shipped function, including all six edges', () => {
+    const { source, root, patch } = shippedShell();
+    expect(declarationText(source, root)).toBe(patch.find);
+    expect([...patch.find.matchAll(/\\u(?:256D|256E|2570|256F|2502)/gu)]).toHaveLength(6);
+  });
+
+  test('only replaces the corners and side cells, preserving draft, wrapping, cursor and styles', () => {
+    const fixture = shippedShell();
+    const stock = shellRenderer(fixture, false);
+    const flat = shellRenderer(fixture, true);
+    for (const width of [12, 20, 60, 100, 120]) {
+      for (const draft of ['', 'hello', 'one\ntwo\nthree', 'a long wrapped draft '.repeat(8)]) {
+        for (const cursor of [0, Math.floor(draft.length / 2), draft.length]) {
+          const options = {
+            handoff: { draft, placeholder: 'Ask anything', cursor },
+            width,
+            windowsLike: false,
+          };
+          const rounded = stock(options);
+          const straight = flat(options);
+          expect(straight).toEqual(
+            rounded.map((row) => row.map((span) => ({ ...span, text: flatShellText(span.text) }))),
+          );
+          expect(
+            straight.map((row) => Bun.stringWidth(row.map((span) => span.text).join(''))),
+          ).toEqual(rounded.map((row) => Bun.stringWidth(row.map((span) => span.text).join(''))));
+          expect(straight.flat().filter((span) => span.style?.inverse === true)).toEqual(
+            rounded.flat().filter((span) => span.style?.inverse === true),
+          );
+        }
+      }
+    }
+  });
+
+  test('leaves the Windows-like branch byte-for-byte unchanged', () => {
+    const fixture = shippedShell();
+    const stock = shellRenderer(fixture, false);
+    const flat = shellRenderer(fixture, true);
+    for (const width of [20, 60, 120]) {
+      for (const draft of ['', 'typing', 'one\ntwo', 'wrapping '.repeat(20)]) {
+        const options = {
+          handoff: { draft, placeholder: 'Ask anything', cursor: draft.length },
+          width,
+          windowsLike: true,
+        };
+        expect(flat(options)).toEqual(stock(options));
+      }
+    }
+  });
+
+  test('discovers and executes the fixture after the whole module closure is renamed', () => {
+    const fixture = shippedShell();
+    const closure = closureOf(fixture.source, [fixture.root]);
+    const renames = new Map(freeNames(closure).map((name, index) => [name, `renamed${index}`]));
+    const renamed = renameIn(closure, renames);
+    expect(renamed).not.toContain(fixture.patch.find);
+    const captured = captureShell(['function unrelated(){return "noise"}', renamed]);
+    expect(captured.patch.status).toBe('rebased');
+    expect(captured.patch.matches).toBe(1);
+    expect(renames.get(fixture.root)).toBe(captured.root);
+    expect(fixture.parameters.map((name) => renames.get(name))).toEqual(captured.parameters);
+    expect(declarationText(captured.source, captured.root)).toBe(captured.patch.find);
+    expect(captured.patch.replace).toBe(renameIn(fixture.patch.replace, renames));
+    for (const patched of [false, true]) {
+      const render = shellRenderer(captured, patched);
+      const original = shellRenderer(fixture, patched);
+      for (const windowsLike of [false, true]) {
+        for (const width of [20, 60, 120]) {
+          const options = {
+            handoff: { draft: 'early typing\nnext row', placeholder: 'Ask', cursor: 4 },
+            width,
+            windowsLike,
+          };
+          expect(render(options)).toEqual(original(options));
+        }
+      }
+    }
+  });
+});
 
 describe.skipIf(stockDroid === undefined)('the shipped binary', () => {
   test.each(copySelectPatches.map((patch) => [patch.name] as const))('%s applies once', (name) => {

@@ -1,7 +1,6 @@
 import { plain } from './ansi.ts';
 
 export const SYNC_START = '\u001B[?2026h';
-export const SHELL_BOX_BOTTOM_LEFT = '╰';
 const PAINT_WINDOW_CHARS = 65_536;
 const LINE_BREAK = /\r?\n/u;
 const RULE_TOP = /^[─━]{3}/u;

@@ -22,5 +22,10 @@ export function registerTypingStartCommand(program: Command): void {
     .argument('<target>')
     .option('-r, --runs <n>', 'paired runs per gap', count, DEFAULT_START_RUNS)
     .option('--gaps <ms,...>', 'gaps between keys', gapList, DEFAULT_START_GAPS_MS)
+    .option(
+      '--check-borders',
+      'check target only: first shell, early typing, resize and app handoff must all be flat; submits no prompt',
+      false,
+    )
     .action(guard(typingStart));
 }
