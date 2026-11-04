@@ -10,8 +10,6 @@ import type { Stand } from './session-mention-scope.ts';
 import { scoped, scopeOver } from './session-mention-scope.ts';
 
 const NAMES = [
-  'session-create-keeps-early-settings',
-  'session-load-keeps-pending-settings',
   'first-message-shows-at-once',
   'escape-twice-stops-turn',
   'escape-twice-reaches-stop',
@@ -91,7 +89,6 @@ interface SendInput {
   queuePlacement?: string;
 }
 
-export type Settings = Record<string, string>;
 type KeyEvent = Record<string, boolean>;
 
 export class FakeManager {
@@ -223,10 +220,10 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     [head('service'), () => ({ getCurrentSessionId: () => world.currentId })],
     [pending('set'), submissions],
     [pending('flag'), () => null],
-    [named('Oe'), { current: null }],
+    [named('y1'), { current: null }],
     [refs('creating'), { current: null }],
     [refs('live'), { current: null }],
-    [named('Ln'), async () => await session.promise],
+    [named('F1'), async () => await session.promise],
     [
       ids('id'),
       () => {
@@ -234,9 +231,9 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
         return `id-${nextId}`;
       },
     ],
-    [named('l0'), (placement: string | undefined) => placement ?? 'end_of_turn'],
-    [named('dk'), (content: Content) => content],
-    [named('$He'), (images: string[] | undefined) => images],
+    [named('yu'), (placement: string | undefined) => placement ?? 'end_of_turn'],
+    [named('ay'), (content: Content) => content],
+    [named('ku'), (images: string[] | undefined) => images],
     [failure('log'), () => null],
     [failure('describe'), (error: Error) => error.message],
     [failure('notice'), (text: string) => notices.push(text)],
@@ -250,67 +247,6 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     }
     return await send(input);
   };
-  return world;
-}
-
-export interface LoadWorld {
-  readonly pending: Map<string, Settings>;
-  readonly updates: Settings[];
-  readonly logged: string[];
-  settingsDuringLoad: Settings | undefined;
-  failUpdate: boolean;
-  load: (id: string) => Promise<string | null>;
-}
-
-export function loadWorld(sites: Sites): LoadWorld {
-  const rebase = sites.rebase('session-load-keeps-pending-settings');
-  const named = renamed(rebase);
-  const source = arrowBefore(sites.text, rebase);
-  const head = groups(
-    source,
-    /^async\(\)=>\{let [\w$]+=(?<client>[\w$]+)\(\);(?<deferred>[\w$]+)\.current=null/u,
-    'session load head',
-  );
-  const pending = new Map<string, Settings>();
-  const updates: Settings[] = [];
-  const logged: string[] = [];
-  const world: LoadWorld = {
-    pending,
-    updates,
-    logged,
-    settingsDuringLoad: undefined,
-    failUpdate: false,
-    load: async () => await Promise.resolve(null),
-  };
-  const client = {
-    loadSession: async ({ sessionId }: { sessionId: string }) => {
-      await Promise.resolve();
-      if (world.settingsDuringLoad !== undefined) {
-        pending.set(sessionId, world.settingsDuringLoad);
-      }
-    },
-    updateSessionSettings: async (settings: Settings) => {
-      await Promise.resolve();
-      if (world.failUpdate) {
-        throw new Error('update failed');
-      }
-      updates.push(settings);
-    },
-  };
-  const stubs = new Map<string, Stand>([
-    [head('client'), () => client],
-    [head('deferred'), { current: null }],
-    [named('De'), { current: null }],
-    [named('ot'), { current: pending }],
-    [named('c4'), (settings: Settings) => Object.keys(settings).length > 0],
-    [named('r'), (message: string) => logged.push(message)],
-    [named('ae'), { emit: () => null }],
-  ]);
-  const load = evaluate<(id: string) => Promise<string | null>>(
-    `(${named('dt')})=>(${source})()`,
-    stubs,
-  );
-  world.load = load;
   return world;
 }
 

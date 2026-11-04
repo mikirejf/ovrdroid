@@ -7,7 +7,7 @@ import { FACTORY_DROIDS, FACTORY_SESSIONS, FACTORY_TASK_INVOCATIONS } from '../p
 import { makeTempDir } from '../temp.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import { sessionFolderName } from './ledger.ts';
-import { transcriptFileOf } from './live-transcript.ts';
+import { sessionSettingsFileOf, transcriptFileOf } from './live-transcript.ts';
 import { poll } from './poll.ts';
 import type {
   ChatFiles,
@@ -154,14 +154,15 @@ function chatFiles(folder: string, id: string): ChatFiles {
 }
 
 function childTagParent(child: string): string | undefined {
-  for (const file of new Bun.Glob(`*/${child}.settings.json`).scanSync(FACTORY_SESSIONS)) {
-    const tags = entriesOf(fieldsOfJson(readText(path.join(FACTORY_SESSIONS, file))), 'tags');
-    const subagent = tags.find((tag) => worded(tag, 'name') === 'subagent');
-    return subagent === undefined
-      ? undefined
-      : worded(fieldsOf(subagent.get('metadata')), 'callingSessionId');
+  const file = sessionSettingsFileOf(child);
+  if (file === undefined) {
+    return undefined;
   }
-  return undefined;
+  const tags = entriesOf(fieldsOfJson(readText(file)), 'tags');
+  const subagent = tags.find((tag) => worded(tag, 'name') === 'subagent');
+  return subagent === undefined
+    ? undefined
+    : worded(fieldsOf(subagent.get('metadata')), 'callingSessionId');
 }
 
 function transcriptOf(session: string | undefined): string {

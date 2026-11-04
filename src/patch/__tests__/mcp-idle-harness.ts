@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 
 import { patchSource } from '../../binary/apply.ts';
@@ -153,7 +154,7 @@ export class HubWorld {
         },
       },
       wi: (value: Configs) => ({ ...value }),
-      Xu: () => false,
+      Xu: () => this.era === 'modern',
       i: Error,
       N5: ignore,
       $a: (env: Configs) => env,
@@ -174,6 +175,11 @@ export class HubWorld {
       ne: never,
       cV: listing,
       hNe: MINUTE,
+      a7: new AsyncLocalStorage<unknown>(),
+      d4: (freshness?: { cacheable: boolean; expiresAtMonotonicMs: number }) =>
+        freshness === undefined ||
+        (freshness.cacheable && performance.now() < freshness.expiresAtMonotonicMs),
+      eqT: JSON.stringify,
       mV: ignore,
       pV: () => false,
       L0e: ignore,
@@ -317,7 +323,8 @@ export class HubWorld {
         this.calls.push('listTools');
         return await Promise.resolve({ tools: this.tools });
       },
-      callTool: async (request) => {
+      callTool: async (request, options) => {
+        options?.beforeSend?.();
         this.calls.push(`callTool:${request.name}`);
         await this.held('call');
         return { content: [{ type: 'text', text: 'ok' }] };

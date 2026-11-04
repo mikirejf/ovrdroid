@@ -51,6 +51,15 @@ export interface Listing {
   uncompilableOutputSchemas: string[];
 }
 
+export interface PreparedInvocation {
+  serverName: string;
+  tool: Tool;
+  callDefinition: Tool;
+  client: FakeClient;
+  preparationElapsedMs: number;
+  isCurrent: () => boolean;
+}
+
 export type CacheEntry =
   | { state: 'ready'; list: { tools: Tool[] } }
   | { state: 'loading' }
@@ -75,7 +84,20 @@ export interface Hub {
   protocolEraFor: () => void;
   logInvalidToolsTransition: () => void;
   logUncompilableOutputSchemasTransition: () => void;
-  callTool: (name: string, tool: string) => Promise<ToolResult>;
+  bindsInvocationAtAdmission: (name: string) => Promise<boolean>;
+  prepareToolInvocation: (name: string, tool: string) => Promise<PreparedInvocation>;
+  getExpiredToolCatalogServers: () => string[];
+  callTool: (
+    ...args: [
+      name: string,
+      tool: string,
+      input?: Record<string, never>,
+      sessionId?: string,
+      caller?: string,
+      signal?: AbortSignal,
+      prepared?: PreparedInvocation,
+    ]
+  ) => Promise<ToolResult>;
   readResource: (name: string, uri: string) => Promise<Resource>;
   subscribeToServerResource: (name: string, uri: string) => Promise<void>;
   unsubscribeFromServerResource: (name: string, uri: string) => Promise<void>;
@@ -107,7 +129,7 @@ export interface Connection {
 export interface FakeClient {
   transport: object;
   listTools: () => Promise<{ tools: Tool[] }>;
-  callTool: (request: Tool) => Promise<ToolResult>;
+  callTool: (request: Tool, options?: { beforeSend?: () => void }) => Promise<ToolResult>;
   readResource: (request: Resource) => Promise<{ contents: Resource[] }>;
   subscribeResource: () => Promise<void>;
   unsubscribeResource: () => Promise<void>;

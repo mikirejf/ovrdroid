@@ -40,13 +40,13 @@ export const PATCHED_ROSTER_EVENTS =
   '"message_thread_updated","subagent_invocation_summary_updated","settings_updated"],zCe=new Set(';
 
 export const STOCK_ROSTER_ROW_TAIL =
-  'mission:{kind:"agent",missionId:t.sessionId}},M);' +
-  'return{droid:In(b,p,g?Ye(g):Pe(f)!==null),pullRequestArtifacts:I}})}';
+  'mission:{kind:"agent",missionId:t.sessionId},...f.archived&&{archived:f.archived}},M);' +
+  'return{droid:In(b,p,g?Ye(g):y!==null),pullRequestArtifacts:I}})}';
 
 export const PATCHED_ROSTER_ROW_TAIL =
   'mission:{kind:"agent",missionId:t.sessionId},model:f.model,reasoningEffort:f.reasoningEffort,' +
-  'nestedRoster:f.parentSessionId!==void 0},M);' +
-  'return{droid:{...In(b,p,g?Ye(g):Pe(f)!==null),' +
+  'nestedRoster:f.parentSessionId!==void 0,...f.archived&&{archived:f.archived}},M);' +
+  'return{droid:{...In(b,p,g?Ye(g):y!==null),' +
   'parentSessionId:f.parentSessionId===t.sessionId?null:f.parentSessionId??null},pullRequestArtifacts:I}})}';
 
 export const STOCK_EXPAND_CHECK =

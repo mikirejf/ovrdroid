@@ -68,24 +68,24 @@ It does not replace the TUI patches. Without each one, measured:
 
 - without `first-message-shows-at-once`, the message showed after 1.4 to 2.3s instead of ~0.3s;
 - without `new-session-loads-in-background`, `/clear` took 1.2 to 1.4s instead of ~30ms;
-- without `session-load-keeps-pending-settings`, an effort change right after `/clear` was lost.
+- before stock preserved pending settings (below), an effort change right after `/clear` was lost
+  without `session-load-keeps-pending-settings`.
 
 What it adds is overlap. `probe first-send --at-paint`, 12 pairs: reply median 7.5s against 8.9s,
 faster in 8 of 12.
 
-## Shipped: `session-create-keeps-early-settings`
+## Upstream: pending settings survive creation and loading
 
-An effort change made with Tab right after launch could be lost, in stock too. Droid keeps a
-settings change made before the session exists as pending settings, filed under the session id, and
-creates that id a moment after launch. A Tab press that lands before then is filed under no id, and
-creating the session picks up only the entry for its own id, so the change never reaches the
-session. The patch merges the no-id entry into the session's own when the session is created.
+An effort change made with Tab before a session id existed used to remain filed under no id;
+creation read only the entry for its new id. The gate's `probe effort` caught it on Droid 1.0.0
+(2026-10-30). A settings change during a load could also be lost.
 
-The gate's `probe effort` caught it once on Droid 1.0.0 (2026-10-30), on a run that started faster
-than usual. Droid's log for that run lacks the `updateSessionSettings called` line that every
-passing run has; extra CPU load and rewriting the settings file did not reproduce it (12 of 12
-passed). `first-message-patches.test.ts` runs the create path on stock and patched source and shows
-stock dropping the change.
+Droid 1.3.0 now binds the no-id entry to the new session id, captures pending settings before
+initialization, and merges settings changed during initialization before updating the session.
+Loading likewise takes pending settings before the RPC, restores them on failure, and applies them
+after success. Its final merge gives newer pending changes precedence. These stock paths replace
+`session-create-keeps-early-settings` and `session-load-keeps-pending-settings`; both patches and
+their private harnesses were deleted.
 
 ## Why the per-turn MCP gate keeps its 60s cap
 
@@ -105,6 +105,13 @@ caches stay, because stock:
 
 The `mcp-idle` file is keyed by name and config only, so one list serves every folder. On the day
 0.235.0 was installed, stock held 1 list and `mcp-idle` held 4.
+
+Droid 1.3.0 reads a live client's protocol era at tool admission and turn-start catalog refresh.
+Admission now wakes a dormant server before that read; refresh skips dormant clients, retaining the
+cached list without starting them. The call wrapper forwards stock's prepared invocation unchanged,
+preserving catalog identity checks and timeout accounting. `mcp-admission.test.ts` covers modern and
+legacy admission, pending connections, refresh without a wake, and rejection of a prepared
+invocation after its connection idles.
 
 ## Project MCP servers: `npx` is most of the stdio cost
 

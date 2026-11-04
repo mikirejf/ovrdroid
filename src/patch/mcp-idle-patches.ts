@@ -87,13 +87,25 @@ export const mcpIdlePatches: readonly Patch[] = [
   },
   {
     name: 'mcp-idle-call-tool',
-    find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
+    find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0){',
     lookups: ['if(await QH(A.resolvers.promise,u),p=this.servers[t],!p)'],
     replace:
       'async callTool(...$ODargs){let $ODpend=!this.servers[$ODargs[0]]&&this.pendingConnections.get($ODargs[0]);' +
       'if($ODpend)await QH($ODpend.resolvers.promise,$ODargs[5]);' +
       'return await this.$ODMu($ODargs[0],()=>this.$ODMcall(...$ODargs))}' +
-      'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0){',
+      'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0){',
+  },
+  {
+    name: 'mcp-idle-admission-wakes-server',
+    find: 'return this.servers[a]?.client.getProtocolEra()==="modern"}async prepareToolInvocation(',
+    replace:
+      'return await this.$ODMu(a,()=>this.servers[a]?.client.getProtocolEra()==="modern")}async prepareToolInvocation(',
+  },
+  {
+    name: 'mcp-idle-refresh-skips-dormant',
+    find: 'flatMap(([a,f])=>this.servers[a]?.client.getProtocolEra()==="modern"&&',
+    replace:
+      'flatMap(([a,f])=>!this.servers[a]?.$ODMz&&this.servers[a]?.client.getProtocolEra()==="modern"&&',
   },
   {
     name: 'mcp-idle-read-resource',

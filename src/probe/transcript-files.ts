@@ -1,3 +1,7 @@
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
+
+import { hasErrorCode } from '../cli.ts';
 import { inPool } from './pool.ts';
 
 const TRANSCRIPTS = '*/*.jsonl';
@@ -6,6 +10,31 @@ const STAT_WIDTH = 16;
 export interface Transcripts {
   total: number;
   recent: string[];
+}
+
+function entriesUnder(dir: string) {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export function* sessionFilesUnder(dir: string): Generator<string, void> {
+  for (const folder of entriesUnder(dir)) {
+    if (!folder.isDirectory()) {
+      continue;
+    }
+    const directory = path.join(dir, folder.name);
+    for (const file of entriesUnder(directory)) {
+      if (file.isFile()) {
+        yield path.join(directory, file.name);
+      }
+    }
+  }
 }
 
 export async function transcriptsSince(dir: string, cutoff: number): Promise<Transcripts> {

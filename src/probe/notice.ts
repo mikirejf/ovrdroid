@@ -11,6 +11,7 @@ import { entriesOf, fieldsOf, worded } from './fields.ts';
 import { PROBE_SETTINGS } from './launch.ts';
 import { transcriptFileOf } from './live-transcript.ts';
 import { ENTER, openSettledSession } from './session.ts';
+import { sessionFilesUnder } from './transcript-files.ts';
 
 const NOTICE_START = 'Background task ';
 const OUTPUT_LINE = /\noutput: (?<output>[\s\S]*?)\n\nBackground task "/u;
@@ -172,8 +173,11 @@ function linesIfWrittenSince(file: string, since: number): string[] | undefined 
 }
 
 function findNotice(since: number, token: string): Notice | undefined {
-  for (const file of new Bun.Glob('*/*.jsonl').scanSync(FACTORY_SESSIONS)) {
-    const lines = linesIfWrittenSince(path.join(FACTORY_SESSIONS, file), since);
+  for (const file of sessionFilesUnder(FACTORY_SESSIONS)) {
+    if (!file.endsWith('.jsonl')) {
+      continue;
+    }
+    const lines = linesIfWrittenSince(file, since);
     const notice = lines === undefined ? undefined : readNotice(lines, token);
     if (notice !== undefined) {
       return notice;
