@@ -100,9 +100,9 @@ const EXTRA_RULES = EXTRA_PREFIX_RULES.map(
 export const shieldPatches: readonly Patch[] = [
   {
     name: 'shield-findings-carry-guessing',
-    find: 't.push({ruleId:o,start:A,end:Z,blocking:!f||v!==void 0&&!v.recovered&&Zi(v.value)})',
+    find: 'return{ruleId:a,start:E,end:S,blocking:!l||_!==void 0&&!_.recovered&&Zr(_.value)}',
     replace:
-      't.push({ruleId:o,start:A,end:Z,guessing:f,blocking:!f||v!==void 0&&!v.recovered&&Zi(v.value)})',
+      'return{ruleId:a,start:E,end:S,guessing:l,blocking:!l||_!==void 0&&!_.recovered&&Zr(_.value)}',
   },
   {
     name: 'shield-paths-skip-rules',

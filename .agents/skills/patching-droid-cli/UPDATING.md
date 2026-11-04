@@ -287,6 +287,11 @@ Upstream also adds behaviour around code a payload replaces, such as a `shutting
 MCP hub. Diff the old and new stock text of every method a payload **replaces** (not just the
 `find`), and port each new guard.
 
+When a payload leaves a dormant placeholder in a stock object, audit new readers of that object
+too. Admission may need to wake it before reading live capabilities, while catalog refresh should
+keep using cached state without waking it. Test both readers as well as execution; forwarding a
+new method argument alone does not prove the placeholder still works.
+
 When upstream moves a step (matching, say) into its own helper, a payload that redid the step by
 hand can call the helper: one borrowed binding instead of several, and it inherits upstream's new
 validation.
@@ -464,6 +469,11 @@ string Droid dropped a release earlier, a wait that returned on the launch resul
 completion notice, a cache rule stricter than Droid's own tail churn, a probe that sent a settings
 `${VAR}` api key literally. Fix the probe, with a test, before touching a patch.
 
+Parallel probes share the session store. Fixture cleanup can remove a project folder while another
+probe enumerates it, so session readers must skip folders that disappear, while propagating other
+filesystem errors. Exercise that interleaving in a test; a passing standalone probe does not cover
+the gate's concurrent cleanup.
+
 A check that fails once is not flaky until you have looked. Compare Droid's own log for the failed
 run with a passing run's: a step that never happened (a settings call missing) points at a real
 race, which stock usually shares. A cache check that fails on numbers alone has not shown Droid
@@ -493,6 +503,19 @@ Only after the copy passes the gate: `bun run ovrdroid update`, then push to mai
 
 `src/patch/__tests__/stock-source.test.ts` reruns the rebase of every patch against the host's
 stock binary, so it goes red the moment Droid updates underneath.
+
+### Native Linux build proof
+
+`probe builds` checks patch matching, not compilation. For native proof, copy the source and
+lockfile without credentials to an isolated scratch checkout on the Linux host, install production
+dependencies with the lockfile and lifecycle scripts disabled, and rebuild checksum-verified Linux
+stock with the pinned Bun. Check the ELF architecture, marker and version, then run the stub-only
+highlight probe to exercise the TUI and lazy chunks. Record the installed binary and backup hashes
+before and after; keep both untouched.
+
+If using `ovrdroid update --target <scratch>` to download and rebuild there, give the command a
+scratch HOME too: the install flow writes its sound under HOME even with a custom target. The
+host's cached pinned Bun can be linked into that scratch cache.
 
 ### Adding a check to the gate
 

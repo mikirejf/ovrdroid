@@ -5,6 +5,27 @@ How much work Droid does to draw a streamed reply, a resumed session and a resiz
 harness without them (`probe build --without ...`), on a quiet machine (load about 5-10), paired.
 Every row resolved.
 
+## Droid 1.3.0 copy check, 2026-11-04
+
+darwin-arm64, patched digest `6e038377039f`, Bun 1.4.3. Compared stock
+`/tmp/ovrdroid-update-1.3-bin/droid.orig` against patched `droid` in the same small directory.
+`probe resume` (10 pairs, 150 synthetic turns) and `probe stream -r 10` (4193 characters from the
+local stub, 25-character deltas every 15ms) ran serially after startup and typing checks. Neither
+makes a paid model call.
+
+| Measure                  | Stock median | Patched median | Paired mean difference, 95% CI |
+| :----------------------- | -----------: | -------------: | :----------------------------- |
+| Resumed transcript shown |       1132ms |         1015ms | -315.4ms, -599.6 to -31.2      |
+| Resume CPU               |       4150ms |         3150ms | -989.0ms, -1198.2 to -779.8    |
+| Resize redraw            |        796ms |          529ms | -320.8ms, -462.1 to -179.6     |
+| Stream CPU               |       1230ms |          930ms | -299.0ms, -339.1 to -258.9     |
+| Stream screen lag        |         20ms |            4ms | -16.7ms, -17.4 to -16.1        |
+| Stream bytes             |       120685 |         111420 | -8383.7, -9400.3 to -7367.1    |
+
+Both commands pass all regression checks. Stream wall time is unresolved (+17.3ms, CI -3.2 to 37.8),
+as is its frame count (-0.3, CI -0.8 to 0.2). These compare the complete patch set against stock,
+not the contribution of any single patch.
+
 ## The headline
 
 | Question                                   | Before → after                                                                 |

@@ -221,12 +221,12 @@ function flatShellText(text: string): string {
   return text.replaceAll(SHELL_EDGES, (glyph) => (glyph === '│' ? ' ' : '─'));
 }
 
-function wrapShellFixture(text: string, width: number): string[] {
-  const rows: string[] = [];
+function wrapShellFixture(text: string, width: number) {
+  const ends: number[] = [];
   for (let at = 0; at < text.length; at += width) {
-    rows.push(text.slice(at, at + width));
+    ends.push(Math.min(text.length, at + width));
   }
-  return rows;
+  return { ends: ends.length === 0 ? [0] : ends, visible: text };
 }
 
 function resolveShellPatch(patch: Patch, modules: readonly string[]): Rebase {
@@ -262,7 +262,7 @@ function captureShell(modules: readonly string[]) {
   const wrapping = resolveShellPatch(
     {
       name: 'shell-line-wrap',
-      find: 'function Q(e,n){return ee(e)>n?ic(e,n):[e.normalize("NFC")]}',
+      find: 'let h=r[u]??"",{ends:g,visible:m}=Yue(h,o,u===0?s:o),f=m===h,S=0;',
       replace: '',
     },
     [closureOf(source, [root])],
@@ -271,7 +271,7 @@ function captureShell(modules: readonly string[]) {
     source,
     patch,
     root,
-    parameters: [shellName(patch, 'a'), shellName(widths, 'ee'), shellName(wrapping, 'ic')],
+    parameters: [shellName(patch, 'a'), shellName(widths, 'ee'), shellName(wrapping, 'Yue')],
   };
 }
 

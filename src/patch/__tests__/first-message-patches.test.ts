@@ -5,11 +5,9 @@ import {
   escapeWorld,
   FakeManager,
   inputEscape,
-  loadWorld,
   patchedSites,
   sendWorld,
 } from './first-message-harness.ts';
-import { createWorld } from './session-create-harness.ts';
 import { stockDroid } from './stock-scanner.ts';
 
 const sites: Sites | undefined = stockDroid === undefined ? undefined : patchedSites(stockDroid);
@@ -120,67 +118,6 @@ describe.skipIf(sites === undefined)('first-message-shows-at-once', () => {
     expect(manager('s1').state).toBe('idle');
     world.createSession('s1');
     expect(await interrupting).toBe('accepted');
-  });
-});
-
-describe.skipIf(sites === undefined)('session-create-keeps-early-settings', () => {
-  test('a setting changed before the session had an id reaches the new session', async () => {
-    const world = createWorld(shipped());
-    world.currentId = 's1';
-    world.pending.set(null, { reasoningEffort: 'high' });
-    expect(await world.create()).toBe('s1');
-    expect(world.started.map((args) => args['reasoningEffort'])).toEqual(['high']);
-    expect(world.pending.has(null)).toBe(false);
-  });
-
-  test('the stock callback drops a setting changed before the session had an id', async () => {
-    const world = createWorld(shipped(), true);
-    world.currentId = 's1';
-    world.pending.set(null, { reasoningEffort: 'high' });
-    expect(await world.create()).toBe('s1');
-    expect(world.started.map((args) => args['reasoningEffort'])).toEqual(['medium']);
-    expect(world.pending.has(null)).toBe(true);
-  });
-
-  test('a setting stored under the session id still reaches it', async () => {
-    const world = createWorld(shipped());
-    world.currentId = 's1';
-    world.pending.set('s1', { reasoningEffort: 'high' });
-    expect(await world.create()).toBe('s1');
-    expect(world.started.map((args) => args['reasoningEffort'])).toEqual(['high']);
-    expect(world.pending.has('s1')).toBe(false);
-  });
-
-  test('with nothing pending the session starts on the default effort', async () => {
-    const world = createWorld(shipped());
-    world.currentId = 's1';
-    expect(await world.create()).toBe('s1');
-    expect(world.started.map((args) => args['reasoningEffort'])).toEqual(['medium']);
-    expect(world.updates).toEqual([]);
-  });
-});
-
-describe.skipIf(sites === undefined)('session-load-keeps-pending-settings', () => {
-  test('sends settings changed while the session loaded', async () => {
-    const world = loadWorld(shipped());
-    world.settingsDuringLoad = { reasoningEffort: 'high' };
-    expect(await world.load('s1')).toBe('s1');
-    expect(world.updates).toEqual([{ sessionId: 's1', reasoningEffort: 'high' }]);
-    expect(world.pending.has('s1')).toBe(false);
-  });
-
-  test('sends nothing when no setting changed', async () => {
-    const world = loadWorld(shipped());
-    expect(await world.load('s1')).toBe('s1');
-    expect(world.updates).toEqual([]);
-  });
-
-  test('logs a failed sync and still loads the session', async () => {
-    const world = loadWorld(shipped());
-    world.settingsDuringLoad = { modelId: 'm' };
-    world.failUpdate = true;
-    expect(await world.load('s1')).toBe('s1');
-    expect(world.logged).toEqual(['[Daemon] Failed to sync pending session settings']);
   });
 });
 

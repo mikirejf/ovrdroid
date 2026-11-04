@@ -54,7 +54,7 @@ export function shipped(patches: readonly Patch[]) {
 const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
 
 const LINE_MATCHER =
-  /function (?<name>[\w$]+)\(\w+\)\{let \w+=\w+\.replace\(\w+,\(\w+\)=>" "\.repeat\(/u;
+  /function (?<name>[\w$]+)\((?<input>[\w$]+)\)\{let [\w$]+=\k<input>\.includes\(";base64,"\)\?\k<input>\.replace\(/u;
 
 export function scannerText(app: App): string {
   const module = app.find((candidate) => candidate.text.includes(SCANNER_ANCHOR));

@@ -1,6 +1,7 @@
 import { FACTORY_SESSIONS } from '../paths.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
+import { sessionFilesUnder } from './transcript-files.ts';
 
 export const HIDDEN_FROM_MODEL = 'user_only';
 const TURN_OUTCOME = 'agent_turn_outcome';
@@ -18,12 +19,21 @@ interface Turn {
   effort: string;
 }
 
+function fileOfSession(sessionId: string, suffix: string): string | undefined {
+  for (const file of sessionFilesUnder(FACTORY_SESSIONS)) {
+    if (file.endsWith(`/${sessionId}${suffix}`)) {
+      return file;
+    }
+  }
+  return undefined;
+}
+
 export function transcriptFileOf(sessionId: string): string | undefined {
-  const [file] = new Bun.Glob(`*/${sessionId}.jsonl`).scanSync({
-    cwd: FACTORY_SESSIONS,
-    absolute: true,
-  });
-  return file;
+  return fileOfSession(sessionId, '.jsonl');
+}
+
+export function sessionSettingsFileOf(sessionId: string): string | undefined {
+  return fileOfSession(sessionId, '.settings.json');
 }
 
 export function ofKind(blocks: readonly Fields[], kind: string): Fields[] {

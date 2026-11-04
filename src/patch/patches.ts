@@ -180,21 +180,6 @@ export const patches: readonly Patch[] = [
       '{title:ke.title}:{},...at});if(ke?.missionV2)return await Cu(Sn),Sn;return Cu(Sn),Sn}',
   },
   {
-    name: 'session-load-keeps-pending-settings',
-    find: 'return await pt.loadSession({sessionId:dt}),De.current=dt,ot.current.delete(dt),ae.emit(',
-    lookups: [
-      '.notify("settings_updated")}function c4(',
-      'r("[Daemon] Daemon disconnected",{code:',
-    ],
-    replace:
-      'await pt.loadSession({sessionId:dt}),De.current=dt;let $ODs=ot.current.get(dt);if(ot.current.delete(dt),$ODs&&c4($ODs))try{await pt.updateSessionSettings({sessionId:dt,...$ODs})}catch($ODx){r("[Daemon] Failed to sync pending session settings",{cause:$ODx})}return ae.emit(',
-  },
-  {
-    name: 'session-create-keeps-early-settings',
-    find: 'await ot.ensureConnectedAndGetController(),ln=qe(dn);',
-    replace: 'await ot.ensureConnectedAndGetController(),ln={...qe(null),...qe(dn)};',
-  },
-  {
     name: 'session-load-reads-loaded-settings',
     find: 'U=await t.loadSession(e.sessionId,x),H=Number(',
     lookups: [
@@ -212,23 +197,25 @@ export const patches: readonly Patch[] = [
   {
     name: 'first-message-shows-at-once',
     find:
-      'ko=oo??Oe.current,tr=ko??await Wn(Ln());if(pt)return"rejected_with_notice";if(!tr)return Vn(),"rejected_with_notice";' +
-      'let er=dt.message,Ir=Dt.getSessionStateManager(),Po=Ir.getSessionManager(tr),',
+      'Be=K3??y1.current,n4=Be??await G3(F1());if(X1)return"rejected_with_notice";' +
+      'if(P2??=m().getCurrentSessionId(),!n4)return Z3(),"rejected_with_notice";' +
+      'let b4=O1.message,f4=Z1.getSessionStateManager(),b3=f4.getSessionManager(n4),',
     lookups: [
-      'fr=l0(dt.queuePlacement);if(Lo&&fr==="end_of_turn"){let Er=dk({text:er,images:$He(dt.images)})',
-      'an=m().getCurrentSessionId(),Bt=dt.draft',
-      'lt=dt.requestId??Zt?.requestId??st(),ln=dt.messageId??Zt?.messageId??st(),qn,fo=!1,zn,Gn=!1,Wt=()=>{',
+      'S4=yu(O1.queuePlacement);if(ie&&S4==="end_of_turn"){let l4=ay({text:b4,images:ku(O1.images)})',
+      'p2=O1.requestId??g2?.requestId??Tt(),R2=O1.messageId??g2?.messageId??Tt(),c3,_2=!1,T2,S3=!1,x3=()=>{',
     ],
     replace:
-      'ko=oo??Oe.current,$ODe=null;if(!ko&&l0(dt.queuePlacement)==="end_of_turn"){' +
-      'let $ODm=an?Dt.getSessionStateManager().getSessionManager(an):null;' +
+      'Be=K3??y1.current,$ODe=null;if(!Be&&yu(O1.queuePlacement)==="end_of_turn"){' +
+      'let $ODm=P2?Z1.getSessionStateManager().getSessionManager(P2):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(lt,{id:ln,role:dt.role??"user",content:dk({text:dt.message,images:$He(dt.images)}),' +
-      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...dt.visibility&&{visibility:dt.visibility}}),' +
-      '$ODm.setThinking(),$ODe=$ODm,qn={remove:()=>{$ODm.removeOptimisticMessage(lt);' +
-      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(lt)===void 0}}}' +
-      'let tr=ko??await Wn(Ln());if(pt)return"rejected_with_notice";if(!tr)return Vn(),"rejected_with_notice";' +
-      'let er=dt.message,Ir=Dt.getSessionStateManager(),Po=Ir.getSessionManager(tr);if($ODe&&$ODe!==Po)Wt(),qn=void 0;let ',
+      '$ODm.addOptimisticMessage(p2,{id:R2,role:O1.role??"user",content:ay({text:O1.message,images:ku(O1.images)}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...O1.visibility&&{visibility:O1.visibility}}),' +
+      '$ODm.setThinking(),$ODe=$ODm,c3={remove:()=>{$ODm.removeOptimisticMessage(p2);' +
+      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(p2)===void 0}}}' +
+      'let n4=Be??await G3(F1());if(X1)return"rejected_with_notice";' +
+      'if(P2??=m().getCurrentSessionId(),!n4)return Z3(),"rejected_with_notice";' +
+      'let b4=O1.message,f4=Z1.getSessionStateManager(),b3=f4.getSessionManager(n4);' +
+      'if($ODe&&$ODe!==b3)x3(),c3=void 0;let ',
   },
   {
     name: 'live-reply-shows-every-line',

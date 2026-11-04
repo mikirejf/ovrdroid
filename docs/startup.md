@@ -8,6 +8,23 @@ The sections below were measured on 0.218.1 with a paint marker that matches the
 (next section on 0.245.0). Treat their absolute times as old; the deltas between variants still
 stand.
 
+## Droid 1.3.0 copy check, 2026-11-04
+
+darwin-arm64, patched digest `6e038377039f`, Bun 1.4.3. Stock and patched copies sit together in
+`/tmp/ovrdroid-update-1.3-bin/` as `droid.orig` and `droid`; timing probes ran serially. Commands:
+`probe ab -r 24`, `probe typing-start -r 10`, each with stock then patched. Typing-start makes its
+own side-by-side copies.
+
+| Measure                     |   n | Stock median | Patched median | Paired mean difference, 95% CI |
+| :-------------------------- | --: | -----------: | -------------: | :----------------------------- |
+| App paint, no typing        |  24 |        424ms |          375ms | -54.4ms, -109.7 to 0.9         |
+| App paint, keys every 25ms  |  10 |        854ms |          804ms | -131.9ms, -307.2 to 43.4       |
+| App paint, keys every 100ms |  10 |        639ms |          562ms | -95.5ms, -255.3 to 64.3        |
+
+All pass the regression checks; none resolves a speed difference. Quit likewise does not resolve a
+difference (-16.8ms, CI -40.8 to 7.3). `typing-start --check-borders` passes the first shell,
+typing, resize to 100 columns and app handoff, preserving `startup-border` without submitting it.
+
 ## The early input shell and the real app frame
 
 Droid 0.245.0 draws an early input shell (`startEarlyInputShell`, startup boundary `shell_paint`)

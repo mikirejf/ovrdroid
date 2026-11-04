@@ -4,6 +4,17 @@ Measured on Droid 0.218.1, 2026-09-13 and 2026-09-14, with `probe keys` and pair
 the typing window. Startup and typing share almost no code, so startup numbers do not apply here.
 The React concurrency experiment has its own file, [react-concurrency.md](react-concurrency.md).
 
+## Droid 1.3.0 copy check, 2026-11-04
+
+darwin-arm64, patched digest `6e038377039f`, Bun 1.4.3. `probe keys -r 12` compared
+`/tmp/ovrdroid-update-1.3-bin/droid.orig` against its patched neighbor `droid`, after the startup
+comparisons, with no other probe running. Each run measures 12 idle echoes and a 60-key burst at
+16ms spacing; no prompt is submitted.
+
+Echo median is 8ms stock and 4ms patched (144 echoes each). The paired per-run median difference is
+-4.5ms, CI -5.8 to -3.2. Burst lag medians are 39ms and 32ms; its paired difference is unresolved
+(-9.9ms, CI -28.0 to 8.3). Both regression checks pass.
+
 ## Summary
 
 - A single keypress is fast: ~4ms median echo on an idle input box.

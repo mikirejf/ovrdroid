@@ -194,6 +194,19 @@ describe('the roster lists every descendant, each under its real parent', () => 
 });
 
 describe('the roster nodes keep the parent, the model and the nesting mark', () => {
+  test('an archived descendant keeps its model and parent but stays idle', () => {
+    const [top] = nodesOf([
+      childOf('child', 'lead'),
+      childOf('grandchild', 'child', { model: HAIKU, archived: true, status: 'running' }),
+    ]);
+    expect(top?.children[0]?.droid).toMatchObject({
+      model: HAIKU,
+      archived: true,
+      workingState: 'idle',
+      parentSessionId: 'child',
+    });
+  });
+
   test('a grandchild nests under its child', () => {
     const [top, ...others] = nodesOf([childOf('child', 'lead'), childOf('grandchild', 'child')]);
     expect(others).toEqual([]);

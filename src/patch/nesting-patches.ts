@@ -63,7 +63,7 @@ export const nestingPatches: readonly Patch[] = [
   {
     name: 'nesting-gates-read-the-droid-max-depth',
     find: STOCK_GATES,
-    lookups: ['function rs(t){let o=C().getBuiltInToolAutonomyOverrides()'],
+    lookups: ['C().getCustomModels()'],
     replace: PATCHED_GATES,
   },
   {

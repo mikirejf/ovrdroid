@@ -43,6 +43,7 @@ export interface Described {
   model?: string;
   reasoningEffort?: string;
   status?: string;
+  archived?: boolean;
 }
 
 export interface StateManager {
@@ -165,6 +166,7 @@ export interface Droid {
   reasoningEffort?: string;
   nestedRoster?: boolean;
   workingState: string;
+  archived?: boolean;
 }
 
 export interface Node {
