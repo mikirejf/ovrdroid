@@ -1,4 +1,5 @@
 import { codeCopyPatches } from './code-copy-patches.ts';
+import { colorPatches } from './color-patches.ts';
 import { copySelectPatches } from './copy-select-patches.ts';
 import { highlightPatches } from './highlight-patches.ts';
 import { inkFramePatches } from './ink-frame-patches.ts';
@@ -6,7 +7,6 @@ import { renderProfilePatches } from './render-profile-patches.ts';
 import { rerenderPatches } from './rerender-patches.ts';
 import { rootRenderPatches } from './root-render-patches.ts';
 import { rosterRenderPatches } from './roster-render-patches.ts';
-import { shimmerPatches } from './shimmer-patches.ts';
 import { snapshotRenderPatches } from './snapshot-render-patches.ts';
 import { stackedViewPatches } from './stacked-view-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
@@ -24,7 +24,7 @@ export const renderPatches = [
   ...codeCopyPatches,
   ...copySelectPatches,
   ...rootRenderPatches,
-  ...shimmerPatches,
+  ...colorPatches,
   ...rerenderPatches,
   ...todoRenderPatches,
   ...snapshotRenderPatches,
