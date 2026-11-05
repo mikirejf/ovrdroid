@@ -4,6 +4,7 @@ import { copyFileSync } from 'node:fs';
 import { Command } from 'commander';
 
 import pkg from '../package.json' with { type: 'json' };
+import { reportedVersion } from './binary/bun.ts';
 import {
   latestVersion,
   parseVersion,
@@ -29,10 +30,18 @@ interface DoctorOptions {
   project: string;
 }
 
-function status(options: Options): void {
+async function status(options: Options): Promise<void> {
   for (const line of describeTarget(options.target, patches)) {
     say(line);
   }
+  const installed = reportedVersion(options.target);
+  const newest = await latestVersion();
+  say(`droid ${installed}, pinned ${readPinnedVersion()}`);
+  say(
+    installed === newest
+      ? `newest release ${newest}: up to date`
+      : `newest release ${newest}: run ovrdroid update`,
+  );
 }
 
 async function apply(options: Options): Promise<void> {

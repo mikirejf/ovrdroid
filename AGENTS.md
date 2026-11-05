@@ -154,6 +154,11 @@ prints `markers not found (Droid version drift)`, load the `patching-droid-cli` 
 `UPDATING.md`. That guide also covers deleting patches upstream made obsolete, and syncing the Linux
 hosts.
 
+Whether a newer Droid exists is answered by `bun run ovrdroid status` alone: it reads Factory's
+release file directly and prints the installed, pinned and newest versions. Never answer it with a
+web fetch or web search tool. Those serve cached copies, and one reported 1.3.0 an hour after 1.4.1
+shipped. Plain `ovrdroid update` installs the newest release on its own, so it needs no check first.
+
 **The Mac is the master.** Edit and commit ovrdroid on the Mac. The dotfiles' `ovrdroid-push` pushes
 `main` every hour while the checkout is a clean `main`, so finish with a commit, not a dirty tree.
 `update` on the installed Droid pins its version in `droid-version`; commit it. The Linux hosts run

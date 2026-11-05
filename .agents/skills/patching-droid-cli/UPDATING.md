@@ -9,7 +9,8 @@ The hand work is the patches the rebase cannot settle. They surface as
 `markers not found (Droid version drift): <name> (<reason>)`.
 
 A new release reaches the Mac when you run `ovrdroid update`. It follows Factory's
-`factory-cli/LATEST`, and the session header says `↓ vX available · run ovrdroid update`. When the
+`factory-cli/LATEST`, and the session header says `↓ vX available · run ovrdroid update`.
+`ovrdroid status` prints the newest release; never ask a web fetch tool, it serves cached copies. When the
 patch set does not fit, `update` stops with the drift list and leaves the installed Droid and its
 `.orig` untouched. Linux boxes never fetch a release on their own: they run `ovrdroid sync` on a
 timer, which installs the version `update` pinned in `droid-version` on the Mac. The pre-push hook runs `probe builds` against the same newest release, so
