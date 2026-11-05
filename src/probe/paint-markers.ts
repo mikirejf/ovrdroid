@@ -79,9 +79,9 @@ const NOTICE = groupsIn(
 
 export const UPDATE_FILE_UNDER_HOME = group(
   groupsIn(
-    patchNamed(updateNoticePatches, 'auto-update-notice-only').replace,
+    patchNamed(updateNoticePatches, 'release-check-after-paint').replace,
     /homedir\(\)\+"\/(?<file>[^"]+)"/u,
-    'auto-update-notice-only',
+    'release-check-after-paint',
   ),
   'file',
 );

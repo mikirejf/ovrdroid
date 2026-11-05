@@ -117,8 +117,8 @@ being tested. Tell the user afterwards that running Droid sessions need a restar
 
 - Errors to stderr, data to stdout.
 - Never write to `~/.local/bin/droid` without an explicit backup first.
-- Droid auto-updates (`~/.factory/update-policy.json`). A patched binary gets silently replaced, so
-  any apply flow must detect version drift and re-apply.
+- The patched build has Droid's auto-update switched off (`auto-update-off`), so nothing replaces it
+  silently. It finds new releases itself (`release-check-after-paint`) and shows them in the header.
 - Offsets into the binary change with every Droid release. Always derive them by scanning for
   markers; never hardcode a byte offset.
 

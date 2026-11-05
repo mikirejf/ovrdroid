@@ -46,7 +46,7 @@ describe('the markers come from the patch sources', () => {
     expect(NARROW_COLS).toBeLessThan(76);
   });
 
-  test('the update file is the one the notice patch writes', () => {
+  test('the update file is the one the release check writes', () => {
     expect(UPDATE_FILE_UNDER_HOME).toBe('.factory/ovrdroid/update.json');
   });
 

@@ -14,8 +14,24 @@ const UPDATE_FILE_PATH = `require("os").homedir()+${JSON.stringify(`/${OVRDROID_
 const UPDATE_FILE_WRITER =
   `function ${UPDATE_FILE_WRITER_NAME}($ODver){` +
   `try{let $ODfs=require("fs"),$ODpath=${UPDATE_FILE_PATH};` +
-  'if($ODver===null)$ODfs.rmSync($ODpath,{force:!0});' +
-  'else $ODfs.mkdirSync(require("path").dirname($ODpath),{recursive:!0}),$ODfs.writeFileSync($ODpath,JSON.stringify({version:$ODver}))}catch{}}';
+  '$ODfs.mkdirSync(require("path").dirname($ODpath),{recursive:!0}),$ODfs.writeFileSync($ODpath,JSON.stringify({version:$ODver}))}catch{}}';
+
+export const LATEST_RELEASE_URL = 'https://downloads.factory.ai/factory-cli/LATEST';
+
+const RELEASE_CHECK_NAME = '$ODcheckRelease';
+
+const RELEASE_CHECK =
+  `function ${RELEASE_CHECK_NAME}(){` +
+  `if(${RELEASE_CHECK_NAME}.ran)return;${RELEASE_CHECK_NAME}.ran=!0;` +
+  `try{fetch(${JSON.stringify(LATEST_RELEASE_URL)},{signal:AbortSignal.timeout(15e3)}).then(($ODres)=>$ODres.ok?$ODres.text():"")` +
+  `.then(($ODbody)=>{let $ODver=$ODbody.trim();if(/^[0-9]+(\\.[0-9]+){2}$/.test($ODver))${UPDATE_FILE_WRITER_NAME}($ODver)}).catch(()=>{})}catch{}}`;
+
+const RELEASE_CHECK_SCHEDULE_NAME = '$ODscheduleCheck';
+
+const RELEASE_CHECK_SCHEDULE =
+  `function ${RELEASE_CHECK_SCHEDULE_NAME}($ODready){` +
+  `Promise.resolve($ODready).then(()=>{if(globalThis.$ODpainted)${RELEASE_CHECK_NAME}();` +
+  `else(globalThis.$ODafterPaint??=[]).push(${RELEASE_CHECK_NAME})}).catch(()=>{})}`;
 
 const UPDATE_FILE_READER =
   `function ${UPDATE_FILE_READER_NAME}(){` +
@@ -29,14 +45,16 @@ const UPDATE_HEADER_LINE =
 
 export const updateNoticePatches: readonly Patch[] = [
   {
-    name: 'auto-update-notice-only',
-    find: 'if(!f)return l(u,"no-update"),"no-update";',
-    lookups: ['T("Rollback detected but rollbacks are disabled (CLI update service)",'],
+    name: 'auto-update-off',
+    find: 'downloadsPrefix:"",autoUpdateEnabled:!0,airgapEnabled:!1',
+    replace: 'downloadsPrefix:"",autoUpdateEnabled:!1,airgapEnabled:!1',
+  },
+  {
+    name: 'release-check-after-paint',
+    find: 'function gde(t){if(!D)D=LI(',
     replace:
-      `${UPDATE_FILE_WRITER}if(!f)return ${UPDATE_FILE_WRITER_NAME}(null),l(u,"no-update"),"no-update";` +
-      `return ${UPDATE_FILE_WRITER_NAME}(f.version.version),` +
-      'T("Auto-update blocked by ovrdroid; run ovrdroid update",{version:f.version.version}),' +
-      'l(u,"skipped"),"skipped";',
+      `${UPDATE_FILE_WRITER}${RELEASE_CHECK}${RELEASE_CHECK_SCHEDULE}` +
+      `function gde(t){${RELEASE_CHECK_SCHEDULE_NAME}(t);if(!D)D=LI(`,
   },
   {
     name: 'update-notice-reader',

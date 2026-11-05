@@ -132,8 +132,9 @@ toolbox.
 - Test on a copy in `/tmp`. Touch `~/.local/bin/droid` only once the copy passes.
 - Write to `<target>.tmp`, chmod, sign, verify, then rename over the target. A half-written binary
   in place leaves no working Droid.
-- Droid auto-updates and silently replaces a patched binary. Set `disableAutoUpdate: true` in
-  `~/.factory/update-policy.json` before relying on a patch.
+- Stock Droid auto-updates and silently replaces a patched binary, including from the Computer
+  daemon, which ignores user settings. Flip the build default (`autoUpdateEnabled:!1`) as
+  `auto-update-off` does; `update-policy.json` and `disableAutoUpdate` do not cover every path.
 
 ## After a Droid update
 
