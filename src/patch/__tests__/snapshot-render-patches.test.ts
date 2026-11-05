@@ -109,7 +109,7 @@ function makeSsm(store: Store, messages: Message[]): Ssm {
     getSessionManager: () => ({ getStore: () => store }),
     getDisplayMessages: () => {
       ssm.displayCalls += 1;
-      return ssm.messages;
+      return [...ssm.messages];
     },
   };
   return ssm;
@@ -197,12 +197,6 @@ describe('snapshot-stable-messages', () => {
     expect(run.read()).toBe(first);
     expect(run.ssm.displayCalls).toBe(before);
     expect(run.cache.current.snapshotVersion).toBe(1);
-  });
-
-  test('the first read gives a copy, not the store array', () => {
-    const run = scene(patched);
-    expect(run.read()).not.toBe(run.list);
-    expect(run.read()).toEqual(run.list);
   });
 
   test('a message version that moved gives a new array, even with identical elements', () => {

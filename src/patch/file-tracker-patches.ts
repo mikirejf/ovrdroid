@@ -150,13 +150,13 @@ const FOLD_NOTES =
 const MODEL_CONTENT_BINDING = '{content:z,modelContent:re}=await this.raceToolWithBatchAbort(';
 
 const NESTED_RUN =
-  'u=()=>W(o,{sessionId:o.sessionId,toolUseId:e.toolUseId,toolName:e.toolName,input:n,...t,...E(r.parentToolUseId)},s),';
+  'p=()=>K(o,{sessionId:o.sessionId,toolUseId:e.toolUseId,toolName:e.toolName,input:n,...t,...D(r.parentToolUseId)},s),';
 
-const NESTED_DISPATCH = '{value:T,userValue:l,llmReminders:y}=await G5(o.sessionId,a.tool,';
+const NESTED_DISPATCH = 'u=await AJ(o.sessionId,c.tool,';
 
 const NESTED_CALL_CHECK =
   `$ODrun=async()=>{try{${beforeCall('e.toolUseId', 'e.toolName')}` +
-  `let $ODout=await u(),$ODwaits=[];${callDone('e.toolUseId', 'e.toolName')}` +
+  `let $ODout=await p(),$ODwaits=[];${callDone('e.toolUseId', 'e.toolName')}` +
   'let $ODnotes=(await Promise.all($ODwaits)).filter(Boolean);' +
   'return $ODnotes.length===0?$ODout:{...$ODout,llmReminders:[...$ODout.llmReminders??[],...$ODnotes]}' +
   `}finally{${callEnd('e.toolUseId')}}},`;
@@ -186,7 +186,7 @@ export const fileTrackerPatches: readonly Patch[] = [
   },
   {
     name: 'nested-tool-call-notice',
-    find: `${NESTED_RUN}${NESTED_DISPATCH}u);`,
+    find: `${NESTED_RUN}${NESTED_DISPATCH}p);`,
     replace: `${NESTED_RUN}${NESTED_CALL_CHECK}${NESTED_DISPATCH}$ODrun);`,
   },
 ];

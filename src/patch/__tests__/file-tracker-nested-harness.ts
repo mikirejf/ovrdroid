@@ -20,7 +20,6 @@ const ROLES = {
   admit: String.raw`=await (?<admit>${ID})\(${ID},${ID},${ID}\),${ID}=\(\)=>\(`,
   sandbox: String.raw`=\(\)=>\((?<sandbox>${ID})\(${ID},${ID},${ID}\),`,
   run: String.raw`\(${ID},${ID},${ID}\),(?<run>${ID})\(\{toolName:`,
-  limits: String.raw`\}\},\.\.\.(?<limits>${ID})\}\)\)`,
   span: String.raw`=\(\)=>(?<span>${ID})\(${ID},\{sessionId:`,
   parent: String.raw`\.\.\.(?<parent>${ID})\(${ID}\.parentToolUseId\)`,
   queue: String.raw`=await (?<queue>${ID})\(${ID}\.sessionId,${ID}\.tool,`,
@@ -78,7 +77,8 @@ function dispatcher(build: Build): Dispatcher {
 
 export interface NestedResult {
   isError: boolean;
-  content: string;
+  value: string;
+  direct: { content: string };
   llmReminders?: string[];
 }
 
@@ -118,7 +118,8 @@ export function nestedDispatch(
     if (tool === undefined) {
       throw new Error(`no stand-in for ${request.toolName}`);
     }
-    return { value: await tool(request.toolInput, request.context.toolCallId) };
+    const value = await tool(request.toolInput, request.context.toolCallId);
+    return { value, direct: { content: value } };
   };
   const dispatch = evaluateProgram<Record<string, Stand>>({
     moduleText,
@@ -128,7 +129,6 @@ export function nestedDispatch(
       [roles.admit, admit],
       [roles.sandbox, () => {}],
       [roles.run, run],
-      [roles.limits, {}],
       [roles.span, async (_dependencies: Stand, _call: Stand, body: Body) => await body()],
       [roles.parent, () => ({})],
       [roles.queue, async (_session: string, _tool: Stand, body: Body) => await body()],

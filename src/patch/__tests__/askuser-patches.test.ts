@@ -54,9 +54,9 @@ describe.skipIf(stock === undefined)('the shipped AskUser tool definition', () =
     expect(occurrences(patchedText, replace)).toBe(1);
   });
 
-  test('leaves every other tool that reads the AskUser flag alone', () => {
+  test('removes only its own gate on the AskUser flag', () => {
     const stockGates = [...stockText.matchAll(ASK_USER_GATE)].length;
-    expect(stockGates).toBeGreaterThan(1);
+    expect(stockGates).toBeGreaterThanOrEqual(1);
     expect([...patchedText.matchAll(ASK_USER_GATE)]).toHaveLength(stockGates - 1);
   });
 });

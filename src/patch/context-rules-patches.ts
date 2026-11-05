@@ -26,7 +26,7 @@ export const contextRulesPatches: readonly Patch[] = [
     lookups: [
       'import tt from"fs";import Q from"os"',
       'import K from"path";import*as w from"fs"',
-      'this.gitRoot=En(this.cwd),this.homeDir=',
+      'findSessionGitRoot(){let o=En(this.cwd);',
     ],
     replace: `${ALWAYS_APPLY}${RULES_LOADER}async function Y(e){let{guidelines:$ODstock,skipped:n}=await $fe({startPath:e}),t=[...$ODstock,...await $ODrules(e)],i=x(n),s=n.map(`,
   },

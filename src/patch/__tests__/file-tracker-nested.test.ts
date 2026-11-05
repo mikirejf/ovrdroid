@@ -68,7 +68,7 @@ describe.skipIf(stockDroid === undefined)('tool calls inside a Script', () => {
       edited = await nested('edit-2', 'Edit', { path, text: 'edited\n', at: 30 });
     });
 
-    expect(edited?.content).toBe('edited');
+    expect(edited?.value).toBe('edited');
     expect(tracker.hasFileChangedExternally(path)).toBe(false);
     expect(outer.result).toBe(WRITE_RESULT);
   });

@@ -333,6 +333,8 @@ describe.skipIf(stockDroid === undefined)('the shipped binary', () => {
   test('records the launched droid maxDepth in the ledger and always admits through it', () => {
     const ledger = rebasedNamed('nesting-ledger-records-max-depth');
     expect(ledger.find).toContain('else ');
+    const admit = /\{admit:[\w$]+\}/u;
+    expect(admit.exec(ledger.replace)?.[0]).toBe(admit.exec(ledger.find)?.[0]);
     expect(patchedText).not.toContain(ledger.find);
     expect(patchedText).toContain(ledger.replace);
   });

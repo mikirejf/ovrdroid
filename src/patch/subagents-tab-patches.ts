@@ -92,9 +92,15 @@ export const subagentsTabPatches: readonly Patch[] = [
       'co=Dn?En.color:Xt?a.text.primary:In.$ODhead?a.diff.unchanged.dimText:a.text.muted,go=In.id===y',
   },
   {
+    name: 'subagent-tab-keeps-tree-order',
+    find: '{sessions:J1,forkIndentById:a2}=y(()=>Lu1(L2,g),[L2,g])',
+    lookups: ['l2=zd.find((Y1)=>Y1.id===C1)??zd[0],u2=y(()=>g.filter(l2.filter),[g,l2])'],
+    replace: `{sessions:J1,forkIndentById:a2}=y(()=>l2.id==="${SUBAGENT_TAB_ID}"?{sessions:L2,forkIndentById:new Map}:Lu1(L2,g),[L2,g,l2])`,
+  },
+  {
     name: 'subagent-tab-prefix',
-    find: 'children:[fn?l(o,{color:a.text.muted,children:[fn," "]}):null,In.title?Fx(In.title)',
+    find: 'children:[H3,s3?c(i,{color:a.text.muted,children:[s3," "]}):null,Y1.title?',
     replace:
-      'children:[In.$ODprefix?l(o,{color:a.text.muted,children:[In.$ODprefix]}):null,fn?l(o,{color:a.text.muted,children:[fn," "]}):null,In.title?Fx(In.title)',
+      'children:[H3,Y1.$ODprefix?c(i,{color:a.text.muted,children:[Y1.$ODprefix]}):null,s3?c(i,{color:a.text.muted,children:[s3," "]}):null,Y1.title?',
   },
 ];
