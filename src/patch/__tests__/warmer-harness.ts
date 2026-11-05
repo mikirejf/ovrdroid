@@ -112,6 +112,7 @@ interface Harness {
 export const SESSION = 'parent';
 export const OTHER_SESSION = 'other';
 export const SERVICE_NAME = 'session service';
+export const KEEP_WARM_KEY = '__odKeepWarm';
 export const MINUTE_MS = 60_000;
 export const ANTHROPIC_DELAY_MS = 45 * MINUTE_MS;
 
@@ -147,10 +148,10 @@ type HarnessBindings = [
   () => ProcessHost,
 ];
 
-export function snapshot(capturedAt: number): Snapshot {
+export function snapshot(capturedAt: number, sessionId = SESSION): Snapshot {
   return {
     reasoningEffort: 'low',
-    sessionId: SESSION,
+    sessionId,
     modelId: MODEL,
     capturedAt,
     tools: [],
@@ -173,6 +174,20 @@ export function cacheClockAt(sessionId = SESSION): number | undefined {
     typeof entry.at === 'number'
     ? entry.at
     : undefined;
+}
+
+type KeepWarmCommand = (argument?: string) => string;
+
+function isKeepWarmCommand(value: unknown): value is KeepWarmCommand {
+  return typeof value === 'function';
+}
+
+export function keepWarm(argument?: string): string {
+  const command: unknown = Object.getOwnPropertyDescriptor(globalThis, KEEP_WARM_KEY)?.value;
+  if (!isKeepWarmCommand(command)) {
+    throw new TypeError(`${KEEP_WARM_KEY} was never defined`);
+  }
+  return command(argument);
 }
 
 export class World {
@@ -245,15 +260,20 @@ export class World {
     );
   }
 
-  request(capturedAt: number): void {
-    this.harness.pY(snapshot(capturedAt));
+  request(capturedAt: number, sessionId = SESSION): void {
+    this.harness.pY(snapshot(capturedAt, sessionId));
   }
 
   async fireCurrent(): Promise<void> {
-    await this.harness.fire(SESSION, this.harness.warm.get(SESSION));
+    await this.fireSession(SESSION);
+  }
+
+  async fireSession(sessionId: string): Promise<void> {
+    await this.harness.fire(sessionId, this.harness.warm.get(sessionId));
   }
 
   static close(): void {
+    Reflect.deleteProperty(globalThis, KEEP_WARM_KEY);
     Reflect.deleteProperty(globalThis, '__odKids');
     Reflect.deleteProperty(globalThis, '__odUsage');
     ClockEnv.close();

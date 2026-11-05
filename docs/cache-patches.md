@@ -84,6 +84,16 @@ What a warm must match, each found by a capture that failed:
 The warmer fires at 45 minutes on Anthropic ([cache-lifetime.md](cache-lifetime.md) says why).
 `OVRDROID_WARM_DELAY_MS` overrides the delay for tests.
 
+`/keep-warm [on|off]` makes the warmer also fire while the session is idle with no subagents. It is
+per session and in memory only: nothing goes to `ovrdroid.json`, and closing the session turns it
+off. There is no time limit; it keeps warming every 45 minutes (27 on other providers) until turned
+off or closed. It still warms only the session on screen and only while that session's latest
+snapshot is the one it replays. Turning it on after the chain ended (the session was idle with it
+off) re-arms from the session's last request or last successful warm: the next warm fires that long
+plus the normal delay after it, or at once when that moment has passed. Claude cache reads did not
+move the subscription meter ([cache-lifetime.md](cache-lifetime.md)), so a warm there costs next to
+nothing; GPT warms are billed.
+
 pi warms only direct Anthropic, never OpenAI (pi issue #9810), and keys OpenAI's cache per session,
 so its forks miss (#8348).
 

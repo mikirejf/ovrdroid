@@ -1,4 +1,10 @@
 import { CACHE_CLOCK_RECORDERS, CACHE_TRUSTED_MS } from './cache-clock.ts';
+import {
+  KEEP_WARM_OFF,
+  KEEP_WARM_ON,
+  KEEP_WARM_USAGE,
+  keepWarmPatches,
+} from './keep-warm-patches.ts';
 import type { Patch } from './patches.ts';
 import { USAGE_LOG_OPEN } from './usage-patches.ts';
 
@@ -52,14 +58,24 @@ const CHILD_TRACKER =
 const ARM =
   `function $ODWd($ODsnap){let $ODenv=Number(process.env.${WARM_DELAY_ENV});` +
   `return $ODenv>=${MIN_WARM_DELAY_MS}&&$ODenv<=${MAX_WARM_DELAY_MS}?$ODenv:ee($ODsnap.modelId).modelProvider==="anthropic"?${ANTHROPIC_WARM_DELAY_MS}:${OTHER_WARM_DELAY_MS}}` +
-  'function $ODWa($ODsnap){$ODWc($ODsnap.sessionId);let $ODcell={snap:$ODsnap};$ODcell.timer=setTimeout(()=>{$ODWf($ODsnap.sessionId,$ODcell)},$ODWd($ODsnap)),$ODcell.timer.unref?.(),$ODWt.set($ODsnap.sessionId,$ODcell)}';
+  'function $ODWa($ODsnap,$ODat,$ODin){$ODWc($ODsnap.sessionId),$ODWr.set($ODsnap.sessionId,{snap:$ODsnap,at:$ODat});' +
+  'let $ODcell={snap:$ODsnap,at:$ODat};$ODcell.timer=setTimeout(()=>{$ODWf($ODsnap.sessionId,$ODcell)},$ODin??$ODWd($ODsnap)),$ODcell.timer.unref?.(),$ODWt.set($ODsnap.sessionId,$ODcell)}';
+
+const KEEP =
+  'function $ODWy($ODarg){let $ODsid=p().currentSessionId,$ODword=$ODarg?.toLowerCase(),' +
+  '$ODto=$ODarg===void 0?!$ODWon.has($ODsid):$ODword==="on"?!0:$ODword==="off"?!1:null;' +
+  `if($ODto===null)return ${JSON.stringify(KEEP_WARM_USAGE)};` +
+  `if(!$ODto)return $ODWon.delete($ODsid),${JSON.stringify(KEEP_WARM_OFF)};` +
+  '$ODWon.add($ODsid);let $ODmem=$ODWr.get($ODsid);' +
+  'if($ODmem&&!$ODWt.has($ODsid))$ODWa($ODmem.snap,$ODmem.at,Math.max(0,$ODmem.at+$ODWd($ODmem.snap)-Date.now()));' +
+  `return ${JSON.stringify(KEEP_WARM_ON)}}globalThis.__odKeepWarm=$ODWy;`;
 
 const CANCEL =
   'function $ODWc($ODsid){let $ODcell=$ODWt.get($ODsid);if(!$ODcell)return;clearTimeout($ODcell.timer),$ODcell.ac?.abort(),$ODWt.delete($ODsid)}';
 
 const FIRE =
-  'async function $ODWf($ODsid,$ODcell){if($ODWt.get($ODsid)!==$ODcell)return;let $ODsnap=$ODcell.snap,$ODlast=Qh.get($ODsid)?.snapshot,$ODkids=!$ODlast||$ODlast===$ODsnap?$ODWk($ODsid):0;' +
-  'if(!$ODkids||p().currentSessionId!==$ODsid){$ODWt.delete($ODsid);return}' +
+  'async function $ODWf($ODsid,$ODcell){if($ODWt.get($ODsid)!==$ODcell)return;let $ODsnap=$ODcell.snap,$ODlast=Qh.get($ODsid)?.snapshot,$ODfresh=!$ODlast||$ODlast===$ODsnap,$ODkids=$ODfresh?$ODWk($ODsid):0;' +
+  'if(!($ODkids||$ODfresh&&$ODWon.has($ODsid))||p().currentSessionId!==$ODsid){$ODWt.delete($ODsid);return}' +
   'let $ODac=new AbortController,$ODres,$ODsent;$ODcell.ac=$ODac;' +
   `try{let{createLLMStreamingCore:$ODmake}=${STREAMING_CORE_IMPORT},$ODcore=${CLIENT};$ODsent=Date.now();` +
   'try{$ODres=await $ODWs($ODcore,$ODsnap,$ODac.signal)}finally{$ODcore.dispose()}}' +
@@ -67,7 +83,7 @@ const FIRE =
   'if($ODres&&!$ODres.wasAborted)$ODCw($ODsid,$ODsent);' +
   `try{${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:$ODsid,m:$ODsnap.modelId,warm:!0,kids:$ODkids,ok:!!$ODres&&!$ODres.wasAborted,` +
   'in:$ODres?.usage?.inputTokens,cr:$ODres?.usage?.cacheReadInputTokens,cw:$ODres?.usage?.cacheCreationInputTokens,out:$ODres?.usage?.outputTokens})}catch{}' +
-  'if($ODWt.get($ODsid)===$ODcell&&!$ODac.signal.aborted)$ODWa($ODsnap)}';
+  'if($ODWt.get($ODsid)===$ODcell&&!$ODac.signal.aborted)$ODWa($ODsnap,$ODres&&!$ODres.wasAborted?$ODsent:$ODcell.at)}';
 
 export const warmerPatches: readonly Patch[] = [
   {
@@ -80,22 +96,23 @@ export const warmerPatches: readonly Patch[] = [
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
       'return vo(()=>Xq(e))}catch(e){return Promise.reject(e)}}takePendingMissionMetadataSync(){',
     ],
-    replace: `var $ODWt=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE};try{$ODCs(t),$ODWa(t)}catch{}}`,
+    replace: `var $ODWt=new Map,$ODWon=new Set,$ODWr=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${KEEP}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE};try{$ODCs(t),$ODWa(t,t.capturedAt)}catch{}}`,
   },
   {
     name: 'cache-warm-close',
     find: 'function LV(t){vu(t),Zh.delete(t)}',
-    replace: 'function LV(t){$ODWc(t),vu(t),Zh.delete(t)}',
+    replace: 'function LV(t){$ODWc(t),$ODWon.delete(t),$ODWr.delete(t),vu(t),Zh.delete(t)}',
   },
   {
     name: 'cache-warm-forget',
     find: 'function mY(t){Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)Qh.delete(t)}',
     replace:
-      'function mY(t){$ODWc(t),Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)$ODWc(t),Qh.delete(t)}',
+      'function mY(t){$ODWc(t),$ODWr.delete(t),Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)$ODWc(t),$ODWr.delete(t),Qh.delete(t)}',
   },
   {
     name: 'cache-warm-child-count',
     find: CHILD_TRACKER,
     replace: `globalThis.__odKids=($ODsid)=>+ST().hasRunningChildren($ODsid);${CHILD_TRACKER}`,
   },
+  ...keepWarmPatches,
 ];
