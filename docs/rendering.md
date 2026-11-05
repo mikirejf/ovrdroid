@@ -291,15 +291,11 @@ The resize repaint is not safe for a shrink. It redraws the visible screen from 
 would draw k more static lines at the top of the screen, and those lines already sit at the bottom
 of scrollback, so scrolling up would show them twice.
 
-`ink-shrink-repaint*` (5 patches, `src/patch/ink-frame-patches.ts`) pads the frame instead. Ink now
-remembers where on screen the frame's top row is and how tall the frame was. When the old frame
-reached the bottom row and the new one is shorter, it puts blank lines in front of the new frame so
-that it still ends on the bottom row. The gap moves above the "Auto (High)" line, inside the live
-frame. The next static output writes over those blank rows, so they do not reach scrollback. The
-patch writes no scrollback, clears nothing, and keeps stock's behaviour for a frame that never
-reached the bottom or that is at least as tall as the screen. A guess that is too low only falls
-back to stock. The state starts over on `invalidateOutput` and on a resize that only changes height.
-The resize repaint sets it exactly.
+`ink-shrink-repaint*` (5 patches) padded the frame instead, from 2026-11-01 to 2026-11-05. Ink
+remembered where on screen the frame's top row was and how tall the frame was. When the old frame
+reached the bottom row and the new one was shorter, it put blank lines in front of the new frame so
+that it still ended on the bottom row. The patch set dropped it on 2026-11-05 to go back to stock's
+redraw, so the patched build shows the stock gap again. Commit 3432a13 holds the patch.
 
 `probe frame-gap <binary>` checks this. A stub model streams a 40-paragraph reply on a 120x40 screen
 and launches a background droid. The probe then reads the screen after the turn ends and again after
