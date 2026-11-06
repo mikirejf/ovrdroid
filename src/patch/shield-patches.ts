@@ -116,6 +116,11 @@ export const shieldPatches: readonly Patch[] = [
     replace: `function nl(t,o){return vr(t)&&!pt(t)&&(o===void 0||/passw(?:or)?d/i.test(o)||!Lr(t)&&!${DOTTED_NAME}.test(t))}`,
   },
   {
+    name: 'shield-index-identity-survives-conflicts',
+    find: 'args:o?["ls-files","--stage","-z","--",...o]:["write-tree"]',
+    replace: 'args:["ls-files","--stage","-z",...o?["--",...o]:[]]',
+  },
+  {
     name: 'shield-extra-exact-prefix-rules',
     find: 'alwaysScrubCapture:!0}],wt=null;function vi(){',
     replace: `alwaysScrubCapture:!0},${EXTRA_RULES}],wt=null;function vi(){`,

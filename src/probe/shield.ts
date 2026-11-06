@@ -127,9 +127,16 @@ export const SHIELD_CASES: readonly ShieldCase[] = [
 
 export const SHIELD_COMMIT = 'git commit -m probe';
 
-export const SHIELD_PROMPT =
-  `Run exactly \`${SHIELD_COMMIT}\` once with your Execute tool, then stop. ` +
-  'If it fails, do not retry it, do not fix anything and do not run any other command.';
+export const CONFLICT_FILE = 'staged.txt';
+
+export const CONFLICT_COMMIT = `git add ${CONFLICT_FILE} && ${SHIELD_COMMIT}`;
+
+export function shieldPrompt(command: string): string {
+  return (
+    `Run exactly \`${command}\` once with your Execute tool, then stop. ` +
+    'If it fails, do not retry it, do not fix anything and do not run any other command.'
+  );
+}
 
 export type ShieldOutcome =
   | 'committed'
@@ -354,6 +361,37 @@ export function describeShield(cases: readonly ShieldCase[], runs: readonly Judg
       `  Droid-Shield counted ${run.reading.locations} blocking locations in ${run.reading.flagged.length} files`,
       ...run.reading.patterns.map((pattern) => `  it printed: ${pattern}`),
     );
+  }
+  return lines.join('\n');
+}
+
+export type ConflictVerdict = 'false alarm' | 'git ran' | 'no verdict';
+
+const CONFLICT_VERDICTS: Record<ShieldOutcome, ConflictVerdict> = {
+  unscannable: 'false alarm',
+  failed: 'git ran',
+  committed: 'git ran',
+  blocked: 'no verdict',
+  ambiguous: 'no verdict',
+  'not-run': 'no verdict',
+};
+
+export function judgeConflict(reading: ShieldReading): ConflictVerdict {
+  return CONFLICT_VERDICTS[reading.outcome];
+}
+
+export function describeConflict(runs: readonly ShieldRun[]): string {
+  const lines = [
+    `a staging commit (${CONFLICT_COMMIT}) in a repo with an unresolved merge conflict:`,
+  ];
+  for (const run of runs) {
+    const verdict = judgeConflict(run.reading);
+    const detail = {
+      'false alarm': `Droid-Shield could not scan, so it stopped a commit it had nothing to say about: ${run.reading.text}`,
+      'git ran': 'Droid-Shield scanned the staged files and let git run',
+      'no verdict': `Droid-Shield blocked or never saw the command (${run.reading.outcome})`,
+    }[verdict];
+    lines.push(`  ${run.label}: ${verdict}: ${detail}`);
   }
   return lines.join('\n');
 }

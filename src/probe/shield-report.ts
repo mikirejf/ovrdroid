@@ -2,14 +2,16 @@ import path from 'node:path';
 
 import { say } from '../cli.ts';
 import { requireModel } from './exec.ts';
-import { runShield } from './shield-run.ts';
+import { CONFLICT_SCENARIO, commitScenario, runShield } from './shield-run.ts';
 import type { JudgedRun, ShieldRun } from './shield.ts';
 import {
   countMistakes,
+  describeConflict,
   describeShield,
   describeUnjudged,
   hasVerdict,
   judgeCases,
+  judgeConflict,
   SHIELD_CASES,
 } from './shield.ts';
 
@@ -36,9 +38,17 @@ function judge(run: ShieldRun): JudgedRun {
 export async function shield(binaries: string[], options: ShieldOptions): Promise<void> {
   const model = options.stub ? undefined : requireModel(options.model);
   const labels = labelsFor(binaries);
+  const scenario = commitScenario(SHIELD_CASES);
   const readings = await Promise.all(
-    binaries.map(async (binary) => await runShield(binary, model, SHIELD_CASES)),
+    binaries.map(async (binary) => await runShield(binary, model, scenario)),
   );
+  const conflictReadings = await Promise.all(
+    binaries.map(async (binary) => await runShield(binary, model, CONFLICT_SCENARIO)),
+  );
+  const conflicts = conflictReadings.map((reading, index) => ({
+    label: labels[index] ?? '',
+    reading,
+  }));
   const runs = readings.map((reading, index) => ({ label: labels[index] ?? '', reading }));
   const unjudged = runs.filter((run) => !hasVerdict(run.reading));
   const judged = runs.filter((run) => hasVerdict(run.reading)).map((run) => judge(run));
@@ -55,8 +65,12 @@ export async function shield(binaries: string[], options: ShieldOptions): Promis
     say(describeUnjudged(run));
   }
 
+  say('');
+  say(describeConflict(conflicts));
+
+  const falseAlarm = conflicts.some((run) => judgeConflict(run.reading) === 'false alarm');
   const missed = judged.some((run) => countMistakes(run.verdicts).missedSecrets > 0);
-  if (missed || unjudged.length > 0) {
+  if (missed || falseAlarm || unjudged.length > 0) {
     process.exitCode = 1;
   }
 }
