@@ -16,6 +16,8 @@ const OPENAI_MIN_OUTPUT_TOKENS = 16;
 export const MIN_WARM_DELAY_MS = MINUTE_MS;
 export const MAX_WARM_DELAY_MS = 60 * MINUTE_MS;
 
+export const KEEP_WARM_SET_KEY = '__odWarmOn';
+export const KEEP_WARM_SET_GLOBAL = `globalThis.${KEEP_WARM_SET_KEY}`;
 export const WARM_DELAY_ENV = 'OVRDROID_WARM_DELAY_MS';
 export const WARM_MESSAGE_ID_PREFIX = 'ovrdroid-cache-warm-';
 export const STREAMING_CORE_IMPORT = 'await import("/$bunfs/root/chunk-v45yswh1.js")';
@@ -65,8 +67,8 @@ const KEEP =
   'function $ODWy($ODarg){let $ODsid=p().currentSessionId,$ODword=$ODarg?.toLowerCase(),' +
   '$ODto=$ODarg===void 0?!$ODWon.has($ODsid):$ODword==="on"?!0:$ODword==="off"?!1:null;' +
   `if($ODto===null)return ${JSON.stringify(KEEP_WARM_USAGE)};` +
-  `if(!$ODto)return $ODWon.delete($ODsid),${JSON.stringify(KEEP_WARM_OFF)};` +
-  '$ODWon.add($ODsid);let $ODmem=$ODWr.get($ODsid);' +
+  `if(!$ODto)return $ODWon.delete($ODsid),$ODCr.changed(),${JSON.stringify(KEEP_WARM_OFF)};` +
+  '$ODWon.add($ODsid),$ODCr.changed();let $ODmem=$ODWr.get($ODsid);' +
   'if($ODmem&&!$ODWt.has($ODsid))$ODWa($ODmem.snap,$ODmem.at,Math.max(0,$ODmem.at+$ODWd($ODmem.snap)-Date.now()));' +
   `return ${JSON.stringify(KEEP_WARM_ON)}}globalThis.__odKeepWarm=$ODWy;`;
 
@@ -96,7 +98,7 @@ export const warmerPatches: readonly Patch[] = [
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
       'return vo(()=>Xq(e))}catch(e){return Promise.reject(e)}}takePendingMissionMetadataSync(){',
     ],
-    replace: `var $ODWt=new Map,$ODWon=new Set,$ODWr=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${KEEP}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE};try{$ODCs(t),$ODWa(t,t.capturedAt)}catch{}}`,
+    replace: `var $ODWt=new Map,$ODWon=${KEEP_WARM_SET_GLOBAL}=new Set,$ODWr=new Map;${SEND}${WARM_SESSION}${KIDS}${ARM}${CANCEL}${KEEP}${CACHE_CLOCK_RECORDERS}${FIRE}function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE};try{$ODCs(t),$ODWa(t,t.capturedAt)}catch{}}`,
   },
   {
     name: 'cache-warm-close',

@@ -5,6 +5,8 @@ import { KeepWarmWorld, START } from './keep-warm-world.ts';
 import {
   ANTHROPIC_DELAY_MS,
   keepWarm,
+  keepWarmSessions,
+  listenToClock,
   OTHER_SESSION,
   SESSION,
   snapshot,
@@ -44,6 +46,44 @@ describe('the command', () => {
 
   test('the usage line names the command and its two words', () => {
     expect(KEEP_WARM_USAGE).toBe('Usage: /keep-warm [on|off]');
+  });
+});
+
+describe('the footer signal', () => {
+  test('turning it on or off tells the cache clock listeners, after the set has changed', () => {
+    const seen: boolean[] = [];
+    listenToClock(() => {
+      seen.push(keepWarmSessions().has(SESSION));
+    });
+
+    keepWarm('on');
+    keepWarm('off');
+
+    expect(seen).toEqual([true, false]);
+  });
+
+  test('the toggle without an argument tells them each time too', () => {
+    const seen: boolean[] = [];
+    listenToClock(() => {
+      seen.push(keepWarmSessions().has(SESSION));
+    });
+
+    keepWarm();
+    keepWarm();
+
+    expect(seen).toEqual([true, false]);
+  });
+
+  test('a usage line changes nothing and tells no one', () => {
+    let calls = 0;
+    listenToClock(() => {
+      calls += 1;
+    });
+
+    keepWarm('bogus');
+
+    expect(calls).toBe(0);
+    expect(keepWarmSessions().size).toBe(0);
   });
 });
 

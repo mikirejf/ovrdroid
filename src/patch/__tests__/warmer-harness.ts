@@ -1,6 +1,6 @@
-import { CACHE_CLOCK_ENV, CACHE_CLOCK_KEY } from '../cache-clock.ts';
-import { STREAMING_CORE_IMPORT, warmerPatches } from '../warmer-patches.ts';
-import type { ClockEnvironment, Logged } from './clock-env.ts';
+import { CACHE_CLOCK_ENV, CACHE_CLOCK_KEY, CACHE_CLOCK_RUNTIME_KEY } from '../cache-clock.ts';
+import { KEEP_WARM_SET_KEY, STREAMING_CORE_IMPORT, warmerPatches } from '../warmer-patches.ts';
+import type { ClockEnvironment, ClockRuntime, Logged } from './clock-env.ts';
 import { ClockEnv } from './clock-env.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
 
@@ -182,6 +182,38 @@ function isKeepWarmCommand(value: unknown): value is KeepWarmCommand {
   return typeof value === 'function';
 }
 
+function isClock(value: unknown): value is Pick<ClockRuntime, 'listen'> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'listen' in value &&
+    typeof value.listen === 'function'
+  );
+}
+
+function isSessionSet(value: unknown): value is Set<string> {
+  return value instanceof Set;
+}
+
+export function listenToClock(listener: () => void): void {
+  const clock: unknown = Object.getOwnPropertyDescriptor(
+    globalThis,
+    CACHE_CLOCK_RUNTIME_KEY,
+  )?.value;
+  if (!isClock(clock)) {
+    throw new TypeError(`${CACHE_CLOCK_RUNTIME_KEY} was never defined`);
+  }
+  clock.listen(listener);
+}
+
+export function keepWarmSessions(): ReadonlySet<string> {
+  const sessions: unknown = Object.getOwnPropertyDescriptor(globalThis, KEEP_WARM_SET_KEY)?.value;
+  if (!isSessionSet(sessions)) {
+    throw new TypeError(`${KEEP_WARM_SET_KEY} was never defined`);
+  }
+  return sessions;
+}
+
 export function keepWarm(argument?: string): string {
   const command: unknown = Object.getOwnPropertyDescriptor(globalThis, KEEP_WARM_KEY)?.value;
   if (!isKeepWarmCommand(command)) {
@@ -274,6 +306,7 @@ export class World {
 
   static close(): void {
     Reflect.deleteProperty(globalThis, KEEP_WARM_KEY);
+    Reflect.deleteProperty(globalThis, KEEP_WARM_SET_KEY);
     Reflect.deleteProperty(globalThis, '__odKids');
     Reflect.deleteProperty(globalThis, '__odUsage');
     ClockEnv.close();
