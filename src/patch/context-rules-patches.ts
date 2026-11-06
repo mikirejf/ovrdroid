@@ -16,7 +16,7 @@ export const RULES_LOADER =
   'return $ODfound}';
 
 export const TRANSCRIPTS_LINE =
-  `(()=>{try{let $ODdir=M&&globalThis.${TRANSCRIPTS_GLOBAL}?.(M);` +
+  `(()=>{try{let $ODdir=C&&globalThis.${TRANSCRIPTS_GLOBAL}?.(C);` +
   'return $ODdir?"Agent transcripts for this project: "+$ODdir+"/ (one <session-id>.jsonl per session)":""}catch{return""}})()';
 
 export const contextRulesPatches: readonly Patch[] = [
@@ -42,8 +42,8 @@ export const contextRulesPatches: readonly Patch[] = [
   },
   {
     name: 'transcripts-line-in-system-info',
-    find: 'M=e.directoryInfo?.find((y)=>y.cmd==="pwd")?.out,B=M?Lhe(M):""',
-    replace: `M=e.directoryInfo?.find((y)=>y.cmd==="pwd")?.out,B=[M?Lhe(M):"",${TRANSCRIPTS_LINE}].filter(Boolean).join("\\n")`,
+    find: 'C=we(e),A=C?pve(C):""',
+    replace: `C=we(e),A=[C?pve(C):"",${TRANSCRIPTS_LINE}].filter(Boolean).join("\\n")`,
   },
   {
     name: 'transcripts-folder-lookup',

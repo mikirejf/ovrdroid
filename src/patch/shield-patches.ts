@@ -107,7 +107,7 @@ export const shieldPatches: readonly Patch[] = [
   {
     name: 'shield-paths-skip-rules',
     find: 'cL(P.content).find(({blocking:N})=>N)',
-    lookups: ['if(od(m,f)||ad(m)){v=[];return}'],
+    lookups: ['parseInt(W[1],10):0,y=!0,x=od(m,f)||ad(m)}'],
     replace: `cL(P.content).find(({blocking:N,guessing:$ODguess,ruleId:$ODrule})=>N&&!${FIXTURE_PATH}.test(m)&&!($ODguess&&${CODE_PATH}.test(m))&&!(/^private-key/.test($ODrule)&&${TEST_ONLY_PATH}.test(m)))`,
   },
   {

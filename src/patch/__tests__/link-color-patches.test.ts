@@ -83,10 +83,48 @@ interface Builder {
 
 type Render = (nodes: Node[]) => Segment[];
 
+function captured(source: string, pattern: RegExp, role: string): Record<string, string> {
+  const groups = pattern.exec(source)?.groups;
+  if (groups === undefined) {
+    throw new Error(`the inline renderer no longer shows its ${role}`);
+  }
+  return groups;
+}
+
+function stubNamesOf(inlineSource: string): string[] {
+  const { segment } = captured(
+    inlineSource,
+    /this\.current\.push\((?<segment>[\w$]+)\(/u,
+    'segment maker',
+  );
+  const { url, terminalLink } = captured(
+    inlineSource,
+    /\{let [\w$]+=(?<url>[\w$]+)\([\w$]+\),[\w$]+=[\w$]+\.terminalLinksSupported&&[\w$]+\?(?<terminalLink>[\w$]+)\(/u,
+    'link target helpers',
+  );
+  const { plainText } = captured(
+    inlineSource,
+    /&&![\w$]+\([\w$]+,(?<plainText>[\w$]+)\([\w$]+\)\)\)/u,
+    'segment text reader',
+  );
+  const { math } = captured(
+    inlineSource,
+    /\.segment\([\w$]+\((?<math>[\w$]+)\([\w$]+\.value\)\?\?/u,
+    'math converter',
+  );
+  const { renames } = rebased();
+  return [segment, renames['ys'] ?? 'ys', url, terminalLink, plainText, math].map((name) => {
+    if (name === undefined) {
+      throw new Error('a stub name was not captured');
+    }
+    return name;
+  });
+}
+
 function renderFrom(inlineSource: string): Render {
   const { renames } = rebased();
   const named = (name: string): string => renames[name] ?? name;
-  const stubs = ['Rt', 'ys', 'qd', 'j8', 'UJ', 'EI'].map((name) => named(name));
+  const stubs = stubNamesOf(inlineSource);
   const builder = named('nC');
   const inline = named('rC');
   const make = payloadFunction<
@@ -123,12 +161,16 @@ function renderFrom(inlineSource: string): Render {
 function inlineSourceOf(module: string): string {
   const { renames } = rebased();
   const builder = renames['nC'] ?? 'nC';
+  const inline = renames['rC'] ?? 'rC';
   const start = module.indexOf(`class ${builder}{`);
-  const end = module.indexOf('function Yy(', start);
-  if (start === -1 || end === -1) {
+  const body = module.indexOf(`function ${inline}(`, start);
+  const tail = /\}\}function [\w$]+\(/gu;
+  tail.lastIndex = body;
+  const end = start === -1 || body === -1 ? null : tail.exec(module);
+  if (end === null) {
     throw new Error('the inline renderer is missing from the module');
   }
-  return module.slice(start, end);
+  return module.slice(start, end.index + 2);
 }
 
 function moduleSource(replacement: boolean): string {

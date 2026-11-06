@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { Command } from 'commander';
 
 import { guard, say } from '../cli.ts';
+import { KEEP_WARM_COMMAND, KEEP_WARM_OFF, KEEP_WARM_ON } from '../patch/keep-warm-patches.ts';
 import { TERMINAL_SIZE } from './launch.ts';
 import { withLiveDir } from './live-session.ts';
 import type { FrameName, Marker, PaintFixture, PaintFrames } from './paint-markers.ts';
@@ -105,6 +106,20 @@ async function frameShowing(
   return shown ?? session.screen();
 }
 
+async function toggleKeepWarm(
+  session: Session,
+  markers: readonly Marker[],
+  toggle: { word: string; notice: string; frame: FrameName },
+): Promise<readonly string[]> {
+  await send(session, `/${KEEP_WARM_COMMAND} ${toggle.word}`);
+  await poll(
+    () => (session.screen().some((line) => line.includes(toggle.notice)) ? true : undefined),
+    MARKER_TIMEOUT_MS,
+  );
+  await settle(session);
+  return await frameShowing(session, markers, toggle.frame);
+}
+
 async function driveFrames(session: Session, markers: readonly Marker[]): Promise<PaintFrames> {
   const launch = await frameShowing(session, markers, 'launch');
   await send(session, PROMPT);
@@ -114,12 +129,22 @@ async function driveFrames(session: Session, markers: readonly Marker[]): Promis
   );
   const turn = replied === undefined ? undefined : await frameShowing(session, markers, 'turn');
   await settle(session);
+  const keepWarmOn = await toggleKeepWarm(session, markers, {
+    word: 'on',
+    notice: KEEP_WARM_ON,
+    frame: 'keepWarmOn',
+  });
+  const keepWarmOff = await toggleKeepWarm(session, markers, {
+    word: 'off',
+    notice: KEEP_WARM_OFF,
+    frame: 'keepWarmOff',
+  });
   session.resize(NARROW_COLS, TERMINAL_SIZE.rows);
   await settle(session);
   await send(session, CLEAR_COMMAND);
   await settle(session);
   const narrow = await frameShowing(session, markers, 'narrow');
-  return { launch, turn, narrow };
+  return { launch, turn, keepWarmOn, keepWarmOff, narrow };
 }
 
 export async function capturePaint(
@@ -156,7 +181,7 @@ export async function capturePaint(
 export async function paint(binary: string): Promise<void> {
   const markers = paintMarkers(PAINT_FIXTURE);
   say(
-    `launch in a git repo with an uncommitted +${PAINT_FIXTURE.additions} -${PAINT_FIXTURE.deletions} change and an update notice for v${PAINT_FIXTURE.updateVersion}, run one turn on a stub model, then /clear at ${NARROW_COLS} columns: is every painted patch on screen?`,
+    `launch in a git repo with an uncommitted +${PAINT_FIXTURE.additions} -${PAINT_FIXTURE.deletions} change and an update notice for v${PAINT_FIXTURE.updateVersion}, run one turn on a stub model, then /keep-warm on and off, then /clear at ${NARROW_COLS} columns: is every painted patch on screen?`,
   );
   const frames = await capturePaint(binary, markers);
   for (const result of readPaint(frames, markers)) {
@@ -176,7 +201,7 @@ export function registerPaintCommand(program: Command): void {
   program
     .command('paint')
     .description(
-      'launch in a PTY, run one stub-model turn, then /clear at a narrow width: does every patch that paints text show it (wordmark, compact wordmark, update notice, diff stats, turn clock, cache clock)? Writes a fake update notice to the update file for the run and restores it',
+      'launch in a PTY, run one stub-model turn, toggle /keep-warm on and off, then /clear at a narrow width: does every patch that paints text show it (wordmark, compact wordmark, update notice, diff stats, turn clock, cache clock, keep-warm footer segment)? Writes a fake update notice to the update file for the run and restores it',
     )
     .argument('<binary>')
     .action(guard(paint));

@@ -197,25 +197,27 @@ export const patches: readonly Patch[] = [
   {
     name: 'first-message-shows-at-once',
     find:
-      'Be=K3??y1.current,n4=Be??await G3(F1());if(X1)return"rejected_with_notice";' +
-      'if(P2??=m().getCurrentSessionId(),!n4)return Z3(),"rejected_with_notice";' +
-      'let b4=O1.message,f4=Z1.getSessionStateManager(),b3=f4.getSessionManager(n4),',
+      'i4=E3??E1.current;if(s3=i4,!s3){if(Z2??=await n3(f().ensureCurrentSession()),w2)return"rejected_with_notice";' +
+      's3=await n3(z1())}if(w2)return"rejected_with_notice";' +
+      'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
+      'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3),',
     lookups: [
-      'S4=yu(O1.queuePlacement);if(ie&&S4==="end_of_turn"){let l4=ay({text:b4,images:ku(O1.images)})',
-      'p2=O1.requestId??g2?.requestId??Tt(),R2=O1.messageId??g2?.messageId??Tt(),c3,_2=!1,T2,S3=!1,x3=()=>{',
+      'k4=Fu(U1.queuePlacement);if(R3&&k4==="end_of_turn"){let B3=Qy({text:P4,images:Ju(U1.images)})',
+      'd2=U1.requestId??e2?.requestId??st(),F2=U1.messageId??e2?.messageId??st(),xe,He=!1,k2,r3=!1,$2=()=>{',
     ],
     replace:
-      'Be=K3??y1.current,$ODe=null;if(!Be&&yu(O1.queuePlacement)==="end_of_turn"){' +
-      'let $ODm=P2?Z1.getSessionStateManager().getSessionManager(P2):null;' +
+      'i4=E3??E1.current,$ODe=null;if(!i4&&Fu(U1.queuePlacement)==="end_of_turn"){' +
+      'let $ODm=Z2?J1.getSessionStateManager().getSessionManager(Z2):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(p2,{id:R2,role:O1.role??"user",content:ay({text:O1.message,images:ku(O1.images)}),' +
-      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...O1.visibility&&{visibility:O1.visibility}}),' +
-      '$ODm.setThinking(),$ODe=$ODm,c3={remove:()=>{$ODm.removeOptimisticMessage(p2);' +
-      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(p2)===void 0}}}' +
-      'let n4=Be??await G3(F1());if(X1)return"rejected_with_notice";' +
-      'if(P2??=m().getCurrentSessionId(),!n4)return Z3(),"rejected_with_notice";' +
-      'let b4=O1.message,f4=Z1.getSessionStateManager(),b3=f4.getSessionManager(n4);' +
-      'if($ODe&&$ODe!==b3)x3(),c3=void 0;let ',
+      '$ODm.addOptimisticMessage(d2,{id:F2,role:U1.role??"user",content:Qy({text:U1.message,images:Ju(U1.images)}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...U1.visibility&&{visibility:U1.visibility}}),' +
+      '$ODm.setThinking(),$ODe=$ODm,xe={remove:()=>{$ODm.removeOptimisticMessage(d2);' +
+      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(d2)===void 0}}}' +
+      'if(s3=i4,!s3){if(Z2??=await n3(f().ensureCurrentSession()),w2)return"rejected_with_notice";' +
+      's3=await n3(z1())}if(w2)return"rejected_with_notice";' +
+      'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
+      'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3);' +
+      'if($ODe&&$ODe!==Pe)$2(),xe=void 0;let ',
   },
   {
     name: 'live-reply-shows-every-line',

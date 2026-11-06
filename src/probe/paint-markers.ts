@@ -5,7 +5,7 @@ import { escapeRegex } from '../patch/tokens.ts';
 import { turnClockPatches } from '../patch/turn-clock-patches.ts';
 import { updateNoticePatches } from '../patch/update-notice-patches.ts';
 
-export const FRAME_NAMES = ['launch', 'turn', 'narrow'] as const;
+export const FRAME_NAMES = ['launch', 'turn', 'keepWarmOn', 'keepWarmOff', 'narrow'] as const;
 export type FrameName = (typeof FRAME_NAMES)[number];
 export type PaintFrames = Partial<Record<FrameName, readonly string[] | undefined>>;
 
@@ -108,6 +108,11 @@ const CACHE = groupsIn(
   /"(?<cache>[^"]*)"\+\$ODa\(Math\.min/u,
   CLOCK_PARTS.name,
 );
+const KEEP_WARM = groupsIn(
+  CLOCK_PARTS.replace,
+  /lt\("(?<segment>[^"]*)",\{color:a\.primary\}\)/u,
+  CLOCK_PARTS.name,
+);
 
 export interface PaintFixture {
   updateVersion: string;
@@ -120,6 +125,7 @@ export interface Marker {
   patch: string;
   frame: FrameName;
   shows: string;
+  gone?: true;
   found: (lines: readonly string[]) => boolean;
 }
 
@@ -138,12 +144,18 @@ function hasMatch(pattern: RegExp): (lines: readonly string[]) => boolean {
   return (lines) => lines.some((line) => pattern.test(line));
 }
 
+function footerBracketWith(segment: string): RegExp {
+  return new RegExp(String.raw`\[[^\]]*${escapeRegex(segment)}[^\]]*\]`, 'u');
+}
+
 export function paintMarkers(fixture: PaintFixture): Marker[] {
   const notice = `${group(NOTICE, 'head')}${fixture.updateVersion}${group(NOTICE, 'tail')}`;
   const stats = `${group(STATS, 'plus')}${fixture.additions}${group(STATS, 'gap')}${group(STATS, 'minus')}${fixture.deletions}`;
   const up = group(SENT, 'up');
   const down = group(DONE, 'down');
   const cache = group(CACHE, 'cache');
+  const keepWarm = group(KEEP_WARM, 'segment');
+  const inFooter = hasMatch(footerBracketWith(keepWarm));
   return [
     {
       name: 'the ovrdroid wordmark',
@@ -181,6 +193,21 @@ export function paintMarkers(fixture: PaintFixture): Marker[] {
       found: hasMatch(new RegExp(`${escapeRegex(cache)}${AGE}`, 'u')),
     },
     {
+      name: 'the keep-warm segment',
+      patch: 'turn-clock-parts',
+      frame: 'keepWarmOn',
+      shows: keepWarm,
+      found: inFooter,
+    },
+    {
+      name: 'the keep-warm segment',
+      patch: 'turn-clock-parts',
+      frame: 'keepWarmOff',
+      shows: keepWarm,
+      gone: true,
+      found: (lines) => !inFooter(lines),
+    },
+    {
       name: 'the compact ovrdroid wordmark',
       patch: 'wordmark-compact-ovrdroid',
       frame: 'narrow',
@@ -214,13 +241,19 @@ export function missingMarkers(frames: PaintFrames, markers: readonly Marker[]):
 const FRAME_WORDS: Record<FrameName, string> = {
   launch: 'first settled frame',
   turn: 'frame after one turn',
+  keepWarmOn: 'footer after /keep-warm on',
+  keepWarmOff: 'footer after /keep-warm off',
   narrow: `frame after /clear at ${NARROW_COLS} columns`,
 };
 
 export function describeResult({ marker, state }: MarkerResult): string {
   const where = FRAME_WORDS[marker.frame];
   if (state === 'shown') {
-    return `ok    ${marker.name} (${marker.patch}) is in the ${where}`;
+    const verb = marker.gone === true ? 'is gone from' : 'is in';
+    return `ok    ${marker.name} (${marker.patch}) ${verb} the ${where}`;
+  }
+  if (state === 'missing' && marker.gone === true) {
+    return `FAIL  ${marker.name} (${marker.patch}) is still in the ${where}; expected ${JSON.stringify(marker.shows)} gone`;
   }
   if (state === 'missing') {
     return `FAIL  ${marker.name} (${marker.patch}) is missing from the ${where}; expected ${JSON.stringify(marker.shows)}`;

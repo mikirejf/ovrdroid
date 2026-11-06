@@ -176,7 +176,7 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
   const ids = groups(source, /\?\?[\w$]+\?\.requestId\?\?(?<id>[\w$]+)\(\)/u, 'request id');
   const failure = groups(
     source,
-    /(?<log>[\w$]+)\([\w$]+,"\[Daemon\] Failed to send message"\),(?<notice>[\w$]+)\((?<describe>[\w$]+)\(/u,
+    /(?<log>[\w$]+)\([\w$]+,"\[Daemon\] Failed to send message"\);let [\w$]+=[\w$]+\(\);return (?<notice>[\w$]+)\([\w$]+\?(?<describe>[\w$]+)\([\w$]+,[\w$]+\):(?<plain>[\w$]+)\(/u,
     'send failure notice',
   );
   const sent: Sent[] = [];
@@ -217,13 +217,19 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
   };
   const stubs = new Map<string, Stand>([
     [head('client'), () => client],
-    [head('service'), () => ({ getCurrentSessionId: () => world.currentId })],
+    [
+      head('service'),
+      () => ({
+        getCurrentSessionId: () => world.currentId,
+        ensureCurrentSession: async () => await Promise.resolve(world.currentId),
+      }),
+    ],
     [pending('set'), submissions],
     [pending('flag'), () => null],
-    [named('y1'), { current: null }],
+    [named('E1'), { current: null }],
     [refs('creating'), { current: null }],
     [refs('live'), { current: null }],
-    [named('F1'), async () => await session.promise],
+    [named('z1'), async () => await session.promise],
     [
       ids('id'),
       () => {
@@ -231,11 +237,12 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
         return `id-${nextId}`;
       },
     ],
-    [named('yu'), (placement: string | undefined) => placement ?? 'end_of_turn'],
-    [named('ay'), (content: Content) => content],
-    [named('ku'), (images: string[] | undefined) => images],
+    [named('Fu'), (placement: string | undefined) => placement ?? 'end_of_turn'],
+    [named('Qy'), (content: Content) => content],
+    [named('Ju'), (images: string[] | undefined) => images],
     [failure('log'), () => null],
     [failure('describe'), (error: Error) => error.message],
+    [failure('plain'), (error: Error) => error.message],
     [failure('notice'), (text: string) => notices.push(text)],
   ]);
   const send = evaluate<(input: SendInput) => Promise<string>>(source, stubs);

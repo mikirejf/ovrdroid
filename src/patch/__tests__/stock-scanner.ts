@@ -1,6 +1,6 @@
 import { patchSource } from '../../binary/apply.ts';
-import type { App } from '../../binary/graph.ts';
-import { joinApp, readApp } from '../../binary/graph.ts';
+import type { App, AppModule } from '../../binary/graph.ts';
+import { embedName, joinApp, readApp } from '../../binary/graph.ts';
 import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import type { Patch } from '../patches.ts';
 import { findMarker } from '../patches.ts';
@@ -56,21 +56,67 @@ const SCANNER_ANCHOR = '"(?<name>(?<!\\\\w)(?=\\\\w*?(?:key|token|secret|pass"';
 const LINE_MATCHER =
   /function (?<name>[\w$]+)\((?<input>[\w$]+)\)\{let [\w$]+=\k<input>\.includes\(";base64,"\)\?\k<input>\.replace\(/u;
 
-export function scannerText(app: App): string {
+function scannerModule(app: App): AppModule {
   const module = app.find((candidate) => candidate.text.includes(SCANNER_ANCHOR));
   if (module === undefined) {
     throw new Error('no module carries the secret-scanner rules');
   }
-  return module.text;
+  return module;
+}
+
+export function scannerText(app: App): string {
+  return scannerModule(app).text;
+}
+
+const IMPORT = /import\{(?<names>[^}]*)\}from"(?<from>[^"]+)"/gu;
+
+function importsOf(text: string): Map<string, { from: string; name: string }> {
+  return new Map(
+    [...text.matchAll(IMPORT)].flatMap((match) =>
+      (match.groups?.['names'] ?? '')
+        .split(',')
+        .map((part): [string, { from: string; name: string }] => {
+          const [name = '', local = name] = part.split(' as ');
+          return [local, { from: match.groups?.['from'] ?? '', name }];
+        }),
+    ),
+  );
+}
+
+function mentions(text: string, name: string): boolean {
+  return new RegExp(`(?<![\\w$.])${name.replaceAll('$', '\\$')}(?![\\w$])`, 'u').test(text);
+}
+
+function closureAcross(app: App, module: AppModule, roots: readonly string[]): string {
+  const own = closureOf(module.text, roots);
+  const byModule = new Map<AppModule, [string, string][]>();
+  for (const [local, { from, name }] of importsOf(module.text)) {
+    if (!mentions(own, local)) {
+      continue;
+    }
+    const source = app.find((candidate) => embedName(candidate.name) === embedName(from));
+    if (source === undefined) {
+      throw new Error(`${local} is imported from ${from}, which is not in the app`);
+    }
+    byModule.set(source, [...(byModule.get(source) ?? []), [name, local]]);
+  }
+  const imported = [...byModule].map(([source, bindings]) => {
+    const names = bindings.map(([name]) => name);
+    const pattern = bindings.map(([name, local]) => `${name}:${local}`).join(',');
+    return `var{${pattern}}=(()=>{${closureAcross(app, source, names)};return{${names.join(',')}}})()`;
+  });
+  return [...imported, own].join(';\n');
 }
 
 export function lineMatcherIn(app: App): LineMatcher {
-  const text = scannerText(app);
+  const module = scannerModule(app);
+  const { text } = module;
   const name = LINE_MATCHER.exec(text.slice(text.indexOf(SCANNER_ANCHOR)))?.groups?.['name'];
   if (name === undefined) {
     throw new Error('the secret-scanner line matcher is not where the tests expect it');
   }
-  // SAFETY: the body is the shipped line matcher with the top-level declarations it reaches.
+  const source = closureAcross(app, module, [name]);
+  // SAFETY: the body is the shipped line matcher with the top-level declarations it reaches, across the modules it imports from.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${closureOf(text, [name])};return ${name}`)() as LineMatcher;
+  return new Function(`${source};return ${name}`)() as LineMatcher;
 }

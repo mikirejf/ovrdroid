@@ -101,7 +101,8 @@ export const CACHE_CLOCK_FACTORY =
   `${FORGET},` +
   `${LOAD},` +
   'view:($ODentry,$ODnow)=>$ODCv($ODentry,$ODnow,$ODmine),' +
-  'listen:($ODlisten)=>{$ODlisteners.add($ODlisten);return()=>$ODlisteners.delete($ODlisten)}}}';
+  'listen:($ODlisten)=>{$ODlisteners.add($ODlisten);return()=>$ODlisteners.delete($ODlisten)},' +
+  'changed:$ODemit}}';
 
 export const CACHE_CLOCK_ENV =
   '{fs:require("fs"),' +

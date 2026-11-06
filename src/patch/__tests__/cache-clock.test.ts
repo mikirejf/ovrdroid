@@ -225,3 +225,64 @@ describe('when the footer wakes up', () => {
     expect(footer.pending.map((timer) => timer.delay)).toEqual([59 * SECOND_MS + 1]);
   });
 });
+
+describe('the keep warm segment', () => {
+  test('shows the flame alone in the primary colour with no turn and no cache entry', () => {
+    FooterWorld.keepWarm(SESSION);
+
+    expect(footer.render()).toBe('[\u{1F525}] ? for help');
+    expect(footer.colorOf('\u{1F525}')).toBe('primary');
+    expect(footer.pending).toHaveLength(0);
+  });
+
+  test('follows the turn clock and the cache, separated by a muted comma', () => {
+    FooterWorld.cache({ [SESSION]: SENT_AT });
+    FooterWorld.keepWarm(SESSION);
+    runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
+
+    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 44m, \u{1F525}] ? for help');
+    expect(footer.colorOf('\u{1F525}')).toBe('primary');
+    expect(footer.colorOf(',')).toBe('muted');
+    expect(footer.colorOf('cache 44m')).toBe('muted');
+  });
+
+  test('follows the turn clock alone when there is no cache entry', () => {
+    FooterWorld.keepWarm(SESSION);
+    runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
+
+    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, \u{1F525}] ? for help');
+  });
+
+  test('sits before the context in the footer bracket', () => {
+    FooterWorld.keepWarm(SESSION);
+    footer.bracket = '[\u23F1 21m 6s, context: 35%]';
+
+    expect(footer.render()).toBe('[\u23F1 21m 6s, \u{1F525}, context: 35%] ? for help');
+  });
+
+  test('follows a cache that went cold', () => {
+    FooterWorld.cache({ [SESSION]: SENT_AT - 60 * MINUTE_MS });
+    FooterWorld.keepWarm(SESSION);
+
+    expect(footer.render()).toBe('[cache cold, \u{1F525}] ? for help');
+    expect(footer.colorOf('cache cold')).toBe('warning');
+  });
+
+  test('is absent when keep warm is on for another session only', () => {
+    FooterWorld.keepWarm(OTHER_SESSION);
+
+    expect(footer.render()).toBe('? for help');
+  });
+
+  test('is absent when keep warm is off, and the footer is what it was', () => {
+    FooterWorld.cache({ [SESSION]: SENT_AT });
+    FooterWorld.keepWarm();
+    runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
+
+    expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 44m] ? for help');
+  });
+
+  test('is absent when nothing ever defined the set', () => {
+    expect(footer.render()).toBe('? for help');
+  });
+});

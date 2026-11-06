@@ -235,8 +235,8 @@ type Lookup = (cwd: string) => string;
 
 function workspaceLines(cwd: string | undefined, shell: string): string {
   return payloadFunction<[string | undefined, () => string], string>(
-    ['M', 'Lhe'],
-    `return [M?Lhe(M):"",${TRANSCRIPTS_LINE}].filter(Boolean).join("\\n")`,
+    ['C', 'pve'],
+    `return [C?pve(C):"",${TRANSCRIPTS_LINE}].filter(Boolean).join("\\n")`,
   )(cwd, () => shell);
 }
 
