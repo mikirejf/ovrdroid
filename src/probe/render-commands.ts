@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 
 import { choice, count, guard } from '../cli.ts';
 import { INSTALLED_DROID } from '../paths.ts';
+import { blankLog, DEFAULT_BLANK_LOG } from './blank-log-run.ts';
 import { registerBusyKeysCommand } from './busy-keys-commands.ts';
 import { registerCopySelectCommand } from './copy-select-command.ts';
 import { counters, DEFAULT_KEYS } from './counters-run.ts';
@@ -55,4 +56,13 @@ export function registerRenderCommands(program: Command): void {
       'home folder holding .factory, instead of $FACTORY_HOME_OVERRIDE or your home',
     )
     .action(guard(rendersLog));
+
+  program
+    .command('blank-log')
+    .description(
+      'why did the screen go blank: reads the log a build with the blank-diag patches writes, and tells per empty message list or terminal clear what caused it, whether an agent scope was active, whether a compaction was running, and what happened just before',
+    )
+    .option('--file <path>', 'log to read', DEFAULT_BLANK_LOG)
+    .option('--since <when>', 'only lines from this long ago (30m, 2h, 1d) or since this date')
+    .action(guard(blankLog));
 }

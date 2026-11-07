@@ -1,3 +1,4 @@
+import { blankDiagPatches } from './blank-diag-patches.ts';
 import { copyMenuPatches } from './copy-menu-patches.ts';
 import type { Patch } from './patches.ts';
 import { resumeCachePatches } from './resume-cache-patches.ts';
@@ -17,4 +18,5 @@ export const sessionPatches: readonly Patch[] = [
   ...suggestionListPatches,
   ...resumeCachePatches,
   ...copyMenuPatches,
+  ...blankDiagPatches,
 ];
