@@ -46,19 +46,19 @@ export const turnClockPatches: readonly Patch[] = [
   },
   {
     name: 'turn-clock-track',
-    find: 'droidsHint:se,remoteDroidLocation:ce}){let ye=Ehe(',
+    find: 'droidsHint:se,remoteDroidLocation:ce}){',
     lookups: [
-      'let ye=Ehe({statusState:x,sessionId:w,',
+      'ye=Ehe({statusState:x,sessionId:w,',
       'L]=_(()=>{if(I.sessionId!==null&&',
       'W(()=>()=>{let Z=q.current,',
       'df(),K=V.subscribe(J),Y=setInterval(()=>{V.refresh()},',
     ],
-    replace: `droidsHint:se,remoteDroidLocation:ce}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}let ye=Ehe(`,
+    replace: `droidsHint:se,remoteDroidLocation:ce}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}`,
   },
   {
     name: 'turn-clock-parts',
     find: ',Me=(We)=>{let it=ye?[lt(ye,{color:a.text.muted})]:[];',
-    lookups: ['let ye=Ehe({statusState:x,sessionId:w,'],
+    lookups: ['ye=Ehe({statusState:x,sessionId:w,'],
     replace: `,${TURN_CLOCK_HEAD},Me=(We)=>{let it=[...$ODhead];`,
   },
 ];

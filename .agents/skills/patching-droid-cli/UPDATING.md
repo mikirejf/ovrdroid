@@ -101,7 +101,11 @@ Fix by reason:
   changes, for example when Droid splits a leading call into its own statement. Keep every `find`
   to what its `replace` actually changes. A patch that only inserts code before a function needs
   nothing from its parameter list but the name: a destructured parameter that turns into
-  shorthand (`t:n` to `t`) sends a `find` that quotes the whole list `missing`.
+  shorthand (`t:n` to `t`) sends a `find` that quotes the whole list `missing`. The same holds for
+  a patch that edits an object literal inside a function: a `find` that starts at the function
+  header goes `missing` when upstream adds or destructures a parameter. `probe grep` a literal
+  from the body on both releases; when only the header differs, cut the `find` to the span the
+  `replace` edits.
 - `ambiguous`: widen the `find` until its shape is unique. A `find` that is mostly names (`K$=\``)
   matches thousands of sites, and renaming alone can tip a short one over. Anchor it on a
   neighbouring keyword or literal (`var Hz=\``), or extend it into the value it assigns
@@ -134,8 +138,15 @@ Fix by reason:
   captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
   the names the `replace` uses plus just enough text to match once in its module. A lookup only
   captures names, so every character past that can drift.
+- `no-lookup` on a lookup that quotes a function header usually means upstream added a
+  parameter. Before widening the lookup to the new signature, read what the new parameter does
+  and check that the payload's calls, which pass fewer arguments, never reach the code that reads
+  it.
 
-To find **which** lookup broke (the report names only the patch), feed each one to
+To find **which** lookup broke (the report names only the patch), the fastest way is to call
+`rebasePatch` from `src/patch/rebase.ts` on the extracted modules with `lookups.slice(0, i)` for
+each `i`: the first `i` that reports `no-lookup` names the broken one, in one run. By hand, feed
+each one to
 `probe grep $STOCK`. Grep only its stable part: names longer than 3 characters, dotted properties,
 strings. The lookup is written in one build's short names, so a literal grep of the whole snippet
 can miss on a build where it would still match. The lookup that comes back with no place, or with

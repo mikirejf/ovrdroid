@@ -113,7 +113,7 @@ const PATCHED_DETAIL_TAIL =
   'node:l(o,{color:a.error,children:["\\u26A0 ",oe.error]})};break}default:break}return le}let Z=j.length,Q=Z>N1,';
 
 const STOCK_DETAIL_TOOL =
-  'function NV(f,y,E){return t(Zp,{toolName:f.toolName,toolInput:f.toolInput,status:f.status,result:f.detailedContent||f.result,';
+  '{toolName:f.toolName,toolInput:f.toolInput,status:f.status,result:f.detailedContent||f.result,';
 
 const STOCK_DETAIL_OUTPUT =
   'children:!q?X.length>0?l(c,{flexDirection:"column",children:[Q&&t(o,{color:a.text.muted,children:u().t("common:toolDisplay.task.earlierUpdates",{count:Z-N1})}),' +

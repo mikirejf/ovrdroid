@@ -170,7 +170,7 @@ export const stackedViewPatches: readonly Patch[] = [
     lookups: [
       'function va(g){return"toolName"in g&&"status"in g}function b1e(g){return!va(g)&&g.messageType==="hook_execution"',
       'return iD(g,y,void 0,v.showThinking,v)}',
-      'function Jxe(g){let y=g.toolInput;if(!y)return null;switch(g.toolName){case"Read":',
+      'function Jxe(g,y){let S=g.toolInput;if(!S)return null;switch(g.toolName){case"Read":',
       'function zW(g,y){let S=he(g),M=(process.stdout.columns||80)-tbe;',
       'ie=f().getShowHookOutput()&&[re?.before??[],re?.after??[]].some((le)=>le.length>0&&!cw(le));',
       'function uD(g){if(!g)return!1;return(Array.isArray(g)?g:QS(g)).some((S)=>S.hookStatus==="executing")}',
