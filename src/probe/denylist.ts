@@ -78,6 +78,8 @@ async function execOnce(run: CaseRun, dir: string, url: string): Promise<string>
       [
         run.binary,
         'exec',
+        '--tool-execution-mode',
+        'direct-only',
         '--auto',
         'high',
         '-m',
