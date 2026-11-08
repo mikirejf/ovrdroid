@@ -1,3 +1,4 @@
+import { agentBrowserPatches } from './agent-browser-patches.ts';
 import { blankDiagPatches } from './blank-diag-patches.ts';
 import { copyMenuPatches } from './copy-menu-patches.ts';
 import type { Patch } from './patches.ts';
@@ -19,4 +20,5 @@ export const sessionPatches: readonly Patch[] = [
   ...resumeCachePatches,
   ...copyMenuPatches,
   ...blankDiagPatches,
+  ...agentBrowserPatches,
 ];

@@ -5,6 +5,7 @@ import { messageOf } from '../../cli.ts';
 import { withTempDir } from '../../temp.ts';
 import type { StagedEmbed } from '../embeds.ts';
 import { assertSameEmbeds, preambleFor, stageEmbeds } from '../embeds.ts';
+import type { RemovedEmbeds } from '../removed-embeds.ts';
 import { build, chunk, entry, ripgrep, sidecars, skill, skillText } from './binary.ts';
 
 function files(...specifiers: string[]): StagedEmbed[] {
@@ -46,10 +47,10 @@ describe('preambleFor', () => {
   });
 });
 
-async function staging(stock: Uint8Array): Promise<string> {
+async function staging(stock: Uint8Array, removed: RemovedEmbeds = {}): Promise<string> {
   return await withTempDir('embeds-test', async (dir) => {
     try {
-      await stageEmbeds(stock, dir);
+      await stageEmbeds(stock, dir, removed);
       return '';
     } catch (error) {
       return messageOf(error);
@@ -234,5 +235,78 @@ describe('assertSameEmbeds', () => {
     expect(() => {
       check(build([entry, ripgrep, skill, { ...skill, source: 'dupe' }]));
     }).toThrow('two embedded files share the name /$bunfs/root/SKILL.md-9e33f36r.asset');
+  });
+});
+
+const SKILL_REMOVED = { 'SKILL.md.asset': 1 };
+
+describe('stageEmbeds with embedded files marked for removal', () => {
+  test('stages every sidecar but the marked ones, so the preamble never imports them', async () => {
+    const stock = build([entry, ...sidecars]);
+
+    await withTempDir('embeds-test', async (dir) => {
+      const embeds = await stageEmbeds(stock, dir, SKILL_REMOVED);
+
+      expect(embeds).toEqual(files('rg-kc7jt1ak.'));
+      expect(await Bun.file(path.join(dir, 'assets', 'rg-kc7jt1ak.')).exists()).toBe(true);
+      expect(await Bun.file(path.join(dir, 'assets', 'SKILL.md-9e33f36r.asset')).exists()).toBe(
+        false,
+      );
+    });
+  });
+
+  test('refuses a stock binary that lacks a record the list marks', async () => {
+    const stock = build([entry, ripgrep]);
+
+    expect(await staging(stock, SKILL_REMOVED)).toContain(
+      'SKILL.md.asset (list names 1, binary carries 0)',
+    );
+  });
+});
+
+describe('assertSameEmbeds with embedded files marked for removal', () => {
+  const stock = build([entry, ...sidecars]);
+  const check = (rebuilt: Uint8Array) => {
+    assertSameEmbeds(stock, rebuilt, SKILL_REMOVED);
+  };
+
+  test('accepts a rebuild that lost exactly the marked files', () => {
+    expect(() => {
+      check(build([entry, ripgrep]));
+    }).not.toThrow();
+  });
+
+  test('rejects a rebuild that lost another file besides the marked ones', () => {
+    expect(() => {
+      check(build([entry]));
+    }).toThrow('missing embedded files: /$bunfs/root/rg-kc7jt1ak.');
+  });
+
+  test('rejects a rebuild that still carries a marked file, because the removal did not happen', () => {
+    expect(() => {
+      check(build([entry, ...sidecars]));
+    }).toThrow(
+      'still carries embedded files marked for removal: /$bunfs/root/SKILL.md-9e33f36r.asset',
+    );
+  });
+
+  test('rejects a rebuild that changed an unmarked file', () => {
+    expect(() => {
+      check(build([entry, { ...ripgrep, source: 'OTHER' }]));
+    }).toThrow('embedded files changed content: /$bunfs/root/rg-kc7jt1ak.');
+  });
+
+  test('rejects a rebuild that added a file', () => {
+    expect(() => {
+      check(build([entry, ripgrep, { name: '/$bunfs/root/stray.asset', source: '?' }]));
+    }).toThrow('unexpected embedded files: /$bunfs/root/stray.asset');
+  });
+
+  test('rejects a stock binary that carries more files of a marked stem than the list names', () => {
+    const twin = { name: '/$bunfs/root/SKILL.md-aaaaaaaa.asset', source: '# another' };
+
+    expect(() => {
+      assertSameEmbeds(build([entry, ...sidecars, twin]), build([entry, ripgrep]), SKILL_REMOVED);
+    }).toThrow('SKILL.md.asset (list names 1, binary carries 2)');
   });
 });

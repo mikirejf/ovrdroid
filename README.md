@@ -559,13 +559,15 @@ cost on the subscription meter, what busts the cache, and where token spend sits
    it on launch. Rebuilding is what keeps the bytecode cache valid: editing bytes in place
    invalidates it and Droid falls back to parsing 20MB of JavaScript, which costs more than the
    patches save.
-4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte, then, on
-   macOS, `codesign --force --sign -`. Without the signature macOS kills the process on launch.
-   Linux builds are not signed.
+4. **Check and sign.** Fail if any sidecar went missing, appeared, or changed a byte (bar the
+   bundled agent-browser files, which are dropped on purpose), then, on macOS,
+   `codesign --force --sign -`. Without the signature macOS kills the process on launch. Linux
+   builds are not signed.
 
 The app finds its sidecars through hardcoded `/$bunfs/root/...` literals, one per file. Those are
-never patched: `--asset-naming=[name].[ext]` makes Bun reproduce each name exactly, so the original
-literals keep working.
+never patched, except the agent-browser ones, which a patch removes along with the files:
+`--asset-naming=[name].[ext]` makes Bun reproduce each name exactly, so the original literals keep
+working.
 
 The original binary is always backed up first, and the rebuilt one must report the same `--version`
 before it is installed.

@@ -12,6 +12,8 @@ import {
   readModules,
   readRegion,
 } from './graph.ts';
+import type { RemovedEmbeds } from './removed-embeds.ts';
+import { removedNames } from './removed-embeds.ts';
 
 const ASSET_DIR = 'assets';
 const CONTENT_HASH = /-[a-z0-9]{8}(?<ext>\.\w+)$/u;
@@ -61,8 +63,15 @@ export function preambleFor(embeds: readonly StagedEmbed[]): string {
   return `${lines.join('\n')}\nglobalThis.__odAssets=[${kept}];\n`;
 }
 
-export async function stageEmbeds(stock: Uint8Array, dir: string): Promise<StagedEmbed[]> {
-  const staged = [...embedsOf(stock).values()].map((module, index) => {
+export async function stageEmbeds(
+  stock: Uint8Array,
+  dir: string,
+  removed: RemovedEmbeds = {},
+): Promise<StagedEmbed[]> {
+  const embeds = embedsOf(stock);
+  const dropped = removedNames([...embeds.keys()], removed);
+  const kept = [...embeds.values()].filter((module) => !dropped.has(module.name));
+  const staged = kept.map((module, index) => {
     if (module.loader === LOADER_FILE) {
       return { specifier: embedName(module.name), kind: 'file' as const, module };
     }
@@ -90,9 +99,14 @@ export async function stageEmbeds(stock: Uint8Array, dir: string): Promise<Stage
   return staged.map(({ specifier, kind }) => ({ specifier, kind }));
 }
 
-export function assertSameEmbeds(stock: Uint8Array, rebuilt: Uint8Array): void {
+export function assertSameEmbeds(
+  stock: Uint8Array,
+  rebuilt: Uint8Array,
+  removed: RemovedEmbeds = {},
+): void {
   const before = embedsOf(stock);
   const after = embedsOf(rebuilt);
+  const dropped = removedNames([...before.keys()], removed);
 
   const missing: string[] = [];
   const changed: string[] = [];
@@ -100,6 +114,9 @@ export function assertSameEmbeds(stock: Uint8Array, rebuilt: Uint8Array): void {
   const recoded: string[] = [];
 
   for (const [name, module] of before) {
+    if (dropped.has(name)) {
+      continue;
+    }
     const twin = after.get(name);
     if (twin === undefined) {
       missing.push(name);
@@ -115,6 +132,13 @@ export function assertSameEmbeds(stock: Uint8Array, rebuilt: Uint8Array): void {
   }
   if (missing.length > 0) {
     throw new Error(`rebuilt binary is missing embedded files: ${missing.join(', ')}`);
+  }
+
+  const lingering = [...dropped].filter((name) => after.has(name));
+  if (lingering.length > 0) {
+    throw new Error(
+      `rebuilt binary still carries embedded files marked for removal: ${lingering.join(', ')}`,
+    );
   }
 
   const extra = [...after.keys()].filter((name) => !before.has(name));

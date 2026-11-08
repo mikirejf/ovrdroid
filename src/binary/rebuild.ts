@@ -8,6 +8,7 @@ import type { App } from './graph.ts';
 import { embedName, readApp, readModules } from './graph.ts';
 import { assertPayloadNamesBound } from './payload-globals.ts';
 import { assertRefsResolve } from './refs.ts';
+import { REMOVED_EMBEDS } from './removed-embeds.ts';
 
 const BINARY_MODE = 0o755;
 
@@ -34,12 +35,12 @@ export async function rebuildInto(
   const bun = await ensureBun(BUILD_BUN_VERSION);
 
   say(`building with Bun ${BUILD_BUN_VERSION}`);
-  const seconds = await buildBinary({ bun, app, stock, out });
+  const seconds = await buildBinary({ bun, app, stock, out, removed: REMOVED_EMBEDS });
   say(`built in ${seconds.toFixed(1)}s`);
 
   const rebuilt = readFileSync(out);
-  assertSameEmbeds(stock, rebuilt);
-  say('verified every embedded file survived the rebuild');
+  assertSameEmbeds(stock, rebuilt, REMOVED_EMBEDS);
+  say('verified every embedded file survived the rebuild, bar the ones marked for removal');
 
   const rebuiltApp = readApp(rebuilt);
   assertRefsResolve(

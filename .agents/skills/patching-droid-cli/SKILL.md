@@ -59,7 +59,10 @@ So patches are ordinary text edits of any length on the extracted source, and th
    calls into `require("./chunk-X.js")`, which Bun bundles like any other edge.
 5. **Verify the sidecars** survived byte for byte under their original names
    (`assertSameEmbeds`). Chunk names may change; sidecar names never may, because the app
-   addresses them by string literal. Then **verify every path the app names resolves**
+   addresses them by string literal. The bundled agent-browser files are the one named exception
+   (`REMOVED_EMBEDS` in `src/binary/removed-embeds.ts`); when a release adds, drops or renames one,
+   the build fails with `do not match the stock binary`, and the list and the
+   `agent-browser-bundled-files-removed` patch need updating together. Then **verify every path the app names resolves**
    (`assertRefsResolve`): no `import.meta.require("./…")` left behind, and every
    `/$bunfs/root/…` literal names a record the binary carries.
 6. **Re-sign** with `codesign --force --sign -` on macOS. Skip this and macOS kills the process with

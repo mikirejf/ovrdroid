@@ -27,6 +27,12 @@ and rebuilds the whole binary with `--splitting`. Chunk names are free to change
 imports are rewritten, but every sidecar must survive byte for byte: `assertSameEmbeds` fails the
 build if one goes missing, appears from nowhere, or changes a byte.
 
+The one exception is `REMOVED_EMBEDS` (`src/binary/removed-embeds.ts`): the bundled agent-browser
+and its skill files, which the patched Droid no longer uses (it runs the agent-browser on PATH).
+Those records, matched by name without the content hash and counted, are left out of the rebuild,
+and the build fails if the stock binary carries a different count of any of them, if one is still in
+the rebuilt binary, or if anything else goes missing.
+
 Not every chunk is reached by an import. A few are loaded on demand with
 `import.meta.require("/$bunfs/root/chunk-X.js")` (highlight.js is one), and Bun does not follow that
 call: it rewrites the string and drops the chunk, so the build passes and the first code block in a
@@ -35,10 +41,10 @@ so Bun bundles them, and `assertRefsResolve` fails the build if any path the app
 does not resolve to a record in the rebuilt binary.
 
 The names matter as much as the bytes. The app addresses its sidecars through hardcoded literals
-like `var BUn="/$bunfs/root/rg-kc7jt1ak.";`, one per sidecar, and those literals are never patched.
-`--asset-naming=[name].[ext]` makes Bun reproduce each name byte for byte, so the untouched literals
-keep resolving. Drop that flag and Bun appends a content hash, every path breaks, and the app fails
-at runtime rather than at build time.
+like `var BUn="/$bunfs/root/rg-kc7jt1ak.";`, one per sidecar, and those literals are never patched,
+bar the agent-browser ones removed with their records. `--asset-naming=[name].[ext]` makes Bun
+reproduce each name byte for byte, so the untouched literals keep resolving. Drop that flag and Bun
+appends a content hash, every path breaks, and the app fails at runtime rather than at build time.
 
 Patches are ordinary text edits on the extracted source, any length. Nothing has to fit a fixed slot
 any more.

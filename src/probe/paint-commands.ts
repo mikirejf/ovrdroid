@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 
+import { registerAgentBrowserCommand } from './agent-browser.ts';
 import { registerDenylistCommand } from './denylist.ts';
 import { registerDotenvLeakCommand } from './dotenv-leak.ts';
 import { registerPaintCommand } from './paint.ts';
@@ -14,4 +15,5 @@ export function registerPaintCommands(program: Command): void {
   registerStackedCommand(program);
   registerTypingStartCommand(program);
   registerDotenvLeakCommand(program);
+  registerAgentBrowserCommand(program);
 }

@@ -6,12 +6,14 @@ import { BUILD_FLAGS } from './build-flags.ts';
 import { preambleFor, stageEmbeds } from './embeds.ts';
 import type { App } from './graph.ts';
 import { embedName, EMBED_PREFIX, ENTRY_FILE } from './graph.ts';
+import type { RemovedEmbeds } from './removed-embeds.ts';
 
 export interface BuildRequest {
   bun: string;
   app: App;
   stock: Uint8Array;
   out: string;
+  removed: RemovedEmbeds;
 }
 
 const EMBED_LITERAL = new RegExp(`"${EMBED_PREFIX.replaceAll('$', '\\$')}([^"]+)"`, 'gu');
@@ -51,9 +53,15 @@ export function rewriteImports(app: App): App {
   return [entry, ...chunks];
 }
 
-export async function buildBinary({ bun, app, stock, out }: BuildRequest): Promise<number> {
+export async function buildBinary({
+  bun,
+  app,
+  stock,
+  out,
+  removed,
+}: BuildRequest): Promise<number> {
   return await withTempDir('build', async (dir) => {
-    const embeds = await stageEmbeds(stock, dir);
+    const embeds = await stageEmbeds(stock, dir, removed);
     const [entry, ...chunks] = rewriteImports(app);
 
     await Bun.write(path.join(dir, ENTRY_FILE), preambleFor(embeds) + entry.text);
