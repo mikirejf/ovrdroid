@@ -7,12 +7,23 @@ export const AGENT_BROWSER_MISSING_MESSAGE =
   'agent-browser is not installed on this machine, and Droid no longer bundles it. ' +
   `Ask the user to install it with \`${AGENT_BROWSER_NPM_INSTALL}\` (or \`${AGENT_BROWSER_BREW_INSTALL}\`), then run the command again.`;
 
-const RESOLVER =
-  'function $ODabPath($ODpath,$ODskip){let $ODfs=require("fs"),$ODpa=require("path");' +
+const FINDER =
+  'function $ODabDir($ODpath,$ODskip){let $ODfs=require("fs"),$ODpa=require("path");' +
   'for(let $ODdir of $ODpath.split($ODpa.delimiter)){if(!$ODdir||$ODdir===$ODskip)continue;' +
   'try{let $ODfile=$ODpa.join($ODdir,"agent-browser");' +
-  'if($ODfs.statSync($ODfile).isFile()){$ODfs.accessSync($ODfile,$ODfs.constants.X_OK);return $ODdir+$ODpa.delimiter+$ODpath}}catch{}}' +
-  `throw Error(${JSON.stringify(AGENT_BROWSER_MISSING_MESSAGE)})}`;
+  'if($ODfs.statSync($ODfile).isFile()){$ODfs.accessSync($ODfile,$ODfs.constants.X_OK);return $ODdir}}catch{}}}';
+
+const RESOLVER =
+  `${FINDER}function $ODabPath($ODpath,$ODskip){let $ODdir=$ODabDir($ODpath,$ODskip);` +
+  `if($ODdir===void 0)throw Error(${JSON.stringify(AGENT_BROWSER_MISSING_MESSAGE)});` +
+  'return $ODdir+require("path").delimiter+$ODpath}';
+
+const INSPECT_BINARY =
+  'function CUe(){let{binaryPath:a,skillDataDir:t}=oe();if(!h(a))return{state:"missing",path:a};return{state:Re(a,t)?"stale":"current",path:a}}';
+
+const DOCTOR_NOT_EXTRACTED = 'n=o("skip","not extracted yet",{path:t.path,copy:t.state});';
+
+const DOCTOR_NOT_INSTALLED = `not installed: ${AGENT_BROWSER_NPM_INSTALL} (or ${AGENT_BROWSER_BREW_INSTALL})`;
 
 const EXECUTE_PATH_MERGE = 'if(_.length>0)y[C]=[..._,...b?[b]:[]].join(lt.delimiter);await Yte(y);';
 
@@ -49,6 +60,19 @@ export const agentBrowserPatches: readonly Patch[] = [
     ],
     replace:
       'r[u]=[...a.filter((c)=>!d.split(g.delimiter).includes(c)),d].join(g.delimiter);if(Dz(e.command))r[u]=$ODabPath(r[u],s);',
+  },
+  {
+    name: 'agent-browser-doctor-system-binary',
+    find: INSPECT_BINARY,
+    replace:
+      `${FINDER}function CUe(){let{binaryPath:a}=oe(),$ODdir=$ODabDir(process.env.PATH??"",require("path").dirname(a));` +
+      'return $ODdir===void 0?{state:"missing",path:a}:{state:"current",path:require("path").join($ODdir,"agent-browser")}}',
+  },
+  {
+    name: 'agent-browser-doctor-not-installed',
+    find: DOCTOR_NOT_EXTRACTED,
+    lookups: ['f=(l)=>{let s=S[l],o=(t,a,n)=>({category:"binaries"'],
+    replace: `n=l==="agent-browser"?o("warn",${JSON.stringify(DOCTOR_NOT_INSTALLED)},{path:t.path,copy:t.state}):o("skip","not extracted yet",{path:t.path,copy:t.state});`,
   },
   {
     name: 'agent-browser-bundled-files-removed',

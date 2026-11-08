@@ -4,7 +4,7 @@ import {
   AGENT_BROWSER_BREW_INSTALL,
   AGENT_BROWSER_NPM_INSTALL,
 } from '../patch/agent-browser-patches.ts';
-import { fieldsOf, fieldsOfJson, worded } from './fields.ts';
+import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
 
 export type Placement = 'foreground' | 'background';
 export type Situation = 'system' | 'stale' | 'absent';
@@ -32,6 +32,14 @@ export interface Expected {
   versionLine: string;
 }
 
+export type DoctorSituation = Exclude<Situation, 'stale'>;
+
+export interface DoctorLine {
+  status: string;
+  detail: string;
+  path: string;
+}
+
 export interface Verdict {
   pass: boolean;
   text: string;
@@ -41,6 +49,8 @@ export const STALE_SCRIPT = '#!/bin/sh\necho stale\n';
 export const STALE_ACTION_NOTE = 'a stale copy planted in the Droid bin folder';
 export const SKILLS_LINE = 'skills=';
 export const BINARY_NAME = 'agent-browser';
+
+export const DOCTOR_LINE_ID = 'binaries.agent-browser';
 
 const PLACEMENTS: readonly Placement[] = ['foreground', 'background'];
 const SITUATIONS: readonly Situation[] = ['system', 'stale', 'absent'];
@@ -174,6 +184,75 @@ export function caseVerdict(
     ...(agentCase.situation === 'absent' ? refusalProblems(seen) : runProblems(seen, expected)),
     ...bundledProblems(agentCase, seen),
   ];
+  return problems.length === 0
+    ? { pass: true, text: what }
+    : { pass: false, text: `${what}, but ${problems.join('; ')}` };
+}
+
+export const DOCTOR_SITUATIONS: readonly DoctorSituation[] = ['system', 'absent'];
+
+export function doctorLineIn(stdout: string): DoctorLine | undefined {
+  const report = fieldsOfJson(stdout);
+  for (const result of entriesOf(report, 'results')) {
+    if (worded(result, 'id') === DOCTOR_LINE_ID) {
+      return {
+        status: worded(result, 'status'),
+        detail: worded(result, 'detail'),
+        path: worded(fieldsOf(result.get('data')), 'path'),
+      };
+    }
+  }
+  return undefined;
+}
+
+export function describeDoctorCase(situation: DoctorSituation): string {
+  return situation === 'system'
+    ? 'droid doctor reports the installed agent-browser with its version'
+    : 'droid doctor with no agent-browser installed warns and says how to install it';
+}
+
+function doctorSystemProblems(line: DoctorLine, expected: Expected): string[] {
+  const problems: string[] = [];
+  if (line.status !== 'pass') {
+    problems.push(`the line is ${JSON.stringify(line.status)}, not "pass": ${line.detail}`);
+  } else if (!line.detail.startsWith(`${expected.versionLine} (`)) {
+    problems.push(
+      `it reads ${JSON.stringify(line.detail)}, not the installed ${JSON.stringify(expected.versionLine)}`,
+    );
+  }
+  if (line.path === '' || line.path.startsWith(expected.scratchHome)) {
+    problems.push(`it names the binary at ${JSON.stringify(line.path)}`);
+  }
+  return problems;
+}
+
+function doctorAbsentProblems(line: DoctorLine): string[] {
+  const problems: string[] = [];
+  if (line.status !== 'warn') {
+    problems.push(`the line is ${JSON.stringify(line.status)}, not "warn": ${line.detail}`);
+  }
+  for (const phrase of ['not installed', AGENT_BROWSER_NPM_INSTALL, AGENT_BROWSER_BREW_INSTALL]) {
+    if (!line.detail.includes(phrase)) {
+      problems.push(`it does not say ${JSON.stringify(phrase)}: ${line.detail}`);
+    }
+  }
+  return problems;
+}
+
+export function doctorVerdict(
+  situation: DoctorSituation,
+  line: DoctorLine | undefined,
+  expected: Expected,
+): Verdict {
+  const what = describeDoctorCase(situation);
+  if (line === undefined) {
+    return {
+      pass: false,
+      text: `not exercised: droid doctor printed no Agent browser line, so "${what}" was not checked`,
+    };
+  }
+  const problems =
+    situation === 'system' ? doctorSystemProblems(line, expected) : doctorAbsentProblems(line);
   return problems.length === 0
     ? { pass: true, text: what }
     : { pass: false, text: `${what}, but ${problems.join('; ')}` };

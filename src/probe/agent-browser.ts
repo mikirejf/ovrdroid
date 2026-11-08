@@ -7,12 +7,22 @@ import type { Command } from 'commander';
 import { count, guard, MS_PER_SECOND, say } from '../cli.ts';
 import { INSTALLED_DROID } from '../paths.ts';
 import { withTempDir } from '../temp.ts';
-import type { AgentBrowserCase, Expected, Observation, Verdict } from './agent-browser-report.ts';
+import type {
+  AgentBrowserCase,
+  DoctorSituation,
+  Expected,
+  Observation,
+  Situation,
+  Verdict,
+} from './agent-browser-report.ts';
 import {
   agentBrowserCases,
   BINARY_NAME,
   caseVerdict,
   describeVerdicts,
+  DOCTOR_SITUATIONS,
+  doctorLineIn,
+  doctorVerdict,
   pathWithout,
   probeCommand,
   SKILLS_LINE,
@@ -100,8 +110,8 @@ function holdsBinary(directory: string): boolean {
   return existsSync(path.join(directory, BINARY_NAME));
 }
 
-function childPath(agentCase: AgentBrowserCase): LaunchEnv {
-  if (agentCase.situation !== 'absent') {
+function childPath(situation: Situation): LaunchEnv {
+  if (situation !== 'absent') {
     return {};
   }
   const stripped = pathWithout(directories().join(path.delimiter), holdsBinary);
@@ -142,7 +152,7 @@ async function stdoutOfExec(run: CaseRun, { layout, model }: Target): Promise<st
         FACTORY_HOME_OVERRIDE: layout.home,
         FACTORY_RUNTIME_SETTINGS_PATH: layout.settings,
         FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: layout.flags,
-        ...childPath(agentCase),
+        ...childPath(agentCase.situation),
       }),
     },
   );
@@ -235,13 +245,47 @@ export async function installedVersionLine(): Promise<string> {
   return printed;
 }
 
+interface DoctorRun {
+  binary: string;
+  situation: DoctorSituation;
+  versionLine: string;
+  timeoutMs: number;
+}
+
+async function runDoctorCase(run: DoctorRun): Promise<Verdict> {
+  const { binary, situation, timeoutMs } = run;
+  return await withTempDir('agent-browser-doctor', async (root) => {
+    const layout = layoutIn(root);
+    mkdirSync(layout.work, { recursive: true });
+    const child = Bun.spawn([binary, 'doctor', '--checks', 'binaries', '--json'], {
+      cwd: layout.work,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'ignore',
+      env: launchEnv({ FACTORY_HOME_OVERRIDE: layout.home, ...childPath(situation) }),
+    });
+    try {
+      const [stdout] = await race(
+        Promise.all([new Response(child.stdout).text(), child.exited]),
+        timeoutMs,
+        `${binary} doctor was still running ${timeoutMs}ms in`,
+      );
+      const expected: Expected = { scratchHome: layout.home, versionLine: run.versionLine };
+      return doctorVerdict(situation, doctorLineIn(stdout), expected);
+    } finally {
+      child.kill('SIGKILL');
+    }
+  });
+}
+
 export async function runAgentBrowser(
   binary: string,
   options: AgentBrowserOptions,
 ): Promise<Verdict[]> {
   const versionLine = await installedVersionLine();
   const token = Math.random().toString(36).slice(2, 8);
-  return await inBatches(
+  const timeoutMs = options.timeout * MS_PER_SECOND;
+  const executes = await inBatches(
     agentBrowserCases(),
     options.parallel,
     async (agentCase, index) =>
@@ -250,14 +294,20 @@ export async function runAgentBrowser(
         agentCase,
         callId: `toolu_agentbrowser${token}_${index}`,
         versionLine,
-        timeoutMs: options.timeout * MS_PER_SECOND,
+        timeoutMs,
       }),
   );
+  const doctors = await Promise.all(
+    DOCTOR_SITUATIONS.map(
+      async (situation) => await runDoctorCase({ binary, situation, versionLine, timeoutMs }),
+    ),
+  );
+  return [...executes, ...doctors];
 }
 
 export async function agentBrowser(binary: string, options: AgentBrowserOptions): Promise<void> {
   say(
-    `a stub model runs a command naming ${BINARY_NAME} in droid exec --auto high, in a scratch Droid home, as a foreground and as a background Execute; each case says what Droid ran`,
+    `a stub model runs a command naming ${BINARY_NAME} in droid exec --auto high, in a scratch Droid home, as a foreground and as a background Execute, then droid doctor --checks binaries in a scratch Droid home; each case says what Droid ran or reported`,
   );
   const verdicts = await runAgentBrowser(binary, options);
   say(describeVerdicts(verdicts));
@@ -270,7 +320,7 @@ export function registerAgentBrowserCommand(program: Command): void {
   program
     .command('agent-browser')
     .description(
-      'have a stub model run agent-browser through droid exec in a scratch Droid home, as a foreground and as a background Execute: does Droid run the agent-browser installed on PATH (printing its version, with AGENT_BROWSER_SKILLS_DIR unset), still do so past a stale copy planted in its own bin folder, extract nothing of its bundled copy, and, with none installed, refuse before running anything and tell the model to ask the user to install it?',
+      'have a stub model run agent-browser through droid exec in a scratch Droid home, as a foreground and as a background Execute: does Droid run the agent-browser installed on PATH (printing its version, with AGENT_BROWSER_SKILLS_DIR unset), still do so past a stale copy planted in its own bin folder, extract nothing of its bundled copy, and, with none installed, refuse before running anything and tell the model to ask the user to install it? Then droid doctor --checks binaries: does its Agent browser line show the installed version, and warn with both install commands when none is installed?',
     )
     .argument('[binary]', 'binary to run', INSTALLED_DROID)
     .option('--timeout <s>', 'seconds to wait for each exec run', count, DEFAULT_TIMEOUT_S)
