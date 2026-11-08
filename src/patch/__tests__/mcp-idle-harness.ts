@@ -381,3 +381,17 @@ export async function isSettled(promise: Promise<void>): Promise<boolean> {
   };
   return await Promise.race([done(), stillPending()]);
 }
+
+export async function dormantWorld(): Promise<HubWorld> {
+  const world = new HubWorld();
+  world.seedCache();
+  await world.hub.addServer(SERVER, STDIO_CONFIG);
+  return world;
+}
+
+export async function liveWorld(): Promise<HubWorld> {
+  const world = await dormantWorld();
+  await world.hub.callTool(SERVER, 'click');
+  await HubWorld.settle();
+  return world;
+}

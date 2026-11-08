@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmdirSync,
   rmSync,
@@ -16,14 +17,19 @@ import path from 'node:path';
 import type { McpConfig, McpServerEntry } from '../doctor/checks.ts';
 import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME } from '../patch/mcp-idle-patches.ts';
 import { FACTORY_SESSIONS } from '../paths.ts';
+import { fieldsOfJson, worded } from './fields.ts';
 import { sessionFolderName } from './ledger.ts';
 
 const MCP_TOOLS = path.join(homedir(), ...MCP_TOOLS_UNDER_HOME.split('/'));
+const MCP_CATALOGS = path.join(homedir(), '.factory', 'cache', 'mcp', 'catalogs');
 
 export const FIXTURE_NAME = 'ovrdroid-fixture';
 export const FIXTURE_SCRIPT = 'ovrdroid-mcp-fixture.js';
+export const FIXTURE_TOOL = 'ping';
+export const FIXTURE_REPLY = 'pong';
+export const FIXTURE_TOOL_NAME = `${FIXTURE_NAME}___${FIXTURE_TOOL}`;
 
-const FIXTURE_SOURCE = `const tools = [{ name: 'ping', description: 'ovrdroid probe fixture', inputSchema: { type: 'object', properties: {} } }];
+const FIXTURE_SOURCE = `const tools = [{ name: '${FIXTURE_TOOL}', description: 'ovrdroid probe fixture', inputSchema: { type: 'object', properties: {} } }];
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\\n');
 const answer = (message) => {
   switch (message.method) {
@@ -32,7 +38,7 @@ const answer = (message) => {
     case 'tools/list':
       return { result: { tools } };
     case 'tools/call':
-      return { result: { content: [{ type: 'text', text: 'pong' }] } };
+      return { result: { content: [{ type: 'text', text: '${FIXTURE_REPLY}' }] } };
     case 'ping':
       return { result: {} };
     default:
@@ -84,6 +90,32 @@ export function toolsCacheName(name: string, entry: McpServerEntry): string {
 export function forgetFixtureTools(config: McpConfig): void {
   for (const [name, entry] of Object.entries(config.mcpServers)) {
     rmSync(path.join(MCP_TOOLS, toolsCacheName(name, entry)), { force: true });
+  }
+}
+
+function servesFixture(file: string): boolean {
+  try {
+    return worded(fieldsOfJson(readFileSync(file, 'utf-8')), 'serverName') === FIXTURE_NAME;
+  } catch {
+    return false;
+  }
+}
+
+export function fixtureCatalogs(dir: string = MCP_CATALOGS): ReadonlySet<string> {
+  if (!existsSync(dir)) {
+    return new Set();
+  }
+  return new Set(readdirSync(dir).filter((name) => servesFixture(path.join(dir, name))));
+}
+
+export function forgetFixtureCatalogs(
+  before: ReadonlySet<string>,
+  dir: string = MCP_CATALOGS,
+): void {
+  for (const name of fixtureCatalogs(dir)) {
+    if (!before.has(name)) {
+      rmSync(path.join(dir, name), { force: true });
+    }
   }
 }
 

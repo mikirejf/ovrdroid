@@ -23,13 +23,15 @@ const HELPERS =
 const ADD =
   'async connectServer(t,r,h){if($ODMh(r))return await this.$ODMspawn(t,r,h);' +
   'let $ODold=this.servers[t],$ODtools=!this.shutdownController.signal.aborted&&(!$ODold||$ODold.$ODMz)?$ODMr(t,r):void 0;' +
-  'if($ODtools){this.servers[t]=$ODMd(t,r,h),this.toolsListCache.set(t,{state:"ready",list:{tools:$ODtools}}),' +
+  'if($ODtools){let $ODdorm=$ODMd(t,r,h);this.servers[t]=$ODdorm,this.$ODMt(t,$ODdorm,$ODtools),' +
   'this.logger?.info("[ovrdroid] MCP server dormant until first use",{name:t});return}' +
   'await this.$ODMspawn(t,r,h),this.$ODMa(t)}';
 
 const STATE =
   '$ODMg($ODname){let $ODall=this.$ODMq??=new Map,$ODst=$ODall.get($ODname);if(!$ODst)$ODall.set($ODname,$ODst={n:0});return $ODst}' +
-  '$ODMk($ODname){let $ODst=this.$ODMq?.get($ODname);if($ODst)clearTimeout($ODst.t),this.$ODMq.delete($ODname)}';
+  '$ODMk($ODname){let $ODst=this.$ODMq?.get($ODname);if($ODst)clearTimeout($ODst.t),this.$ODMq.delete($ODname)}' +
+  '$ODMt($ODname,$ODdorm,$ODtools){let $ODlist={tools:$ODtools,client:$ODdorm.client};if(!this.toolListEpochs.has($ODname))this.toolListEpochs.set($ODname,{});' +
+  'this.settledListEpochs.set($ODlist,this.toolListEpochs.get($ODname)),this.toolsListCache.set($ODname,{state:"ready",list:$ODlist})}';
 
 const ARM =
   '$ODMa($ODname){let $ODsrv=this.servers[$ODname];if(!$ODsrv||$ODsrv.$ODMz||$ODMh($ODsrv.config))return;let $ODst=this.$ODMg($ODname);if(clearTimeout($ODst.t),$ODst.n)return;' +
@@ -39,7 +41,7 @@ const SLEEP =
   'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname],$ODcache=this.toolsListCache.get($ODname);if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
   'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||$ODcache?.state!=="ready")return this.$ODMa($ODname);' +
   'let $ODpid=$ODsrv.pid,$ODrelease=this.ownershipReleases.get($ODname),$ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);$ODdorm.pid=$ODpid,this.ownershipReleases.delete($ODname);' +
-  'this.toolsListCache.set($ODname,{state:"ready",list:{tools:$ODcache.list.tools}}),this.settledTools.delete($ODname);' +
+  'this.$ODMt($ODname,$ODdorm,$ODcache.list.tools),this.settledTools.delete($ODname);' +
   '$ODdorm.$ODMstop=(async()=>{try{$ODsrv.listenStream?.close(),await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
   'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODrelease?.(),$ODdorm.pid=null})();' +
   'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname,pid:$ODpid});await $ODdorm.$ODMstop}' +

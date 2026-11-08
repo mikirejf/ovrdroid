@@ -5,8 +5,10 @@ import type { ServerConfig } from './mcp-hub-types.ts';
 import {
   FIRST_PID,
   HTTP_CONFIG,
+  dormantWorld,
   HubWorld,
   isSettled,
+  liveWorld,
   SERVER,
   STDIO_CONFIG,
   TOOLS,
@@ -19,20 +21,6 @@ async function reloadWith(world: HubWorld, config: ServerConfig): Promise<void> 
 
 const NEW_TOOLS = [...TOOLS, { name: 'navigate_page' }];
 const CHANGED_CONFIG = { ...STDIO_CONFIG, args: ['-y', 'chrome-devtools-mcp', '--headless'] };
-
-async function dormantWorld(): Promise<HubWorld> {
-  const world = new HubWorld();
-  world.seedCache();
-  await world.hub.addServer(SERVER, STDIO_CONFIG);
-  return world;
-}
-
-async function liveWorld(): Promise<HubWorld> {
-  const world = await dormantWorld();
-  await world.hub.callTool(SERVER, 'click');
-  await HubWorld.settle();
-  return world;
-}
 
 describe('starting a session', () => {
   test('a cached tool list leaves the server dormant and lists its tools without spawning', async () => {

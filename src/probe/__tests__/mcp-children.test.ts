@@ -3,12 +3,14 @@ import { describe, expect, test } from 'bun:test';
 import {
   describeLaunches,
   describeMcpChildren,
+  describeToolTurns,
   envPair,
   judgeMcpChildren,
   readMcpChildren,
   runningServers,
   stdioServers,
 } from '../mcp-children.ts';
+import type { ModeReading } from '../mcp-children.ts';
 import { parseParents } from '../tree.ts';
 
 const CONFIG = {
@@ -132,6 +134,118 @@ describe('judgeMcpChildren passes only a run that exercised the patch', () => {
 
   test('started cold, dormant once cached passes', () => {
     expect(judgeMcpChildren({ first: [running], second: [dormant] }, true).pass).toBe(true);
+  });
+});
+
+function turn(
+  mode: 'exec' | 'interactive',
+  overrides: Partial<ModeReading['reading']> = {},
+): ModeReading {
+  return {
+    mode,
+    reading: { requests: 3, offered: 'deferred', ponged: true, ...overrides },
+    awake: true,
+  };
+}
+
+describe('judgeMcpChildren with a model turn per mode', () => {
+  const dormant = { name: 'ovrdroid-fixture', pid: undefined, processes: 0 };
+  const running = { name: 'ovrdroid-fixture', pid: 200, processes: 1 };
+  const launches = { first: [running], second: [dormant] };
+
+  test('dormant, offered and answered in both modes passes and says so', () => {
+    const verdict = judgeMcpChildren(launches, true, [turn('interactive'), turn('exec')]);
+    expect(verdict.pass).toBe(true);
+    expect(verdict.reason).toBe(
+      "every stdio server stayed dormant on the second launch, and the model was offered ovrdroid-fixture's tools and got pong back in interactive and exec",
+    );
+  });
+
+  test('tools not offered in exec fails with the plain reason, interactive may pass', () => {
+    const verdict = judgeMcpChildren(launches, true, [
+      turn('interactive'),
+      turn('exec', { requests: 1, offered: undefined, ponged: false }),
+    ]);
+    expect(verdict).toEqual({
+      pass: false,
+      reason:
+        "exec: the model was not offered ovrdroid-fixture's tools while the server was dormant",
+    });
+  });
+
+  test('both modes failing are both named, one line each', () => {
+    const lost = { requests: 1, offered: undefined, ponged: false } as const;
+    const verdict = judgeMcpChildren(launches, true, [
+      turn('interactive', lost),
+      turn('exec', lost),
+    ]);
+    expect(verdict.reason.split('\n')).toEqual([
+      "interactive: the model was not offered ovrdroid-fixture's tools while the server was dormant",
+      "exec: the model was not offered ovrdroid-fixture's tools while the server was dormant",
+    ]);
+  });
+
+  test('offered but no pong fails on the call', () => {
+    const verdict = judgeMcpChildren(launches, true, [turn('interactive', { ponged: false })]);
+    expect(verdict.reason).toBe('interactive: calling ping did not return pong');
+  });
+
+  test('a stub that was never asked tested nothing', () => {
+    const verdict = judgeMcpChildren(launches, true, [
+      turn('exec', { requests: 0, offered: undefined, ponged: false }),
+    ]);
+    expect(verdict.reason).toBe('exec: the model was never sent a request, so nothing was tested');
+  });
+
+  test('a server that kept running adds its line to the tool failures', () => {
+    const verdict = judgeMcpChildren({ first: [running], second: [running] }, true, [
+      turn('exec', { offered: undefined, ponged: false }),
+    ]);
+    expect(verdict.reason.split('\n')).toEqual([
+      'kept running from launch: ovrdroid-fixture',
+      "exec: the model was not offered ovrdroid-fixture's tools",
+    ]);
+  });
+
+  test('the nothing-tested guard still comes first', () => {
+    expect(
+      judgeMcpChildren({ first: [dormant], second: [dormant] }, true, [turn('exec')]).reason,
+    ).toContain('never started ovrdroid-fixture');
+  });
+});
+
+describe('describeToolTurns says what each mode saw', () => {
+  test('one line per mode with the offer, the answer and whether the server woke', () => {
+    expect(
+      describeToolTurns([
+        {
+          mode: 'interactive',
+          reading: { requests: 3, offered: 'deferred', ponged: true },
+          awake: true,
+        },
+        {
+          mode: 'exec',
+          reading: { requests: 1, offered: undefined, ponged: false },
+          awake: undefined,
+        },
+      ]),
+    ).toBe(
+      [
+        'one model turn per mode, against the cached tools:',
+        '  interactive: ping listed in the deferred tools, pong came back, server running when the result came back (woke)',
+        '  exec: ping not offered, no pong, no tool result reached the model',
+      ].join('\n'),
+    );
+  });
+
+  test('a top-level tool and a server still asleep when the result came back', () => {
+    expect(
+      describeToolTurns([
+        { mode: 'exec', reading: { requests: 3, offered: 'tool', ponged: true }, awake: false },
+      ]),
+    ).toContain(
+      'exec: ping offered as a tool, pong came back, server not running when the result came back',
+    );
   });
 });
 

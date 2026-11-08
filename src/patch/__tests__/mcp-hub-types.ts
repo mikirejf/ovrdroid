@@ -51,6 +51,12 @@ export interface Listing {
   uncompilableOutputSchemas: string[];
 }
 
+export interface ToolListingResult {
+  tools: Tool[];
+  seeded?: boolean;
+  list?: object;
+}
+
 export interface PreparedInvocation {
   serverName: string;
   tool: Tool;
@@ -77,7 +83,8 @@ export interface Hub {
   removeServer: (name: string) => Promise<void>;
   retryServer: (name: string) => Promise<void>;
   restartStdioServers: () => Promise<string[]>;
-  listToolsForServer: (name: string) => Promise<{ tools: Tool[] }>;
+  listToolsForServer: (name: string) => Promise<ToolListingResult>;
+  isToolListingCurrent: (name: string, result: ToolListingResult) => boolean;
   applyToolConfig: (name: string, tools: Tool[]) => Tool[];
   persistCatalog: () => void;
   discardCatalog: () => void;

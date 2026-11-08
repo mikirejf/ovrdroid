@@ -93,6 +93,12 @@ describe('methodIn', () => {
     expect(methodIn(module, 'a')).toBe(`async a(t,o={}){let s="}",l=\`\${t}}\`;if(t){return s}}`);
     expect(methodIn(module, 'missing')).toBeUndefined();
   });
+
+  test('cuts a method that is not async, and skips calls of the same name', () => {
+    const module = 'class Ft{a(){return this.b(1)}b(t){return t}}';
+
+    expect(methodIn(module, 'b')).toBe('b(t){return t}');
+  });
 });
 
 describe('classHeaderIn', () => {

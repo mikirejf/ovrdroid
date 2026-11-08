@@ -181,7 +181,7 @@ export function registerSessionCommands(program: Command): void {
   program
     .command('mcp-children')
     .description(
-      'launch Droid twice with a fixture stdio MCP server in a scratch project: once its tools are cached, does the second launch keep the server dormant instead of starting it? Fails when Droid never started the fixture, since then nothing was tested',
+      'launch Droid twice with a fixture stdio MCP server in a scratch project: once its tools are cached, does the second launch keep the server dormant instead of starting it, and is the model still offered the fixture tool and able to call it (pong) in a stub-model turn, both in that second launch and in droid exec? Fails when Droid never started the fixture, since then nothing was tested',
     )
     .argument('[binary]', 'Droid binary to launch (default: the installed one)')
     .option('--settle <seconds>', 'how long to wait after the input box', count, DEFAULT_SETTLE_S)

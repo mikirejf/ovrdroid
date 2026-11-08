@@ -200,8 +200,10 @@ export function translate(
 }
 
 export function methodIn(text: string, name: string): string | undefined {
-  const start = text.indexOf(`async ${name}(`);
-  if (start === -1) {
+  const start = new RegExp(`(?<=[{};])(?:async )?${name.replaceAll('$', '\\$')}\\(`, 'u').exec(
+    text,
+  )?.index;
+  if (start === undefined) {
     return undefined;
   }
   const open = text.indexOf('){', start) + 1;

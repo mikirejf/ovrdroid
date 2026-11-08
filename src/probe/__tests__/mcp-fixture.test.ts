@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { readMcpConfig } from '../../doctor/read.ts';
@@ -8,7 +8,9 @@ import { stdioServers } from '../mcp-children.ts';
 import {
   FIXTURE_NAME,
   FIXTURE_SCRIPT,
+  fixtureCatalogs,
   fixtureConfig,
+  forgetFixtureCatalogs,
   toolsCacheName,
   writeFixture,
 } from '../mcp-fixture.ts';
@@ -82,4 +84,38 @@ describe('writeFixture leaves a project Droid loads and a server that answers', 
     },
     REPLY_TIMEOUT_MS,
   );
+});
+
+describe('fixture catalogs are the persisted tool lists Droid seeds a new session from', () => {
+  const dir = makeTempDir('mcp-catalogs-test');
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const persist = (name: string, serverName: string): void => {
+    writeFileSync(path.join(dir, name), JSON.stringify({ serverName, digest: 'd', tools: [] }));
+  };
+
+  test('only catalogs of the fixture server are listed, backups included', () => {
+    persist('a.json', FIXTURE_NAME);
+    persist('a.json.bak', FIXTURE_NAME);
+    persist('b.json', 'chrome-devtools');
+    writeFileSync(path.join(dir, 'c.json'), 'not json');
+    expect([...fixtureCatalogs(dir)].toSorted()).toEqual(['a.json', 'a.json.bak']);
+  });
+
+  test('forgetting removes the fixture catalogs written since the mark and nothing else', () => {
+    const before = fixtureCatalogs(dir);
+    persist('d.json', FIXTURE_NAME);
+    persist('e.json', 'chrome-devtools');
+    forgetFixtureCatalogs(before, dir);
+    expect(existsSync(path.join(dir, 'd.json'))).toBe(false);
+    expect(existsSync(path.join(dir, 'a.json'))).toBe(true);
+    expect(existsSync(path.join(dir, 'b.json'))).toBe(true);
+    expect(existsSync(path.join(dir, 'e.json'))).toBe(true);
+  });
+
+  test('a missing folder holds no catalogs', () => {
+    expect(fixtureCatalogs(path.join(dir, 'nowhere')).size).toBe(0);
+  });
 });
