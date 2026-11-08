@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { NS_PER_SECOND } from '../cli.ts';
 import { withTempDir } from '../temp.ts';
+import { BUILD_FLAGS } from './build-flags.ts';
 import { preambleFor, stageEmbeds } from './embeds.ts';
 import type { App } from './graph.ts';
 import { embedName, EMBED_PREFIX, ENTRY_FILE } from './graph.ts';
@@ -64,20 +65,7 @@ export async function buildBinary({ bun, app, stock, out }: BuildRequest): Promi
 
     const started = Bun.nanoseconds();
     const build = Bun.spawnSync(
-      [
-        bun,
-        'build',
-        '--compile',
-        '--bytecode',
-        '--splitting',
-        '--format=esm',
-        '--minify',
-        '--target=bun',
-        '--asset-naming=[name].[ext]',
-        ENTRY_FILE,
-        '--outfile',
-        path.resolve(out),
-      ],
+      [bun, 'build', ...BUILD_FLAGS, ENTRY_FILE, '--outfile', path.resolve(out)],
       { cwd: dir, stdio: ['ignore', 'inherit', 'inherit'] },
     );
     const seconds = (Bun.nanoseconds() - started) / NS_PER_SECOND;

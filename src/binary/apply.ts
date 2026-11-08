@@ -2,6 +2,7 @@ import type { Patch } from '../patch/patches.ts';
 import { findMarker, markerDigest, markerStatement } from '../patch/patches.ts';
 import type { Rebase } from '../patch/rebase.ts';
 import { applies, rebaseAll } from '../patch/rebase.ts';
+import { BUILD_FLAGS } from './build-flags.ts';
 import type { App, AppModule } from './graph.ts';
 
 export type Status =
@@ -94,7 +95,7 @@ export function describeDrift(rebase: Rebase): string {
 
 export function statusOf(app: App, list: readonly Patch[]): Status {
   const found = findMarker(app[0].text);
-  const current = markerDigest(list);
+  const current = markerDigest(list, BUILD_FLAGS);
 
   if (found !== undefined) {
     return found === current
@@ -147,7 +148,7 @@ export function patchSource(app: App, list: readonly Patch[]): App {
   if (findMarker(entry.text) !== undefined) {
     throw new Error('source already carries an ovrdroid marker');
   }
-  entry.text += markerStatement(list);
+  entry.text += markerStatement(list, BUILD_FLAGS);
 
   return out;
 }

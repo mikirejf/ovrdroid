@@ -117,6 +117,9 @@ being tested. Tell the user afterwards that running Droid sessions need a restar
 
 - Errors to stderr, data to stdout.
 - Never write to `~/.local/bin/droid` without an explicit backup first.
+- The applied marker's digest covers the patch set and `BUILD_FLAGS` (`src/binary/build-flags.ts`),
+  so changing either makes `apply`, `sync` and `update` rebuild an already-patched binary. The Bun
+  version is checked separately, against the version embedded in the binary.
 - The patched build has Droid's auto-update switched off (`auto-update-off`), so nothing replaces it
   silently. It finds new releases itself (`release-check-after-paint`) and shows them in the header.
 - Offsets into the binary change with every Droid release. Always derive them by scanning for

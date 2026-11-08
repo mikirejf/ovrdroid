@@ -4,6 +4,7 @@ import type { Patch } from '../../patch/patches.ts';
 import { markerDigest, markerStatement } from '../../patch/patches.ts';
 import type { Status } from '../apply.ts';
 import { describeStatus, patchSource, statusOf } from '../apply.ts';
+import { BUILD_FLAGS } from '../build-flags.ts';
 import type { App } from '../graph.ts';
 
 const list: readonly Patch[] = [
@@ -26,7 +27,7 @@ describe('patchSource', () => {
 
     expect(entry.text).toContain('let x=go();');
     expect(entry.text).toContain('wait(30);');
-    expect(entry.text).toContain(markerStatement(list));
+    expect(entry.text).toContain(markerStatement(list, BUILD_FLAGS));
   });
 
   test('throws when a find string is absent', () => {
@@ -59,7 +60,7 @@ describe('patchSource', () => {
     const split = app('head();', 'let x=await go();wait(150);');
     const out = patchSource(split, list);
 
-    expect(out[0].text).toBe(`head();${markerStatement(list)}`);
+    expect(out[0].text).toBe(`head();${markerStatement(list, BUILD_FLAGS)}`);
     expect(out[1]?.text).not.toContain('__ovrdroid');
   });
 
@@ -165,23 +166,33 @@ describe('statusOf', () => {
   test('reports applied when the marker matches the current digest', () => {
     expect(statusOf(patchSource(stock, list), list)).toEqual({
       kind: 'applied',
-      digest: markerDigest(list),
+      digest: markerDigest(list, BUILD_FLAGS),
     });
   });
 
   test('reports stale when the marker is from a different patch set', () => {
     const older: readonly Patch[] = [{ name: 'timeout', find: 'wait(150)', replace: 'wait(1)' }];
-    const status = statusOf(app(`done();${markerStatement(older)}`), list);
+    const status = statusOf(app(`done();${markerStatement(older, BUILD_FLAGS)}`), list);
 
     expect(status).toEqual({
       kind: 'stale',
-      digest: markerDigest(older),
-      current: markerDigest(list),
+      digest: markerDigest(older, BUILD_FLAGS),
+      current: markerDigest(list, BUILD_FLAGS),
+    });
+  });
+
+  test('reports stale when the patches match but the build flags differ', () => {
+    const status = statusOf(app(`done();${markerStatement(list, ['--compile'])}`), list);
+
+    expect(status).toEqual({
+      kind: 'stale',
+      digest: markerDigest(list, ['--compile']),
+      current: markerDigest(list, BUILD_FLAGS),
     });
   });
 
   test('ignores a marker that sits in a chunk rather than the entry', () => {
-    expect(statusOf(app('wait(150);', markerStatement(list)), list)).toEqual({
+    expect(statusOf(app('wait(150);', markerStatement(list, BUILD_FLAGS)), list)).toEqual({
       kind: 'missing',
       names: ['await'],
     });
@@ -199,7 +210,7 @@ describe('statusOf', () => {
   });
 
   test('survives minification collapsing whitespace around the marker', () => {
-    const minified = `a=1;globalThis.__ovrdroid="${markerDigest(list)}";`;
+    const minified = `a=1;globalThis.__ovrdroid="${markerDigest(list, BUILD_FLAGS)}";`;
     expect(statusOf(app(minified), list).kind).toBe('applied');
   });
 });

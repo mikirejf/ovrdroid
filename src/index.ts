@@ -98,7 +98,7 @@ const targetOption = ['-t, --target <path>', 'path to the Droid binary', INSTALL
 
 program
   .command('status')
-  .description('show whether the patch set is applied')
+  .description('show whether the patch set and build flags are applied')
   .option(...targetOption)
   .action(guard(status));
 

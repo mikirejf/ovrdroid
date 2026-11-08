@@ -5,7 +5,7 @@ import { statusOf } from '../binary/apply.ts';
 import { BUILD_BUN_VERSION, embeddedBunVersion, reportedVersion } from '../binary/bun.ts';
 import { readStock } from '../binary/stock.ts';
 import { say } from '../cli.ts';
-import { markerDigest, patches } from '../patch/patches.ts';
+import { patches } from '../patch/patches.ts';
 import { backupPath, cacheDir } from '../paths.ts';
 import { makeTempDir } from '../temp.ts';
 import { gateChecks } from './checks.ts';
@@ -28,14 +28,14 @@ interface GatedBuild extends Gated {
 }
 
 function gatedBuild(target: string, stock: string): GatedBuild {
-  const patchDigest = markerDigest(patches);
   const built = readStock(target);
   const status = statusOf(built.app, patches);
   if (status.kind !== 'applied') {
     throw new Error(
-      `${target} does not carry the current patch set ${patchDigest}: ${status.kind}`,
+      `${target} does not carry the current patch set built with the current build flags: ${status.kind}`,
     );
   }
+  const patchDigest = status.digest;
   const bunVersion = embeddedBunVersion(built.bytes);
   if (bunVersion !== BUILD_BUN_VERSION) {
     throw new Error(

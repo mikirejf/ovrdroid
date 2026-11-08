@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 
 import { patchSource } from '../../binary/apply.ts';
+import { BUILD_FLAGS } from '../../binary/build-flags.ts';
 import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME, mcpIdlePatches } from '../mcp-idle-patches.ts';
 import { markerStatement } from '../patches.ts';
 import { fakeFs } from './mcp-fake-fs.ts';
@@ -49,7 +50,7 @@ export interface Timer {
 type SpawnArgs = Pick<ServerConfig, 'command' | 'url'>;
 
 const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdlePatches)[0]
-  .text.replace(markerStatement(mcpIdlePatches), '')
+  .text.replace(markerStatement(mcpIdlePatches, BUILD_FLAGS), '')
   .replace(`${STOCK_PID_HELPERS};`, '');
 
 function bareRecord(): Configs {

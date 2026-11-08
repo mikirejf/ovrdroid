@@ -271,7 +271,7 @@ export const patches: readonly Patch[] = [
   ...agentPatches,
 ];
 
-export function markerDigest(list: readonly Patch[]): string {
+export function markerDigest(list: readonly Patch[], flags: readonly string[]): string {
   const hasher = new Bun.CryptoHasher('sha256');
   hasher.update(
     list
@@ -281,11 +281,12 @@ export function markerDigest(list: readonly Patch[]): string {
       )
       .join('\n'),
   );
+  hasher.update(`\nbuild flags: ${flags.join(' ')}`);
   return hasher.digest('hex').slice(0, 12);
 }
 
-export function markerStatement(list: readonly Patch[]): string {
-  return `${MARKER_PREFIX}${markerDigest(list)}";\n`;
+export function markerStatement(list: readonly Patch[], flags: readonly string[]): string {
+  return `${MARKER_PREFIX}${markerDigest(list, flags)}";\n`;
 }
 
 export function findMarker(source: string): string | undefined {

@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 
 import { registerDenylistCommand } from './denylist.ts';
+import { registerDotenvLeakCommand } from './dotenv-leak.ts';
 import { registerPaintCommand } from './paint.ts';
 import { registerStackedCommand } from './stacked.ts';
 import { registerStaleEditCommand } from './stale-edit.ts';
@@ -12,4 +13,5 @@ export function registerPaintCommands(program: Command): void {
   registerStaleEditCommand(program);
   registerStackedCommand(program);
   registerTypingStartCommand(program);
+  registerDotenvLeakCommand(program);
 }
