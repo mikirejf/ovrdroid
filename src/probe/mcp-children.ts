@@ -16,7 +16,10 @@ import {
   writeFixture,
 } from './mcp-fixture.ts';
 import type { AwakeCheck, ToolTurnResult } from './mcp-tool-turn.ts';
-import { execToolTurn, interactiveTurn } from './mcp-tool-turn.ts';
+import { execToolTurn, interactiveTurn, OFFER_WORDS, readingFailure } from './mcp-tool-turn.ts';
+import { describeWake, readWake, wakeFailures, wakePassed } from './mcp-wake-report.ts';
+import type { WakeReading } from './mcp-wake-report.ts';
+import { wakeSession } from './mcp-wake.ts';
 import { stdoutOf } from './run.ts';
 import type { Session } from './session.ts';
 import { openSettledSession } from './session.ts';
@@ -131,25 +134,18 @@ export interface ModeReading extends ToolTurnResult {
   mode: Mode;
 }
 
-function toolTurnFailure(turn: ModeReading, dormant: boolean): string | undefined {
-  const { mode, reading } = turn;
-  if (reading.requests === 0) {
-    return `${mode}: the model was never sent a request, so nothing was tested`;
-  }
-  if (reading.offered === undefined) {
-    return `${mode}: the model was not offered ${FIXTURE_NAME}'s tools${dormant ? ' while the server was dormant' : ''}`;
-  }
-  if (!reading.ponged) {
-    return `${mode}: calling ${FIXTURE_TOOL} did not return ${FIXTURE_REPLY}`;
-  }
-  return undefined;
+export interface ModelProofs {
+  turns: readonly ModeReading[];
+  wake?: WakeReading | undefined;
 }
 
 export function judgeMcpChildren(
   launches: McpLaunches,
   mustStartCold: boolean,
-  turns: readonly ModeReading[] = [],
+  proofs?: ModelProofs,
 ): McpVerdict {
+  const turns = proofs?.turns ?? [];
+  const wake = proofs?.wake;
   if (launches.second.length === 0) {
     return { pass: false, reason: 'nothing tested: no stdio MCP servers to look for' };
   }
@@ -166,10 +162,13 @@ export function judgeMcpChildren(
     failures.push(`kept running from launch: ${names(running)}`);
   }
   for (const turn of turns) {
-    const failure = toolTurnFailure(turn, running.length === 0);
+    const failure = readingFailure(turn.mode, turn.reading, running.length === 0);
     if (failure !== undefined) {
       failures.push(failure);
     }
+  }
+  if (wake !== undefined) {
+    failures.push(...wakeFailures(wake));
   }
   if (failures.length > 0) {
     return { pass: false, reason: failures.join('\n') };
@@ -179,9 +178,10 @@ export function judgeMcpChildren(
     return { pass: true, reason: dormant };
   }
   const modes = turns.map((turn) => turn.mode).join(' and ');
+  const served = `${dormant}, and the model was offered ${FIXTURE_NAME}'s tools and got ${FIXTURE_REPLY} back in ${modes}`;
   return {
     pass: true,
-    reason: `${dormant}, and the model was offered ${FIXTURE_NAME}'s tools and got ${FIXTURE_REPLY} back in ${modes}`,
+    reason: wake === undefined ? served : `${served}; in a third session ${wakePassed(wake)}`,
   };
 }
 
@@ -201,13 +201,8 @@ export function describeLaunches(launches: McpLaunches): string {
   ].join('\n');
 }
 
-const OFFERS = {
-  tool: 'offered as a tool',
-  deferred: 'listed in the deferred tools',
-} as const;
-
 function describeTurn({ mode, reading, awake }: ModeReading): string {
-  const offered = reading.offered === undefined ? 'not offered' : OFFERS[reading.offered];
+  const offered = reading.offered === undefined ? 'not offered' : OFFER_WORDS[reading.offered];
   const answer = reading.ponged ? `${FIXTURE_REPLY} came back` : `no ${FIXTURE_REPLY}`;
   const woke = (() => {
     if (awake === undefined) {
@@ -335,7 +330,10 @@ async function judgedFixture(
       { mode: 'exec', ...exec },
     ];
     say(describeToolTurns(turns));
-    return judgeMcpChildren(launches, run.mustStartCold, turns);
+    forgetCatalogs();
+    const wake = readWake(await wakeSession(binary, { dir: cwd, isAwake, env: options.env }));
+    say(describeWake(wake));
+    return judgeMcpChildren(launches, run.mustStartCold, { turns, wake });
   } finally {
     forgetCatalogs();
     await interactive.stop();
@@ -357,7 +355,7 @@ export async function runMcpChildren(
     });
   }
   say(
-    `then one model turn from a local stub in the second launch and one in droid exec, each calling ${FIXTURE_TOOL} on the fixture`,
+    `then one model turn from a local stub in the second launch and one in droid exec, each calling ${FIXTURE_TOOL} on the fixture, and a third session where a sub-agent calls it, the idle stop takes the server down and the next call wakes it`,
   );
   return await withFixtureDir(async (dir) => {
     const config = writeFixture(dir, process.execPath);

@@ -2,17 +2,17 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND } from '../cli.ts';
+import type { Fields } from './fields.ts';
 import { entriesOf, fieldsOf, worded } from './fields.ts';
 import { launchEnv, race } from './launch.ts';
 import type { LaunchEnv } from './launch.ts';
-import { FIXTURE_REPLY, FIXTURE_TOOL_NAME } from './mcp-fixture.ts';
+import { FIXTURE_NAME, FIXTURE_REPLY, FIXTURE_TOOL, FIXTURE_TOOL_NAME } from './mcp-fixture.ts';
 import { Ledger } from './owned-sessions.ts';
 import { ENTER } from './session.ts';
 import type { Session } from './session.ts';
 import { toolNamesIn, toolResultsIn } from './stale-edit-cases.ts';
-import type { ToolResult } from './stale-edit-cases.ts';
+import type { StubCall, ToolResult } from './stale-edit-cases.ts';
 import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
-import type { ToolCall } from './stub-model.ts';
 
 const SEARCH_TOOL = 'ToolSearch';
 const SEARCH_ID = 'toolu_mcp_search';
@@ -22,6 +22,16 @@ const PROMPT = 'ping';
 const TURN_TIMEOUT_S = 60;
 
 export type Offer = 'tool' | 'deferred';
+
+export const OFFER_WORDS = {
+  tool: 'offered as a tool',
+  deferred: 'listed in the deferred tools',
+} as const;
+
+export interface Scope {
+  marker: string;
+  tag: string;
+}
 
 export interface ToolTurnReading {
   requests: number;
@@ -36,17 +46,25 @@ export interface ToolTurnResult {
 
 export type AwakeCheck = (root: number) => Promise<boolean>;
 
-interface ToolUse {
+export interface ToolUse {
   id: string;
   name: string;
 }
 
-function toolUsesIn(body: unknown): ToolUse[] {
-  return entriesOf(fieldsOf(body), 'messages')
+function messagesOf(body: unknown): Fields[] {
+  return entriesOf(fieldsOf(body), 'messages');
+}
+
+function usesIn(messages: readonly Fields[]): ToolUse[] {
+  return messages
     .filter((message) => worded(message, 'role') === 'assistant')
     .flatMap((message) => entriesOf(message, 'content'))
     .filter((block) => worded(block, 'type') === 'tool_use')
     .map((block) => ({ id: worded(block, 'id'), name: worded(block, 'name') }));
+}
+
+export function toolUsesIn(body: unknown): ToolUse[] {
+  return usesIn(messagesOf(body));
 }
 
 function userTextLines(body: unknown): string[] {
@@ -56,6 +74,32 @@ function userTextLines(body: unknown): string[] {
     .filter((block) => worded(block, 'type') === 'text')
     .flatMap((block) => worded(block, 'text').split('\n'))
     .map((line) => line.trim());
+}
+
+export function textsOf(message: Fields): string[] {
+  const content = message.get('content');
+  if (typeof content === 'string') {
+    return [content];
+  }
+  return entriesOf(message, 'content')
+    .filter((block) => worded(block, 'type') === 'text')
+    .map((block) => worded(block, 'text'));
+}
+
+function sinceMarker(messages: readonly Fields[], marker: string): Fields[] {
+  const at = messages.findLastIndex(
+    (message) =>
+      worded(message, 'role') === 'user' && textsOf(message).some((text) => text.includes(marker)),
+  );
+  return messages.slice(Math.max(at, 0));
+}
+
+export function toolUsesSince(body: unknown, marker: string): ToolUse[] {
+  return usesIn(sinceMarker(messagesOf(body), marker));
+}
+
+export function usedToolSince(body: unknown, toolName: string, marker: string): boolean {
+  return toolUsesSince(body, marker).some((use) => use.name === toolName);
 }
 
 export function offerOf(body: unknown, toolName: string): Offer | undefined {
@@ -74,18 +118,45 @@ export function resultOf(body: unknown, toolName: string): ToolResult | undefine
   return [...toolResultsIn(body)].find(([id]) => ids.has(id))?.[1];
 }
 
-export function nextModelCall(body: unknown, toolName: string): ToolCall | undefined {
-  const uses = toolUsesIn(body);
+export function nextModelCall(
+  body: unknown,
+  toolName: string,
+  scope?: Scope,
+): StubCall | undefined {
+  const messages = messagesOf(body);
+  const uses = usesIn(scope === undefined ? messages : sinceMarker(messages, scope.marker));
   if (uses.some((use) => use.name === toolName)) {
     return undefined;
   }
   const offer = offerOf(body, toolName);
   const searched = uses.some((use) => use.name === SEARCH_TOOL);
+  const suffix = scope === undefined ? '' : `_${scope.tag}`;
   if (offer === 'tool' || searched) {
-    return { id: CALL_ID, name: toolName, input: {} };
+    return { id: `${CALL_ID}${suffix}`, name: toolName, input: {} };
   }
   if (offer === 'deferred') {
-    return { id: SEARCH_ID, name: SEARCH_TOOL, input: { query: `select:${toolName}` } };
+    return {
+      id: `${SEARCH_ID}${suffix}`,
+      name: SEARCH_TOOL,
+      input: { query: `select:${toolName}` },
+    };
+  }
+  return undefined;
+}
+
+export function readingFailure(
+  label: string,
+  reading: ToolTurnReading,
+  dormant: boolean,
+): string | undefined {
+  if (reading.requests === 0) {
+    return `${label}: the model was never sent a request, so nothing was tested`;
+  }
+  if (reading.offered === undefined) {
+    return `${label}: the model was not offered ${FIXTURE_NAME}'s tools${dormant ? ' while the server was dormant' : ''}`;
+  }
+  if (!reading.ponged) {
+    return `${label}: calling ${FIXTURE_TOOL} did not return ${FIXTURE_REPLY}`;
   }
   return undefined;
 }
@@ -155,7 +226,7 @@ function serveToolTurns(
   };
 }
 
-function writeStubSettings(dir: string, name: string, url: string): string {
+export function writeStubSettings(dir: string, name: string, url: string): string {
   const file = path.join(dir, `settings-${name}.json`);
   writeFileSync(file, JSON.stringify(stubSettings(url, STUB_MODEL)));
   return file;

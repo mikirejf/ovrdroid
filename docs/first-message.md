@@ -113,6 +113,30 @@ preserving catalog identity checks and timeout accounting. `mcp-admission.test.t
 legacy admission, pending connections, refresh without a wake, and rejection of a prepared
 invocation after its connection idles.
 
+Checked again on 1.6.0 (2026-11-08). Stock now loads its saved list at startup (`seedServers`), so
+the model sees the tools at once, but it still starts every server right after. Its key adds the
+user, the org and the env key names. Across 291 stock lists and 13 `mcp-idle` lists, no server's
+tools ever differed by folder; the only differences were changes over time (chrome-devtools gained
+two tools, claude-artifacts-kit's descriptions changed). A sleeping server keeps showing its last
+list until a call wakes it, and that never showed up as a failure in 90 days of sessions.
+
+## A sleeping server's tool list must look current
+
+Droid 1.6.0 registers a server's tools only when the list carries the live connection's client and
+the current version stamp (`isToolListingCurrent`). `mcp-idle` cached a sleeping server's list with
+neither, so the model was never offered its tools, at startup and after an idle stop. Stock's saved
+list hid this in folders that had one. The cached list is now tied to the stand-in connection and
+stamped; a wake still fetches a fresh list.
+
+Each subagent builds its own MCP hub. With `mcp-idle` it registers stdio servers dormant from the
+saved list, starts one only when the subagent calls it, and stops it when the subagent ends, about
+40ms after the call returns.
+
+`probe mcp-children` covers all of it on a real binary with the stub model: the dormant launch's
+turn in the TUI and in `droid exec`, a subagent calling a dormant server, and a main-agent call that
+the idle stop (idle time cut to 2s) puts to sleep and the next call wakes. It deletes the fixture's
+stock lists first so they cannot hide a missing list.
+
 ## Project MCP servers: `npx` is most of the stdio cost
 
 Per-server start, p50: trigger (npx) 3.2s, db-local (npx) 2.2s, vercel (remote) 2.1s, the rest under

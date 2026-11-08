@@ -181,7 +181,7 @@ export function registerSessionCommands(program: Command): void {
   program
     .command('mcp-children')
     .description(
-      'launch Droid twice with a fixture stdio MCP server in a scratch project: once its tools are cached, does the second launch keep the server dormant instead of starting it, and is the model still offered the fixture tool and able to call it (pong) in a stub-model turn, both in that second launch and in droid exec? Fails when Droid never started the fixture, since then nothing was tested',
+      "launch Droid with a fixture stdio MCP server in a scratch project: once its tools are cached, does the second launch keep the server dormant instead of starting it, and is the model still offered the fixture tool and able to call it (pong) in a stub-model turn, both in that second launch and in droid exec? Then, in a third session with a 2s idle time and Droid's own tool copy deleted, is a sub-agent offered the tool and given pong by a dormant server, does the main agent's own call then wake it, does the idle stop (not a teardown) take it down once the idle time has passed, and does the next call wake it again and get pong? Fails when Droid never started the fixture, since then nothing was tested",
     )
     .argument('[binary]', 'Droid binary to launch (default: the installed one)')
     .option('--settle <seconds>', 'how long to wait after the input box', count, DEFAULT_SETTLE_S)

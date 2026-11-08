@@ -226,3 +226,36 @@ describe('readToolTurn reads what the model was offered and got back', () => {
     expect(readToolTurn([FIRST, wrong], FIXTURE_TOOL_NAME).ponged).toBe(false);
   });
 });
+
+describe('nextModelCall with a scope only counts what came after the latest prompt marker', () => {
+  const scope = { marker: 'AGAIN', tag: 'wake' };
+  const again = { role: 'user', content: [{ type: 'text', text: 'AGAIN please' }] };
+
+  test('a ping answered before the marker does not end the new turn, and the new call has its own id', () => {
+    const second = request({ deferred: DEFERRED }, PING_USE, pingResult('pong'), again);
+    expect(nextModelCall(second, FIXTURE_TOOL_NAME)).toBeUndefined();
+    expect(nextModelCall(second, FIXTURE_TOOL_NAME, scope)).toMatchObject({
+      id: 'toolu_mcp_search_wake',
+      name: 'ToolSearch',
+    });
+  });
+
+  test('once the scoped call is in the history the turn ends', () => {
+    const wakeUse = {
+      role: 'assistant',
+      content: [
+        { type: 'tool_use', id: 'toolu_mcp_call_wake', name: FIXTURE_TOOL_NAME, input: {} },
+      ],
+    };
+    const done = request({ deferred: DEFERRED }, PING_USE, pingResult('pong'), again, wakeUse);
+    expect(nextModelCall(done, FIXTURE_TOOL_NAME, scope)).toBeUndefined();
+  });
+
+  test('a tool already in the tools array is called with the scoped id', () => {
+    const direct = request({ deferred: OTHERS, tools: [...BUILT_IN, FIXTURE_TOOL_NAME] }, again);
+    expect(nextModelCall(direct, FIXTURE_TOOL_NAME, scope)).toMatchObject({
+      id: 'toolu_mcp_call_wake',
+      name: FIXTURE_TOOL_NAME,
+    });
+  });
+});

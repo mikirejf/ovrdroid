@@ -11,6 +11,7 @@ import {
   stdioServers,
 } from '../mcp-children.ts';
 import type { ModeReading } from '../mcp-children.ts';
+import type { WakeReading } from '../mcp-wake-report.ts';
 import { parseParents } from '../tree.ts';
 
 const CONFIG = {
@@ -154,7 +155,9 @@ describe('judgeMcpChildren with a model turn per mode', () => {
   const launches = { first: [running], second: [dormant] };
 
   test('dormant, offered and answered in both modes passes and says so', () => {
-    const verdict = judgeMcpChildren(launches, true, [turn('interactive'), turn('exec')]);
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [turn('interactive'), turn('exec')],
+    });
     expect(verdict.pass).toBe(true);
     expect(verdict.reason).toBe(
       "every stdio server stayed dormant on the second launch, and the model was offered ovrdroid-fixture's tools and got pong back in interactive and exec",
@@ -162,10 +165,12 @@ describe('judgeMcpChildren with a model turn per mode', () => {
   });
 
   test('tools not offered in exec fails with the plain reason, interactive may pass', () => {
-    const verdict = judgeMcpChildren(launches, true, [
-      turn('interactive'),
-      turn('exec', { requests: 1, offered: undefined, ponged: false }),
-    ]);
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [
+        turn('interactive'),
+        turn('exec', { requests: 1, offered: undefined, ponged: false }),
+      ],
+    });
     expect(verdict).toEqual({
       pass: false,
       reason:
@@ -175,10 +180,9 @@ describe('judgeMcpChildren with a model turn per mode', () => {
 
   test('both modes failing are both named, one line each', () => {
     const lost = { requests: 1, offered: undefined, ponged: false } as const;
-    const verdict = judgeMcpChildren(launches, true, [
-      turn('interactive', lost),
-      turn('exec', lost),
-    ]);
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [turn('interactive', lost), turn('exec', lost)],
+    });
     expect(verdict.reason.split('\n')).toEqual([
       "interactive: the model was not offered ovrdroid-fixture's tools while the server was dormant",
       "exec: the model was not offered ovrdroid-fixture's tools while the server was dormant",
@@ -186,21 +190,23 @@ describe('judgeMcpChildren with a model turn per mode', () => {
   });
 
   test('offered but no pong fails on the call', () => {
-    const verdict = judgeMcpChildren(launches, true, [turn('interactive', { ponged: false })]);
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [turn('interactive', { ponged: false })],
+    });
     expect(verdict.reason).toBe('interactive: calling ping did not return pong');
   });
 
   test('a stub that was never asked tested nothing', () => {
-    const verdict = judgeMcpChildren(launches, true, [
-      turn('exec', { requests: 0, offered: undefined, ponged: false }),
-    ]);
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [turn('exec', { requests: 0, offered: undefined, ponged: false })],
+    });
     expect(verdict.reason).toBe('exec: the model was never sent a request, so nothing was tested');
   });
 
   test('a server that kept running adds its line to the tool failures', () => {
-    const verdict = judgeMcpChildren({ first: [running], second: [running] }, true, [
-      turn('exec', { offered: undefined, ponged: false }),
-    ]);
+    const verdict = judgeMcpChildren({ first: [running], second: [running] }, true, {
+      turns: [turn('exec', { offered: undefined, ponged: false })],
+    });
     expect(verdict.reason.split('\n')).toEqual([
       'kept running from launch: ovrdroid-fixture',
       "exec: the model was not offered ovrdroid-fixture's tools",
@@ -209,8 +215,59 @@ describe('judgeMcpChildren with a model turn per mode', () => {
 
   test('the nothing-tested guard still comes first', () => {
     expect(
-      judgeMcpChildren({ first: [dormant], second: [dormant] }, true, [turn('exec')]).reason,
+      judgeMcpChildren({ first: [dormant], second: [dormant] }, true, { turns: [turn('exec')] })
+        .reason,
     ).toContain('never started ovrdroid-fixture');
+  });
+});
+
+const ponged = { requests: 3, offered: 'deferred', ponged: true } as const;
+
+function wakeReading(overrides: Partial<WakeReading> = {}): WakeReading {
+  return {
+    child: ponged,
+    childSawRunning: false,
+    quietBeforeFirst: true,
+    first: ponged,
+    stoppedAfterMs: 2400,
+    wake: ponged,
+    ...overrides,
+  };
+}
+
+describe('judgeMcpChildren with the sleep-wake session', () => {
+  const launches = {
+    first: [{ name: 'ovrdroid-fixture', pid: 200, processes: 1 }],
+    second: [{ name: 'ovrdroid-fixture', pid: undefined, processes: 0 }],
+  };
+  const turns = [turn('interactive'), turn('exec')];
+
+  test('a sub-agent pong, an observed stop and a pong after it pass and say so', () => {
+    const verdict = judgeMcpChildren(launches, true, { turns, wake: wakeReading() });
+    expect(verdict.pass).toBe(true);
+    expect(verdict.reason).toContain(
+      "in a third session a sub-agent was offered ovrdroid-fixture's tools and got pong from a dormant server, the main agent's call then woke the server, the idle stop took it down 2.4s after that call",
+    );
+  });
+
+  test('a server that never stopped fails the whole probe', () => {
+    const verdict = judgeMcpChildren(launches, true, {
+      turns,
+      wake: wakeReading({ stoppedAfterMs: undefined }),
+    });
+    expect(verdict.pass).toBe(false);
+    expect(verdict.reason).toContain('idle stop: ovrdroid-fixture was still running');
+  });
+
+  test('wake failures join the earlier ones, one line each', () => {
+    const verdict = judgeMcpChildren(launches, true, {
+      turns: [turn('exec', { ponged: false })],
+      wake: wakeReading({ wake: { requests: 2, offered: 'deferred', ponged: false } }),
+    });
+    expect(verdict.reason.split('\n')).toEqual([
+      'exec: calling ping did not return pong',
+      'main agent after the stop: calling ping did not return pong',
+    ]);
   });
 });
 
