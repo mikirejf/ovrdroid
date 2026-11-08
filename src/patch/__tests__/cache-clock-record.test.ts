@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 
 import type { Reply } from './warmer-harness.ts';
-import { cacheClockAt, MINUTE_MS, SESSION, USAGE, World } from './warmer-harness.ts';
+import { cacheClockAt, listenToClock, MINUTE_MS, SESSION, USAGE, World } from './warmer-harness.ts';
 
 const SENT_AT = 1_000_000;
 const WARM_TIME = SENT_AT + 45 * MINUTE_MS;
@@ -101,6 +101,31 @@ describe('a warm', () => {
 
     expect(world.sent).toHaveLength(1);
     expect(cacheClockAt()).toBeUndefined();
+  });
+
+  test('tells the cache clock listeners when it succeeds, after the clock has moved', async () => {
+    world.request(SENT_AT);
+    const seen: (number | undefined)[] = [];
+    listenToClock(() => {
+      seen.push(cacheClockAt());
+    });
+
+    await world.fireCurrent();
+
+    expect(seen).toEqual([WARM_TIME]);
+  });
+
+  test('tells no one when it fails', async () => {
+    world.reply = Promise.reject(new Error('proxy down'));
+    world.request(SENT_AT);
+    let calls = 0;
+    listenToClock(() => {
+      calls += 1;
+    });
+
+    await world.fireCurrent();
+
+    expect(calls).toBe(0);
   });
 
   test('does not touch another session', async () => {

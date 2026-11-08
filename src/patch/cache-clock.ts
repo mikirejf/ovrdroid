@@ -97,7 +97,7 @@ export const CACHE_CLOCK_FACTORY =
   `${PRUNE};` +
   'return{' +
   'record:($ODsid,$ODat)=>{$ODgone.delete($ODsid),$ODmap().set($ODsid,{at:$ODat}),$ODsave($ODsid)},' +
-  'warm:($ODsid,$ODat)=>{if($ODmap().has($ODsid))$ODmap().set($ODsid,{at:$ODat}),$ODsave($ODsid)},' +
+  'warm:($ODsid,$ODat)=>{if($ODmap().has($ODsid))$ODmap().set($ODsid,{at:$ODat}),$ODsave($ODsid),$ODemit()},' +
   `${FORGET},` +
   `${LOAD},` +
   'view:($ODentry,$ODnow)=>$ODCv($ODentry,$ODnow,$ODmine),' +
