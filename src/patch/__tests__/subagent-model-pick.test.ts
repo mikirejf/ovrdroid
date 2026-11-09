@@ -134,18 +134,49 @@ describe('a custom droid refuses a tier', () => {
 });
 
 describe('a fixed-model droid takes nothing from the launch', () => {
-  test('any launch model is refused, inherit included', () => {
-    expect(() => resolve(splitOf({ model: OPUS }), CODER_MEDIUM)).toThrow(
-      `coder-medium fixes its model (${SONNET}), so it cannot take a launch model`,
-    );
-    expect(() => resolve(splitOf({ model: 'inherit' }), CODER_MEDIUM)).toThrow(
-      'cannot take a launch model',
+  const OWN = `coder-medium is fixed to ${SONNET} at high effort`;
+  const REFUSED = `${OWN} and takes no launch model or effort.`;
+  const BARE = 'To run coder-medium as it is, launch it without model and effort';
+
+  test.each([
+    [
+      'another launch model',
+      { model: OPUS },
+      `To run on ${OPUS} instead, launch worker with model ${OPUS}.`,
+    ],
+    [
+      'inherit',
+      { model: 'inherit' },
+      "To run on this session's model instead, launch worker with model inherit.",
+    ],
+    [
+      'another launch effort',
+      { effort: 'xhigh' },
+      `To run on ${SONNET} at xhigh effort instead, launch worker with model ${SONNET} and effort xhigh.`,
+    ],
+    [
+      'another model and effort in the brackets',
+      { model: `${OPUS}[effort=low]` },
+      `To run on ${OPUS} at low effort instead, launch worker with model ${OPUS} and effort low.`,
+    ],
+    [
+      'its own model at another effort',
+      { model: SONNET, effort: 'low' },
+      `To run on ${SONNET} at low effort instead, launch worker with model ${SONNET} and effort low.`,
+    ],
+  ])('%s is refused, and the error gives the worker launch that runs it', (_label, fields, way) => {
+    expect(() => resolve(splitOf(fields), CODER_MEDIUM)).toThrow(
+      new Error(`${REFUSED} ${way} ${BARE}`),
     );
   });
 
-  test('a launch effort is refused', () => {
-    expect(() => resolve(splitOf({ effort: 'xhigh' }), CODER_MEDIUM)).toThrow(
-      `coder-medium fixes its model (${SONNET}), so it cannot take a launch effort`,
+  test.each([
+    ['its own model', { model: SONNET }],
+    ['its own effort', { effort: 'high' }],
+    ['its own model and effort', { model: `${SONNET}[effort=high]` }],
+  ])('%s is refused without pointing at worker', (_label, fields) => {
+    expect(() => resolve(splitOf(fields), CODER_MEDIUM)).toThrow(
+      new Error(`${OWN}, which is what this launch asked for. Launch it without model and effort`),
     );
   });
 

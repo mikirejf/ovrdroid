@@ -52,10 +52,15 @@ export const PICK_MODEL =
   'return{modelId:$ODm,reasoningEffort:$ODe!==void 0&&$ODm?$ODs.clamp($ODm,$ODe):$ODe,complexity:$ODbase.complexity,$ODtoolModel:$ODl.model}}' +
   'if($ODtier!==void 0)throw Error($ODs.name+" is a custom agent, so it cannot take a tier. Launch it without complexity");' +
   'let $ODfixed=$ODs.fixedModel,$ODdeclared=$ODs.declaredModel;' +
-  'if($ODdeclared&&$ODgiven)' +
-  'throw Error($ODs.name+" fixes its model ("+$ODdeclared+"), so it cannot take a launch model. Launch it without model");' +
-  'if($ODdeclared&&$ODl.effort!==void 0)' +
-  'throw Error($ODs.name+" fixes its model ("+$ODdeclared+"), so it cannot take a launch effort. Launch it without effort");' +
+  'if($ODdeclared&&$ODlaunch){' +
+  'let $ODsay=($ODon,$ODat)=>($ODon==="inherit"?"this session\'s model":$ODon)+' +
+  '($ODat===void 0?"":$ODat==="inherit"?" at this session\'s effort":" at "+$ODat+" effort"),' +
+  '$ODown=$ODs.name+" is fixed to "+$ODsay($ODdeclared,$ODs.effort),' +
+  '$ODwant=$ODl.inherit?"inherit":$ODl.model??$ODdeclared,' +
+  '$ODsame=($ODwant===$ODdeclared||$ODwant===$ODfixed)&&($ODl.effort===void 0||$ODl.effort===$ODs.effort);' +
+  'if($ODsame)throw Error($ODown+", which is what this launch asked for. Launch it without model and effort");' +
+  'throw Error($ODown+" and takes no launch model or effort. To run on "+$ODsay($ODwant,$ODl.effort)+" instead, launch worker with model "+$ODwant+' +
+  '($ODl.effort===void 0?"":" and effort "+$ODl.effort)+". To run "+$ODs.name+" as it is, launch it without model and effort")}' +
   'if(!$ODlaunch&&$ODs.effort!=="inherit"&&($ODfixed||$ODdeclared||$ODs.effort===void 0))return $ODs.stock(void 0);' +
   'let $ODp=$ODs.parent(),' +
   '$ODfromParent=$ODl.model===void 0&&($ODl.inherit===!0||!$ODfixed),' +

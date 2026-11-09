@@ -78,11 +78,10 @@ describe('the inherited effort is fitted to the final model', () => {
 
 describe('a fixed-model droid', () => {
   test('refuses a launch effort of inherit, as it refuses any launch effort', () => {
-    expect(() => resolve(splitOf({ effort: 'inherit' }), CODER_MEDIUM)).toThrow(
-      `coder-medium fixes its model (${SONNET}), so it cannot take a launch effort`,
-    );
+    const refused = `coder-medium is fixed to ${SONNET} at high effort and takes no launch model or effort. To run on ${SONNET} at this session's effort instead, launch worker with model ${SONNET} and effort inherit.`;
+    expect(() => resolve(splitOf({ effort: 'inherit' }), CODER_MEDIUM)).toThrow(refused);
     expect(() => resolve(splitOf({ model: `${SONNET}[effort=inherit]` }), CODER_MEDIUM)).toThrow(
-      'fixes its model',
+      refused,
     );
   });
 

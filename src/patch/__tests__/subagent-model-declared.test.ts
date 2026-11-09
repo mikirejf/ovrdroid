@@ -27,19 +27,19 @@ const UNAVAILABLE: Subagent = {
 describe('a droid that declares a model fixes it, even when the model is not configured', () => {
   test('a launch model is refused, naming the declared id', () => {
     expect(() => resolve(splitOf({ model: OPUS }), UNAVAILABLE)).toThrow(
-      'retired fixes its model (custom:retired:model), so it cannot take a launch model',
+      `retired is fixed to custom:retired:model at high effort and takes no launch model or effort. To run on ${OPUS} instead, launch worker with model ${OPUS}.`,
     );
     expect(() => resolve(splitOf({ model: 'inherit' }), UNAVAILABLE)).toThrow(
-      'so it cannot take a launch model',
+      'launch worker with model inherit.',
     );
   });
 
   test('a launch effort is refused, in the field and in the brackets', () => {
     expect(() => resolve(splitOf({ effort: 'xhigh' }), UNAVAILABLE)).toThrow(
-      'retired fixes its model (custom:retired:model), so it cannot take a launch effort',
+      'To run on custom:retired:model at xhigh effort instead, launch worker with model custom:retired:model and effort xhigh.',
     );
     expect(() => resolve(splitOf({ effort: 'inherit' }), UNAVAILABLE)).toThrow(
-      'cannot take a launch effort',
+      "To run on custom:retired:model at this session's effort instead, launch worker with model custom:retired:model and effort inherit.",
     );
   });
 
@@ -53,7 +53,7 @@ describe('a droid that declares a model fixes it, even when the model is not con
   test('a droid whose declared model resolves is refused the same way', () => {
     const droid: Subagent = { name: 'coder', custom: true, fixedModel: SONNET };
     expect(() => resolve(splitOf({ model: OPUS }), droid)).toThrow(
-      `coder fixes its model (${SONNET}), so it cannot take a launch model`,
+      `coder is fixed to ${SONNET} and takes no launch model or effort. To run on ${OPUS} instead, launch worker with model ${OPUS}.`,
     );
   });
 
