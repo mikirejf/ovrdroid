@@ -38,7 +38,7 @@ interface Capture {
   summaryIsSummary: boolean;
 }
 
-function digestFiles(count: number): string[] {
+export function digestFiles(count: number): string[] {
   const names = readdirSync(DEFAULT_DIGEST_FOLDER)
     .filter((name) => DIGEST_FILE.test(name))
     .toSorted()
@@ -51,7 +51,7 @@ function digestFiles(count: number): string[] {
   return names.map((name) => path.join(DEFAULT_DIGEST_FOLDER, name));
 }
 
-function promptFor(files: readonly string[], tag: string): string {
+export function promptFor(files: readonly string[], tag: string): string {
   return [
     `Read each of these ${files.length} files in full with the Read tool, one file per call, in this order:`,
     ...files.map((file) => `- ${file}`),
@@ -60,7 +60,7 @@ function promptFor(files: readonly string[], tag: string): string {
   ].join('\n');
 }
 
-function mainTranscript(folder: string, tag: string): Transcript | undefined {
+export function mainTranscript(folder: string, tag: string): Transcript | undefined {
   return transcriptsIn(folder).find(({ text }) => callerOf(text) === '' && text.includes(tag));
 }
 

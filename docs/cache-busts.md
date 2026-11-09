@@ -66,6 +66,40 @@ prefix, zero busts.
 The gate's cap matters. A shorter cap lets a slow MCP server join on turn two, so the 15s cap patch
 was dropped ([first-message.md](first-message.md)).
 
+## Measured: DroidProxy moves a session to another Claude account at compaction
+
+After an auto-compaction, the user's next message on Fable 5.2 lost 15k to 32k cached tokens, 2 of 2
+times in one session, while Droid's own append-only check stayed quiet. The loss is in DroidProxy
+(CLIProxyAPI 8.0.61), not in Droid or ovrdroid.
+
+`probe compaction-turn <bodies build> --model-id <id> --proxy-logs ~/.cli-proxy-api/logs` reads
+digest files under a 30k compaction limit, so Droid compacts mid-turn, then sends one more message.
+It shows where each request stops extending the one before, both in what Droid sent and in what the
+proxy forwarded. That second part needs `observability.logs.request-log: true` in the proxy config.
+Runs on Droid 1.6.0, 2026-11-09, both at high effort:
+
+- Droid's requests are append-only across the compaction, and so is the next turn. The proxy
+  forwards the same prompt with its own changes: Claude Code's billing header in `system[0]` (a
+  `cch=` per request, and a `cc_version` suffix that changes when the first user message changes),
+  tool names with an `mcp__…` prefix, the cache markers moved, and `metadata`.
+- Droid sends no session id: no `X-Session-ID` and no `metadata`. So the proxy pins the account by
+  matching the message history (the "LCP" affinity, `sdk/cliproxy/auth/selector.go`). Compaction
+  rewrites the head of the history, the proxy logs `LCP cache miss, new binding`, and the session
+  lands on a different account. The prompt cache belongs to each account.
+- Fable 5.2: account `a1422c22` before compaction, `51cf40a0` after. The first request after
+  compaction read 0 cached tokens, not even the 15,006-token system and tools prefix.
+- Opus 5.5, the control: `51cf40a0` before compaction, `a1422c22` after. That request read 15,006,
+  only because `a1422c22` already held the prefix from other sessions. So this is not specific to
+  Fable.
+- In both runs the next turn stayed on the new account and read the whole cache. In the real
+  session, it was the next turn that missed. There the proxy logged `LCP compaction hit` (case 2),
+  which ties the request to the session from before compaction, so the next turn could go back to an
+  account that lacked what the first request after compaction wrote.
+
+The proxy treats an explicit session id (`X-Session-ID`, among others) as the authority and skips
+the LCP match. Droid sending its session id on DroidProxy requests would keep the account through
+compaction. Not yet built or measured.
+
 ## Still open
 
 - A deferred tool loaded mid-session on a custom GPT model is not measured. The two always-loaded

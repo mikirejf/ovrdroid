@@ -65,7 +65,7 @@ const REMINDER = '<system-reminder>';
 const ONE_SHOT_MESSAGE_ID_PREFIX = 'oneshot-';
 const CACHE_MARKER = 'cache_control';
 
-function toJson(value: unknown): Json {
+export function toJson(value: unknown): Json {
   if (Array.isArray(value)) {
     const items: readonly unknown[] = value;
     return items.map((item) => toJson(item));

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { FACTORY_SESSIONS } from '../paths.ts';
+import type { JsonObject } from './bodies.ts';
 import type { LaunchEnv } from './launch.ts';
 import { PROBE_SETTINGS } from './launch.ts';
 import { sessionFolderName } from './ledger.ts';
@@ -42,6 +43,7 @@ export interface LiveOptions {
   args?: readonly string[];
   env?: LaunchEnv;
   collect?: boolean;
+  settings?: JsonObject;
 }
 
 export async function openLiveSession(binary: string, options: LiveOptions): Promise<Session> {
@@ -50,6 +52,7 @@ export async function openLiveSession(binary: string, options: LiveOptions): Pro
     settingsFile,
     JSON.stringify({
       ...PROBE_SETTINGS,
+      ...options.settings,
       sessionDefaultSettings: { model: options.model, reasoningEffort: options.effort },
     }),
   );

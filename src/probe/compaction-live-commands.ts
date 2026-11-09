@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 
 import { count, guard } from '../cli.ts';
 import { compactionCapture } from './compaction-capture.ts';
+import { compactionTurn } from './compaction-turn.ts';
 import { DEFAULT_DIGEST_FOLDER } from './digest-key.ts';
 import { digestRun } from './digest-run.ts';
 import { PROBE_MODEL } from './launch.ts';
@@ -12,6 +13,9 @@ const DEFAULT_DIGEST_TIMEOUT_S = 900;
 const DEFAULT_CAPTURE_TIMEOUT_S = 300;
 const DEFAULT_CAPTURE_FILES = 8;
 const DEFAULT_CAPTURE_EFFORT = 'medium';
+const DEFAULT_TURN_EFFORT = 'high';
+const DEFAULT_TURN_LIMIT = 30_000;
+const DEFAULT_TURN_FILES = 8;
 
 export function registerCompactionLiveCommands(program: Command): void {
   program
@@ -58,4 +62,21 @@ export function registerCompactionLiveCommands(program: Command): void {
       DEFAULT_CAPTURE_TIMEOUT_S,
     )
     .action(guard(compactionCapture));
+
+  program
+    .command('compaction-turn')
+    .description(
+      'MAKES REAL MODEL CALLS: does the user message after an auto-compaction still extend the request before it, so it reads the cache? Reads digest files under a low compaction limit so Droid compacts mid-turn, sends one more message, and shows where that request stops extending the one before, in what Droid sent and, with --proxy-logs, in what CLIProxyAPI forwarded. The binary must be a `probe build --bodies` build',
+    )
+    .argument('<binary>')
+    .option('--model-id <id>', 'customModels id the session runs on', PROBE_MODEL)
+    .option('--effort <level>', 'reasoning effort of the session', DEFAULT_TURN_EFFORT)
+    .option('--limit <tokens>', 'compaction token limit for the model', count, DEFAULT_TURN_LIMIT)
+    .option('--files <n>', 'digest files the reading turn reads', count, DEFAULT_TURN_FILES)
+    .option('--timeout <seconds>', 'how long each turn may take', count, DEFAULT_CAPTURE_TIMEOUT_S)
+    .option(
+      '--proxy-logs <dir>',
+      'CLIProxyAPI logs folder with request-log on; compares what Droid sent with what the proxy forwarded',
+    )
+    .action(guard(compactionTurn));
 }
