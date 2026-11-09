@@ -96,9 +96,21 @@ Runs on Droid 1.6.0, 2026-11-09, both at high effort:
   which ties the request to the session from before compaction, so the next turn could go back to an
   account that lacked what the first request after compaction wrote.
 
-The proxy treats an explicit session id (`X-Session-ID`, among others) as the authority and skips
-the LCP match. Droid sending its session id on DroidProxy requests would keep the account through
-compaction. Not yet built or measured.
+The proxy takes an explicit session id (`X-Session-ID`, among others) over the LCP match.
+`anthropic-custom-model-sends-session-id` makes Droid send its session id as `X-Session-ID` on every
+request to an Anthropic custom model, so the proxy binds the session by that header for its affinity
+TTL (2h here) and a compaction no longer moves it. The probe names each account by a hash of its
+proxy auth id: `3657c8a4` is `a1422c22` above, and `499aa03e` is `51cf40a0`. Same runs on the
+patched build, 2026-11-09:
+
+- Fable 5.2 and Opus 5.5: every request went to account `3657c8a4`, and the proxy logged
+  `session=header:…` bindings instead of `lcp:…` ones.
+- The first request after compaction read 15,006 and wrote the rest (15,238 on Fable, 24,318 on
+  Opus). That is the best it can do: compaction rewrites the head of the messages, so only the
+  system and tools prefix can still match. The next turn read what that request wrote (26,736 on
+  Fable, 39,324 on Opus).
+- Before the patch, the same request read 0 when its new account had never seen the prefix, and the
+  next turn could land on yet another account.
 
 ## Still open
 

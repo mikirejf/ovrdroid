@@ -10,6 +10,9 @@ const TIMESTAMP = /^Timestamp: (?<at>.+)$/mu;
 const PROXY_LOG = /^v1-messages-.*\.log$/u;
 const OPENING_MESSAGES = 3;
 const BODY_LABEL = 'Body:\n';
+const AUTH_ID = /^Auth: .*\bauth_id=(?<id>[^,\s]+)/mu;
+const SESSION_HEADER = /^X-Session-Id: \S/imu;
+const ACCOUNT_CHARS = 8;
 
 export interface ProxyUsage {
   input: number;
@@ -22,6 +25,8 @@ export interface ProxyEntry {
   downstream: JsonObject | undefined;
   upstream: JsonObject | undefined;
   usage: ProxyUsage | undefined;
+  account: string;
+  sentSessionId: boolean;
 }
 
 function sectionsOf(text: string): Map<string, string> {
@@ -76,14 +81,24 @@ function usageOf(stream: string): ProxyUsage | undefined {
   return found;
 }
 
+function accountOf(section: string): string {
+  const id = AUTH_ID.exec(section)?.groups?.['id'];
+  return id === undefined
+    ? 'unknown'
+    : new Bun.CryptoHasher('sha256').update(id).digest('hex').slice(0, ACCOUNT_CHARS);
+}
+
 export function parseProxyLog(text: string): ProxyEntry {
   const sections = sectionsOf(text);
   const info = sections.get('REQUEST INFO') ?? '';
+  const forwarded = lastNumbered(sections, 'API REQUEST ');
   return {
     at: TIMESTAMP.exec(info)?.groups?.['at']?.trim() ?? '',
     downstream: jsonObject(sections.get('REQUEST BODY') ?? ''),
-    upstream: jsonObject(bodyOf(lastNumbered(sections, 'API REQUEST '))),
+    upstream: jsonObject(bodyOf(forwarded)),
     usage: usageOf(bodyOf(lastNumbered(sections, 'API RESPONSE '))),
+    account: accountOf(forwarded),
+    sentSessionId: SESSION_HEADER.test(sections.get('HEADERS') ?? ''),
   };
 }
 
@@ -141,12 +156,25 @@ function proxyChange(entry: ProxyEntry): string[] {
   return lines;
 }
 
+export function accountMoves(entries: readonly ProxyEntry[]): string {
+  const moves = entries.flatMap((entry, index) => {
+    const before = entries[index - 1];
+    return before !== undefined && before.account !== entry.account
+      ? [`request ${index + 1} moved from account ${before.account} to ${entry.account}`]
+      : [];
+  });
+  return moves.length === 0
+    ? `every request went to account ${entries[0]?.account ?? 'none'}`
+    : moves.join('; ');
+}
+
 export function describeProxyEntries(entries: readonly ProxyEntry[]): string[] {
   const lines = entries.flatMap((entry, index) => [
-    `proxy request ${index + 1} at ${entry.at}: ${usageText(entry.usage)}; forwarded markers at ${entry.upstream === undefined ? 'unknown' : markerPaths(entry.upstream).join(', ') || 'none'}`,
+    `proxy request ${index + 1} at ${entry.at} on account ${entry.account}, ${entry.sentSessionId ? 'with' : 'without'} a session id from Droid: ${usageText(entry.usage)}; forwarded markers at ${entry.upstream === undefined ? 'unknown' : markerPaths(entry.upstream).join(', ') || 'none'}`,
     ...proxyChange(entry),
   ]);
   return [
+    accountMoves(entries),
     ...lines,
     '',
     'what Droid sent, each request against the one before:',
