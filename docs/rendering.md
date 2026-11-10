@@ -336,6 +336,36 @@ initializes in the startup root context. Scheduler immediate and timeout callbac
 microtask and timeout callbacks, run through that snapshot rather than the scheduling agent's scope.
 Timeout wrappers return the original handles, so cancellation still works.
 
+## Crash on a late feature-flag refresh from a sub-agent (Droid 1.6.1 and 1.7.0, 2026-11-10)
+
+Two long Herdr sessions exited with `Startup failed: Agent runtime scope is disposed`, a few seconds
+after a background sub-agent finished. The fatal stack ran from the footer's settings read
+(`getShowTokenUsageIndicator`) through React's render loop into `assertActive`.
+
+One source of that render is the feature-flag store. Its change listeners are one process-wide `Set`
+with no owner, and a sub-agent's first flag read starts a refresh it does not await when the cached
+flags are stale or the retry backoff has run out. When the reply lands after the sub-agent's scope
+is disposed and the flags differ from the ones in memory, the store notifies every listener in the
+dead scope. The main window's `useSyncExternalStore` subscriptions then schedule a React render
+there, and the render reads a disposed service. A `--scope` build showed it: the `react-microtask`
+schedule rows came from the flag publisher with a disposed scope.
+
+`bun run probe scope-leak <binary> --flag-refresh` reproduces it with no real model calls. It keeps
+a scratch flag cache, fails flag fetches until the retry backoff has passed so that the sub-agent
+makes the first fetch after it, holds that fetch, and releases changed flags 4s after the
+sub-agent's host closes (the coverage check requires at least 3s). Probes that pin flags with
+`FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH` never refresh them and cannot hit this.
+
+| Build                                            | Crashed |
+| ------------------------------------------------ | ------- |
+| 1.6.1, shipped patches                           | 4/4     |
+| 1.7.0, without `render-root-context-*`           | 3/3     |
+| 1.7.0, shipped patches (`render-root-context-*`) | 0/3     |
+
+`render-root-context-*` fixes this crash as well, so no separate patch ships for it. A patch that
+bound each flag listener to its subscriber's context (`AsyncResource.bind`) also passed 0/3, but it
+was left out because it fixed the same crash again.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)

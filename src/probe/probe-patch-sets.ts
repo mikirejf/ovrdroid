@@ -3,6 +3,7 @@ import { counterPatches } from '../patch/counter-patches.ts';
 import { heapPatches } from '../patch/heap-patches.ts';
 import { lagPatches } from '../patch/lag-patches.ts';
 import type { Patch } from '../patch/patches.ts';
+import { scopeDiagPatches } from '../patch/scope-diag-patches.ts';
 import { timerPatches } from '../patch/timer-patches.ts';
 import { modulePatches, tracePatches } from '../patch/trace-patches.ts';
 import { watchPatches } from '../patch/watch-patches.ts';
@@ -16,6 +17,7 @@ export const PROBE_PATCH_SETS = {
   counters: counterPatches,
   heap: heapPatches,
   lag: lagPatches,
+  scope: scopeDiagPatches,
 } satisfies Record<string, readonly Patch[]>;
 
 type ProbePatchSet = keyof typeof PROBE_PATCH_SETS;

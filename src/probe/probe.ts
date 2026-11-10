@@ -77,6 +77,7 @@ program
   .option('--modules', 'include the module timing patches')
   .option('--watch', 'include the file-watcher and catalog logging patches')
   .option('--timers', 'include the timer census patches')
+  .option('--scope', 'observe runtime scope and UI callback ownership in $OD_SCOPE_LOG JSONL')
   .option('--bodies', 'include the patches that write every LLM request body to $OD_BODIES')
   .option(
     '--counters',

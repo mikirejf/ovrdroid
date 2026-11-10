@@ -1,26 +1,25 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { MS_PER_SECOND } from '../cli.ts';
-import { FACTORY_DROIDS } from '../paths.ts';
-import { makeTempDir } from '../temp.ts';
 import { LOG_PATH } from './effort-switch-turn.ts';
 import { logSize, logSlice } from './log-file.ts';
-import { droidFilePath, send, settle, waitFor } from './rewind.ts';
+import { send, settle, waitFor } from './rewind.ts';
 import type { MainTurn, ScopeLeakRun, StubTurn } from './scope-leak-report.ts';
 import { HOLD_WORD, LAUNCH_WORD, logEvents, mainTurnFor, turnFor } from './scope-leak-report.ts';
 import type { Session } from './session.ts';
 import { openSettledSession } from './session.ts';
 import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
 
-const DROID_TYPE = 'ovrdroid-scope-leak-probe';
+export const DROID_TYPE = 'ovrdroid-scope-leak-probe';
 const TURN_REPLY = /⛬\s+ok/u;
 const EXIT_POLL_MS = 250;
-const LOG_FLUSH_MS = 1500;
+export const LOG_FLUSH_MS = 1500;
 const CHILD_COMMAND = 'echo scope-leak';
-const CHILD_MODEL = 'stub-stream';
-const CHAT_MODEL = 'stub-chat';
+export const CHILD_INPUT = { command: CHILD_COMMAND, riskLevel: 'low', summary: 'Print a word' };
+export const CHILD_MODEL = 'stub-stream';
+export const CHAT_MODEL = 'stub-chat';
 
 export const DEFAULT_HOLD_S = 45;
 export const DEFAULT_SCOPE_RUNS = 3;
@@ -33,9 +32,16 @@ export interface ScopeLeakOptions {
   hold: number;
   linger: number;
   timeout: number;
+  waitReports?: boolean;
+  flagRefresh?: boolean;
+  churnDroids?: boolean;
+  responsesChild?: boolean;
+  responsesFollowup?: boolean;
+  toolMix?: boolean;
+  out?: string;
 }
 
-interface Stub {
+export interface Stub {
   url: string;
   release: () => void;
   stop: () => Promise<void>;
@@ -49,8 +55,7 @@ function launchInput() {
     run_in_background: true,
   };
 }
-
-function eventsFor(turn: StubTurn, runId: string): string[] {
+export function eventsFor(turn: StubTurn, runId: string): string[] {
   if (turn === 'launch') {
     return toolEvents({ id: `toolu_scope${runId}`, name: 'Task', input: launchInput() });
   }
@@ -58,30 +63,26 @@ function eventsFor(turn: StubTurn, runId: string): string[] {
     return toolEvents({
       id: `toolu_work${runId}`,
       name: 'Execute',
-      input: { command: CHILD_COMMAND, riskLevel: 'low', summary: 'Print a word' },
+      input: CHILD_INPUT,
     });
   }
   return streamEvents([turn === 'child' ? 'hi' : 'ok']);
 }
-
 interface ChatDelta {
   role?: 'assistant';
   content?: string;
   tool_calls?: readonly ChatToolCall[];
 }
-
 interface ChatToolCall {
   index: number;
   id: string;
   type: 'function';
   function: { name: string; arguments: string };
 }
-
 function chunk(delta: ChatDelta, finish: string | null = null): string {
   return `data: ${JSON.stringify({ id: 'chatcmpl_stub', object: 'chat.completion.chunk', model: CHAT_MODEL, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
 }
-
-function chatEventsFor(turn: MainTurn, runId: string): string {
+export function chatEventsFor(turn: MainTurn, runId: string): string {
   const usage = `data: ${JSON.stringify({ id: 'chatcmpl_stub', object: 'chat.completion.chunk', model: CHAT_MODEL, choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })}\n\n`;
   const body =
     turn === 'launch'
@@ -99,7 +100,6 @@ function chatEventsFor(turn: MainTurn, runId: string): string {
       : chunk({ role: 'assistant', content: 'ok' }) + chunk({}, 'stop');
   return `${body}${usage}data: [DONE]\n\n`;
 }
-
 function startScopeStub(runId: string, holdMs: number, lingerMs: number): Stub {
   const held = Promise.withResolvers<boolean>();
   const stopping = new AbortController();
@@ -148,12 +148,10 @@ function startScopeStub(runId: string, holdMs: number, lingerMs: number): Stub {
     },
   };
 }
-
-function childDroidText(): string {
+export function childDroidText(): string {
   return `---\nname: ${DROID_TYPE}\ndescription: Says hi for a probe.\nmodel: custom:${CHILD_MODEL}\n---\nSay hi.\n`;
 }
-
-function leakSettings(url: string) {
+export function leakSettings(url: string) {
   const settings = stubSettings(url, CHILD_MODEL);
   const main = `custom:${CHAT_MODEL}`;
   return {
@@ -174,8 +172,7 @@ function leakSettings(url: string) {
     sessionDefaultSettings: { ...settings.sessionDefaultSettings, model: main },
   };
 }
-
-function alive(pid: number): boolean {
+export function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -183,8 +180,7 @@ function alive(pid: number): boolean {
     return false;
   }
 }
-
-async function watchUntil(pid: number, ms: number): Promise<boolean> {
+export async function watchUntil(pid: number, ms: number): Promise<boolean> {
   const deadline = performance.now() + ms;
   while (performance.now() < deadline) {
     if (!alive(pid)) {
@@ -195,18 +191,15 @@ async function watchUntil(pid: number, ms: number): Promise<boolean> {
   }
   return !alive(pid);
 }
-
-async function logSince(start: number): Promise<string> {
+export async function logSince(start: number): Promise<string> {
   const size = logSize(LOG_PATH);
   return await logSlice(LOG_PATH, size < start ? 0 : start);
 }
-
 interface Drive {
   session: Session;
   stub: Stub;
   options: ScopeLeakOptions;
 }
-
 async function driveLeak({ session, stub, options }: Drive): Promise<boolean> {
   await send(session, `${LAUNCH_WORD} kept`);
   await waitFor(
@@ -218,7 +211,6 @@ async function driveLeak({ session, stub, options }: Drive): Promise<boolean> {
   stub.release();
   return await watchUntil(session.pid, (options.hold + options.timeout) * MS_PER_SECOND);
 }
-
 export async function runScopeLeak(
   binary: string,
   options: ScopeLeakOptions,
@@ -228,16 +220,17 @@ export async function runScopeLeak(
     options.hold * MS_PER_SECOND,
     options.linger * MS_PER_SECOND,
   );
-  const dir = makeTempDir('scope-leak');
-  const droidFile = droidFilePath(DROID_TYPE);
+  const dir = mkdtempSync(path.join(realpathSync(options.cwd), 'ovrdroid-scope-leak-'));
+  const droids = path.join(dir, '.factory', 'droids');
+  const droidFile = path.join(droids, `${DROID_TYPE}.md`);
   try {
-    mkdirSync(FACTORY_DROIDS, { recursive: true });
+    mkdirSync(droids, { recursive: true });
     writeFileSync(droidFile, childDroidText());
     const settingsFile = path.join(dir, 'settings.json');
     writeFileSync(settingsFile, JSON.stringify(leakSettings(stub.url)));
     const start = logSize(LOG_PATH);
     const { session } = await openSettledSession(binary, {
-      cwd: options.cwd,
+      cwd: dir,
       env: { FACTORY_RUNTIME_SETTINGS_PATH: settingsFile },
       screen: true,
     });
@@ -251,6 +244,5 @@ export async function runScopeLeak(
   } finally {
     await stub.stop();
     rmSync(dir, { recursive: true, force: true });
-    rmSync(droidFile, { force: true });
   }
 }
