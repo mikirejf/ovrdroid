@@ -319,6 +319,23 @@ Cost, against `probe build --without` the five patches, paired, not resolved: `p
 CPU +82.5ms (CI -70.8 to 235.8), wall -17.6ms (CI -65.7 to 30.5); `probe resume` (n=10) resize
 redraw -7.3ms (CI -18.7 to 4.2), input box -27.2ms (CI -64.9 to 10.6).
 
+## Blank message list inside an agent scope (Droid 1.7.0, 2026-11-10)
+
+The main chat sometimes rendered zero messages, clearing and reprinting an empty terminal.
+`bun run probe blank-log` recorded 4–29 such events per hour on 2026-11-10. Every blank had an
+`empty-render` row with `agentScope` set and a React work-loop stack (`renderWithHooks` through the
+scheduler), preceded by `scoped-read` rows.
+
+React scheduling callbacks inherited the AsyncLocalStorage agent scope of the work that scheduled
+them. Inside that scope, the adapter getter chose the agent's daemon-connected adapter, which lacked
+the main session's session manager; the message selector therefore returned `[]`. Droid 1.7.1
+retained the same upstream code.
+
+`render-root-context-*` captures `AsyncLocalStorage.snapshot()` once when the React/scheduler module
+initializes in the startup root context. Scheduler immediate and timeout callbacks, plus Ink host
+microtask and timeout callbacks, run through that snapshot rather than the scheduling agent's scope.
+Timeout wrappers return the original handles, so cancellation still works.
+
 ## Retractions
 
 "Frame building is the streaming cost" was wrong. The 19ms per frame came from machine load (60-130)
