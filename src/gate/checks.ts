@@ -54,7 +54,7 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
           bodiesBuild,
         ],
       },
-      probe('tool-surface', bodiesBuild),
+      probe('tool-surface', bodiesBuild, '--model-id', GATE_MODEL),
       probe('effort-switch', bodiesBuild, '--model', GATE_MODEL, '--yes'),
     ],
   };
@@ -62,7 +62,7 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
   const live: Lane<Check>[] = [
     alone(probe('digest-run', target)),
     alone(probe('warm', target, '--yes')),
-    alone(probe('cachekey', target)),
+    alone(probe('cachekey', target, '--model', 'custom:droidproxy:gpt-6-luna')),
     bodies,
     alone(probe('effort-clear', target)),
     alone(probe('rewind', target)),

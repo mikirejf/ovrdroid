@@ -43,12 +43,12 @@ export const skillCarryPatches: readonly Patch[] = [
   },
   {
     name: 'compaction-note-shows-typed-skill-text',
-    find: 'let t=e?.retainedSkills??[],o=[];if(t.length>0)o.push(',
+    find: 'let t=e?.retainedSkills??[],o=[],n=e?.retainedSpec?nn(e.retainedSpec):void 0;if(n)o.push(n);if(t.length>0)o.push(',
     replace:
       `let $ODall=e?.retainedSkills??[],$ODisCarried=${IS_CARRIED},$ODcarried=$ODall.filter($ODisCarried),` +
       't=$ODall.filter(($ODentry)=>!$ODisCarried($ODentry)&&' +
       '!$ODcarried.some(($ODtext)=>$ODtext.includes("<name>"+$ODentry+"</name>"))),' +
-      'o=[...$ODcarried];if(t.length>0)o.push(',
+      'o=[],n=e?.retainedSpec?nn(e.retainedSpec):void 0;if(n)o.push(n);o.push(...$ODcarried);if(t.length>0)o.push(',
   },
   {
     name: 'compaction-leaves-out-skills-typed-in-kept-messages',

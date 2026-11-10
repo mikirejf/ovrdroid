@@ -180,6 +180,7 @@ interface Converted {
 interface CacheOptions {
   sessionId: string;
   modelId: string;
+  oneHourConversationCache?: boolean;
 }
 
 interface Prepared {
@@ -212,8 +213,13 @@ describe('compaction-reuse-extender', () => {
     };
     const stored: Stored[] = [];
     const reminders = ['tool catalog', 'skills reminder', 'subagent reminder'];
+    const cacheOptions: CacheOptions = {
+      sessionId: 'session',
+      modelId: 'model',
+      oneHourConversationCache: true,
+    };
     const capture = payloadFunction<unknown[], Stored>(
-      ['Yn', 'Ot', 'jt', 'M', 'Be', 'DJ'],
+      ['Yn', 'Ot', 'jt', '_t', 'DJ'],
       `let jn={sessionId:"s",${EXTENDER}return jn`,
     );
     const snapshot = capture.call(
@@ -221,8 +227,7 @@ describe('compaction-reuse-extender', () => {
       (input: Conversion): Converted => ({ converted: input }),
       reminders,
       true,
-      'session',
-      'model',
+      cacheOptions,
       (entry: Stored) => {
         stored.push(entry);
       },
@@ -232,7 +237,8 @@ describe('compaction-reuse-extender', () => {
     loop.lastSummaryRef = 'summary written later';
     history.push(LAST_REPLY);
     const ask = textMessage('ask');
-    expect(snapshot.odExtend(ask)).toEqual({
+    const rebuilt = snapshot.odExtend(ask);
+    expect(rebuilt).toEqual({
       prepared: {
         converted: {
           rawHistory: [textMessage('turn-1'), LAST_REPLY, ask],
@@ -241,7 +247,9 @@ describe('compaction-reuse-extender', () => {
           keepHistoryReminders: true,
         },
       },
-      options: { sessionId: 'session', modelId: 'model' },
+      options: cacheOptions,
     });
+    expect(rebuilt.options).toBe(cacheOptions);
+    expect(snapshot.odExtend(textMessage('next-ask')).options).toBe(cacheOptions);
   });
 });

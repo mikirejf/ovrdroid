@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { carriedSkill, skillCarryPatches } from '../skill-carry-patches.ts';
+import { closureOf, declarationAround } from './module-closure.ts';
 import { describeStrayNames, occurrences, patchNamed, payloadFunction } from './payload.ts';
 import { shipped, stockDroid as stock, stockText } from './stock-scanner.ts';
 
@@ -18,6 +19,7 @@ interface Message {
 
 interface Previous {
   retainedSkills?: readonly string[];
+  retainedSpec?: { path?: string; plan?: string; comment?: string } | null;
 }
 
 type CollectBindings = [
@@ -41,10 +43,20 @@ const runCollect = payloadFunction<CollectBindings, string[]>(
   `let $ODstock=[]${patchNamed(skillCarryPatches, 'compaction-keeps-typed-skill-text').replace.slice(0, -1)}`,
 );
 
-const note = payloadFunction<[e?: Previous], string[]>(
-  ['e'],
+const runNote = payloadFunction<
+  [
+    e: Previous | undefined,
+    nn: (spec: NonNullable<Previous['retainedSpec']>) => string | undefined,
+  ],
+  string[]
+>(
+  ['e', 'nn'],
   `${patchNamed(skillCarryPatches, 'compaction-note-shows-typed-skill-text').replace}"${NAMES_LINE}"+t.join(","));return o`,
 );
+
+function note(previous?: Previous): string[] {
+  return runNote(previous, (spec) => spec.plan);
+}
 
 interface Scene {
   messages?: readonly Message[];
@@ -211,6 +223,24 @@ describe('the note after the summary shows carried skills in full', () => {
       `${NAMES_LINE}rhyme-two`,
     ]);
   });
+
+  test.each([
+    [[], []],
+    [['reviewing'], [`${NAMES_LINE}reviewing`]],
+    [[RHYME_UNIT, 'rhyme'], [RHYME_UNIT]],
+    [
+      [RHYME_UNIT, 'rhyme', 'reviewing'],
+      [RHYME_UNIT, `${NAMES_LINE}reviewing`],
+    ],
+  ])('the spec precedes carried text and uncarried names: %j', (skills, expected) => {
+    expect(note({ retainedSkills: skills, retainedSpec: { plan: 'approved plan' } })).toEqual([
+      'approved plan',
+      ...expected,
+    ]);
+    expect(note({ retainedSkills: skills })).toEqual(expected);
+    expect(note({ retainedSkills: skills, retainedSpec: null })).toEqual(expected);
+    expect(note({ retainedSkills: skills, retainedSpec: {} })).toEqual(expected);
+  });
 });
 
 interface Lists {
@@ -329,5 +359,35 @@ describe.skipIf(stock === undefined)('the shipped source', () => {
     );
     expect(stockText).toContain(`="${OPEN}"`);
     expect(stockText).toContain(`="${CLOSE}"`);
+  });
+
+  test('the stock spec rendering is preserved once before skill text across compactions', () => {
+    const { find, replace } = rebasedNamed('compaction-note-shows-typed-skill-text');
+    const source = stock?.find((module) => module.text.includes(find))?.text ?? '';
+    const name = declarationAround(source, source.indexOf(find));
+    const render = (text: string) =>
+      payloadFunction<[], (previous: Previous) => string>(
+        [],
+        `${closureOf(text, [name])};return ${name}`,
+      )();
+    const original = render(source);
+    const patched = render(source.replace(find, replace));
+    for (const spec of [
+      undefined,
+      null,
+      { path: '/tmp/approved\nspec.md', comment: 'Address this comment.' },
+      { plan: 'Keep the exact\napproved plan.', comment: 'Do not omit this.' },
+    ]) {
+      const previous = spec === undefined ? {} : { retainedSpec: spec };
+      const expectedSpec = original(previous);
+      const untyped = original({ retainedSkills: ['reviewing'] });
+      let list = retained({ messages: [typed('rhyme', RHYME)], loaded: ['rhyme', 'reviewing'] });
+      for (let turn = 0; turn < 3; turn += 1) {
+        expect(patched({ ...previous, retainedSkills: list })).toBe(
+          [expectedSpec, RHYME_UNIT, untyped].filter(Boolean).join('\n\n'),
+        );
+        list = retained({ messages: [summaryMessage(list)], previous: list });
+      }
+    }
   });
 });

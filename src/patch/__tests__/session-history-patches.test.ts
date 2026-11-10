@@ -122,6 +122,8 @@ describe.skipIf(stockDroid === undefined)('saved history does not restart finish
     const original = client(source(false));
     const changed = client(source(true));
     expect(original.methods.has(HISTORY)).toBe(false);
+    expect(original.methods.has('daemon.answer_elicitation')).toBe(true);
+    expect(changed.methods.has('daemon.answer_elicitation')).toBe(true);
     expect(changed.methods).toEqual(new Set([...original.methods, HISTORY]));
     expect(changed.methods.size).toBe(original.methods.size + 1);
   });
@@ -179,11 +181,14 @@ describe.skipIf(stockDroid === undefined)('saved history does not restart finish
   test('the existing lifecycle exemptions still dispatch without automatic loading', async () => {
     const changed = client(source(true));
     await Promise.all(
-      ['daemon.load_session', 'daemon.close_session', 'daemon.interrupt_session'].map(
-        async (method) => await changed.request('live', method),
-      ),
+      [
+        'daemon.load_session',
+        'daemon.close_session',
+        'daemon.interrupt_session',
+        'daemon.answer_elicitation',
+      ].map(async (method) => await changed.request('live', method)),
     );
     expect(changed.loaded).toEqual(new Set());
-    expect(changed.events).toHaveLength(3);
+    expect(changed.events).toHaveLength(4);
   });
 });

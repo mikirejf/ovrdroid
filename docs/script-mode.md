@@ -40,6 +40,11 @@ at effort low, reads the request body of one real turn and showed `Script` and `
 on the direct list. That one turn proves both this patch and `todo-write-direct`, which puts
 `TodoWrite` on the direct list in `script_only` sessions. It stays bound inside `Script` too.
 
+Current default: `probe tool-surface` uses `custom:droidproxy:haiku-5-5` at effort low, and the
+update gate selects that model explicitly. Sonnet was the original regression case, not a
+family-specific requirement: `script-mode-every-model` applies to every model. The Haiku check
+passed on Droid 1.7.0 with both `Script` and `TodoWrite` on the direct list.
+
 From Oct 22 to Oct 30 the patch also put `Read` and `Grep` on the direct list, because Opus 5.5
 called them top level in `script_only` sessions and failed "Not found": 13 failures between Oct 18
 and Oct 22 across long sessions. The measurements below took them off again: they bought nothing for

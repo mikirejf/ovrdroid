@@ -5,13 +5,13 @@ import type { Command } from 'commander';
 
 import { count, guard, MS_PER_SECOND, say } from '../cli.ts';
 import { bodiesEnv, newBodiesFile, parseBodies } from './bodies.ts';
+import { PROBE_MODEL } from './launch.ts';
 import { openLiveSession, submit, withLiveDir } from './live-session.ts';
 import { poll } from './poll.ts';
 import { SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import { describeToolSurface, readToolSurface } from './tool-surface-report.ts';
 
 const PROMPT = 'Reply with the single word "ok". Do not use any tool.';
-const DEFAULT_MODEL = 'custom:droidproxy:sonnet-5-5';
 const DEFAULT_EFFORT = 'low';
 const DEFAULT_TOOL = 'TodoWrite';
 const DEFAULT_TIMEOUT_S = 120;
@@ -70,11 +70,7 @@ export function registerToolSurfaceCommand(program: Command): void {
       'MAKES A REAL MODEL CALL: which tools does the model get as top-level tools in a script_only session, and is a given tool among them? Reads the request body of one turn. The binary must be a `probe build --bodies` build; a non-interactive `droid exec` never offers TodoWrite, so this drives the real TUI',
     )
     .argument('<binary>')
-    .option(
-      '--model-id <id>',
-      'customModels id the session runs on; must run Script',
-      DEFAULT_MODEL,
-    )
+    .option('--model-id <id>', 'customModels id the session runs on; must run Script', PROBE_MODEL)
     .option('--effort <level>', 'reasoning effort of the session', DEFAULT_EFFORT)
     .option('--tool <name>', 'tool that must be on the direct list', DEFAULT_TOOL)
     .option('-o, --out <file>', 'bodies file to write (default: a new /tmp file)')

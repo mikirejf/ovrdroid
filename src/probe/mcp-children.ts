@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import { MS_PER_SECOND, say } from '../cli.ts';
 import type { McpConfig, McpServerEntry } from '../doctor/checks.ts';
@@ -15,6 +14,7 @@ import {
   withFixtureDir,
   writeFixture,
 } from './mcp-fixture.ts';
+import { COLD_START_TIMEOUT_MS, mcpStartTimeout, readMcpStart } from './mcp-start.ts';
 import type { AwakeCheck, ToolTurnResult } from './mcp-tool-turn.ts';
 import { execToolTurn, interactiveTurn, OFFER_WORDS, readingFailure } from './mcp-tool-turn.ts';
 import { describeWake, readWake, wakeFailures, wakePassed } from './mcp-wake-report.ts';
@@ -40,6 +40,7 @@ export interface ServerReading {
 }
 
 export interface McpChildrenOptions {
+  mustStartCold: boolean;
   settle: number;
   env: LaunchEnv;
   servers: readonly StdioServer[];
@@ -247,7 +248,7 @@ function awakeCheck(servers: readonly StdioServer[]): AwakeCheck {
 async function readOneLaunch(
   binary: string,
   options: McpChildrenOptions,
-  ask?: (session: Session) => Promise<void>,
+  firstLaunch: boolean,
 ): Promise<ServerReading[]> {
   const { session } = await openSettledSession(binary, {
     env: options.env,
@@ -255,9 +256,14 @@ async function readOneLaunch(
     collect: false,
   });
   try {
-    await delay(options.settle * MS_PER_SECOND);
-    const readings = await readServers(session.pid, options.servers);
-    await ask?.(session);
+    const readings = await readMcpStart(
+      async () => await readServers(session.pid, options.servers),
+      mcpStartTimeout(options.mustStartCold, firstLaunch),
+      options.settle * MS_PER_SECOND,
+    );
+    if (!firstLaunch) {
+      await options.ask?.(session);
+    }
     return readings;
   } finally {
     await session.close();
@@ -268,9 +274,9 @@ export async function countMcpChildren(
   binary: string,
   options: McpChildrenOptions,
 ): Promise<McpLaunches> {
-  const first = await readOneLaunch(binary, options);
+  const first = await readOneLaunch(binary, options, true);
   options.afterFirst?.();
-  const second = await readOneLaunch(binary, options, options.ask);
+  const second = await readOneLaunch(binary, options, false);
   return { first, second };
 }
 
@@ -292,6 +298,7 @@ async function judgedLaunches(
   run: McpRun,
 ): Promise<McpVerdict> {
   const launches = await countMcpChildren(binary, {
+    mustStartCold: run.mustStartCold,
     settle: options.settle,
     env: options.env,
     servers: run.servers,
@@ -315,6 +322,7 @@ async function judgedFixture(
   };
   try {
     const launches = await countMcpChildren(binary, {
+      mustStartCold: run.mustStartCold,
       settle: options.settle,
       env: { ...options.env, ...interactive.env },
       servers,
@@ -354,6 +362,9 @@ export async function runMcpChildren(
       mustStartCold: false,
     });
   }
+  say(
+    `default fixture: after the first settle, waiting up to ${COLD_START_TIMEOUT_MS / MS_PER_SECOND}s for every server to start; the second launch is sampled once after the ${options.settle}s settle`,
+  );
   say(
     `then one model turn from a local stub in the second launch and one in droid exec, each calling ${FIXTURE_TOOL} on the fixture, and a third session where a sub-agent calls it, the idle stop takes the server down and the next call wakes it`,
   );

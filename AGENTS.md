@@ -177,6 +177,10 @@ that host's sync.
 
 ## Update gate
 
+Gate checks use Luna for OpenAI checks and Haiku for Anthropic checks. Running the update gate,
+including its live model calls, is pre-authorized without asking the user. Ask for explicit approval
+before using any other model for a gate check. Local stubs need no model approval.
+
 After every update to a new Droid version the gate must pass on the build. It runs the after-update
 checks listed in `src/gate/checks.ts`: the build basics (`verify`, `probe builds`, `bun test`) and
 the probes for what costs time or tokens: speed against stock, prompt cache, compaction, MCP

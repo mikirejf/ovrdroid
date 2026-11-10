@@ -482,6 +482,11 @@ string Droid dropped a release earlier, a wait that returned on the launch resul
 completion notice, a cache rule stricter than Droid's own tail churn, a probe that sent a settings
 `${VAR}` api key literally. Fix the probe, with a test, before touching a patch.
 
+A cold fixture must wait for its required startup evidence, not sample once after paint: the input
+box can precede configuration loading. Bound that wait and keep a timeout failing. Keep later
+observations of expected dormancy separate, so waiting for startup cannot wake or mask the server
+whose inactivity the probe judges.
+
 Parallel probes share the session store. Fixture cleanup can remove a project folder while another
 probe enumerates it, so session readers must skip folders that disappear, while propagating other
 filesystem errors. Exercise that interleaving in a test; a passing standalone probe does not cover

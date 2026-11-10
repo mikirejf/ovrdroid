@@ -61,8 +61,16 @@ describe('gateChecks', () => {
     expect(commandOf('bodies-build')).toBe(
       'bun run probe build --target /s/droid --bodies --out /g/droid-bodies',
     );
-    expect(commandOf('tool-surface')).toBe('bun run probe tool-surface /g/droid-bodies');
+    expect(commandOf('tool-surface')).toBe(
+      'bun run probe tool-surface /g/droid-bodies --model-id custom:droidproxy:haiku-5-5',
+    );
     expect(laneNames('live')).toContainEqual(['bodies-build', 'tool-surface', 'effort-switch']);
+  });
+
+  test('pins cachekey to GPT-6 Luna instead of inheriting the exec model from the environment', () => {
+    expect(commandOf('cachekey')).toBe(
+      'bun run probe cachekey /t/droid.tmp --model custom:droidproxy:gpt-6-luna',
+    );
   });
 
   test('runs the effort switch on the bodies binary, because its verdict reads request bodies', () => {
