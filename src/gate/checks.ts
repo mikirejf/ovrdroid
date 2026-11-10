@@ -69,6 +69,8 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
     alone(probe('notice', target)),
     alone(probe('mcp-children', target)),
     alone(probe('compaction-fallback', target)),
+    alone(probe('skill-carry', target)),
+    alone(probe('readonly-shell', target)),
   ];
 
   return [

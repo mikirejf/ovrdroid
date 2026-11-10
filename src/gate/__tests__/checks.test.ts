@@ -129,6 +129,8 @@ describe('gateChecks', () => {
         'bodies-build',
         'tool-surface',
         'compaction-fallback',
+        'skill-carry',
+        'readonly-shell',
         'digest-run',
       ].toSorted(),
     );

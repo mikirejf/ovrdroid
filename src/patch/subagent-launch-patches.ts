@@ -7,9 +7,10 @@ import {
 } from './subagent-model-patches.ts';
 
 const READONLY_FIELD_DESCRIPTION =
-  'Optional. Set true to make this subagent unable to change anything. It loses its Edit, Create, and Apply Patch tools, ' +
-  'and its shell runs only read-only commands. A subagent whose droid already limits its tools keeps only the read-only tools it had. ' +
-  'These are the same limits the explorer agent has. Leave it out or set false for the normal tools.';
+  'Optional. Set true for work that leaves the repository unchanged. The subagent loses its Edit, Create, and Apply Patch tools. ' +
+  'Its shell still runs commands up to medium risk (tests, builds, scratch programs) and refuses high-risk ones, ' +
+  'so tell it in the prompt to write only in a temp folder. A subagent whose droid already limits its tools keeps only the read-only tools it had. ' +
+  'Leave it out or set false for the normal tools.';
 
 const TASK_RESUME_FIELD =
   'resume:e().optional().describe("Task ID (session ID) from a previous invocation to resume with full context preserved")';
@@ -93,6 +94,10 @@ const READONLY_TOOLS =
 
 const SKILL_NAME_FIELD = 'g={name:c.name,description:c.description,license:c.license,';
 
+const AUTONOMY_CAP_LOOKUP = 'return r?Rs(h,"low"):h}';
+
+const STOCK_RESUMED_AUTONOMY = 'me=ye?Rs(S.parentAutonomyLevel,"low"):S.parentAutonomyLevel';
+
 export const subagentLaunchPatches: readonly Patch[] = [
   {
     name: 'skill-name-is-its-slug',
@@ -129,9 +134,16 @@ export const subagentLaunchPatches: readonly Patch[] = [
   },
   {
     name: 'task-readonly-applies-read-only-policy',
-    find: 'V=vi.usesReadOnlyPolicy(R.metadata.tools)',
-    lookups: [TASK_CONFIG_LOOKUP],
-    replace: 'V=vi.usesReadOnlyPolicy(R.metadata.tools)||t.readonly===!0',
+    find: 'V=vi.usesReadOnlyPolicy(R.metadata.tools),q=Ie.resolveSubagentAutonomyLevel(o,V)',
+    lookups: [TASK_CONFIG_LOOKUP, AUTONOMY_CAP_LOOKUP],
+    replace:
+      '$ODown=vi.usesReadOnlyPolicy(R.metadata.tools),V=$ODown||t.readonly===!0,' +
+      '$ODlevel=Ie.resolveSubagentAutonomyLevel(o,$ODown),q=V?Rs($ODlevel,"medium"):$ODlevel',
+  },
+  {
+    name: 'task-readonly-child-keeps-medium-autonomy',
+    find: STOCK_RESUMED_AUTONOMY,
+    replace: STOCK_RESUMED_AUTONOMY.replace('"low"', '"medium"'),
   },
   {
     name: 'task-readonly-restricts-enabled-tools',

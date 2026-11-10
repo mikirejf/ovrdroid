@@ -205,6 +205,42 @@ chat, and the cut agent stayed with the old chat. Stock failed the first three. 
 kept agent's completion notice and tokens reached neither chat within the probe's wait, and not the
 old chat either.
 
+## Shipped: a read-only launch keeps a working shell
+
+Measured on 1.6.1 with `probe readonly-shell`, a stub-model session at high autonomy.
+
+The `readonly` field on the Task tool (`task-schema-readonly-field` and its companions) launches any
+droid under stock's read-only policy: no Edit, Create or Apply Patch, the `read-only` session tag,
+and no skipped permissions. Stock's policy also caps the child's autonomy at low, so the child could
+not run a test, a build or a scratch program. A reviewer that has to run tests was launched writable
+instead, and nothing but its prompt kept it out of the repo.
+
+Stock caps in two places. The launch calls `resolveSubagentAutonomyLevel(context, readOnly)`.
+Loading a child session, which every resume does, caps again when the child's tags hold `read-only`,
+and writes the result to the child's settings. Inside the child the tag itself blocks nothing by
+risk: it makes permission prompts reject themselves. The `autonomyLevel` setting decides which
+commands run.
+
+`task-readonly-applies-read-only-policy` now caps at low only when the droid's own tools are
+read-only, and at medium when the launch flag asked for it.
+`task-readonly-child-keeps-medium-autonomy` changes the cap on load to medium. A droid with
+`tools: read-only` still gets low there, because its launch and resume configs already carry low.
+The session's own level still applies: a parent at low gives a child at low.
+
+| Child, parent at high                 | Before                       | After                        |
+| :------------------------------------ | :--------------------------- | :--------------------------- |
+| `readonly: true`, launch and resume   | autonomy low, medium refused | autonomy medium, medium runs |
+| droid with `tools: read-only`, both   | autonomy low, medium refused | the same                     |
+| high-risk command, `Create`, all four | refused                      | refused                      |
+
+So the flag no longer promises an unchanged repo. The child has no edit tools, but a shell command
+it rates medium can write files. The field's description tells the caller to say "write only in a
+temp folder" in the prompt.
+
+Not handled: a `tools: read-only` droid's child resumed after its task-store record is gone (48
+hours after the task ends) under a different `subagent_type`, or after its droid file lost
+`tools: read-only`, comes back at medium. Its tools stay read-only.
+
 ## Null: the memory left after subagents
 
 After 6 subagents ended, the parent's footprint stayed ~80 to 170MB higher. A heap snapshot (which
@@ -226,6 +262,9 @@ All live in `src/probe/`:
 - `probe census` lists every process by footprint and finds orphans.
 - `probe rewind <binary>` rewinds while background agents run and says which chat each one belongs
   to afterwards. It needs a folder Droid already trusts (`--cwd`, default the current one).
+- `probe readonly-shell <binary>` launches and resumes a `readonly: true` child and a
+  `tools: read-only` droid, and says which of a medium-risk command, a high-risk one and `Create`
+  each could run. Stub model, no real calls.
 
 ## What fills the machine
 

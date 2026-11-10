@@ -30,11 +30,31 @@ interface PickInputs {
 
 type Pick = (launch: unknown, inputs: PickInputs) => Picked;
 
+type Level = 'off' | 'low' | 'medium' | 'high';
+
+const RANK: Record<Level, number> = { off: 0, low: 1, medium: 2, high: 3 };
+
+function lowerOf(level: Level, cap: Level): Level {
+  return RANK[level] <= RANK[cap] ? level : cap;
+}
+
+interface FakeLauncher {
+  resolveSubagentAutonomyLevel: (dependencies: unknown, droidIsReadOnly?: boolean) => Level;
+}
+
+function launcherIn(session: Level): FakeLauncher {
+  return {
+    resolveSubagentAutonomyLevel: (_dependencies, droidIsReadOnly = false) =>
+      droidIsReadOnly ? lowerOf(session, 'low') : session,
+  };
+}
+
 interface LaunchRun {
   tools: string[];
   restricted: boolean;
   readOnlyPolicy: boolean;
   modelId: string | undefined;
+  autonomy: Level;
 }
 
 interface Launched extends LaunchRun {
@@ -77,13 +97,21 @@ function patched(name: string): string {
 }
 
 const run = payloadFunction<
-  [{ readonly: boolean | undefined }, FakeDroid, FakeTools, string | undefined, Pick],
+  [
+    { readonly: boolean | undefined },
+    FakeDroid,
+    FakeTools,
+    string | undefined,
+    Pick,
+    FakeLauncher,
+    typeof lowerOf,
+  ],
   LaunchRun
 >(
-  ['t', 'R', 'vi', 'F', '$ODpick'],
-  `let $ODl,o,A,lw,Ie,$ODids=()=>[],v={type:"custom"},${patched('task-launch-picks-model-then-expands-tools')},` +
+  ['t', 'R', 'vi', 'F', '$ODpick', 'Ie', 'Rs'],
+  `let $ODl,o,A,lw,$ODids=()=>[],v={type:"custom"},${patched('task-launch-picks-model-then-expands-tools')},` +
     `${patched('task-readonly-applies-read-only-policy')},${patched('task-readonly-restricts-enabled-tools')};` +
-    'return{tools:_,restricted:ye,readOnlyPolicy:V,modelId:O}',
+    'return{tools:_,restricted:ye,readOnlyPolicy:V,modelId:O,autonomy:q}',
 );
 
 interface LaunchOptions {
@@ -91,6 +119,7 @@ interface LaunchOptions {
   declaredModel?: string;
   picked?: Picked;
   events?: string[];
+  session?: Level;
 }
 
 function launchTools(
@@ -114,6 +143,8 @@ function launchTools(
       seen = inputs;
       return options.picked ?? {};
     },
+    launcherIn(options.session ?? 'high'),
+    lowerOf,
   );
   if (seen === undefined) {
     throw new TypeError('the launcher never called the pick');
@@ -164,6 +195,58 @@ describe('readonly on a launch applies the explorer read-only policy', () => {
     expect(result.tools).toEqual(['Read', 'Edit', HIDDEN]);
     expect(result.restricted).toBe(true);
     expect(result.readOnlyPolicy).toBe(false);
+  });
+});
+
+describe('readonly on a launch lets the shell run commands up to medium risk', () => {
+  test.each([
+    ['high', 'medium'],
+    ['medium', 'medium'],
+    ['low', 'low'],
+    ['off', 'off'],
+  ] as const)('in a session at %s the subagent runs at %s', (session, expected) => {
+    expect(launchTools(true, undefined, { session }).autonomy).toBe(expected);
+  });
+
+  test('a droid with its own tool list is capped the same way', () => {
+    expect(launchTools(true, ['Read', 'Edit']).autonomy).toBe('medium');
+  });
+
+  test.each([
+    ['with the flag', true],
+    ['without the flag', undefined],
+  ])('a droid whose own tools are read-only stays at low, %s', (_label, readonly) => {
+    expect(launchTools(readonly, 'read-only').autonomy).toBe('low');
+  });
+
+  test.each([
+    ['absent', undefined],
+    ['false', false],
+  ])('readonly %s leaves the subagent at the session level', (_label, readonly) => {
+    expect(launchTools(readonly).autonomy).toBe('high');
+  });
+});
+
+interface ResumeConfig {
+  parentAutonomyLevel: Level;
+}
+
+const resumedAutonomy = payloadFunction<[boolean, ResumeConfig, typeof lowerOf], Level>(
+  ['ye', 'S', 'Rs'],
+  `let ${patched('task-readonly-child-keeps-medium-autonomy')};return me`,
+);
+
+describe('a subagent launched with readonly keeps medium when it is resumed or reattached', () => {
+  test('a read-only child of a session at high comes back at medium', () => {
+    expect(resumedAutonomy(true, { parentAutonomyLevel: 'high' }, lowerOf)).toBe('medium');
+  });
+
+  test('a child whose droid is read-only arrives already capped and stays at low', () => {
+    expect(resumedAutonomy(true, { parentAutonomyLevel: 'low' }, lowerOf)).toBe('low');
+  });
+
+  test('a child that is not read-only keeps the session level', () => {
+    expect(resumedAutonomy(false, { parentAutonomyLevel: 'high' }, lowerOf)).toBe('high');
   });
 });
 
