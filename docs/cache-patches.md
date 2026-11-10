@@ -260,6 +260,58 @@ A main session has no calling session, so its summary is returned as stock retur
 the session fails, the summary is returned without the brief, because losing the compaction is worse
 than losing the brief.
 
+### A skill typed with `/` keeps its text
+
+Typing `/name` puts the whole skill file into that user message. A compaction replaces the message
+with the summary, and stock keeps only the skill's name: the note after the summary lists it under
+"Skills loaded earlier in this session" and tells the model to load it again with the Skill tool. A
+skill with `disable-model-invocation: true` cannot be loaded that way, so its instructions are gone
+for the rest of the session.
+
+Three patches in `src/patch/skill-carry-patches.ts`, all in the summarizer chunk:
+
+- `compaction-keeps-typed-skill-text` adds the text to the list stock already stores with each
+  compaction record (`retainedSkills`, an array of strings). For every user text block that holds
+  the notice Droid writes for a typed skill, it stores one extra entry: a `<system-notification>`
+  with a lead line ("The user invoked the following skill earlier in this session by typing /name in
+  a message. Its instructions still apply.") and the `<skill>` block word for word. What the user
+  wrote around the command is left to the summary. The entry is found again in the stored list at
+  the next compaction, so it is carried forward once and unchanged. Typing the skill again replaces
+  its text.
+- `compaction-note-shows-typed-skill-text` prints those entries in full after `</summary>`, and
+  leaves a carried skill out of the reload line.
+- `compaction-leaves-out-skills-typed-in-kept-messages` covers the automatic compaction, which keeps
+  the newest messages. A skill typed in a kept message is still shown there, so its entry and its
+  name are dropped from the list that compaction stores and prints. The next compaction that removes
+  the message finds the notice in it and carries the text from then on.
+
+Skills the model loaded with the Skill tool are untouched: names only, as stock does it.
+
+The text counts toward the note's token estimate, which stock already subtracts from the room it
+gives the summary and the kept messages. The entries are not in the transcript the stock summarizer
+reads, and on the reuse path the summarizing model sees them where the next turn will.
+
+Measured on 1.6.1, 2026-11-10, `bun run probe skill-carry <binary>` (stub model, no real model
+calls; it types a fixture skill, runs `/compress` twice, restarts the session, and reads what each
+turn sends):
+
+| build   | turn it was typed in | after compaction 1 | after compaction 2 | after a restart |
+| ------- | -------------------- | ------------------ | ------------------ | --------------- |
+| stock   | text once            | name only          | name only          | name only       |
+| patched | text once            | text once          | text once          | text once       |
+
+Limits:
+
+- Every skill typed with `/` is carried for the rest of the session, at its full size on every
+  request. Stock sizes the kept messages after subtracting the note, so several large skills shrink
+  what a compaction keeps.
+- The live probe compacts with `/compress`, which keeps no messages. The automatic compaction is
+  covered by unit tests of the payload and was run once through stock's own compaction function with
+  a skill typed in a kept message: two copies of the text without the third patch, one with it.
+- A session compacted before the patch does not get the text back. Type the skill again.
+- The payload looks for the wording of Droid's notice ("by typing /"). A test fills the stock
+  template and fails when a release changes it.
+
 ### Messages the snapshot missed
 
 The snapshot is the last request, so it misses that request's reply and tool results. Manual

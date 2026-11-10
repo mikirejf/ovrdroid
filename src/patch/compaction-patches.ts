@@ -1,4 +1,5 @@
 import type { Patch } from './patches.ts';
+import { skillCarryPatches } from './skill-carry-patches.ts';
 import {
   HEADING_FLAGS,
   HEADING_SOURCE,
@@ -143,4 +144,5 @@ export const compactionPatches: readonly Patch[] = [
     ],
     replace: `${PARENT_BRIEF}${SUMMARIZER_END}`,
   },
+  ...skillCarryPatches,
 ];
