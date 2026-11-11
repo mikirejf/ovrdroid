@@ -1,3 +1,10 @@
+import os from 'node:os';
+import process from 'node:process';
+import tty from 'node:tty';
+
+import { parse as parseJavaScript } from '@babel/parser';
+import traverse from '@babel/traverse';
+
 import type { App } from '../../binary/graph.ts';
 import { blockEnd } from '../tokens.ts';
 import { moduleHolding, sourceApp, textOf } from './ink-frame-harness.ts';
@@ -212,7 +219,33 @@ export interface Grid {
   write: (...args: WriteArguments) => void;
   clip: (area: Area) => void;
   unclip: () => void;
+  paint: (painter: Painter, box: Box) => void;
   get: () => { output: string; height: number };
+}
+
+export interface Box {
+  x: number;
+  y: number;
+}
+
+export type Painter = (cells: Cell[][], box: Box) => void;
+
+interface Span {
+  row: number;
+  start: number;
+  end: number;
+}
+
+interface Painters {
+  selection: (...args: [cells: Cell[][], box: Box, spans: Span[], color?: string]) => void;
+  hover: (
+    ...args: [
+      cells: Cell[][],
+      box: Box,
+      target: { spans: Span[]; text?: string; contrastGlyph?: boolean },
+      color?: string,
+    ]
+  ) => void;
 }
 
 export type GridClass = new (size: Size) => Grid;
@@ -221,8 +254,68 @@ export interface GridOptions {
   blank?: (cell: Cell) => Cell;
 }
 
-const GRID_CLASS = /class (?<name>[\w$]+)\{operations=\[\];caches=new [\w$]+;width;height;/u;
+const GRID_CLASS =
+  /class (?<name>[\w$]+)\{operations=\[\];painters=\[\];caches=new [\w$]+;width;height;/u;
 const BLANK = '{type:"char",value:" ",fullWidth:!1,styles:[]}';
+const SELECTION_PAINTER =
+  /function (?<name>[\w$]+)\([\w$]+,[\w$]+,[\w$]+,[\w$]+\)\{let [\w$]+=[\w$]+\([\w$]+\),[\w$]+=new Map;for\(let [\w$]+ of [\w$]+\)\{/u;
+const HOVER_PAINTER =
+  /function (?<name>[\w$]+)\([\w$]+,[\w$]+,[\w$]+,[\w$]+\)\{let [\w$]+=[\w$]+\([\w$]+\),[\w$]+=new Map;for\(let [\w$]+ of [\w$]+\.spans\)\{/u;
+
+function painterImports(text: string, source: string) {
+  const free = new Set<string>();
+  traverse(parseJavaScript(source, { sourceType: 'module' }), {
+    ReferencedIdentifier(path) {
+      if (!path.scope.hasBinding(path.node.name)) {
+        free.add(path.node.name);
+      }
+    },
+  });
+  return [...importBindings(text)].filter(([name]) => free.has(name));
+}
+
+function painterDependency(from: string, exported: string): Stand {
+  const text = textOf(sourceApp(), from);
+  const setLevel = /var (?<name>[\w$]+)=\((?<arg>[\w$]+)\)=>\{[\w$]+\.level=\k<arg>\},/u.exec(text)
+    ?.groups?.['name'];
+  const source = closureOf(text, setLevel === undefined ? [exported] : [exported, setLevel]);
+  const builtins = new Map<string, Stand>([
+    ['os', os],
+    ['process', process],
+    ['tty', tty],
+  ]);
+  const overrides = new Map<string, Stand>();
+  for (const match of text.matchAll(/import (?<name>[\w$]+) from"(?<module>os|process|tty)";/gu)) {
+    overrides.set(match.groups?.['name'] ?? '', builtins.get(match.groups?.['module'] ?? ''));
+  }
+  for (const [local, binding] of painterImports(text, source)) {
+    overrides.set(local, painterDependency(binding.from, binding.exported));
+  }
+  const result = evaluateProgram<{ value: Stand; setLevel?: (level: number) => void }>({
+    moduleText: text,
+    source,
+    returns: [`value:${exported}`, ...(setLevel === undefined ? [] : [`setLevel:${setLevel}`])],
+    overrides,
+  });
+  result.setLevel?.(3);
+  return result.value;
+}
+
+export function stockPainters(): Painters {
+  const text = textOf(sourceApp(), moduleHolding(sourceApp(), 'contrastGlyph'));
+  const selection = matched(text, SELECTION_PAINTER);
+  const hover = matched(text, HOVER_PAINTER);
+  const source = closureOf(text, [selection, hover]);
+  const imported = painterImports(text, source).map(
+    ([local, { from, exported }]) => [local, painterDependency(from, exported)] as const,
+  );
+  return evaluateProgram<Painters>({
+    moduleText: text,
+    source,
+    returns: [`selection:${selection}`, `hover:${hover}`],
+    overrides: new Map<string, Stand>(imported),
+  });
+}
 
 function gridIn(text: string, options: GridOptions): GridClass {
   const className = matched(text, GRID_CLASS);

@@ -399,6 +399,11 @@ platforms. Write any new one the same way:
 - A harness that evaluates several stock functions from one module breaks when upstream moves one
   into another chunk. Evaluate each in its own chunk's scope and hand the names one imports from
   the other in as overrides, read from the importer's `import` header.
+- When a renderer adds a post-processing pass over its cell grid, audit its real writers before
+  keeping a shared-cell patch. Exercise the stock writers on guarded cells and compare their output
+  with stock; tests covering only the old drawing operations miss the new mutation path.
+- Resolve imports for extracted helpers by lexical scope: a short name used as a local in one
+  function may also name an unrelated module import. Spelling alone pulls in the wrong dependency.
 - The 400-line lint limit applies to test harnesses too. Move a helper into its own file
   (`mcp-fake-fs.ts`, `scanner-source.ts`) instead of trimming code.
 

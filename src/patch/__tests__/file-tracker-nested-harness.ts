@@ -101,6 +101,7 @@ async function admit(_dependencies: Stand, call: { toolName: string; input: Stan
     preflight: {},
     admitted: { tool: { id: call.toolName } },
     confirmationAutonomyLevel: undefined,
+    sandboxScopedReadPaths: [],
     decision: {},
   };
 }

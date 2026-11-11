@@ -104,7 +104,7 @@ export const SESSION_LIST_STATICS =
   SESSION_VIEW;
 
 const FF_HEAD =
-  'function ff({items:y,selectedIndex:E,helpText:A,width:D,minWidth:F=78,marginTop:U=1,fullWidth:z=!1,children:q,minVisibleCount:G,visibleCount:j,noBorder:X=!1}){let{t:oe}=L(),{width:ae}=Zn(),';
+  'function ff({items:y,selectedIndex:E,helpText:A,width:D,minWidth:F=78,marginTop:U=1,fullWidth:z=!1,children:q,minVisibleCount:G,visibleCount:j,';
 
 const LIST_COMPONENT =
   'function $ODSessionList({items:$ODitems,selectedIndex:$ODsel,width:$ODwide}){' +
@@ -133,7 +133,8 @@ export const sessionListPatches: readonly Patch[] = [
     lookups: [
       'var Wre=()=>R().t("common:fileSuggestions.file"),r5=100;class uu{',
       'children:[t(T,{borderStyle:X?void 0:"round",borderColor:X?void 0:o.border,',
-      'return l(i,{bold:Pe,children:[t(i,{color:Ne(),children:Pe?we.selectedPrefix??"> ":"  "})',
+      'return l(i,{bold:Pe,wrap:Wr?"truncate-end":"wrap",children:[t(i,{color:Ne(),children:Pe?we.selectedPrefix??"> ":"  "})',
+      'noBorder:X=!1,truncateItems:Z=!1,anchorRow:e1=3}){let{t:oe}=L(),{width:ae}=Zn(),',
       'ao=S(null),Po=S(0),go=S(null)',
       'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current)',
     ],

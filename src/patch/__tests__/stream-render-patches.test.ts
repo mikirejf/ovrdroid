@@ -3,7 +3,14 @@ import { describe, expect, test } from 'bun:test';
 import { applies } from '../rebase.ts';
 import { MARKDOWN_MEMO_ENTRIES, streamRenderPatches } from '../stream-render-patches.ts';
 import { STOCK } from './ink-frame-harness.ts';
-import { patchedGrid, patchedMarkdown, stockGrid, stockMarkdown } from './stream-render-code.ts';
+import type { Cell, GridClass } from './stream-render-code.ts';
+import {
+  patchedGrid,
+  patchedMarkdown,
+  stockGrid,
+  stockMarkdown,
+  stockPainters,
+} from './stream-render-code.ts';
 import { INPUTS, prefixesOf, render, REPLY, SAMPLES } from './stream-render-frames.ts';
 import { guarded, rebased } from './stream-render-harness.ts';
 
@@ -190,4 +197,49 @@ describe.skipIf(STOCK === undefined)('ink-blank-cell-shared', () => {
       expect(render(Grid, sample)).toStrictEqual(render(stockGrid(), sample));
     }
   });
+
+  test.each(['selection', 'hover'] as const)(
+    'the stock %s painter replaces guarded blank slots without changing other positions',
+    (kind) => {
+      const painters = stockPainters();
+      for (const color of [undefined, '#345678']) {
+        let blank: Cell | undefined;
+        const Grid = patchedGrid({
+          blank: (cell) => {
+            blank = guarded(cell);
+            return blank;
+          },
+        });
+        const paint = (cells: Cell[][], box: { x: number; y: number }) => {
+          const spans = [{ row: 0, start: 0, end: 2 }];
+          if (kind === 'selection') {
+            painters.selection(cells, box, spans, color);
+          } else {
+            painters.hover(cells, box, { spans, text: '  X', contrastGlyph: true }, color);
+          }
+        };
+        const frame = (Output: GridClass) => {
+          const grid = new Output({ width: 8, height: 3 });
+          grid.paint(paint, { x: 1, y: 1 });
+          grid.write(3, 1, '\u001B[31mX\u001B[39m', { transformers: [] });
+          return grid.get();
+        };
+        const expected = frame(stockGrid());
+        expect(frame(Grid)).toStrictEqual(expected);
+        expect(expected.output).toContain('X');
+        if (kind === 'selection') {
+          expect(expected.output).toContain(color === undefined ? '\u001B[7m' : '\u001B[48;2;');
+        } else if (color !== undefined) {
+          expect(expected.output).toContain('\u001B[48;2;');
+        }
+        expect(blank?.type).toBe('char');
+        expect(blank?.value).toBe(' ');
+        expect(blank?.fullWidth).toBe(false);
+        expect(blank?.styles.length).toBe(0);
+        expect(
+          render(Grid, { name: 'after paint', size: { width: 8, height: 3 }, operations: [] }),
+        ).toStrictEqual({ output: '\n\n', height: 3 });
+      }
+    },
+  );
 });
