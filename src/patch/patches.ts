@@ -83,8 +83,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'shutdown-flush-deadline',
-    find: 'var x=3000,H=2000,M=1e4,R=1000,A=250',
-    replace: 'var x=3000,H=2000,M=1e4,R=10,A=250',
+    find: 'var H=2000,M=1e4,R=1000,A=250',
+    replace: 'var H=2000,M=1e4,R=10,A=250',
   },
   {
     name: 'zod-v3-lazy-bound-methods',
@@ -181,12 +181,12 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-load-reads-loaded-settings',
-    find: 'U=await t.loadSession(e.sessionId,x),H=Number(',
+    find: 'U=await t.loadSession(e.sessionId,x)',
     lookups: [
       'zi=me({name:"SessionController",lifecycle:"agent",create:()=>new se});function _n(){let Wz=_e(zi);',
       'getCustomModels(){return C().getCustomModels()}',
     ],
-    replace: 'U=(_e(zi)&&await C().initialize(),await t.loadSession(e.sessionId,x)),H=Number(',
+    replace: 'U=(_e(zi)&&await C().initialize(),await t.loadSession(e.sessionId,x))',
   },
   {
     name: 'session-worker-starts-mcp-in-background',
@@ -202,14 +202,14 @@ export const patches: readonly Patch[] = [
       'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
       'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3),',
     lookups: [
-      'k4=Fu(U1.queuePlacement);if(R3&&k4==="end_of_turn"){let B3=Qy({text:P4,images:Ju(U1.images)})',
+      'k4=Fu(U1.queuePlacement);if(R3&&k4==="end_of_turn"){let B3=Qy({text:P4,images:Ju(U1.images),files:U1.files})',
       'd2=U1.requestId??e2?.requestId??st(),F2=U1.messageId??e2?.messageId??st(),xe,He=!1,k2,r3=!1,$2=()=>{',
     ],
     replace:
       'i4=E3??E1.current,$ODe=null;if(!i4&&Fu(U1.queuePlacement)==="end_of_turn"){' +
       'let $ODm=Z2?J1.getSessionStateManager().getSessionManager(Z2):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(d2,{id:F2,role:U1.role??"user",content:Qy({text:U1.message,images:Ju(U1.images)}),' +
+      '$ODm.addOptimisticMessage(d2,{id:F2,role:U1.role??"user",content:Qy({text:U1.message,images:Ju(U1.images),files:U1.files}),' +
       'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...U1.visibility&&{visibility:U1.visibility}}),' +
       '$ODm.setThinking(),$ODe=$ODm,xe={remove:()=>{$ODm.removeOptimisticMessage(d2);' +
       'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(d2)===void 0}}}' +
@@ -237,8 +237,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'escape-stop-hint-says-twice',
-    find: '"(Please wait)":"(Press ESC to stop)"}',
-    replace: '"(Please wait)":"(Esc twice to stop)"}',
+    find: 'return g.isEscClaimed?"":"(Press ESC to stop)"',
+    replace: 'return g.isEscClaimed?"":"(Esc twice to stop)"',
   },
   {
     name: 'rewind-stops-running-turn',

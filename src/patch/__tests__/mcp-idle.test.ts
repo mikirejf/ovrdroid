@@ -27,7 +27,7 @@ describe('starting a session', () => {
     const world = await dormantWorld();
 
     expect(world.dormant).toBe(true);
-    expect(world.hub.servers[SERVER]?.pid).toBeNull();
+    expect(world.owned).toEqual(new Set());
     expect(world.spawned).toEqual([]);
     expect(await world.listed()).toEqual(TOOLS);
     expect(world.calls).toEqual([]);
@@ -61,14 +61,20 @@ describe('starting a session', () => {
 });
 
 describe('waking', () => {
-  test('the first tool call spawns the server once and then runs the call', async () => {
+  test('the first tool call wakes once and forwards its dispatch listener before sending', async () => {
     const world = await dormantWorld();
+    const onDispatched = () => {
+      expect(world.calls).not.toContain('callTool:click');
+      world.calls.push('dispatched');
+      throw new Error('listener failed');
+    };
 
-    await world.hub.callTool(SERVER, 'click');
+    await world.hub.callTool(SERVER, 'click', {}, 's', 'AGENT', undefined, undefined, onDispatched);
 
     expect(world.spawned).toHaveLength(1);
     expect(world.dormant).toBe(false);
     expect(world.calls).toContain('callTool:click');
+    expect(world.calls.filter((call) => call === 'dispatched')).toHaveLength(1);
   });
 
   test('a call on a seeded server that arrives before it connects waits, then wakes it', async () => {
@@ -94,6 +100,25 @@ describe('waking', () => {
     await world.hub.callTool(SERVER, 'click');
 
     expect(world.calls).toEqual(['listTools', 'callTool:click']);
+  });
+
+  test('a catalog change before send prevents dispatch notification and execution', async () => {
+    const world = await liveWorld();
+    world.era = 'modern';
+    const prepared = await world.hub.prepareToolInvocation(SERVER, 'click');
+    let checks = 0;
+    prepared.isCurrent = () => {
+      checks += 1;
+      return checks === 1;
+    };
+    const notify = () => {
+      world.calls.push('dispatched');
+    };
+    world.calls.length = 0;
+    const call = world.hub.callTool(SERVER, 'click', {}, 's', 'AGENT', undefined, prepared, notify);
+    expect(await call.then(() => '', String)).toContain('catalog changed before execution');
+    expect(checks).toBe(2);
+    expect(world.calls).toEqual([]);
   });
 
   test('three concurrent calls share one spawn', async () => {
@@ -183,29 +208,26 @@ describe('refreshing the tool list after a wake', () => {
     expect(world.calls).toContain('listTools');
     expect(world.files).toEqual(before);
     expect(world.changed).toEqual([]);
+    const listed = await world.listed();
+    world.tools = TOOLS.map((tool) => ({ ...tool }));
+    world.hub.toolsListCache.delete(SERVER);
+    const refreshed = await world.listed();
+    expect(refreshed[0]).toBe(listed[0]);
+    expect(refreshed[1]).toBe(listed[1]);
   });
 });
 
 describe('sleeping when idle', () => {
-  test('the idle timer puts the server back to sleep and kills a process that outlived close', async () => {
+  test('the idle timer puts the server back to sleep and delegates teardown to its transport', async () => {
     const world = await liveWorld();
 
     await world.fireIdle();
 
     expect(world.dormant).toBe(true);
     expect(world.closed).toEqual([FIRST_PID]);
-    expect(world.killed).toEqual([FIRST_PID]);
+    expect(world.alive).toEqual(new Set());
+    expect(world.owned).toEqual(new Set());
     expect(await world.listed()).toEqual(TOOLS);
-  });
-
-  test('a process that exits on close is not killed', async () => {
-    const world = await liveWorld();
-    world.exitOnClose = true;
-
-    await world.fireIdle();
-
-    expect(world.closed).toEqual([FIRST_PID]);
-    expect(world.killed).toEqual([]);
   });
 
   test('the next call after sleeping spawns a fresh process', async () => {
@@ -280,20 +302,20 @@ describe('sleeping when idle', () => {
     expect(world.alive).toEqual(new Set());
   });
 
-  test('the exit spool reaps the old process until its idle stop finishes, then nothing', async () => {
+  test('the transport retains ownership until its idle close finishes', async () => {
     const world = await liveWorld();
-    expect(world.reapedAtExit).toEqual([FIRST_PID]);
+    expect(world.owned).toEqual(new Set([FIRST_PID]));
     const release = world.hold('close');
 
     await world.fireIdle();
     expect(world.dormant).toBe(true);
-    expect(world.reapedAtExit).toEqual([FIRST_PID]);
+    expect(world.owned).toEqual(new Set([FIRST_PID]));
 
     release();
     await HubWorld.settle();
 
-    expect(world.reapedAtExit).toEqual([]);
-    expect(world.hub.servers[SERVER]?.pid).toBeNull();
+    expect(world.owned).toEqual(new Set());
+    expect(world.alive).toEqual(new Set());
   });
 
   test('a live resource subscription keeps the server awake and re-arms the timer', async () => {
@@ -312,16 +334,6 @@ describe('sleeping when idle', () => {
     const world = await liveWorld();
     await world.hub.removeServer(SERVER);
     expect([world.pending, world.hub.servers[SERVER]]).toEqual([[], undefined]);
-  });
-
-  test('sleeping releases the process ownership, and waking and removing leave none behind', async () => {
-    const world = await liveWorld();
-    await world.fireIdle();
-    const asleep = new Set(world.owned);
-    await world.hub.callTool(SERVER, 'click');
-    const awake = new Set(world.owned);
-    await world.hub.removeServer(SERVER);
-    expect([asleep, awake, world.owned]).toEqual([new Set(), new Set([FIRST_PID + 1]), new Set()]);
   });
 });
 
@@ -350,7 +362,7 @@ describe('a dormant server', () => {
 
     expect(world.hub.servers[SERVER]).toBeUndefined();
     expect(world.hub.toolsListCache.has(SERVER)).toBe(false);
-    expect(world.killed).toEqual([]);
+    expect(world.closed).toEqual([]);
   });
 
   test('can be retried and restarted, and stays dormant', async () => {

@@ -55,7 +55,7 @@ const KIDS = 'function $ODWk($ODsid){try{return globalThis.__odKids?.($ODsid)??0
 
 const SNAPSHOT_STORE = 'Qh.set(t.sessionId,{snapshot:t,capturedBy:new WeakRef(Dt())})';
 const CHILD_TRACKER =
-  'function ST(){let e=Se(vi);if(e)return e;return zt??=new ze,zt}class he{detachedController=';
+  'function ST(){let e=Se(vi);if(e)return e;return zt??=new ze,zt}var Mm=5000;class he{detachedController=';
 
 const ARM =
   `function $ODWd($ODsnap){let $ODenv=Number(process.env.${WARM_DELAY_ENV});` +
@@ -92,9 +92,10 @@ export const warmerPatches: readonly Patch[] = [
     name: 'cache-warm-arm',
     find: `function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE}}`,
     lookups: [
-      'function ee(t){return sw(t,{getCustomModels:()=>C().getCustomModels()',
+      'let o=ee(t.modelId);return o.modelProvider==="anthropic"&&!o.isUnknownFallback}',
+      'let t=C(),s=t.getCustomModels();',
       'function p(){let t=Te(IX);if(t)return t;if(!kv)kv=new Oi,',
-      'n("[Prompt-Caching] Failed to promote cached prefix",{sessionId:',
+      'n("[Prompt-Caching] Failed to refresh cached prefix",{sessionId:',
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,
       'return vo(()=>Xq(e))}catch(e){return Promise.reject(e)}}takePendingMissionMetadataSync(){',
     ],
@@ -102,14 +103,15 @@ export const warmerPatches: readonly Patch[] = [
   },
   {
     name: 'cache-warm-close',
-    find: 'function LV(t){vu(t),Zh.delete(t)}',
-    replace: 'function LV(t){$ODWc(t),$ODWon.delete(t),$ODWr.delete(t),vu(t),Zh.delete(t)}',
+    find: 'function mY(t){Qh.delete(t)}function nY(t,o){',
+    replace:
+      'function mY(t){$ODWc(t),$ODWon.delete(t),$ODWr.delete(t),Qh.delete(t)}function nY(t,o){',
   },
   {
     name: 'cache-warm-forget',
-    find: 'function mY(t){Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)Qh.delete(t)}',
+    find: 'function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)Qh.delete(t)}',
     replace:
-      'function mY(t){$ODWc(t),$ODWr.delete(t),Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)$ODWc(t),$ODWr.delete(t),Qh.delete(t)}',
+      'function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)$ODWc(t),$ODWr.delete(t),Qh.delete(t)}',
   },
   {
     name: 'cache-warm-child-count',

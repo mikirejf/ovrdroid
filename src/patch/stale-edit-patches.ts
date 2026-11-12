@@ -13,10 +13,8 @@ const EDIT_CHECKS =
 
 const EDIT_RESULT = 'changesApplied:v,diffLines:I.diffLines}}catch(g)';
 
-const EDIT_REPLY_HEAD =
-  '{diffLines:I}=y,{additions:x,deletions:P}=ld(I),k={success:!0,file_path:f,diffLines:I,linesAdded:x,linesRemoved:P};';
-
-const EDIT_REPLY_TAIL = 'yield{type:"result",isError:!1,value:JSON.stringify(k)}';
+const EDIT_REPLY =
+  'yield{type:"result",isError:!1,value:JSON.stringify(Yse({filePath:f,diffLines:y.diffLines,systemReminder:v}))}';
 
 const STILL_MATCHES_ONCE =
   'async($ODpath)=>{if(l||a==="")return!1;' +
@@ -49,10 +47,10 @@ export const staleEditPatches: readonly Patch[] = [
   },
   {
     name: 'edit-reply-notes-stale-edit',
-    find: `${EDIT_REPLY_HEAD}if(v)k.systemReminder=v;${EDIT_REPLY_TAIL}`,
-    replace:
-      `${EDIT_REPLY_HEAD}if(v)k.systemReminder=v;` +
-      'if(y.staleEdit)k.systemReminder=(k.systemReminder?k.systemReminder+"\\n\\n":"")+' +
-      `${JSON.stringify(STALE_EDIT_NOTE)};${EDIT_REPLY_TAIL}`,
+    find: EDIT_REPLY,
+    replace: EDIT_REPLY.replace(
+      'systemReminder:v',
+      `systemReminder:y.staleEdit?(v?v+"\\n\\n":"")+${JSON.stringify(STALE_EDIT_NOTE)}:v`,
+    ),
   },
 ];

@@ -4,14 +4,9 @@ import path from 'node:path';
 import { cacheStock, latestVersion, RELEASE_HOSTS } from '../binary/droid-release.ts';
 import { appBytes, embedName, ENTRY_FILE, readApp } from '../binary/graph.ts';
 import { kilobytes, say } from '../cli.ts';
-import {
-  STOCK_HUB_HEADER,
-  STOCK_HUB_METHODS,
-  STOCK_PID_HELPERS,
-} from '../patch/__tests__/mcp-hub-stock.ts';
+import { STOCK_HUB_HEADER, STOCK_HUB_METHODS } from '../patch/__tests__/mcp-hub-stock.ts';
 import { findMarker, patches } from '../patch/patches.ts';
 import { rebaseAll } from '../patch/rebase.ts';
-import { holePattern } from '../patch/tokens.ts';
 import type { PieceReading } from './align.ts';
 import { classHeaderIn, describePiece, methodIn, readPiece } from './align.ts';
 import { formatRebases, stuckRebases, summariseRebases } from './anchors.ts';
@@ -146,14 +141,7 @@ export function hub(binary: string): void {
     throw new Error(`no module defines the MCP hub (${HUB_MEMBER}); the hub moved or was renamed`);
   }
 
-  const pidHelpers = new RegExp(holePattern(STOCK_PID_HELPERS).source, 'u');
   const readings: [string, PieceReading][] = [
-    [
-      'pid helpers',
-      app.some((candidate) => pidHelpers.test(candidate.text))
-        ? { kind: 'same' }
-        : { kind: 'missing' },
-    ],
     ['class header', readPiece(STOCK_HUB_HEADER, classHeaderIn(module, HUB_MEMBER))],
     ...Object.entries(STOCK_HUB_METHODS).map(([name, text]): [string, PieceReading] => [
       name,

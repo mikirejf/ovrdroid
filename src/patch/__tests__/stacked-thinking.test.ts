@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   DRAWS_NOTHING,
   HOOKS_SHOW,
+  MODE,
   RUN_CALLS,
   RUN_UNIT,
   STACK,
@@ -194,6 +195,38 @@ describe('the thinking row', () => {
 });
 
 describe('wiring', () => {
+  test('the settings subscription distinguishes expanded, compact and stacked', () => {
+    const subscription = Symbol('settings subscription');
+    const snapshots: string[] = [];
+    const readMode = payloadFunction<
+      [
+        (subscribe: typeof subscription, getSnapshot: () => string) => string,
+        typeof subscription,
+        () => { getToolResultDisplay: () => string },
+      ],
+      { compact: boolean; stacked: boolean }
+    >(['ke', 'Js', 'f'], `let ${MODE.split(',c1=')[0]};return{compact:s1,stacked:$ODstacked}`);
+    const states = ['expanded', 'compact', 'stacked', 'expanded'].map((value) =>
+      readMode(
+        (subscribe, getSnapshot) => {
+          expect(subscribe).toBe(subscription);
+          const snapshot = getSnapshot();
+          snapshots.push(snapshot);
+          return snapshot;
+        },
+        subscription,
+        () => ({ getToolResultDisplay: () => value }),
+      ),
+    );
+    expect(snapshots).toEqual(['expanded', 'compact', 'stacked', 'expanded']);
+    expect(states).toEqual([
+      { compact: false, stacked: false },
+      { compact: true, stacked: false },
+      { compact: false, stacked: true },
+      { compact: false, stacked: false },
+    ]);
+  });
+
   test('streaming cuts skip thinking messages so the head row sees the whole text', () => {
     const { replace } = patchNamed(stackedViewPatches, 'stacked-view-mode');
     expect(replace).toContain('&&!($ODstacked&&p2.messageType==="thinking")');

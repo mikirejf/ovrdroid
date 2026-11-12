@@ -41,7 +41,7 @@ export class FakeTracker {
   }
 }
 
-export type Hooks = (event: string) => Promise<object[]>;
+export type Hooks = (event: string, ...args: unknown[]) => Promise<object[]>;
 
 export type Content = string | object;
 
@@ -59,6 +59,7 @@ interface ToolCall {
   hooks: Hooks;
   result?: Content;
   modelContent?: string;
+  mcpIdentity?: object;
   name?: string;
   tool?: Tool;
   reads?: string[];
@@ -73,7 +74,14 @@ const install = payloadFunction<[() => FakeTracker, EventEmitter, typeof fsPromi
 );
 
 const afterTool = payloadFunction<
-  [Hooks, EventEmitter, { id: string; name: string }, Content, string | undefined, Tool],
+  [
+    Hooks,
+    EventEmitter,
+    { id: string; name: string; tool: { mcpIdentity: object | undefined } },
+    Content,
+    string | undefined,
+    Tool,
+  ],
   Promise<ToolOutcome>
 >(
   ['_o', 'process', 'd', 'result', 'transformed', 'tool'],
@@ -186,7 +194,7 @@ export async function runOn(bus: EventEmitter, call: ToolCall): Promise<ToolOutc
   return await afterTool(
     call.hooks,
     bus,
-    { id: call.id, name: call.name ?? 'Execute' },
+    { id: call.id, name: call.name ?? 'Execute', tool: { mcpIdentity: call.mcpIdentity } },
     call.result ?? WRITE_RESULT,
     call.modelContent,
     call.tool ?? (() => {}),

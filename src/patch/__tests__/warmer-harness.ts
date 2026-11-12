@@ -125,16 +125,19 @@ export const USAGE: Usage = {
 
 const MODEL = 'custom:droidproxy:claude';
 const ARM = patchNamed(warmerPatches, 'cache-warm-arm').replace;
-const CLOSE = patchNamed(warmerPatches, 'cache-warm-close').replace;
-const FORGET = patchNamed(warmerPatches, 'cache-warm-forget').replace;
+const CLOSE = patchNamed(warmerPatches, 'cache-warm-close');
+const FORGET = patchNamed(warmerPatches, 'cache-warm-forget');
+const LIFECYCLE =
+  'function mY(t){Qh.delete(t)}function nY(t,o){if(Qh.get(t)?.capturedBy.deref()===o)Qh.delete(t)}'
+    .replace(CLOSE.find, CLOSE.replace)
+    .replace(FORGET.find, FORGET.replace);
 const STOCK_VU =
   'function vu(t){let s=Wa.get(t);if(!s)return;clearTimeout(s.timer),s.abortController?.abort(),Wa.delete(t)}';
-const EXPORTS = 'return{pY,vu,LV,mY,nY,fire:$ODWf,warm:$ODWt,snapshots:Qh}';
+const EXPORTS = 'return{pY,vu,LV:mY,mY,nY,fire:$ODWf,warm:$ODWt,snapshots:Qh}';
 
 type HarnessBindings = [
   Map<string, StoredSnapshot>,
   () => void,
-  Map<string, WarmEntry>,
   Map<string, WarmEntry>,
   () => { modelProvider: string },
   (message: string, detail: Logged['detail']) => void,
@@ -252,7 +255,6 @@ export class World {
         'Qh',
         'z5',
         'Wa',
-        'Zh',
         'ee',
         'n',
         'p',
@@ -264,14 +266,13 @@ export class World {
         '$clockEnv',
         'Dt',
       ],
-      `${ARM}${STOCK_VU}${CLOSE}${FORGET}${EXPORTS}`
+      `${ARM}${STOCK_VU}${LIFECYCLE}${EXPORTS}`
         .replace(STREAMING_CORE_IMPORT, '{createLLMStreamingCore:$client}')
         .replace(CACHE_CLOCK_ENV, '$clockEnv'),
     );
     this.harness = build(
       new Map(),
       ignore,
-      new Map(),
       new Map(),
       () => ({ modelProvider: this.provider }),
       this.clock.log,

@@ -23,20 +23,9 @@ subagent would be a `droid exec --input-format stream-jsonrpc` child.
 All in-process subagents share the parent's JS thread, so the parent's event loop is where their
 cost adds up.
 
-There is no cap at 10 here. The code has `max_active_task_subagents_per_daemon:10` and
-`max_active_descendants_per_root:5`, but only when `nested_task_delegation` is on, and it is off.
-The only active limit is the in-process host's 50.
-
-The `nesting-*` patches turn nested delegation on and read three limits from the top-level
-`nestedTaskDelegation` object in `~/.factory/settings.json`:
-
-- `maxDepth`: the deepest level any subagent may sit at. 1 to 3, default 2. Anything else falls back
-  to 2. The binary caps it at 3.
-- `maxActiveDescendantsPerRoot`: default 25.
-- `maxActiveTaskSubagentsPerDaemon`: default 100.
-
-A droid's own `maxDepth` (default 1) can stop its subagents earlier, but never lets them go deeper
-than this ceiling.
+Droid 1.9.0 removed nested delegation: Task lineage depth is fixed at 1, so subagents cannot launch
+subagents. The daemon session cap is stock's `maxDaemonSessions`, default 50. The `nesting-*`
+patches were deleted with nested delegation.
 
 ## Fixed: reading finished helpers must not reopen their runtimes
 
@@ -123,45 +112,28 @@ completions older than 48h are not replayed. With the store already small, an A/
 lag difference (n=2 per arm). The patches keep the store from growing back. They are not a measured
 speed-up.
 
-## Shipped: nested subagents in the TUI
+## Shipped: a subagent's steps in the detailed view
 
-Measured on 0.238.0 with a level 1 droid that launches a level 2 droid running four `sleep 8` calls.
+The detailed view (Ctrl+O) reads a direct subagent's steps live from the session store. Stock reads
+the tool's progress updates, which stay empty for a foreground Task, so stock shows
+`Initializing...` for the whole run.
 
-The TUI already holds a grandchild's messages. A `child_session_available` notification arrives on
-the child's session, and `handleChildSessionAvailable` registers and hydrates the grandchild the
-same way it does a direct child. The task ledger (`lp`, `hn`, `Ol`) is a file every Droid reads, so
-it knows the grandchild too. Stock just never drew it: the Task row looks the child up under the
-current session, `cE` drops the tool use id, and the Task box is clamped to `height:2`.
+Until Droid 1.9.0 the same patch file also drew a subagent's own subagents (a grandchild's latest
+step under the child's, and a Task box that grew to 4 rows). 1.9.0 removed nested delegation, so
+those patches were deleted and only the detailed-view steps remain.
 
-`nested-subagent-ui-patches.ts`:
-
-- The child's latest Task step reads `↳ <type> "<description>"`, with one more line under it that
-  carries the grandchild's latest step, then `Done (N tool uses · Xs)`. It nests down to level 3.
-- The Task box grows from 2 rows to at most 4 (`minHeight:2,maxHeight:4`). Without that the nested
-  line renders but stays hidden. A long header that wraps now shows its second line, where stock
-  clipped it.
-- The detailed view (Ctrl+O) reads the child's steps live from the session store. Stock read the
-  tool's progress updates, which stayed empty for a foreground Task, so stock showed
-  `Initializing...` for the whole run. A Task step there lists the grandchild's steps 4 columns in.
-  Droid 0.244.0 took sub-agents out of the background-tasks panel and dropped its
-  `N background agents running` counter, so the patches that counted descendants, listed them in the
-  panel and labelled each with its model were deleted.
-
-## Shipped: model and nesting in the 0.244 sub-agent lists
+## Shipped: the model in the 0.244 sub-agent lists
 
 0.244.0 shows sub-agents in two places. The session roster opens with ↓ from the
 ` N droid working   ↓ to view` line under the prompt. The droids view opens with Alt+S, but only
 when the `droids_view` feature flag is on, and it is off on our account. Both draw rows with the
 same renderer, and neither shows a model.
 
-The roster lists only direct children: `qme` reads the parent's task invocations and its subagent
-sessions, and the roster builder sets `parentSessionId:null` on every node, so nothing nests.
-
-`session-roster-patches.ts` walks `qme` down the tree with a cycle guard, gives each node its real
-parent, and expands nested nodes by default; Left collapses one and the roster remembers it.
+The roster lists the session's direct children, which since Droid 1.9.0 are the only subagents there
+are. `session-roster-patches.ts` adds each child's model and effort to its row.
 `droids-view-patches.ts` adds a `model (effort)` chip to the shared row and fills it from the loaded
-store, or from the session's saved settings file when it is not loaded. `probe roster-view` checks a
-level 2 droid shows indented under level 1 with both chips, with the flag off.
+store, or from the session's saved settings file when it is not loaded. `probe roster-view` checks
+two sibling droids both show with their chips, with the flag off.
 
 ## Shipped: Herdr sees a busy pane in every view
 

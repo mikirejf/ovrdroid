@@ -2,16 +2,15 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   answerFor,
-  CHILD_TITLE,
   describeRoster,
-  GRANDCHILD_TITLE,
-  indentOf,
-  LEVEL_ONE,
-  LEVEL_TWO,
-  NEST_WORD,
+  FIRST_CHILD_PROMPT,
+  FIRST_CHILD_TITLE,
+  LAUNCH_WORD,
   roleOf,
   ROSTER_TITLES,
   rosterVerdicts,
+  SECOND_CHILD_PROMPT,
+  SECOND_CHILD_TITLE,
 } from '../roster-view-report.ts';
 
 const REMINDER = { type: 'text', text: '<system-reminder>Available tools</system-reminder>' };
@@ -36,23 +35,23 @@ const ASSISTANT = { role: 'assistant', content: [{ type: 'tool_use', name: 'Task
 
 describe('the stub tells the three droids apart by their opening message', () => {
   test('the prompt is the main session', () => {
-    expect(roleOf(request({ first: NEST_WORD }))).toBe('main');
+    expect(roleOf(request({ first: LAUNCH_WORD }))).toBe('main');
   });
 
-  test('a level one prompt is the child', () => {
-    expect(roleOf(request({ first: `${LEVEL_ONE}go` }))).toBe('child');
+  test('the first child prompt identifies the first child', () => {
+    expect(roleOf(request({ first: `${FIRST_CHILD_PROMPT}hold` }))).toBe('first-child');
   });
 
-  test('a level two prompt is the grandchild', () => {
-    expect(roleOf(request({ first: `${LEVEL_TWO}hold` }))).toBe('grandchild');
+  test('the second child prompt identifies the second child', () => {
+    expect(roleOf(request({ first: `${SECOND_CHILD_PROMPT}hold` }))).toBe('second-child');
   });
 
   test('later messages do not change the role', () => {
     const child = request({
-      first: `${LEVEL_ONE}go`,
-      tail: [ASSISTANT, { role: 'user', content: [text(`${LEVEL_TWO}hold`)] }],
+      first: `${FIRST_CHILD_PROMPT}hold`,
+      tail: [ASSISTANT, { role: 'user', content: [text(`${SECOND_CHILD_PROMPT}hold`)] }],
     });
-    expect(roleOf(child)).toBe('child');
+    expect(roleOf(child)).toBe('first-child');
   });
 
   test('a message with none of the words is some other request', () => {
@@ -64,7 +63,7 @@ describe('the stub tells the three droids apart by their opening message', () =>
       tools: [],
       messages: [
         { role: 'user', content: [REMINDER] },
-        { role: 'user', content: [text(NEST_WORD)] },
+        { role: 'user', content: [text(LAUNCH_WORD)] },
       ],
     };
     expect(roleOf(body)).toBe('main');
@@ -72,25 +71,23 @@ describe('the stub tells the three droids apart by their opening message', () =>
 });
 
 describe('what the stub answers', () => {
-  test('the main session launches the child, then says ok after the result', () => {
-    expect(answerFor(request({ first: NEST_WORD }))).toBe('launch-child');
-    expect(answerFor(request({ first: NEST_WORD, tail: [ASSISTANT, TOOL_RESULT] }))).toBe('ok');
+  test('the main session launches both children, then says ok after the results', () => {
+    expect(answerFor(request({ first: LAUNCH_WORD }))).toBe('launch-children');
+    expect(answerFor(request({ first: LAUNCH_WORD, tail: [ASSISTANT, TOOL_RESULT] }))).toBe('ok');
   });
 
-  test('the child launches the grandchild, then says hi after the result', () => {
-    expect(answerFor(request({ first: `${LEVEL_ONE}go` }))).toBe('launch-grandchild');
-    expect(answerFor(request({ first: `${LEVEL_ONE}go`, tail: [ASSISTANT, TOOL_RESULT] }))).toBe(
-      'hi',
+  test.each([FIRST_CHILD_PROMPT, SECOND_CHILD_PROMPT])('the child %s is held', (prompt) => {
+    expect(answerFor(request({ first: `${prompt}hold` }))).toBe('hold');
+    expect(answerFor(request({ first: `${prompt}hold`, tail: [ASSISTANT, TOOL_RESULT] }))).toBe(
+      'hold',
     );
   });
 
-  test('the grandchild is held', () => {
-    expect(answerFor(request({ first: `${LEVEL_TWO}hold` }))).toBe('hold');
-  });
-
-  test('without the Task tool nothing is launched', () => {
-    expect(answerFor(request({ first: NEST_WORD, tools: ['Read'] }))).toBe('ok');
-    expect(answerFor(request({ first: `${LEVEL_ONE}go`, tools: ['Read'] }))).toBe('hi');
+  test('without the Task tool nothing is launched and both children stay held', () => {
+    expect(answerFor(request({ first: LAUNCH_WORD, tools: ['Read'] }))).toBe('ok');
+    for (const prompt of [FIRST_CHILD_PROMPT, SECOND_CHILD_PROMPT]) {
+      expect(answerFor(request({ first: `${prompt}hold`, tools: ['Read'] }))).toBe('hold');
+    }
   });
 });
 
@@ -98,64 +95,62 @@ const MODEL = ROSTER_TITLES.model;
 
 function screen(rows: string[]): string[] {
   return [
-    `   Ovrdroid-roster-probe "${CHILD_TITLE}"`,
+    `   Ovrdroid-roster-probe "${FIRST_CHILD_TITLE}"`,
     '╭──────╮',
-    '│ Start new chat  1 droid │',
+    '│ Start new chat  2 droids │',
     '│   Filter agents │',
     ...rows,
     '╰──────╯',
   ];
 }
 
-const NESTED = screen([
-  `│ › ⠇ Ovrdroid-roster-probe: ${CHILD_TITLE} · ${MODEL} (Dynamic)   ▾ 1 subagent │`,
-  '│     ↳ Waiting for 1 subagent │',
-  `│       ⠇ Ovrdroid-roster-probe: ${GRANDCHILD_TITLE} · ${MODEL} (Dynamic)   now │`,
+const SIBLINGS = screen([
+  `│ › ⠇ Ovrdroid-roster-probe: ${FIRST_CHILD_TITLE} · ${MODEL} (Dynamic)   now │`,
+  `│   ⠇ Ovrdroid-roster-probe: ${SECOND_CHILD_TITLE} · ${MODEL} (Dynamic)   now │`,
 ]);
 
 describe('the roster verdicts', () => {
-  test('a child and an indented grandchild with chips all pass', () => {
-    const verdicts = rosterVerdicts(NESTED, ROSTER_TITLES);
-    expect(verdicts).toHaveLength(3);
+  test('two sibling child rows with chips both pass', () => {
+    const verdicts = rosterVerdicts(SIBLINGS, ROSTER_TITLES);
+    expect(verdicts).toHaveLength(2);
     expect(verdicts.every((verdict) => verdict.pass)).toBe(true);
   });
 
-  test('the transcript line above the list is not taken for the child row', () => {
-    const verdicts = rosterVerdicts(NESTED, ROSTER_TITLES);
+  test('the transcript line above the list is not taken for the first child row', () => {
+    const verdicts = rosterVerdicts(SIBLINGS, ROSTER_TITLES);
     expect(verdicts[0]?.text).toContain('Dynamic');
+    const missing = rosterVerdicts(
+      screen([`│   ⠇ Ovrdroid-roster-probe: ${SECOND_CHILD_TITLE} · ${MODEL} │`]),
+      ROSTER_TITLES,
+    );
+    expect(missing.map((verdict) => verdict.pass)).toEqual([false, true]);
   });
 
-  test('a child row without the chip fails', () => {
+  test.each([
+    [FIRST_CHILD_TITLE, SECOND_CHILD_TITLE],
+    [SECOND_CHILD_TITLE, FIRST_CHILD_TITLE],
+  ])('a child row without the chip fails: %s', (missingChip, withChip) => {
     const lines = screen([
-      `│ › ⠇ Ovrdroid-roster-probe: ${CHILD_TITLE}   ▾ 1 subagent │`,
-      `│       ⠇ Ovrdroid-roster-probe: ${GRANDCHILD_TITLE} · ${MODEL} (Dynamic) │`,
+      `│ › ⠇ Ovrdroid-roster-probe: ${missingChip} │`,
+      `│   ⠇ Ovrdroid-roster-probe: ${withChip} · ${MODEL} (Dynamic) │`,
     ]);
-    const [child, grandchild] = rosterVerdicts(lines, ROSTER_TITLES);
-    expect(child?.pass).toBe(false);
-    expect(grandchild?.pass).toBe(true);
-  });
-
-  test('a grandchild at the same indent as the child is not nested', () => {
-    const lines = screen([
-      `│ › ⠇ Ovrdroid-roster-probe: ${CHILD_TITLE} · ${MODEL} │`,
-      `│ › ⠇ Ovrdroid-roster-probe: ${GRANDCHILD_TITLE} · ${MODEL} │`,
-    ]);
-    const nested = rosterVerdicts(lines, ROSTER_TITLES).at(-1);
-    expect(nested?.pass).toBe(false);
-  });
-
-  test('a grandchild listed above the child is not nested', () => {
-    const lines = screen([
-      `│       ⠇ Ovrdroid-roster-probe: ${GRANDCHILD_TITLE} · ${MODEL} │`,
-      `│ › ⠇ Ovrdroid-roster-probe: ${CHILD_TITLE} · ${MODEL} │`,
-    ]);
-    expect(rosterVerdicts(lines, ROSTER_TITLES)[2]?.pass).toBe(false);
-  });
-
-  test('a missing grandchild row fails', () => {
-    const lines = screen([`│ › ⠇ Ovrdroid-roster-probe: ${CHILD_TITLE} · ${MODEL} │`]);
     const verdicts = rosterVerdicts(lines, ROSTER_TITLES);
-    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, false, false]);
+    expect(verdicts.filter((verdict) => verdict.pass)).toHaveLength(1);
+    expect(verdicts.find((verdict) => !verdict.pass)?.text).toContain('has no');
+  });
+
+  test('either sibling can be listed first', () => {
+    const lines = screen([
+      `│ › ⠇ Ovrdroid-roster-probe: ${SECOND_CHILD_TITLE} · ${MODEL} │`,
+      `│   ⠇ Ovrdroid-roster-probe: ${FIRST_CHILD_TITLE} · ${MODEL} │`,
+    ]);
+    expect(rosterVerdicts(lines, ROSTER_TITLES).every((verdict) => verdict.pass)).toBe(true);
+  });
+
+  test('a missing second child row fails', () => {
+    const lines = screen([`│ › ⠇ Ovrdroid-roster-probe: ${FIRST_CHILD_TITLE} · ${MODEL} │`]);
+    const verdicts = rosterVerdicts(lines, ROSTER_TITLES);
+    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, false]);
     expect(verdicts[1]?.text).toContain('not on screen');
   });
 
@@ -170,15 +165,7 @@ describe('the roster verdicts', () => {
   });
 
   test('the description marks each verdict', () => {
-    const described = describeRoster(rosterVerdicts(NESTED, ROSTER_TITLES));
+    const described = describeRoster(rosterVerdicts(SIBLINGS, ROSTER_TITLES));
     expect(described.split('\n').every((line) => line.startsWith('PASS'))).toBe(true);
-  });
-});
-
-describe('indentation', () => {
-  test('borders, markers and spaces count, the title does not', () => {
-    expect(indentOf('│ › ⠇ title')).toBe(4);
-    expect(indentOf('│       ⠇ title')).toBe(8);
-    expect(indentOf('title')).toBe(0);
   });
 });

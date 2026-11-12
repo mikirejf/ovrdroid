@@ -215,6 +215,14 @@ matches can be dead: it styled rows of a list upstream removed, and the code it 
 by other rows that never carry its field. A clean `rebased` says nothing about whether anything
 still reaches the payload.
 
+When upstream removes a whole feature rather than one site, the companions spread past the file:
+UI that draws the feature's output, roster or list patches that walk its data, frontmatter fields
+and validation that feed it, and probes that exercise it (a probe that needs a state stock can no
+longer reach fails forever). Before deleting, ask a read-only agent to classify every patch, probe
+and test that mentions the feature as dead, partly dead or live, with evidence from the new
+extraction. Names mislead: "nested" can mean one feature in one file and an unrelated one in the
+next.
+
 Delete obsolete patches together with their tests. Record the evidence (the absent literal, the new
 code) in the commit, because a deleted patch leaves no other trace.
 
@@ -387,6 +395,10 @@ platforms. Write any new one the same way:
 - A test that cuts a function body out of its module must also carry the module-level `var`s the
   body uses (`scanner-source.ts` prepends every `var NAME="…"`), or the evaluation throws
   `… is not defined`.
+- A harness that strips a chunk's `import` statements before evaluating it must handle every form
+  the minifier emits, including namespace (`import*as X from"fs"`), default and combined imports,
+  and Node built-ins that are not records in the binary. A leftover form fails as a `SyntaxError`
+  inside the evaluation, not as a missing name.
 - Assert a patch landed by its rebased `replace` (`rebasedNamed(name).replace`), never by a
   literal in one build's names: `toContain('toolUseId:a.id')` fails on the first rename.
 - A test that runs a payload with a copied stock tail can close the function right after the
@@ -425,6 +437,15 @@ check: a red there costs a full rerun of every probe.
 `bun test` can exit 1 with `0 fail`: a stock-reading helper that throws while a file loads shows
 up as `N errors` and `# Unhandled error between tests`, and that file's tests never run. Search
 the output for that header, not only for `(fail)`.
+
+A stub-model probe that finds its own tool call by the ID the stub sent breaks when Droid stops
+keeping provider IDs (1.9.0 rewrites every call ID to `call_<hash>_<index>`): the call runs but
+the probe reports that nothing started. Match calls by tool name and input, then follow the ID
+Droid logged.
+
+While any patch still drifts, every test that applies the whole shipped set (`… applies on top of
+every other shipped patch`) fails with the same drift list. Count those as one failure and look
+past them for the tests that fail on their own.
 
 When a patched method's stock text changes but the patch still applies, the payload may silently
 drop the new upstream behaviour. `stock-source.test.ts` and `probe hub` flag it, and the gate's

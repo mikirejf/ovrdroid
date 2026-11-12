@@ -7,7 +7,7 @@ export function registerRosterViewCommand(program: Command): void {
   program
     .command('roster-view')
     .description(
-      'with the droids_view flag off, run a stub droid that launches a droid that launches a droid, press Down on the "droid working" line: does the session roster list the child and the indented grandchild, each with the model chip?',
+      'with the droids_view flag off, run a stub droid that launches two sibling droids, press Down on the "droids working" line: does the session roster list both children, each with the model chip?',
     )
     .argument('<binary>')
     .option(

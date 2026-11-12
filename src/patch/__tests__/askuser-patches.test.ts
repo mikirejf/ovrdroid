@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
+import { patchSource } from '../../binary/apply.ts';
+import type { App } from '../../binary/graph.ts';
 import { askUserPatches, askUserTextPatches } from '../askuser-patches.ts';
-import { blockEnd } from '../tokens.ts';
+import { closureOf } from './module-closure.ts';
 import { describeStrayNames, occurrences, patchNamed, payloadFunction } from './payload.ts';
-import { shipped, stockDroid as stock, stockText } from './stock-scanner.ts';
+import { requireStock, shipped, stockDroid as stock, stockText } from './stock-scanner.ts';
 
 const PATCH = patchNamed(askUserPatches, 'ask-user-tool-never-enabled');
 
@@ -62,31 +64,31 @@ describe.skipIf(stock === undefined)('the shipped AskUser tool definition', () =
 });
 
 const SPEC_REMINDER =
-  /function [\w$]+\(\{isAskUserEnabled:[\w$]+,usesCreateEditTools:[\w$]+(?:,[\w$]+:[\w$]+)*\}\)\{/u;
+  /function (?<name>[\w$]+)\(\{isAskUserEnabled:[\w$]+,usesCreateEditTools:[\w$]+(?:,[\w$]+:[\w$]+)*\}\)\{/u;
 
 interface ReminderFlags {
   isAskUserEnabled: boolean;
   usesCreateEditTools: boolean;
 }
 
-function specReminderIn(text: string): (flags: ReminderFlags) => string {
-  const head = SPEC_REMINDER.exec(text);
-  if (head === null) {
+function specReminderIn(app: App): (flags: ReminderFlags) => string {
+  const module = app.find((candidate) => SPEC_REMINDER.test(candidate.text));
+  const name = module?.text.match(SPEC_REMINDER)?.groups?.['name'];
+  if (module === undefined || name === undefined) {
     throw new Error('the spec-mode reminder builder is missing');
   }
-  const open = head.index + head[0].length - 1;
-  const source = text.slice(head.index, blockEnd(text, open) + 1);
-  return payloadFunction<[], (flags: ReminderFlags) => string>([], `return ${source}`)();
+  const source = closureOf(module.text, [name]);
+  return payloadFunction<[], (flags: ReminderFlags) => string>([], `${source};return ${name}`)();
 }
 
 describe.skipIf(stock === undefined)('the spec-mode reminder', () => {
   test('stock Droid tells the model to use AskUser when the flag is on', () => {
-    const reminder = specReminderIn(stockText);
+    const reminder = specReminderIn(requireStock());
     expect(reminder({ isAskUserEnabled: true, usesCreateEditTools: true })).toContain('AskUser');
   });
 
   test('the branch the patch forces never names AskUser', () => {
-    const reminder = specReminderIn(patchedText);
+    const reminder = specReminderIn(patchSource(requireStock(), askUserPatches));
     const text = reminder({ isAskUserEnabled: false, usesCreateEditTools: true });
     expect(text).toContain('Spec mode is active.');
     expect(text).not.toContain('AskUser');

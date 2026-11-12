@@ -1,3 +1,5 @@
+import { isBuiltin } from 'node:module';
+
 import { patchSource } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
 import { EMBED_PREFIX } from '../../binary/graph.ts';
@@ -9,7 +11,8 @@ import { closureOf } from './module-closure.ts';
 import { payloadFunction } from './payload.ts';
 import type { Stand } from './session-mention-harness.ts';
 
-const IMPORT_STATEMENT = /import\{(?<names>[^}]*)\}from"(?<from>[^"]+)";?/gu;
+const IMPORT_STATEMENT =
+  /import(?:\s+(?<default>[\w$]+)(?:\s*,\s*|\s+(?=from)))?(?:\{(?<names>[^}]*)\}\s*|\*\s*as\s+(?<namespace>[\w$]+)\s*)?from"(?<from>[^"]+)";?/gu;
 const SIDE_EFFECT_IMPORT = /import"[^"]*";?/gu;
 const EXPORT_STATEMENT = /export\{(?<names>[^}]*)\};?/u;
 const ALIAS = /\s+as\s+/u;
@@ -40,7 +43,15 @@ export function importBindings(text: string): Map<string, Binding> {
   const bindings = new Map<string, Binding>();
   for (const match of text.matchAll(IMPORT_STATEMENT)) {
     const from = match.groups?.['from'] ?? '';
-    for (const entry of (match.groups?.['names'] ?? '').split(',')) {
+    const defaultName = match.groups?.['default'];
+    if (defaultName !== undefined) {
+      bindings.set(defaultName, { from, exported: 'default' });
+    }
+    const namespace = match.groups?.['namespace'];
+    if (namespace !== undefined) {
+      bindings.set(namespace, { from, exported: '*' });
+    }
+    for (const entry of (match.groups?.['names'] ?? '').split(',').filter(Boolean)) {
       const [exported = '', local = exported] = entry.trim().split(ALIAS);
       bindings.set(local, { from, exported });
     }
@@ -55,6 +66,18 @@ function emptyScope() {
 }
 
 type Scope = ReturnType<typeof emptyScope>;
+
+function isModuleExports(value: unknown): value is Record<string, Stand> {
+  return (typeof value === 'object' && value !== null) || typeof value === 'function';
+}
+
+export function builtinValue(from: string, exported: string): Stand {
+  const builtin: unknown = import.meta.require(from);
+  if (!isModuleExports(builtin)) {
+    throw new TypeError(`${from} has no module exports`);
+  }
+  return exported === '*' || exported === 'default' ? builtin : builtin[exported];
+}
 
 class Chunks {
   private readonly evaluated = new Map<string, Record<string, Stand>>();
@@ -76,7 +99,9 @@ class Chunks {
       .replaceAll(SIDE_EFFECT_IMPORT, '')
       .replace(EXPORT_STATEMENT, '')
       .replaceAll('import.meta', '$ODmeta');
-    const meta = new Map<string, Stand>([['$ODmeta', { url: import.meta.url }]]);
+    const meta = new Map<string, Stand>([
+      ['$ODmeta', { url: import.meta.url, require: import.meta.require }],
+    ]);
     const result = payloadFunction<[Scope], Record<string, Stand>>(
       ['$ODscope'],
       `with($ODscope){${body}\nreturn{${outputs.join(',')}}}`,
@@ -90,10 +115,14 @@ class Chunks {
     if (binding === undefined) {
       throw new Error(`${name} is not imported by the module`);
     }
+    if (isBuiltin(binding.from)) {
+      return builtinValue(binding.from, binding.exported);
+    }
     if (!binding.from.startsWith(EMBED_PREFIX)) {
       throw new Error(`${name} comes from ${binding.from}, which the tests do not load`);
     }
-    return this.exportsOf(binding.from)[binding.exported];
+    const exports = this.exportsOf(binding.from);
+    return binding.exported === '*' ? exports : exports[binding.exported];
   }
 
   scopeOver(text: string, overrides: ReadonlyMap<string, Stand>) {

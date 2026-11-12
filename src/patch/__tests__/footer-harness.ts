@@ -71,9 +71,9 @@ const PARTS = patchNamed(patches, 'turn-clock-parts').replace;
 
 const BINDINGS = ['_', 'W', 'L', 'lt', 'up', 'setTimeout', 'clearTimeout', 'df'];
 
-const LEFT_GROUPS = 'let fe=[[lt("? for help",{color:a.text.muted})]]';
+const LEFT_GROUPS = 'let fe=[[lt("? for help",{color:a.text.muted})]];';
 
-const LEFT_REST = 'return fe.slice(0,We).forEach((Ht)=>{up(it,Ht," ")}),it};return Me(fe.length)';
+const LEFT_REST = 'return We.forEach((Ht)=>{up(it,Ht," ")}),it};return Me(fe)';
 
 const COMPONENT = `${STATE}$end=0;return function Footer(w,x,a,ye){${TRACK_AND_TICK}${LEFT_GROUPS}${PARTS}${LEFT_REST}}`;
 

@@ -82,6 +82,10 @@ function switchingFrom(efforts: Record<TurnName, string>): string {
   return `switching effort from "${efforts.control}" to "${efforts.switched}"`;
 }
 
+function isEffortSegment(bust: TurnBust): boolean {
+  return bust.turn === 'switched' && bust.region === EFFORT_SETTING;
+}
+
 function bustLine(bust: TurnBust): string {
   return `Droid warned on ${turnPhrase(bust.turn)} that the request was not append-only: mismatch in ${bust.region}, kind ${bust.kind}, first at index ${bust.index}`;
 }
@@ -152,7 +156,9 @@ function bustReasons(outcomes: SwitchOutcomes, body: BodyComparison): string[] {
     );
   }
   reasons.push(
-    ...outcomes.busts.filter((bust) => bust.turn === 'switched').map((bust) => bustLine(bust)),
+    ...outcomes.busts
+      .filter((bust) => bust.turn === 'switched' && !isEffortSegment(bust))
+      .map((bust) => bustLine(bust)),
   );
   if (seed.cacheRead > 0 && switched.cacheRead <= seed.cacheRead) {
     reasons.push(
@@ -172,6 +178,11 @@ function keptText(outcomes: SwitchOutcomes): string {
   if (switched.cacheRead < cached) {
     lines.push(
       `the switched turn read ${whole(switched.cacheRead)} of the ${whole(cached)} the control turn had cached: Droid's request extended the previous one unchanged, so the ${whole(switched.cacheWrite)} tokens it re-wrote were lost outside Droid's request. In most runs the same one-time loss lands on the control turn`,
+    );
+  }
+  if (outcomes.busts.some(isEffortSegment)) {
+    lines.push(
+      `Droid flagged its ${EFFORT_SETTING} segment as changed on the switched turn: that segment is the effort itself, and the request bodies show nothing else changed`,
     );
   }
   if (seed.cacheRead === 0) {
@@ -208,6 +219,8 @@ export function switchRuling(outcomes: SwitchOutcomes): SwitchRuling {
 
 export function switchVerdict(outcomes: SwitchOutcomes): string {
   const { kind, text } = switchRuling(outcomes);
-  const rest = outcomes.busts.filter((bust) => kind !== 'busted' || bust.turn !== 'switched');
+  const rest = outcomes.busts.filter(
+    (bust) => !isEffortSegment(bust) && (kind !== 'busted' || bust.turn !== 'switched'),
+  );
   return [text, ...rest.map((bust) => bustLine(bust))].join('\n');
 }

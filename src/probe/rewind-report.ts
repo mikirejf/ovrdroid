@@ -23,15 +23,28 @@ export type StubAnswer =
   | { kind: 'check'; taskId: string }
   | { kind: 'child'; tag: string };
 
+export function observedCallId(
+  bodies: readonly unknown[],
+  name: string,
+  matches: (input: Fields) => boolean,
+): string | undefined {
+  const call = bodies
+    .flatMap((body) => entriesOf(fieldsOf(body), 'messages'))
+    .filter((message) => worded(message, 'role') === 'assistant')
+    .flatMap((message) => entriesOf(message, 'content'))
+    .find(
+      (block) =>
+        worded(block, 'type') === 'tool_use' &&
+        worded(block, 'name') === name &&
+        matches(fieldsOf(block.get('input'))),
+    );
+  return call === undefined ? undefined : worded(call, 'id');
+}
+
 function blocksOf(message: Fields): Fields[] {
   const content = message.get('content');
   return typeof content === 'string'
-    ? [
-        new Map<string, unknown>([
-          ['type', 'text'],
-          ['text', content],
-        ]),
-      ]
+    ? [fieldsOf({ type: 'text', text: content })]
     : entriesOf(message, 'content');
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import path from 'node:path';
 
 import { applies } from '../rebase.ts';
 import { MARKDOWN_MEMO_ENTRIES, streamRenderPatches } from '../stream-render-patches.ts';
@@ -12,7 +13,46 @@ import {
   stockPainters,
 } from './stream-render-code.ts';
 import { INPUTS, prefixesOf, render, REPLY, SAMPLES } from './stream-render-frames.ts';
-import { guarded, rebased } from './stream-render-harness.ts';
+import { guarded, importBindings, importedValue, rebased } from './stream-render-harness.ts';
+
+describe('stream render module imports', () => {
+  test.each([
+    [
+      'import{$a as $b,c}from"path";',
+      [
+        ['$b', '$a'],
+        ['c', 'c'],
+      ],
+    ],
+    ['import*as $ns from"path";', [['$ns', '*']]],
+    ['import $default from"path";', [['$default', 'default']]],
+    [
+      'import $default,*as $ns from"path";',
+      [
+        ['$default', 'default'],
+        ['$ns', '*'],
+      ],
+    ],
+    [
+      'import $default,{join as $j}from"path";',
+      [
+        ['$default', 'default'],
+        ['$j', 'join'],
+      ],
+    ],
+  ] as const)('reads bindings from %s', (source, entries) => {
+    expect([...importBindings(source)]).toStrictEqual(
+      entries.map(([local, exported]) => [local, { from: 'path', exported }]),
+    );
+  });
+
+  test('namespace imports resolve to exports, not a property named star', () => {
+    expect(importedValue('import*as $ns from"path";', '$ns')).toBe(path);
+    expect(importedValue('import $p,*as $ns from"node:path";', '$ns')).toBe(path);
+    expect(importedValue('import $p,*as $ns from"node:path";', '$p')).toBe(path);
+    expect(importedValue('import{posix as $p}from"path";', '$p')).toBe(path.posix);
+  });
+});
 
 describe.skipIf(STOCK === undefined)(
   'every stream render patch applies to the shipped bundle once',

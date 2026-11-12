@@ -22,6 +22,7 @@ import {
   hasNotice,
   HOLD_WORD,
   LAUNCH_WORD,
+  observedCallId,
   TASK_TAGS,
   titleOf,
 } from './rewind-report.ts';
@@ -64,6 +65,7 @@ export interface RewindOptions {
 
 export interface Stub {
   url: string;
+  callId: (tag: string) => string;
   release: () => void;
   stop: () => Promise<void>;
 }
@@ -100,6 +102,7 @@ function eventsFor(
 
 export function startStub(callId: (tag: string) => string, droidType?: string): Stub {
   const held = Promise.withResolvers<boolean>();
+  const bodies: unknown[] = [];
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
@@ -107,7 +110,9 @@ export function startStub(callId: (tag: string) => string, droidType?: string): 
       if (request.method !== 'POST' || !new URL(request.url).pathname.endsWith('/messages')) {
         return new Response('not found', { status: 404 });
       }
-      const answer = answerFor(await request.json());
+      const body: unknown = await request.json();
+      bodies.push(body);
+      const answer = answerFor(body);
       if (answer.kind === 'child' && HELD.some((tag) => tag === answer.tag)) {
         await held.promise;
       }
@@ -118,6 +123,12 @@ export function startStub(callId: (tag: string) => string, droidType?: string): 
   });
   return {
     url: `http://127.0.0.1:${server.port}`,
+    callId: (tag) =>
+      observedCallId(
+        bodies,
+        tag === 'check' ? 'TaskOutput' : 'Task',
+        (input) => tag === 'check' || worded(input, 'description') === `${droidType} ${tag}`,
+      ) ?? callId(tag),
     release: () => {
       held.resolve(true);
     },
@@ -205,11 +216,15 @@ export async function settle(session: Session): Promise<void> {
   await session.quiet(QUIET_MS, QUIET_TIMEOUT_MS);
 }
 
-async function launchTask(session: Session, tag: TaskTag, callId: string): Promise<TaskRecord> {
+async function launchTask(
+  session: Session,
+  tag: TaskTag,
+  callId: (tag: string) => string,
+): Promise<TaskRecord> {
   await send(session, launchPrompt(tag));
   const record = await waitFor(
     `no ${tag} agent started`,
-    () => taskRecord(callId),
+    () => taskRecord(callId(tag)),
     STEP_TIMEOUT_MS,
   );
   await settle(session);
@@ -284,9 +299,9 @@ function evidenceFrom(drive: Drive, { oldChat, newChat, titleAtRewind }: Chats) 
 
 async function driveRewind(drive: Drive): Promise<RewindEvidence> {
   const { session, folder, callId, timeoutMs } = drive;
-  const kept = await launchTask(session, 'kept', callId('kept'));
+  const kept = await launchTask(session, 'kept', callId);
   const oldChat = kept.parentSessionId;
-  await launchTask(session, 'cut', callId('cut'));
+  await launchTask(session, 'cut', callId);
   await rewindToLastMessage(session);
   const newChat = await waitFor(
     'the rewind made no new chat',
@@ -303,7 +318,7 @@ async function driveRewind(drive: Drive): Promise<RewindEvidence> {
     STEP_TIMEOUT_MS,
   );
   await settle(session);
-  await launchTask(session, 'after', callId('after'));
+  await launchTask(session, 'after', callId);
 
   drive.release();
   await waitFor(
@@ -339,7 +354,7 @@ export async function runRewind(binary: string, options: RewindOptions): Promise
       return await driveRewind({
         session,
         folder: path.join(FACTORY_SESSIONS, sessionFolderName(realpathSync(options.cwd))),
-        callId,
+        callId: stub.callId,
         release: stub.release,
         timeoutMs: options.timeout * MS_PER_SECOND,
       });

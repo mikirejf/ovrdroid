@@ -165,17 +165,13 @@ describe('a droid file is checked when it loads', () => {
     expect(errorsOf({ name: 'plain', model: 'inherit' })).toEqual([]);
   });
 
-  test('well-formed maxDepth and skills pass', () => {
-    expect(errorsOf({ maxDepth: 3, skills: ['poteto-mode'] })).toEqual([]);
+  test('well-formed skills pass', () => {
+    expect(errorsOf({ skills: ['poteto-mode'] })).toEqual([]);
   });
 
   test('a leftover complexity key is not read, whatever it holds', () => {
     expect(errorsOf({ complexity: { extreme: { effort: 'off' } } })).toEqual([]);
     expect(errorsOf({ complexity: 'heavy' })).toEqual([]);
-  });
-
-  test.each([0, -1, 2.5, '3'])('maxDepth %p is an error', (maxDepth) => {
-    expect(firstErrorOf({ maxDepth })).toContain('maxDepth must be a positive integer');
   });
 
   test.each(['poteto-mode', [1], { a: 'b' }])('skills %p is an error', (skills) => {

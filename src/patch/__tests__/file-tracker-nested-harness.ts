@@ -17,12 +17,13 @@ const NESTED_PATCH = 'nested-tool-call-notice';
 const ID = String.raw`[\w$]+`;
 
 const ROLES = {
-  admit: String.raw`=await (?<admit>${ID})\(${ID},${ID},${ID}\),${ID}=\(\)=>\(`,
+  admit: String.raw`=await (?<admit>${ID})\(${ID},${ID},${ID},${ID}\),${ID}=\(\)=>\(`,
   sandbox: String.raw`=\(\)=>\((?<sandbox>${ID})\(${ID},${ID},${ID}\),`,
   run: String.raw`\(${ID},${ID},${ID}\),(?<run>${ID})\(\{toolName:`,
   span: String.raw`=\(\)=>(?<span>${ID})\(${ID},\{sessionId:`,
   parent: String.raw`\.\.\.(?<parent>${ID})\(${ID}\.parentToolUseId\)`,
   queue: String.raw`=await (?<queue>${ID})\(${ID}\.sessionId,${ID}\.tool,`,
+  mayHaveMutated: String.raw`mayHaveMutated:(?<mayHaveMutated>${ID})\(${ID},${ID},${ID}\)`,
 } as const;
 
 type Role = keyof typeof ROLES;
@@ -133,6 +134,7 @@ export function nestedDispatch(
       [roles.span, async (_dependencies: Stand, _call: Stand, body: Body) => await body()],
       [roles.parent, () => ({})],
       [roles.queue, async (_session: string, _tool: Stand, body: Body) => await body()],
+      [roles.mayHaveMutated, () => false],
       ['process', bus],
     ]),
   })[name];

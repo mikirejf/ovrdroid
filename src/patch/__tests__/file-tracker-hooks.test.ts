@@ -7,6 +7,7 @@ import {
   hooksRewriting,
   listenerPatch,
   noticePatch,
+  outcomeOf,
   toolCall,
   trackedBy,
   useScratchFolder,
@@ -15,6 +16,33 @@ import {
 useScratchFolder();
 
 describe('tracker refresh after PostToolUse hooks', () => {
+  test('the hook receives its context before the MCP identity', async () => {
+    const tracker = trackedBy([]);
+    const mcpIdentity = { serverName: 'fixture', toolName: 'write' };
+    const calls: unknown[][] = [];
+
+    await outcomeOf({
+      tracker,
+      id: 'call-mcp',
+      name: 'fixture_write',
+      mcpIdentity,
+      hooks: async (...args) => {
+        calls.push(args);
+        await Bun.sleep(0);
+        return [];
+      },
+    });
+
+    expect(calls).toEqual([
+      [
+        'PostToolUse',
+        expect.objectContaining({ tool_name: 'fixture_write', hook_event_name: 'PostToolUse' }),
+        expect.objectContaining({ sessionId: 's', toolCallId: 'call-mcp', abortSignal: {} }),
+        mcpIdentity,
+      ],
+    ]);
+  });
+
   test('a hook that rewrote the file this call wrote counts as the call own change', async () => {
     const path = created('written.ts');
     const tracker = trackedBy([[path, 'call-1', 'edit']]);

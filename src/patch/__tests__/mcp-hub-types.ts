@@ -34,15 +34,7 @@ export interface ServerRecord {
   name: string;
   config: ServerConfig;
   transport: Transport;
-  pid?: number | null;
 }
-
-export interface Reap {
-  kind: string;
-  pid: number;
-}
-
-export type SpoolSource = (spool: { append: (entry: Reap) => void }) => void;
 
 export interface Listing {
   client: FakeClient;
@@ -77,7 +69,6 @@ export interface Hub {
   servers: Record<string, ServerRecord>;
   toolsListCache: Map<string, CacheEntry>;
   clientResourceSubscriptions: Record<string, Subscriptions>;
-  killServerProcessTree: (pid: number, name: string) => Promise<void>;
   openPendingConnection: (name: string, config: ServerConfig) => void;
   addServer: (name: string, config: ServerConfig) => Promise<void>;
   removeServer: (name: string) => Promise<void>;
@@ -103,6 +94,7 @@ export interface Hub {
       caller?: string,
       signal?: AbortSignal,
       prepared?: PreparedInvocation,
+      onDispatched?: () => void,
     ]
   ) => Promise<ToolResult>;
   readResource: (name: string, uri: string) => Promise<Resource>;

@@ -95,40 +95,18 @@ describe('the Subagents tab draws helpers under their parent', () => {
     ]);
   });
 
-  test('a helper of a helper nests one level deeper and a continuing branch draws a bar', () => {
-    const all = [
-      PARENT_A,
-      under('a', helper('a1', 'First', 3)),
-      under('a', helper('a2', 'Second', 1)),
-      under('a2', helper('x1', 'Deep under second', 0)),
-      under('a1', helper('x2', 'Deep under first', 2)),
-    ];
-    expect(view(all)).toEqual([
-      '*Delegate A',
-      '  \u251C Second',
-      '  \u2502 \u2514 Deep under second',
-      '  \u2514 First',
-      '    \u2514 Deep under first',
-    ]);
-  });
-
   test('a helper whose parent is not loaded is a plain top-level row', () => {
     const all = [under('gone', helper('o1', 'Orphan', 1)), helper('o2', 'No parent id', 2)];
     expect(view(all)).toEqual(['Orphan', 'No parent id']);
   });
 
-  test('an orphan keeps its own helpers under it', () => {
-    const all = [under('gone', helper('o1', 'Orphan', 2)), under('o1', helper('o2', 'Child', 1))];
-    expect(view(all)).toEqual(['Orphan', '  \u2514 Child']);
-  });
-
-  test('an archived helper is not shown, and its helpers attach to the next ancestor', () => {
+  test('an archived helper is not shown', () => {
     const all = [
       PARENT_A,
-      under('a', helper('a1', 'Archived middle', 3)),
-      under('a1', helper('a2', 'Child of archived', 1)),
+      under('a', helper('a1', 'Archived helper', 3)),
+      under('a', helper('a2', 'Visible helper', 1)),
     ];
-    expect(view(all, '', ['a1'])).toEqual(['*Delegate A', '  \u2514 Child of archived']);
+    expect(view(all, '', ['a1'])).toEqual(['*Delegate A', '  \u2514 Visible helper']);
   });
 
   test('no helpers shows no rows', () => {
@@ -153,7 +131,6 @@ describe('searching the Subagents tab', () => {
     PARENT_B,
     under('a', helper('a1', 'Recon picker', 3)),
     under('a', helper('a2', 'Fetch checklist', 2)),
-    under('a2', helper('x1', 'Deep owasp', 1)),
     under('b', helper('b1', 'Other', 4)),
   ];
 
@@ -161,16 +138,7 @@ describe('searching the Subagents tab', () => {
     expect(view(all, 'delegate')).toEqual([
       '*Delegate A',
       '  \u251C Fetch checklist',
-      '  \u2502 \u2514 Deep owasp',
       '  \u2514 Recon picker',
-    ]);
-  });
-
-  test('a title that matches only a deep helper keeps the parents needed to draw it', () => {
-    expect(view(all, 'owasp')).toEqual([
-      '*Delegate A',
-      '  \u2514 Fetch checklist',
-      '    \u2514 Deep owasp',
     ]);
   });
 

@@ -15,8 +15,8 @@ non-aborted LLM request and only adds into session sums. The patch appends one l
 ```
 
 It writes only when the directory exists, uses `appendFileSync` in a try/catch, and never throws
-into a turn. `cache-usage-log-promote` adds a `promote` line when Droid's built-in 1h promotion
-timer fires (it only fires in JSON-RPC mode or an agent process).
+into a turn. Droid 1.9.0 removed its built-in 1h promotion timer, and with it the
+`cache-usage-log-promote` patch that logged each promotion.
 
 Droid's stream reducer reads `cache_creation_input_tokens` and `cache_read_input_tokens` only. It
 never reads the 5m and 1h split, so that split needs `probe ttl` against the API.

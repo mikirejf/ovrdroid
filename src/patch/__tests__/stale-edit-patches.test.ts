@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
+import { applies, rebaseAll } from '../rebase.ts';
 import { STALE_EDIT_NOTE, staleEditPatches } from '../stale-edit-patches.ts';
 import { stamp, trackedFile, useScratchFolder } from './file-tracker-harness.ts';
 import { describeStrayNames } from './payload.ts';
 import { stockEdit } from './stale-edit-harness.ts';
+import { requireStock } from './stock-scanner.ts';
 
 useScratchFolder();
 
@@ -26,6 +28,16 @@ function noteOf(value: string | undefined): string | undefined {
 }
 
 describe('the patches', () => {
+  test.each(
+    rebaseAll(
+      staleEditPatches,
+      requireStock().map((module) => module.text),
+    ).map((rebase) => [rebase.name, rebase] as const),
+  )('%s anchors on the stock binary', (_name, rebase) => {
+    expect(rebase.status).toBeOneOf(['unchanged', 'rebased']);
+    expect(applies(rebase)).toBe(true);
+  });
+
   test('each anchors exactly once on the stock shape the tests run against', () => {
     expect(() => stockEdit(readAs('shape.ts').tracker)).not.toThrow();
   });

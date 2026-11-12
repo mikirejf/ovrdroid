@@ -68,9 +68,22 @@ function evidenceOf(ran: readonly string[], silent: readonly string[] = []): Rea
     markers: ran,
     bodies: keys
       .filter((key) => !silent.includes(key))
-      .map((key) =>
+      .map((key, index) =>
         childAsks(
-          result(`toolu_ro${RUN}_${key.replaceAll('-', '_')}`, ran.includes(key) ? 'ok' : REFUSAL),
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: `call_0123456789abcdef_${index}`,
+                name: key.endsWith('-create') ? 'Create' : 'Execute',
+                input: key.endsWith('-create')
+                  ? { file_path: `/m/${key}` }
+                  : { command: `touch /m/${key}` },
+              },
+            ],
+          },
+          result(`call_0123456789abcdef_${index}`, ran.includes(key) ? 'ok' : REFUSAL),
         ),
       ),
     settings: {
@@ -171,13 +184,25 @@ describe('droidFile', () => {
 });
 
 describe('sessionOf', () => {
-  test('reads the child session from the Task result', () => {
-    const id = callId(RUN, FLAG, 'launch');
+  test('reads the child session through Droid-assigned call IDs, not the stub ID', () => {
+    const id = 'call_0123456789abcdef_0';
     const body = parentAsks(
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id,
+            name: 'Task',
+            input: { prompt: 'readonly-child:flag:launch' },
+          },
+        ],
+      },
       result(id, 'Task launched in background.\ntask_id: s-1\nsession_id: s-1\n'),
     );
-    expect(sessionOf([parentAsks(), body], id)).toBe('s-1');
-    expect(sessionOf([body], 'another')).toBeUndefined();
+    expect(sessionOf([parentAsks(), body], FLAG, 'launch')).toBe('s-1');
+    expect(sessionOf([body], FLAG, 'resume')).toBeUndefined();
+    expect(sessionOf([body], TOOLS, 'launch')).toBeUndefined();
   });
 });
 

@@ -18,7 +18,7 @@ const HELPERS =
   'function $ODMW($ODname,$ODcfg,$ODtools){let $ODfsp=require("fs").promises,$ODfile=$ODMn($ODname,$ODcfg),$ODtmp=$ODfile+"."+process.pid;' +
   '$ODfsp.mkdir($ODMD,{recursive:!0}).then(()=>$ODfsp.writeFile($ODtmp,JSON.stringify($ODtools))).then(()=>$ODfsp.rename($ODtmp,$ODfile)).catch(()=>{})}' +
   `function $ODMe(){let $ODms=Number(process.env.${MCP_IDLE_ENV});return Number.isFinite($ODms)&&$ODms>=${MIN_MCP_IDLE_MS}?$ODms:${DEFAULT_MCP_IDLE_MS}}` +
-  'function $ODMd($ODname,$ODcfg,$ODera){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},eraNegotiation:$ODera,pid:null,$ODMz:!0}}';
+  'function $ODMd($ODname,$ODcfg,$ODera){return{name:$ODname,config:$ODcfg,client:{},transport:{close:async()=>{}},eraNegotiation:$ODera,$ODMz:!0}}';
 
 const ADD =
   'async connectServer(t,r,h){if($ODMh(r))return await this.$ODMspawn(t,r,h);' +
@@ -40,11 +40,10 @@ const ARM =
 const SLEEP =
   'async $ODMo($ODname){let $ODst=this.$ODMq?.get($ODname),$ODsrv=this.servers[$ODname],$ODcache=this.toolsListCache.get($ODname);if(!$ODst||$ODst.n||!$ODsrv||$ODsrv.$ODMz)return;' +
   'if(Object.keys(this.clientResourceSubscriptions[$ODname]??{}).length||$ODcache?.state!=="ready")return this.$ODMa($ODname);' +
-  'let $ODpid=$ODsrv.pid,$ODrelease=this.ownershipReleases.get($ODname),$ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);$ODdorm.pid=$ODpid,this.ownershipReleases.delete($ODname);' +
+  'let $ODdorm=$ODMd($ODname,$ODsrv.config,$ODsrv.eraNegotiation);' +
   'this.$ODMt($ODname,$ODdorm,$ODcache.list.tools),this.settledTools.delete($ODname);' +
-  '$ODdorm.$ODMstop=(async()=>{try{$ODsrv.listenStream?.close(),await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}' +
-  'try{if($ODpid!==null&&ri($ODpid))await this.killServerProcessTree($ODpid,$ODname)}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle kill failed",{server:$ODname,error:$ODerr})}$ODrelease?.(),$ODdorm.pid=null})();' +
-  'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname,pid:$ODpid});await $ODdorm.$ODMstop}' +
+  '$ODdorm.$ODMstop=(async()=>{try{$ODsrv.listenStream?.close(),await $ODsrv.transport.close()}catch($ODerr){this.logger?.warn("[ovrdroid] MCP idle close failed",{server:$ODname,error:$ODerr})}})();' +
+  'this.servers[$ODname]=$ODdorm,this.logger?.info("[ovrdroid] MCP server idle, stopping until next use",{server:$ODname});await $ODdorm.$ODMstop}' +
   'async $ODMsettle($ODname){let $ODsrv=this.servers[$ODname];await Promise.all([$ODsrv?.$ODMstop,$ODsrv?.$ODMb?.catch(()=>{})])}';
 
 const WAKE =
@@ -74,7 +73,6 @@ export const mcpIdlePatches: readonly Patch[] = [
   {
     name: 'mcp-idle-connect-server',
     find: 'async connectServer(t,r,h){',
-    lookups: ['if(e.length>0||ri(n))await this.killServerProcessTree('],
     replace: `${ADD}${STATE}${ARM}${SLEEP}${WAKE}${USE}async $ODMspawn(t,r,h){`,
   },
   {
@@ -89,13 +87,13 @@ export const mcpIdlePatches: readonly Patch[] = [
   },
   {
     name: 'mcp-idle-call-tool',
-    find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0){',
+    find: 'async callTool(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0,w=void 0){',
     lookups: ['if(await QH(A.resolvers.promise,u),p=this.servers[t],!p)'],
     replace:
       'async callTool(...$ODargs){let $ODpend=!this.servers[$ODargs[0]]&&this.pendingConnections.get($ODargs[0]);' +
       'if($ODpend)await QH($ODpend.resolvers.promise,$ODargs[5]);' +
       'return await this.$ODMu($ODargs[0],()=>this.$ODMcall(...$ODargs))}' +
-      'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0){',
+      'async $ODMcall(t,r,s,o="unknown-session",l="AGENT",u=void 0,v=void 0,w=void 0){',
   },
   {
     name: 'mcp-idle-admission-wakes-server',

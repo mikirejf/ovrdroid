@@ -22,9 +22,4 @@ export const usagePatches: readonly Patch[] = [
       'commitTurnTokenUsage(t,s){if(!this.currentSessionId)return;' +
       `if(!t.odWarm){${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:this.currentSessionId,m:s,in:t.inputTokens,cr:t.cacheReadTokens,cw:t.cacheCreationTokens,out:t.outputTokens,th:t.thinkingTokens})}`,
   },
-  {
-    name: 'cache-usage-log-promote',
-    find: 'y.attempted={capturedAt:l.capturedAt,attemptedAt:Date.now()};await zte(g,{sessionId:t,modelId:l.modelId,',
-    replace: `y.attempted={capturedAt:l.capturedAt,attemptedAt:Date.now()};${USAGE_LOG_OPEN}__odUsage({t:Date.now(),s:t,m:l.modelId,promote:!0});await zte(g,{sessionId:t,modelId:l.modelId,`,
-  },
 ];

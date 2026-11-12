@@ -3,19 +3,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  MODEL_AND_DESCENDANTS,
+  MODEL_LOOKUP,
   MODEL_OF_GLOBAL,
+  PATCHED_ROSTER_READ,
   sessionRosterPatches,
 } from '../session-roster-patches.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
-import {
-  STOCK_EXPAND,
-  STOCK_EXPAND_TOGGLE_FN,
-  STOCK_ROW_BUILDER,
-  STOCK_ROWS,
-  STOCK_SET_TOGGLE,
-  STOCK_TREE,
-} from './session-roster-stock.ts';
+import { STOCK_ROW_BUILDER, STOCK_ROWS } from './session-roster-stock.ts';
 
 export interface Store {
   getModelId: () => string | undefined;
@@ -39,7 +33,6 @@ export interface Entry {
 
 export interface Described {
   sessionId: string;
-  parentSessionId?: string | null;
   model?: string;
   reasoningEffort?: string;
   status?: string;
@@ -63,7 +56,9 @@ interface ModelBag {
 
 type LookupNames = [
   () => SessionService,
-  (ssm: StateManager, parent: string) => Entry[],
+  (ssm: StateManager, root: string) => Entry[],
+  (ssm: StateManager, root: string) => string,
+  Described[],
   (name: string) => { readFileSync: typeof readFileSync },
   ModelBag,
 ];
@@ -73,8 +68,8 @@ interface Lookup {
 }
 
 const lookup = payloadFunction<LookupNames, Lookup>(
-  ['m', 'pCe', 'require', 'globalThis'],
-  `${MODEL_AND_DESCENDANTS};return{rosterOf:$ODrosterOf}`,
+  ['m', 'pCe', '_Ce', 'GP', 'require', 'globalThis'],
+  `${MODEL_LOOKUP}${PATCHED_ROSTER_READ}return A}return{rosterOf:Wke}`,
 );
 
 export interface World {
@@ -120,7 +115,9 @@ export function world(): World {
   const bag: ModelBag = {};
   const { rosterOf } = lookup(
     () => ({ findSessionSettingsPath: settingsFile }),
-    (_ssm, parent) => children.get(parent) ?? [],
+    (_ssm, root) => children.get(root) ?? [],
+    (_ssm, root) => root,
+    [],
     () => ({ readFileSync }),
     bag,
   );
@@ -160,19 +157,10 @@ function patchedText(stock: string, name: string): string {
 
 export interface Droid {
   sessionId: string;
-  parentSessionId: string | null;
-  joinOrdinal: number;
   model?: string;
   reasoningEffort?: string;
-  nestedRoster?: boolean;
   workingState: string;
   archived?: boolean;
-}
-
-export interface Node {
-  droid: Droid;
-  group: string;
-  children: Node[];
 }
 
 type RowNames = [
@@ -201,75 +189,21 @@ interface RowInput {
   machines: null[];
 }
 
-function rowsOf(tee: string): (input: RowInput) => Droid[] {
-  return payloadFunction<RowNames, (input: RowInput) => Droid[]>(
-    ['k9', 'Cb', 'OQ', 'Pe', 'ze', 'l_', 'bT'],
-    `${STOCK_ROW_BUILDER};${tee};return qQ`,
-  )(
-    () => new Set(),
-    (left, right) => left ?? right,
-    () => null,
-    () => null,
-    (agent) => (agent.status === 'running' ? 'streaming' : 'idle'),
-    () => null,
-    {},
-  );
-}
-
-const patchedRows = rowsOf(patchedText(STOCK_ROWS, 'session-roster-row-carries-model-and-parent'));
-
-type TreeNames = [(droid: Droid) => boolean, (left: Node, right: Node) => number];
-
-const buildTree = payloadFunction<
-  TreeNames,
-  (droids: Droid[], unreachable: Set<string>, paused: Set<string>) => Node[]
->(['f9', 'ce'], `${STOCK_TREE};return u_`)(
-  (droid) => droid.workingState !== 'idle',
-  (left, right) => left.droid.joinOrdinal - right.droid.joinOrdinal,
-);
-
-export interface Rendered {
-  sessionId: string;
-  parent: string | null;
-  depth: number;
-  expanded: boolean;
-  model: string | undefined;
-  reasoningEffort: string | undefined;
-}
-
-interface Row {
-  kind: string;
-  id: string;
-  node: Node;
-  depth: number;
-  parent: Droid | null;
-  expanded: boolean;
-}
-
-interface ListState {
-  expandedDroids: Set<string>;
-}
-
-interface Expansion {
-  on: (...args: [Row[], Node, number, Droid | null, number, Set<string>]) => undefined;
-  ufe: (state: ListState, id: string, expand: boolean) => ListState;
-}
-
-type ExpansionNames = [(node: Node) => boolean, (text: string) => number, () => string, number];
-
-const expansion = payloadFunction<ExpansionNames, Expansion>(
-  ['mb', 'X', 'goe', 'Ht'],
-  `${STOCK_SET_TOGGLE}${patchedText(STOCK_EXPAND_TOGGLE_FN, 'session-roster-remembers-a-collapse')}` +
-    `${patchedText(STOCK_EXPAND, 'session-roster-expands-nested-by-default')};return{on,ufe}`,
+const patchedRows = payloadFunction<RowNames, (input: RowInput) => Droid[]>(
+  ['k9', 'Cb', 'OQ', 'Pe', 'ze', 'l_', 'bT'],
+  `${STOCK_ROW_BUILDER};${patchedText(STOCK_ROWS, 'session-roster-row-carries-model')};return qQ`,
 )(
-  () => false,
-  (text) => text.length,
-  () => '',
-  0,
+  () => new Set(),
+  (left, right) => left ?? right,
+  () => null,
+  () => null,
+  (agent) => (agent.status === 'running' ? 'streaming' : 'idle'),
+  () => null,
+  {},
 );
 
-export function nodesOf(agents: Described[], leadId = 'lead'): Node[] {
-  const droids = patchedRows({
+export function rowsOf(agents: Described[], leadId = 'lead'): Droid[] {
+  return patchedRows({
     lead: { sessionId: leadId, machineId: 'local' },
     agents,
     agentMachineIds: new Map(),
@@ -279,43 +213,4 @@ export function nodesOf(agents: Described[], leadId = 'lead'): Node[] {
     activityAt: new Map(),
     machines: [],
   });
-  return buildTree(droids, new Set(), new Set());
-}
-
-export interface Listing {
-  state: ListState;
-  rows: () => Rendered[];
-  expand: (id: string) => null;
-  collapse: (id: string) => null;
-}
-
-export function listing(nodes: Node[]): Listing {
-  const listState = { state: { expandedDroids: new Set<string>() } };
-  return {
-    get state() {
-      return listState.state;
-    },
-    rows: () => {
-      const out: Row[] = [];
-      for (const node of nodes) {
-        expansion.on(out, node, 0, null, 0, listState.state.expandedDroids);
-      }
-      return out.map((row) => ({
-        sessionId: row.id,
-        parent: row.parent?.sessionId ?? null,
-        depth: row.depth,
-        expanded: row.expanded,
-        model: row.node.droid.model,
-        reasoningEffort: row.node.droid.reasoningEffort,
-      }));
-    },
-    expand: (id) => {
-      listState.state = expansion.ufe(listState.state, id, true);
-      return null;
-    },
-    collapse: (id) => {
-      listState.state = expansion.ufe(listState.state, id, false);
-      return null;
-    },
-  };
 }

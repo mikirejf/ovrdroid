@@ -12,9 +12,28 @@ import {
   STACK_TAIL_FRAMES,
   StackMode,
 } from '../blank-diag-patches.ts';
-import { describeStrayNames, payloadFunction } from './payload.ts';
+import { applies, rebaseAll, rebasePatch } from '../rebase.ts';
+import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
+import { stockDroid } from './stock-scanner.ts';
 
 describeStrayNames(blankDiagPatches);
+
+describe.skipIf(stockDroid === undefined)('blank diagnostics on stock Droid', () => {
+  const rebased = rebaseAll(
+    blankDiagPatches,
+    (stockDroid ?? []).map((module) => module.text),
+  );
+  test.each(rebased.map((patch) => [patch.name, patch] as const))('%s applies', (_name, patch) => {
+    expect(applies(patch)).toBe(true);
+    expect(patch.matches).toBe(1);
+  });
+});
+
+function patchedFixture(name: string, source: string): string {
+  const patch = rebasePatch(patchNamed(blankDiagPatches, `blank-diag-${name}`), [source]);
+  expect(applies(patch)).toBe(true);
+  return source.replace(patch.find, patch.replace);
+}
 
 type Detail = Readonly<Record<string, string>>;
 type Write = (event: string, detail: Detail, mode: number) => void;
@@ -34,6 +53,14 @@ interface Sink {
   write: Write;
   rows: () => Fields[];
   files: Set<string>;
+}
+
+interface ResizeGlobals {
+  __odBlankWhy?: { reason: string; at: number };
+}
+
+interface Screen {
+  name: string;
 }
 
 function writerWith(fakeRequire: FakeRequire): Write {
@@ -175,4 +202,109 @@ describe('the clear cause', () => {
     Reflect.deleteProperty(globalThis, '__odBlankEpoch');
     Reflect.deleteProperty(globalThis, '__odBlankWhy');
   });
+});
+
+describe('rebased diagnostic sites preserve stock behavior', () => {
+  test('scoped reads keep registration and adapter selection, logging only a missing visible session', () => {
+    const events: string[] = [];
+    const globals = {
+      __odBlankSid: 'main',
+      __odBlank: (event: string) => events.push(event),
+    };
+    let found = false;
+    const adapter = {
+      getSessionStateManager: () => ({
+        getSessionManager: () => (found ? {} : undefined),
+      }),
+    };
+    let scope: object | undefined = { daemonConnection: {} };
+    let registrations = 0;
+    const fallback = {};
+    const source =
+      'function a(){if(b(c),d()?.daemonConnection){let e=f(h);if(e)return e}return fallback}return a';
+    const get = payloadFunction<
+      [object, () => void, object, () => object | undefined, () => object, object, object],
+      () => object
+    >(['globalThis', 'b', 'c', 'd', 'f', 'h', 'fallback'], patchedFixture('scoped-read', source))(
+      globals,
+      () => {
+        registrations += 1;
+      },
+      {},
+      () => scope,
+      () => adapter,
+      {},
+      fallback,
+    );
+    expect(get()).toBe(adapter);
+    expect(events).toEqual(['scoped-read']);
+    found = true;
+    expect(get()).toBe(adapter);
+    scope = undefined;
+    expect(get()).toBe(fallback);
+    expect(events).toEqual(['scoped-read']);
+    expect(registrations).toBe(3);
+  });
+
+  test.each([true, false])(
+    'resize attribution forwards width changed=%s to the dispatcher',
+    (width) => {
+      const globals: ResizeGlobals = {};
+      const calls: [Screen, string, boolean][] = [];
+      const screen = { name: 'chat' };
+      const source = 'function run(width){let q;q=!1,a(b.current,c(b.current),width)}return run';
+      const run = payloadFunction<
+        [
+          ResizeGlobals,
+          (target: Screen, policy: string, changed: boolean) => void,
+          object,
+          () => string,
+        ],
+        (changed: boolean) => void
+      >(['globalThis', 'a', 'b', 'c'], patchedFixture('resize-cause', source))(
+        globals,
+        (...args) => {
+          calls.push(args);
+        },
+        { current: screen },
+        () => 'rebuildChatOnWidthChange',
+      );
+      run(width);
+      expect(calls).toEqual([[screen, 'rebuildChatOnWidthChange', width]]);
+      expect(globals.__odBlankWhy?.reason).toBe(
+        `resize:rebuildChatOnWidthChange${width ? '' : ' (height only)'}`,
+      );
+    },
+  );
+
+  test.each([true, false])(
+    'manual failure keeps the original throw and aborted=%s log selection',
+    (aborted) => {
+      const events: Detail[] = [];
+      const logs: string[] = [];
+      const failure = new Error('compaction failed');
+      const source =
+        'try{throw failure}catch(error){let stopped=signal?.aborted===!0;throw log(stopped?"[Compaction] End (manual aborted)":"[Compaction] End (manual error)"),error}';
+      const run = payloadFunction<[object, Error, object, (message: string) => void], () => void>(
+        ['globalThis', 'failure', 'signal', 'log'],
+        `return()=>{${patchedFixture('compaction-manual-failed', source)}}`,
+      );
+      expect(
+        run(
+          {
+            __odBlank: (_event: string, detail: Detail) => {
+              events.push(detail);
+            },
+          },
+          failure,
+          { aborted },
+          (message) => {
+            logs.push(message);
+          },
+        ),
+      ).toThrow(failure);
+      expect(events).toEqual([{ phase: 'end', path: 'manual', outcome: 'failed' }]);
+      expect(logs).toEqual([`[Compaction] End (manual ${aborted ? 'aborted' : 'error'})`]);
+    },
+  );
 });

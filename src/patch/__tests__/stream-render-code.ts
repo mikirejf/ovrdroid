@@ -1,6 +1,4 @@
-import os from 'node:os';
-import process from 'node:process';
-import tty from 'node:tty';
+import { isBuiltin } from 'node:module';
 
 import { parse as parseJavaScript } from '@babel/parser';
 import traverse from '@babel/traverse';
@@ -12,6 +10,7 @@ import { closureOf } from './module-closure.ts';
 import type { Stand } from './session-mention-harness.ts';
 import type { Plain } from './stream-render-harness.ts';
 import {
+  builtinValue,
   closureValue,
   evaluateProgram,
   guarded,
@@ -275,19 +274,14 @@ function painterImports(text: string, source: string) {
 }
 
 function painterDependency(from: string, exported: string): Stand {
+  if (isBuiltin(from)) {
+    return builtinValue(from, exported);
+  }
   const text = textOf(sourceApp(), from);
   const setLevel = /var (?<name>[\w$]+)=\((?<arg>[\w$]+)\)=>\{[\w$]+\.level=\k<arg>\},/u.exec(text)
     ?.groups?.['name'];
   const source = closureOf(text, setLevel === undefined ? [exported] : [exported, setLevel]);
-  const builtins = new Map<string, Stand>([
-    ['os', os],
-    ['process', process],
-    ['tty', tty],
-  ]);
   const overrides = new Map<string, Stand>();
-  for (const match of text.matchAll(/import (?<name>[\w$]+) from"(?<module>os|process|tty)";/gu)) {
-    overrides.set(match.groups?.['name'] ?? '', builtins.get(match.groups?.['module'] ?? ''));
-  }
   for (const [local, binding] of painterImports(text, source)) {
     overrides.set(local, painterDependency(binding.from, binding.exported));
   }

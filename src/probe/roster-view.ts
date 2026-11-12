@@ -10,26 +10,26 @@ import { send, settle, waitFor } from './rewind.ts';
 import type { RosterAnswer, RosterTitles } from './roster-view-report.ts';
 import {
   answerFor,
-  CHILD_TITLE,
   describeRoster,
-  GRANDCHILD_TITLE,
-  LEVEL_ONE,
-  LEVEL_TWO,
-  NEST_WORD,
+  FIRST_CHILD_PROMPT,
+  FIRST_CHILD_TITLE,
+  LAUNCH_WORD,
   ROSTER_FILTER,
   ROSTER_TITLES,
   rosterVerdicts,
+  SECOND_CHILD_PROMPT,
+  SECOND_CHILD_TITLE,
 } from './roster-view-report.ts';
 import { openSettledSession } from './session.ts';
 import type { Session } from './session.ts';
-import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
+import { streamEvents, stubSettings, toolBatchEvents } from './stub-model.ts';
 
 const ARROW_DOWN = '\u001B[B';
 const WORKING_LINE = /\d+ droids? working/u;
 const ROSTER_WAIT_MS = 15_000;
 const OPEN_WAIT_MS = 2000;
 const DROID_TYPE = 'ovrdroid-roster-probe';
-const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Launches one more droid for the roster probe.\nmodel: inherit\nmaxDepth: 2\n---\nDo what the prompt says.\n`;
+const DROID_FILE = `---\nname: ${DROID_TYPE}\ndescription: Holds a child session for the roster probe.\nmodel: inherit\n---\nDo what the prompt says.\n`;
 
 export const DEFAULT_ROSTER_TIMEOUT_S = 60;
 export const SAVED_ROSTER_FILE = 'roster-view.txt';
@@ -52,30 +52,31 @@ interface Stub {
 }
 
 function eventsFor(answer: RosterAnswer, callId: (tag: string) => string): string[] {
-  if (answer === 'launch-child') {
-    return toolEvents({
-      id: callId('child'),
-      name: 'Task',
-      input: {
-        subagent_type: DROID_TYPE,
-        description: CHILD_TITLE,
-        prompt: `${LEVEL_ONE}go`,
-        run_in_background: true,
+  if (answer === 'launch-children') {
+    return toolBatchEvents([
+      {
+        id: callId('first-child'),
+        name: 'Task',
+        input: {
+          subagent_type: DROID_TYPE,
+          description: FIRST_CHILD_TITLE,
+          prompt: `${FIRST_CHILD_PROMPT}hold`,
+          run_in_background: true,
+        },
       },
-    });
-  }
-  if (answer === 'launch-grandchild') {
-    return toolEvents({
-      id: callId('grandchild'),
-      name: 'Task',
-      input: {
-        subagent_type: DROID_TYPE,
-        description: GRANDCHILD_TITLE,
-        prompt: `${LEVEL_TWO}hold`,
+      {
+        id: callId('second-child'),
+        name: 'Task',
+        input: {
+          subagent_type: DROID_TYPE,
+          description: SECOND_CHILD_TITLE,
+          prompt: `${SECOND_CHILD_PROMPT}hold`,
+          run_in_background: true,
+        },
       },
-    });
+    ]);
   }
-  return streamEvents([answer === 'ok' ? 'ok' : 'hi']);
+  return streamEvents(['ok']);
 }
 
 function startStub(callId: (tag: string) => string): Stub {
@@ -143,11 +144,11 @@ function listsBoth(session: Session): readonly string[] | undefined {
     lines.some((line) => line.toLowerCase().includes(title.toLowerCase()));
   const opened = lines.findIndex((line) => line.includes(ROSTER_FILTER));
   const chips = lines.slice(opened + 1).filter((line) => line.includes(ROSTER_TITLES.model)).length;
-  return has(CHILD_TITLE) && has(GRANDCHILD_TITLE) && chips >= 2 ? lines : undefined;
+  return has(FIRST_CHILD_TITLE) && has(SECOND_CHILD_TITLE) && chips >= 2 ? lines : undefined;
 }
 
 async function openRoster(session: Session, timeoutMs: number): Promise<RosterEvidence> {
-  await send(session, NEST_WORD);
+  await send(session, LAUNCH_WORD);
   await waitForWorking(session, timeoutMs);
   await settle(session);
   await pressDownWhileWorking(session, performance.now() + ROSTER_WAIT_MS);

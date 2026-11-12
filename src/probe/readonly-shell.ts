@@ -6,7 +6,6 @@ import { MS_PER_SECOND } from '../cli.ts';
 import { sessionFolder, withLiveDir } from './live-session.ts';
 import type { Plan, ReadonlyEvidence } from './readonly-shell-report.ts';
 import {
-  callId,
   CHILDREN,
   droidFile,
   launchPrompt,
@@ -64,7 +63,6 @@ interface Drive {
   session: Session;
   bodies: readonly unknown[];
   folder: string;
-  run: string;
   timeoutMs: number;
 }
 
@@ -100,7 +98,7 @@ async function driveChildren(drive: Drive): Promise<Record<string, string>> {
       notices,
       what: `the first run of ${child.droid}`,
     });
-    const session = sessionOf(drive.bodies, callId(drive.run, child, 'launch'));
+    const session = sessionOf(drive.bodies, child, 'launch');
     if (session === undefined) {
       throw new Error(`Droid started no sub-agent for ${child.droid}`);
     }
@@ -145,7 +143,6 @@ export async function runReadonlyShell(
           session,
           bodies: stub.bodies,
           folder,
-          run,
           timeoutMs: options.timeout * MS_PER_SECOND,
         });
         return { run, bodies: [...stub.bodies], markers: readdirSync(markers), settings };

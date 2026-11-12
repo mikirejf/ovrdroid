@@ -10,6 +10,8 @@ import { patchNamed, payloadFunction } from './payload.ts';
 import type { Reply } from './warmer-harness.ts';
 import {
   ANTHROPIC_DELAY_MS,
+  keepWarm,
+  keepWarmSessions,
   OTHER_SESSION,
   SERVICE_NAME,
   SESSION,
@@ -238,12 +240,17 @@ describe('the warm client', () => {
 });
 
 describe('cancelling', () => {
-  test('closing the session clears the pending timer', () => {
+  test('closing the session clears the timer, keep-warm flag and snapshot', () => {
+    keepWarm('on');
     world.request(1);
 
     world.harness.LV(SESSION);
 
     expect(world.cleared).toEqual(world.timers.slice(0, 1));
+    expect(world.harness.warm.has(SESSION)).toBe(false);
+    expect(keepWarmSessions().has(SESSION)).toBe(false);
+    expect(world.harness.snapshots.has(SESSION)).toBe(false);
+    keepWarm('on');
     expect(world.harness.warm.has(SESSION)).toBe(false);
   });
 
@@ -299,6 +306,7 @@ describe('cancelling', () => {
   });
 
   test('a queued user message (vu) leaves the pending timer in place', () => {
+    keepWarm('on');
     world.request(1);
     const armed = world.harness.warm.get(SESSION);
 
@@ -306,6 +314,7 @@ describe('cancelling', () => {
 
     expect(world.cleared).toHaveLength(0);
     expect(world.harness.warm.get(SESSION)).toBe(armed);
+    expect(keepWarmSessions().has(SESSION)).toBe(true);
   });
 
   test('a new request aborts a warm in flight and starts over on the new snapshot', async () => {

@@ -3,8 +3,8 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { applies } from '../rebase.ts';
 import { sessionRosterPatches } from '../session-roster-patches.ts';
 import { describeStrayNames } from './payload.ts';
-import { entry, listing, nodesOf, storeOf, world } from './session-roster-harness.ts';
-import type { Described, World } from './session-roster-harness.ts';
+import { entry, rowsOf, storeOf, world } from './session-roster-harness.ts';
+import type { World } from './session-roster-harness.ts';
 import { shipped, stockDroid } from './stock-scanner.ts';
 
 describeStrayNames(sessionRosterPatches);
@@ -23,25 +23,6 @@ afterEach(() => {
   open?.dispose();
   open = undefined;
 });
-
-function childOf(
-  sessionId: string,
-  parentSessionId: string,
-  extra: Partial<Described> = {},
-): Described {
-  return { ...entry(sessionId, sessionId.length), parentSessionId, ...extra };
-}
-
-function nestedPair(): Described[] {
-  return [
-    { ...entry('child', 1), parentSessionId: 'lead' },
-    { ...entry('grandchild', 2), parentSessionId: 'child' },
-  ];
-}
-
-function ids(list: readonly Described[]): string[] {
-  return list.map((item) => item.sessionId);
-}
 
 describe('a roster entry carries the model and effort of its session', () => {
   test('a loaded session reports both', () => {
@@ -129,63 +110,24 @@ describe('a roster entry carries the model and effort of its session', () => {
   });
 });
 
-describe('the roster lists every descendant, each under its real parent', () => {
-  test('a child and a grandchild come with their parents', () => {
-    const lookup = fresh();
-    lookup.children.set('root', [entry('child', 1)]);
-    lookup.children.set('child', [entry('grandchild', 2)]);
-    expect(lookup.rosterOf('root')).toMatchObject([
-      { sessionId: 'child', parentSessionId: 'root' },
-      { sessionId: 'grandchild', parentSessionId: 'child' },
-    ]);
-  });
-
-  test('there is no depth limit', () => {
-    const lookup = fresh();
-    const chain = ['root', 'a', 'b', 'c', 'd', 'e'];
-    for (const [index, parent] of chain.entries()) {
-      const child = chain[index + 1];
-      if (child !== undefined) {
-        lookup.children.set(parent, [entry(child, index)]);
-      }
-    }
-    expect(ids(lookup.rosterOf('root'))).toEqual(['a', 'b', 'c', 'd', 'e']);
-  });
-
-  test('siblings keep their order and each brings its own children', () => {
+describe('the roster enriches direct children', () => {
+  test('siblings keep their order and each carries its own model and effort', () => {
     const lookup = fresh();
     lookup.children.set('root', [entry('one', 1), entry('two', 2)]);
-    lookup.children.set('one', [entry('one-a', 3)]);
-    lookup.children.set('two', [entry('two-a', 4)]);
-    expect(ids(lookup.rosterOf('root'))).toEqual(['one', 'one-a', 'two', 'two-a']);
-  });
-
-  test('a grandchild carries its own model', () => {
-    const lookup = fresh();
-    lookup.children.set('root', [entry('child')]);
-    lookup.children.set('child', [entry('grandchild')]);
-    lookup.stores.set('child', storeOf(OPUS, 'high'));
-    lookup.writeSettings('grandchild', JSON.stringify({ model: HAIKU, reasoningEffort: 'low' }));
+    lookup.stores.set('one', storeOf(OPUS, 'high'));
+    lookup.writeSettings('two', JSON.stringify({ model: HAIKU, reasoningEffort: 'low' }));
     expect(lookup.rosterOf('root')).toMatchObject([
-      { sessionId: 'child', model: OPUS, reasoningEffort: 'high' },
-      { sessionId: 'grandchild', model: HAIKU, reasoningEffort: 'low' },
+      { sessionId: 'one', model: OPUS, reasoningEffort: 'high' },
+      { sessionId: 'two', model: HAIKU, reasoningEffort: 'low' },
     ]);
   });
 
-  test('a cycle back to an ancestor stops there', () => {
+  test('enrichment preserves the stock child fields', () => {
     const lookup = fresh();
-    lookup.children.set('root', [entry('child')]);
-    lookup.children.set('child', [entry('grandchild')]);
-    lookup.children.set('grandchild', [entry('child'), entry('root')]);
-    expect(ids(lookup.rosterOf('root'))).toEqual(['child', 'grandchild']);
-  });
-
-  test('a session listed under two parents appears once', () => {
-    const lookup = fresh();
-    lookup.children.set('root', [entry('one'), entry('two')]);
-    lookup.children.set('one', [entry('shared')]);
-    lookup.children.set('two', [entry('shared')]);
-    expect(ids(lookup.rosterOf('root'))).toEqual(['one', 'shared', 'two']);
+    const child = entry('child', 42, 'idle');
+    lookup.children.set('root', [child]);
+    lookup.stores.set('child', storeOf(OPUS, 'high'));
+    expect(lookup.rosterOf('root')).toEqual([{ ...child, model: OPUS, reasoningEffort: 'high' }]);
   });
 
   test('no children is an empty roster', () => {
@@ -193,142 +135,37 @@ describe('the roster lists every descendant, each under its real parent', () => 
   });
 });
 
-describe('the roster nodes keep the parent, the model and the nesting mark', () => {
-  test('an archived descendant keeps its model and parent but stays idle', () => {
-    const [top] = nodesOf([
-      childOf('child', 'lead'),
-      childOf('grandchild', 'child', { model: HAIKU, archived: true, status: 'running' }),
+describe('the roster rows carry model and effort', () => {
+  test('an archived child keeps its model and effort but stays idle', () => {
+    const [row] = rowsOf([
+      { ...entry('child', 1), model: HAIKU, reasoningEffort: 'low', archived: true },
     ]);
-    expect(top?.children[0]?.droid).toMatchObject({
+    expect(row).toMatchObject({
       model: HAIKU,
+      reasoningEffort: 'low',
       archived: true,
       workingState: 'idle',
-      parentSessionId: 'child',
     });
   });
 
-  test('a grandchild nests under its child', () => {
-    const [top, ...others] = nodesOf([childOf('child', 'lead'), childOf('grandchild', 'child')]);
-    expect(others).toEqual([]);
-    expect(top?.droid.sessionId).toBe('child');
-    expect(top?.children.map((node) => node.droid.sessionId)).toEqual(['grandchild']);
-  });
-
-  test('a node carries its model and effort', () => {
-    const [top] = nodesOf([
-      childOf('child', 'lead', { model: OPUS, reasoningEffort: 'high' }),
-      childOf('grandchild', 'child', { model: HAIKU }),
+  test('each direct child carries its own model and effort', () => {
+    const rows = rowsOf([
+      { ...entry('one', 1), model: OPUS, reasoningEffort: 'high' },
+      { ...entry('two', 2), model: HAIKU },
     ]);
-    expect(top?.droid).toMatchObject({ model: OPUS, reasoningEffort: 'high' });
-    expect(top?.children[0]?.droid).toMatchObject({ model: HAIKU });
-    expect(top?.children[0]?.droid.reasoningEffort).toBeUndefined();
-  });
-
-  test('a direct child of the lead has no parent node, so it stays at the top', () => {
-    const nodes = nodesOf([childOf('child', 'lead')]);
-    expect(nodes.map((node) => node.droid.sessionId)).toEqual(['child']);
-    expect(nodes[0]?.droid.parentSessionId).toBeNull();
-  });
-
-  test('three levels nest, deepest last', () => {
-    const [top] = nodesOf([childOf('a', 'lead'), childOf('bb', 'a'), childOf('ccc', 'bb')]);
-    expect(top?.children[0]?.children[0]?.droid.sessionId).toBe('ccc');
-  });
-
-  test('a cycle among the entries yields each session once', () => {
-    const nodes = nodesOf([childOf('a', 'lead'), childOf('bb', 'ccc'), childOf('ccc', 'bb')]);
-    const seen = new Set<string>();
-    const walk = (list: typeof nodes): void => {
-      for (const node of list) {
-        expect(seen.has(node.droid.sessionId)).toBe(false);
-        seen.add(node.droid.sessionId);
-        walk(node.children);
-      }
-    };
-    walk(nodes);
-    expect([...seen]).toEqual(['a']);
-  });
-
-  test('an entry without the roster fields stays unparented and unmarked, as for a mission', () => {
-    const [node] = nodesOf([{ ...entry('agent', 1) }]);
-    expect(node?.droid.parentSessionId).toBeNull();
-    expect(node?.droid.nestedRoster).toBe(false);
-  });
-
-  test('a working grandchild makes its top-level ancestor count as working', () => {
-    const [top] = nodesOf([
-      childOf('child', 'lead', { status: 'idle' }),
-      childOf('grandchild', 'child', { status: 'running' }),
-    ]);
-    expect(top?.droid.workingState).toBe('idle');
-    expect(top?.group).toBe('working');
-  });
-});
-
-describe('a node with children is expanded by default', () => {
-  test('the child and the grandchild are both listed, the grandchild indented', () => {
-    const rows = listing(nodesOf(nestedPair())).rows();
     expect(rows).toMatchObject([
-      { sessionId: 'child', depth: 0, expanded: true },
-      { sessionId: 'grandchild', depth: 1, parent: 'child' },
+      { sessionId: 'one', model: OPUS, reasoningEffort: 'high' },
+      { sessionId: 'two', model: HAIKU },
     ]);
+    expect(rows[1]?.reasoningEffort).toBeUndefined();
   });
 
-  test('every level of a deep chain is open', () => {
-    const rows = listing(
-      nodesOf([
-        { ...entry('a', 1), parentSessionId: 'lead' },
-        { ...entry('bb', 2), parentSessionId: 'a' },
-        { ...entry('ccc', 3), parentSessionId: 'bb' },
-      ]),
-    ).rows();
-    expect(rows.map((row) => row.depth)).toEqual([0, 1, 2]);
-  });
-
-  test('a node without children is not marked expanded', () => {
-    const rows = listing(nodesOf([{ ...entry('solo', 1), parentSessionId: 'lead' }])).rows();
-    expect(rows).toMatchObject([{ sessionId: 'solo', expanded: false }]);
-  });
-
-  test('collapsing hides the children, expanding shows them again', () => {
-    const view = listing(nodesOf(nestedPair()));
-    view.collapse('child');
-    expect(view.rows().map((row) => row.sessionId)).toEqual(['child']);
-    view.expand('child');
-    expect(view.rows().map((row) => row.sessionId)).toEqual(['child', 'grandchild']);
-  });
-
-  test('a collapse survives later renders', () => {
-    const view = listing(nodesOf(nestedPair()));
-    view.collapse('child');
-    expect(view.rows()).toHaveLength(1);
-    expect(view.rows()).toHaveLength(1);
-  });
-
-  test('collapsing one node leaves the others open', () => {
-    const view = listing(
-      nodesOf([
-        { ...entry('one', 1), parentSessionId: 'lead' },
-        { ...entry('two', 2), parentSessionId: 'lead' },
-        { ...entry('one-a', 3), parentSessionId: 'one' },
-        { ...entry('two-a', 4), parentSessionId: 'two' },
-      ]),
-    );
-    view.collapse('one');
-    expect(view.rows().map((row) => row.sessionId)).toEqual(['one', 'two', 'two-a']);
-  });
-
-  test('a mission agent with children keeps stock behaviour: closed until expanded', () => {
-    const view = listing(
-      nodesOf([
-        { ...entry('lead-agent', 1) },
-        { ...entry('sub', 2), parentSessionId: 'lead-agent' },
-      ]),
-    );
-    expect(view.rows().map((row) => row.sessionId)).toEqual(['lead-agent']);
+  test('a child without model settings reports neither', () => {
+    const [row] = rowsOf([entry('child')]);
+    expect(row?.model).toBeUndefined();
+    expect(row?.reasoningEffort).toBeUndefined();
   });
 });
-
 describe.skipIf(stockDroid === undefined)('the shipped session roster', () => {
   const { patchedText, rebasedNamed } = shipped(sessionRosterPatches);
 

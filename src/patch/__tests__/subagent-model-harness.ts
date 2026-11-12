@@ -41,7 +41,6 @@ export interface DroidFields {
   model?: string;
   reasoningEffort?: string;
   complexity?: unknown;
-  maxDepth?: unknown;
   skills?: unknown;
 }
 

@@ -110,12 +110,12 @@ export const STACK_VIEW =
   '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
 
 const MODE_FIND =
-  's1=f().getToolResultDisplay()==="compact",c1=b({staticKey:M,cuts:new Map}),' +
+  's1=ke(Js,()=>f().getToolResultDisplay()==="compact"),c1=b({staticKey:M,cuts:new Map}),' +
   'd1=y(()=>{let Y1=c1.current.staticKey===M?c1.current.cuts:new Map,H1=wr1(Y1,n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))));return c1.current={staticKey:M,cuts:H1},H1},[n1,M]),';
 
 export const MODE = MODE_FIND.replace(
-  's1=f().getToolResultDisplay()==="compact",',
-  `$ODmode=f().getToolResultDisplay(),s1=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
+  's1=ke(Js,()=>f().getToolResultDisplay()==="compact"),',
+  `$ODmode=ke(Js,()=>f().getToolResultDisplay()),s1=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
 )
   .replace(
     'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2)))',

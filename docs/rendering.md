@@ -229,9 +229,9 @@ re-rendered because of these hooks:
 | Message snapshot                               |    ~65k | About 10% came with no message event                   |
 | Todo hook                                      |    ~32k | Returned a fresh `{todos}` on every store version bump |
 
-`todo-snapshot-stable` and `todo-panel-memo` (`src/patch/todo-render-patches.ts`). The todo hook
-returns the previous object when every todo has the same own keys with `===` values. The todo panel
-is wrapped in React memo.
+`todo-panel-memo` (`src/patch/todo-render-patches.ts`) wraps the todo panel in React memo. Its older
+companion `todo-snapshot-stable` was deleted in Droid 1.9.0, where the todo hook itself returns the
+store's cached `currentTodos` instead of a fresh object per version bump.
 
 `snapshot-stable-messages` (`src/patch/snapshot-render-patches.ts`). On a snapshot cache miss it
 reuses the cached message array when the session state manager, session id, update mode, streaming
@@ -504,8 +504,8 @@ as before, and the transcript panel is untouched.
   the root still rendering on each version bump (the snapshot hook itself). Read how much from
   `probe renders-log`.
 - `getDecompMissionId()` has the same uncached summary read that `decomp-miss-cache` fixed.
-- Measure `todo-snapshot-stable`, `snapshot-stable-messages` and `roster-render-split*` with
-  `probe renders-log` after a few days of use and compare with the 2-day baseline above.
+- Measure `snapshot-stable-messages` and `roster-render-split*` with `probe renders-log` after a few
+  days of use and compare with the 2-day baseline above.
 - The chat input gets a fresh `onRewindShortcut` prop on root renders.
 - The background-task panel (`OQ`/`UQ` in the probe output) re-renders on every root render, because
   `onFocusReturn` and `onProcessKilled` are fresh callbacks (42 of 42 renders in the stream

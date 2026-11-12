@@ -15,6 +15,7 @@ import { describeStrayNames, occurrences, patchNamed, payloadFunction } from './
 import { shipped, stockDroid as stock, stockText } from './stock-scanner.ts';
 
 const SHOW_PATH = patchNamed(contextRulesPatches, 'cursor-rules-show-home-path');
+const JOIN = patchNamed(contextRulesPatches, 'cursor-rules-join-agents-md');
 const PERSONAL = patchNamed(contextRulesPatches, 'cursor-rules-count-as-personal');
 const LOOKUP = patchNamed(contextRulesPatches, 'transcripts-folder-lookup');
 
@@ -130,6 +131,52 @@ afterAll(() => {
 });
 
 describe('the rule loader', () => {
+  test('passes stock guidelines and cursor rules together to the size limiter', async () => {
+    const guideline = {
+      filePath: '/AGENTS.md',
+      fileName: 'AGENTS.md',
+      content: 'STOCK',
+      isPersonal: false,
+    };
+    const skipped = [{ filePath: '/skipped/AGENTS.md' }];
+    const calls: [Rule[], string, string][] = [];
+    const join = payloadFunction<
+      [
+        typeof path,
+        { homedir: () => string },
+        typeof fs,
+        typeof insideRepo,
+        () => { guidelines: Rule[]; skipped: typeof skipped },
+        (...args: [Rule[], string, string]) => { blocks: string[]; includedFilePaths: string[] },
+      ],
+      (start: string) => Promise<{ guidelines: Rule[]; skipped: typeof skipped }>
+    >(
+      ['K', 'Q', 'tt', 'En', '$fe', 'x'],
+      `${JOIN.replace}return {guidelines:t,skipped:n}}return Y`,
+    )(
+      path,
+      { homedir: () => home },
+      fs,
+      insideRepo,
+      () => ({ guidelines: [guideline], skipped }),
+      (...args) => {
+        calls.push(args);
+        return { blocks: [], includedFilePaths: [] };
+      },
+    );
+    const result = await join(repo);
+    expect(result.guidelines.map((rule) => rule.content)).toEqual([
+      'STOCK',
+      'ALPHA',
+      'BRAVO',
+      'MODELS',
+    ]);
+    expect(result.skipped).toBe(skipped);
+    expect(calls).toEqual([
+      [result.guidelines, 'coding_guidelines', 'Guidelines truncated due to size limit'],
+    ]);
+  });
+
   test('lists project rules sorted by name, then the home rules', async () => {
     const rules = await loaderWith(insideRepo)(repo);
     expect(rules.map((rule) => rule.content)).toEqual(['ALPHA', 'BRAVO', 'MODELS']);
@@ -325,7 +372,10 @@ describe.skipIf(stock === undefined)('the shipped system info code', () => {
 
   test('the rules join the list before the size limit is applied', () => {
     const start = patchedText.indexOf('...await $ODrules(');
-    const limit = patchedText.indexOf('guidelines exceed', start);
+    const limit = patchedText.indexOf(
+      '"coding_guidelines","Guidelines truncated due to size limit"',
+      start,
+    );
     expect(start).toBeGreaterThan(-1);
     expect(limit).toBeGreaterThan(start);
   });

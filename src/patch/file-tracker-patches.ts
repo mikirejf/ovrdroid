@@ -120,7 +120,7 @@ const AFTER_PERMISSION_FN = 'cZ(ue??null);let xe=()=>Xqe(g.name,';
 const RUNNER_FINALLY = '}finally{this._runningTools.delete(g.id),';
 
 const HOOKS_CALL =
-  'ie=await _o("PostToolUse",{session_id:q,transcript_path:C,cwd:I(),permission_mode:JR(w),hook_event_name:"PostToolUse",tool_name:d.name,tool_input:d.input,tool_response:z},d.name,{...this.context,updateAction:this.updateAction,sessionId:q,toolCallId:d.id,abortSignal:o.abortController.signal});';
+  'ie=await _o("PostToolUse",{session_id:q,transcript_path:C,cwd:I(),permission_mode:JR(w),hook_event_name:"PostToolUse",tool_name:d.name,tool_input:d.input,tool_response:z},{...this.context,updateAction:this.updateAction,sessionId:q,toolCallId:d.id,abortSignal:o.abortController.signal},d.tool.mcpIdentity);';
 
 const FOLD_FUNCTION =
   '$ODfold=($ODresult,$ODnotes)=>{' +

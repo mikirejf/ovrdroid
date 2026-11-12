@@ -7,7 +7,7 @@ import { backupPath, INSTALLED_DROID } from '../../paths.ts';
 import { CONSTRUCTOR_BINDS, findMarker, patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { holePattern, literalParts } from '../tokens.ts';
-import { STOCK_HUB_HEADER, STOCK_HUB_METHODS, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
+import { STOCK_HUB_HEADER, STOCK_HUB_METHODS } from './mcp-hub-stock.ts';
 
 async function stockModulesOf(target: string): Promise<App | undefined> {
   let app: App;
@@ -56,7 +56,6 @@ describe.skipIf(source === undefined)(
 );
 
 const hubFixture = [
-  ['pid helpers', STOCK_PID_HELPERS],
   ['class header', STOCK_HUB_HEADER],
   ...Object.entries(STOCK_HUB_METHODS),
 ] as const;

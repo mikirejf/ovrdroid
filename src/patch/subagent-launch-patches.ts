@@ -15,9 +15,9 @@ const READONLY_FIELD_DESCRIPTION =
 const TASK_RESUME_FIELD =
   'resume:e().optional().describe("Task ID (session ID) from a previous invocation to resume with full context preserved")';
 
-const SKILL_LOOKUP = 'let l=await vT(),c=Lt(a),p=l.find((v)=>Lt(v.metadata.name)===c)';
+const SKILL_LOOKUP = 'let l=await vT(),c=Lt(a),';
 
-const SKILL_ESCAPE_LOOKUP = 'E=ap(p.metadata.name),T=ap(p.filePath);yield{type:"result"';
+const SKILL_ESCAPE_LOOKUP = 'E=ap(p.metadata.name),T=ap(p.filePath);';
 
 const SKILL_BLOCK_BODY =
   'let $ODwanted=$ODdroid.metadata.skills;' +

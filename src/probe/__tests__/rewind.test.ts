@@ -10,6 +10,7 @@ import {
   answerFor,
   describeRewind,
   hasNotice,
+  observedCallId,
   readRewind,
   rewindVerdicts,
 } from '../rewind-report.ts';
@@ -35,6 +36,30 @@ function user(content: string | readonly Block[]): Message {
 }
 
 describe('the stub model', () => {
+  test('reads Droid-assigned call IDs by input, not the IDs emitted by the stub', () => {
+    const body = {
+      messages: [
+        user([{ type: 'tool_use', name: 'Task', id: 'not-an-assistant' }]),
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              name: 'Task',
+              id: 'call_0123456789abcdef_0',
+              input: { description: 'kept' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(observedCallId([body], 'Task', (input) => input.get('description') === 'kept')).toBe(
+      'call_0123456789abcdef_0',
+    );
+    expect(observedCallId([body], 'TaskOutput', () => true)).toBeUndefined();
+    expect(observedCallId([body], 'Task', () => false)).toBeUndefined();
+  });
+
   test('launches a task when the last prompt asks for one and the Task tool is offered', () => {
     const body = { tools: TASK_TOOLS, messages: [user([{ type: 'text', text: 'LAUNCH kept' }])] };
     expect(answerFor(body)).toEqual({ kind: 'launch', tag: 'kept' });

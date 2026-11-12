@@ -82,11 +82,19 @@ interface Message {
 
 interface Content {
   text: string;
+  files?: readonly Attachment[];
+}
+
+interface Attachment {
+  type: string;
+  mediaType: string;
+  data: string;
 }
 
 interface SendInput {
   message: string;
   queuePlacement?: string;
+  files?: readonly Attachment[];
 }
 
 type KeyEvent = Record<string, boolean>;
@@ -149,7 +157,11 @@ export interface SendWorld {
   readonly notices: string[];
   currentId: string | null;
   failSend: boolean;
-  send: (message: string, queuePlacement?: string) => Promise<string>;
+  send: (
+    message: string,
+    queuePlacement?: string,
+    files?: readonly Attachment[],
+  ) => Promise<string>;
   createSession: (id: string | null) => void;
   pressStop: () => void;
 }
@@ -246,11 +258,14 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     [failure('notice'), (text: string) => notices.push(text)],
   ]);
   const send = evaluate<(input: SendInput) => Promise<string>>(source, stubs);
-  world.send = async (message, queuePlacement) => {
+  world.send = async (message, queuePlacement, files) => {
     session = Promise.withResolvers<string | null>();
     const input: SendInput = { message };
     if (queuePlacement !== undefined) {
       input.queuePlacement = queuePlacement;
+    }
+    if (files !== undefined) {
+      input.files = files;
     }
     return await send(input);
   };

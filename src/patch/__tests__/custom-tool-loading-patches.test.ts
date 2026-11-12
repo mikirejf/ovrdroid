@@ -5,6 +5,7 @@ import { payloadFunction } from './payload.ts';
 
 interface Model {
   supportsMidConversationToolChanges?: boolean;
+  supportsMidConversationEffortChanges?: boolean;
 }
 
 interface Turn {
@@ -32,21 +33,22 @@ const MID_CONVERSATION_BETA = 'mid-conversation-tool-changes-2026-07-01';
 const STOCK_SEND =
   'function send({customModel:X,forcedToolName:he,config:We,apiProvider:o}){' +
   'let wn=!X&&he===void 0&&_t&&We?.supportsMidConversationToolChanges?uF({catalogTools:_t.tools,messages:tr}):void 0;' +
-  'let gr=wn!==void 0&&_Pe(o,We),ht=yt!==void 0&&We?.supportsMidConversationEffortChanges===!0&&o==="anthropic",' +
-  'An=gr?wn.tools:Lt,Zo=gr?wn.messages:tr,Rt=!X&&An.length>0,Co=Rt&&o==="anthropic",' +
+  'let yt=!X&&he===void 0&&We?.supportsMidConversationEffortChanges?{messages:[...(wn?.messages??tr),{role:"user",content:"effort changed"}]}:void 0;' +
+  'let gr=wn!==void 0&&_Pe(o,We),ht=yt!==void 0&&effortAllowed(o,We),' +
+  'An=gr?wn.tools:Lt,Zo=ht?yt.messages:gr?wn.messages:tr,Rt=!X&&An.length>0,Co=Rt&&o==="anthropic",' +
   'ct={tools:Lt,messages:tr},it={...ct,...!X?{tools:Co?bR(An):An,messages:Zo}:{}};' +
   `return{body:it,betas:gr?["${MID_CONVERSATION_BETA}"]:[]}}`;
 
 const BINDINGS = `
 const Lt=[{name:"Read"},{name:"ListAutomationTemplates"}];
 const tr=[{role:"user",content:"load it"}];
-const yt=void 0;
 const _t={tools:[{name:"Read"},{name:"ListAutomationTemplates"}]};
 const uF=({catalogTools,messages})=>({
   tools:catalogTools.map((tool)=>tool.name==="Read"?tool:{...tool,defer_loading:!0}),
   messages:[...messages,{role:"user",content:[{type:"tool_reference",tool_name:"ListAutomationTemplates"}]}],
 });
 const _Pe=(provider,model)=>model?.supportsMidConversationToolChanges===!0&&["anthropic","bedrock_anthropic","azure_anthropic","openai","azure_openai","bedrock_openai"].includes(provider);
+const effortAllowed=(provider,model)=>model?.supportsMidConversationEffortChanges===!0&&["anthropic","openai","azure_openai"].includes(provider);
 const bR=(tools)=>tools.map((tool)=>({...tool,eager_input_streaming:!0}));
 `;
 
@@ -101,6 +103,19 @@ describe('a custom Claude model whose registry entry supports mid-conversation t
 });
 
 describe('everything else is sent as before', () => {
+  test.each(['anthropic', 'openai', 'azure_openai'])(
+    'preserves the upstream effort helper on %s',
+    (apiProvider) => {
+      const turn = {
+        config: { ...SUPPORTING, supportsMidConversationEffortChanges: true },
+        apiProvider,
+      };
+      const sent = patched(turn);
+      expect(sent).toEqual(stock(turn));
+      expect(sent.body.messages.at(-1)).toEqual({ role: 'user', content: 'effort changed' });
+    },
+  );
+
   test.each<[string, Turn]>([
     ['a custom model without registry support', { customModel: CUSTOM, config: {} }],
     ['a custom model with no registry entry', { customModel: CUSTOM }],

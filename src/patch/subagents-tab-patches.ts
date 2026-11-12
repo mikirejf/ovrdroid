@@ -7,26 +7,20 @@ export const SUBAGENT_ROWS =
   'let $ODkey=($ODid)=>$ODid?$ODid.toLowerCase():"",' +
   '$ODbyId=new Map($ODall.map(($ODs)=>[$ODkey($ODs.id),$ODs])),' +
   '$ODparent=($ODs)=>$ODbyId.get($ODkey($ODs.callingSessionId)),' +
-  '$ODvisible=new Set($ODshown.map(($ODs)=>$ODs.id)),' +
-  '$ODnear=($ODs)=>{let $ODp=$ODparent($ODs);while($ODp?.isSubagent&&!$ODvisible.has($ODp.id))$ODp=$ODparent($ODp);return $ODp},' +
-  '$ODhit=($ODs)=>{for(let $ODp=$ODs;$ODp;$ODp=$ODparent($ODp))if($ODp.title.toLowerCase().includes($ODneedle))return!0;return!1},' +
-  '$ODkept=new Set,$ODkids=new Map,$ODheads=new Map,$ODtops=[],$ODout=[],' +
+  '$ODkids=new Map,$ODheads=new Map,$ODtops=[],$ODout=[],' +
   '$ODnewest=($ODa,$ODb)=>$ODb.modifiedTime.getTime()-$ODa.modifiedTime.getTime(),' +
-  '$ODstamp=($ODr)=>Math.max(...($ODkids.get($ODr.id)??[]).map($ODstamp),$ODr.$ODhead?0:$ODr.modifiedTime.getTime()),' +
-  '$ODwalk=($ODr,$ODguides,$ODlast,$ODdepth)=>{' +
-  '$ODout.push($ODdepth?{...$ODr,$ODprefix:"  "+$ODguides.join("")+($ODlast?"\\u2514 ":"\\u251C ")}:$ODr);' +
-  'let $ODk=($ODkids.get($ODr.id)??[]).sort($ODnewest);' +
-  '$ODk.forEach(($ODc,$ODi)=>$ODwalk($ODc,$ODdepth?[...$ODguides,$ODlast?"  ":"\\u2502 "]:[],$ODi===$ODk.length-1,$ODdepth+1))};' +
-  'for(let $ODs of $ODshown)if(!$ODneedle||$ODhit($ODs))' +
-  'for(let $ODp=$ODs;$ODp?.isSubagent&&!$ODkept.has($ODp.id);$ODp=$ODnear($ODp))$ODkept.add($ODp.id);' +
-  'for(let $ODs of $ODshown){if(!$ODkept.has($ODs.id))continue;let $ODp=$ODnear($ODs);' +
+  '$ODstamp=($ODr)=>Math.max(...($ODkids.get($ODr.id)??[]).map(($ODs)=>$ODs.modifiedTime.getTime()),$ODr.$ODhead?0:$ODr.modifiedTime.getTime());' +
+  'for(let $ODs of $ODshown){let $ODp=$ODparent($ODs);' +
+  'if($ODneedle&&!$ODs.title.toLowerCase().includes($ODneedle)&&!$ODp?.title.toLowerCase().includes($ODneedle))continue;' +
   'if(!$ODp){$ODtops.push({row:$ODs});continue}' +
-  'if(!$ODp.isSubagent)$ODheads.set($ODp.id,$ODp);' +
+  '$ODheads.set($ODp.id,$ODp);' +
   'if(!$ODkids.has($ODp.id))$ODkids.set($ODp.id,[]);$ODkids.get($ODp.id).push($ODs)}' +
   'for(let $ODp of $ODheads.values())$ODtops.push({row:{...$ODp,$ODhead:!0}});' +
   'for(let $ODt of $ODtops)$ODt.stamp=$ODstamp($ODt.row);' +
   '$ODtops.sort(($ODa,$ODb)=>$ODb.stamp-$ODa.stamp);' +
-  'for(let $ODt of $ODtops)$ODwalk($ODt.row,[],!0,0);' +
+  'for(let $ODt of $ODtops){$ODout.push($ODt.row);' +
+  'let $ODk=($ODkids.get($ODt.row.id)??[]).sort($ODnewest);' +
+  '$ODk.forEach(($ODs,$ODi)=>$ODout.push({...$ODs,$ODprefix:$ODi===$ODk.length-1?"  \\u2514 ":"  \\u251C "}))}' +
   'return $ODout}';
 
 export const subagentsTabPatches: readonly Patch[] = [

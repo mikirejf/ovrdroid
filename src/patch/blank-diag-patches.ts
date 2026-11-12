@@ -72,10 +72,10 @@ const AGENT_START =
   'l("[Compaction] Start (agent)",{type:"compaction",state:"start",reason:C,source:"agent"}),K9().trigger({sessionId:R.sessionId,';
 
 const MANUAL_START =
-  'l("[Compaction] Start (manual)",{type:"compaction",state:"start",reason:"manual",source:"jsonrpc",modelId:r,isByok:c});try{let o;try{o=await UOe({messages:s,sessionId:t,';
+  'l("[Compaction] Start (manual)",{type:"compaction",state:"start",reason:"manual",source:"jsonrpc",modelId:r,isByok:c});let p=null;try{let t=await tPe({messages:d,sessionId:u,';
 
 const MANUAL_FAILED =
-  'catch(n){let u=performance.now()-p;if(mt(n))l("[Compaction] End (manual aborted)"';
+  'catch(t){let y=g?.aborted===!0;throw l(y?"[Compaction] End (manual aborted)"';
 
 const MANUAL_EMPTY = 'return l("[Compaction] End (manual no summary)"';
 
@@ -100,12 +100,12 @@ function drop(via: string, target: string): string {
 export const blankDiagPatches: readonly Patch[] = [
   {
     name: 'blank-diag-scoped-read',
-    find: 'function D(){if($e()?.daemonConnection){let e=Se(Ct);if(e)return e}if(!V){if(V=new T("droid-cli"),!qe)',
+    find: 'function N(){if(hJe(Tt),Ge()?.daemonConnection){let e=Be(Ue);if(e)return e}',
     replace:
-      'globalThis.__odBlankScope=()=>$e();function D(){if($e()?.daemonConnection){let e=Se(Ct);if(e){' +
+      'globalThis.__odBlankScope=()=>Ge();function N(){if(hJe(Tt),Ge()?.daemonConnection){let e=Be(Ue);if(e){' +
       'let $ODsid=globalThis.__odBlankSid;' +
       `if($ODsid&&!e.getSessionStateManager().getSessionManager($ODsid))${blankLog('scoped-read', '{}', StackMode.Throttled)};` +
-      'return e}}if(!V){if(V=new T("droid-cli"),!qe)',
+      'return e}}',
   },
   {
     name: 'blank-diag-empty-render',
@@ -135,10 +135,10 @@ export const blankDiagPatches: readonly Patch[] = [
   },
   {
     name: 'blank-diag-resize-cause',
-    find: 'function eC1(g,S){switch(MIe[g.getScreenName()]){',
+    find: 'e1=!1,j$(X.current,$$(X.current),i1)',
     replace:
-      'function eC1(g,S){globalThis.__odBlankWhy={reason:"resize:"+MIe[g.getScreenName()]+(S?"":" (height only)"),at:Date.now()};' +
-      'switch(MIe[g.getScreenName()]){',
+      'e1=!1,globalThis.__odBlankWhy={reason:"resize:"+$$(X.current)+(i1?"":" (height only)"),at:Date.now()},' +
+      'j$(X.current,$$(X.current),i1)',
   },
   {
     name: 'blank-diag-remove-session',
@@ -178,13 +178,13 @@ export const blankDiagPatches: readonly Patch[] = [
     find: MANUAL_START,
     replace: MANUAL_START.replace(
       'isByok:c});',
-      `isByok:c});${blankLog('compaction', '{phase:"start",path:"manual",target:t}', StackMode.None)};`,
+      `isByok:c});${blankLog('compaction', '{phase:"start",path:"manual",target:u}', StackMode.None)};`,
     ),
   },
   {
     name: 'blank-diag-compaction-manual-failed',
     find: MANUAL_FAILED,
-    replace: MANUAL_FAILED.replace('catch(n){', `catch(n){${manualEnd('failed')};`),
+    replace: MANUAL_FAILED.replace('catch(t){', `catch(t){${manualEnd('failed')};`),
   },
   {
     name: 'blank-diag-compaction-manual-empty',

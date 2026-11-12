@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { ATTACH_MOVED_TASK, HAND_OVER, SUBAGENT_TAG } from '../rewind-patches.ts';
-import { payloadFunction } from './payload.ts';
+import { ATTACH_MOVED_TASK, rewindPatches, SUBAGENT_TAG } from '../rewind-patches.ts';
+import { patchNamed, payloadFunction } from './payload.ts';
 import type { Globals, Invocation, MoveArgs, Tag } from './rewind-fixtures.ts';
 import { isActive, NEW, OLD, running } from './rewind-fixtures.ts';
 
@@ -35,19 +35,23 @@ interface Fs {
 }
 
 type HandOverArgs = [
-  { getSessionTranscriptPath: (id: string) => string },
+  {
+    getSessionTranscriptPath: (id: string) => string;
+    forkSession: () => Promise<string>;
+  },
   () => Client,
   () => { trackBackgroundChild: (entry: Tracked) => void },
   (error: Error, message: string) => void,
-  string,
   string,
   () => Fs,
   Globals,
 ];
 
-const runHandOver = payloadFunction<HandOverArgs, Promise<void>>(
-  ['c', 'N', 'hT', 'h', 'l', 'S', 'require', 'globalThis'],
-  `return (async()=>{${HAND_OVER}})()`,
+const forkPatch = patchNamed(rewindPatches, 'rewind-hands-running-tasks-to-new-session');
+const runHandOver = payloadFunction<HandOverArgs, Promise<string>>(
+  ['c', 'N', 'hT', 'h', 'l', 'require', 'globalThis'],
+  'return (async()=>{let a="title",t="message",m6="rewind",Aye="source";' +
+    `let ${forkPatch.replace}$ODrestored=await Promise.resolve(S);return $ODrestored})()`,
 );
 
 interface HandOverWorld {
@@ -107,8 +111,11 @@ async function handOver(world: HandOverWorld): Promise<HandOverLog> {
     readFileSync: (file) => world.files[file] ?? '',
     existsSync: (file) => file in world.files,
   };
-  await runHandOver(
-    { getSessionTranscriptPath: pathOf },
+  const rewound = await runHandOver(
+    {
+      getSessionTranscriptPath: pathOf,
+      forkSession: async () => await Promise.resolve(NEW),
+    },
     () => clientFor(log),
     () => ({
       trackBackgroundChild: (entry) => {
@@ -119,10 +126,10 @@ async function handOver(world: HandOverWorld): Promise<HandOverLog> {
       log.errors.push(`${message}: ${error.message}`);
     },
     OLD,
-    NEW,
     () => fs,
     globals,
   );
+  expect(rewound).toBe(NEW);
   return log;
 }
 

@@ -30,18 +30,25 @@ function titleModelsIn(world: World): string {
     validateModelAccess: (id: string) => ({ allowed: !(world.blockedIds ?? []).includes(id) }),
   };
   const builtInAllowed = (id: string) => world.builtInAllowed.includes(id);
-  const stockPick = (options: { fallback: () => string }) =>
+  const stockPick = () =>
     world.sessionModel === undefined
-      ? { modelId: options.fallback() }
+      ? { modelId: 'gpt-6-sol' }
       : { modelId: world.sessionModel, customModel: { id: world.sessionModel } };
+  const stockModels = (modelId: string, sessionId: string) => {
+    expect(modelId).toBe('gpt-6-sol');
+    expect(sessionId).toBe('title-session');
+    return [STOCK_FALLBACK, 'gpt-6-sol'].filter((id) => builtInAllowed(id)).slice(0, STOCK_TRIES);
+  };
   return payloadFunction<
-    [typeof builtInAllowed, () => typeof settings, typeof stockPick, string[]],
+    [typeof builtInAllowed, () => typeof settings, typeof stockPick, typeof stockModels, string],
     string
-  >(
-    ['ba', 'C', 'dRe', 'u$'],
-    `${PATCH.replace}let[D]=f;if(D)return D;return"${STOCK_FALLBACK}"}});` +
-      `return(g||f.length===0?[p]:f.slice(0,${STOCK_TRIES})).join(",")`,
-  )(builtInAllowed, () => settings, stockPick, [STOCK_FALLBACK, 'gpt-6-sol']);
+  >(['ps', 'C', 'AC', 'Jn', 't'], `${PATCH.replace}$ODresult=M.join(",");return $ODresult`)(
+    builtInAllowed,
+    () => settings,
+    stockPick,
+    stockModels,
+    'title-session',
+  );
 }
 
 function titleModelIn(world: World): string {
@@ -122,6 +129,7 @@ describe.skipIf(stockDroid === undefined)('the shipped title generator', () => {
     }
     expect(occurrences(stockText, rebase.find)).toBe(1);
     expect(occurrences(patchedText, rebase.find)).toBe(0);
+    expect(occurrences(patchedText, rebase.replace)).toBe(1);
     expect(occurrences(patchedText, 'messageCallType:"session-title-generation"')).toBe(1);
   });
 });

@@ -1,12 +1,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 import { patchSource } from '../../binary/apply.ts';
 import { BUILD_FLAGS } from '../../binary/build-flags.ts';
 import { MCP_TOOLS_KEY_LENGTH, MCP_TOOLS_UNDER_HOME, mcpIdlePatches } from '../mcp-idle-patches.ts';
 import { markerStatement } from '../patches.ts';
 import { fakeFs } from './mcp-fake-fs.ts';
-import { STOCK_HUB_MODULE, STOCK_PID_HELPERS } from './mcp-hub-stock.ts';
+import { STOCK_HUB_MODULE } from './mcp-hub-stock.ts';
 import type {
   Configs,
   Connection,
@@ -16,7 +17,6 @@ import type {
   Listing,
   Logger,
   ServerConfig,
-  SpoolSource,
   Tool,
   ToolResult,
   Transport,
@@ -28,7 +28,6 @@ export const HOME = '/home/tester';
 export const FIRST_PID = 4100;
 const MINUTE = 60_000;
 const TEARDOWN_BOUND_MS = 7000;
-const REAP_GRACE_MS = 2000;
 
 export const STDIO_CONFIG: ServerConfig = {
   type: 'stdio',
@@ -49,19 +48,15 @@ export interface Timer {
 
 type SpawnArgs = Pick<ServerConfig, 'command' | 'url'>;
 
-const PATCHED = patchSource([{ name: 'hub.js', text: STOCK_HUB_MODULE }], mcpIdlePatches)[0]
-  .text.replace(markerStatement(mcpIdlePatches, BUILD_FLAGS), '')
-  .replace(`${STOCK_PID_HELPERS};`, '');
+const PATCHED = patchSource(
+  [{ name: 'hub.js', text: STOCK_HUB_MODULE }],
+  mcpIdlePatches,
+)[0].text.replace(markerStatement(mcpIdlePatches, BUILD_FLAGS), '');
 
 function bareRecord(): Configs {
-  // SAFETY: the stock hub builds its maps with Object.create(null) and only ever stores into them.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return Object.create(null) as Configs;
-}
-
-function pidOf(transport: Transport): number | null {
-  const { pid } = transport;
-  return typeof pid === 'number' && pid > 0 ? pid : null;
+  const record: Configs = {};
+  Object.setPrototypeOf(record, null);
+  return record;
 }
 
 interface Bound {
@@ -113,7 +108,6 @@ export class HubWorld {
   readonly timers: Timer[] = [];
   readonly spawned: SpawnArgs[] = [];
   readonly closed: number[] = [];
-  readonly killed: number[] = [];
   readonly alive = new Set<number>();
   readonly owned = new Set<number>();
   readonly changed: string[] = [];
@@ -121,8 +115,6 @@ export class HubWorld {
   readonly env: Record<string, string> = {};
   tools: Tool[] = TOOLS;
   failSpawns = 0;
-  private spoolSource: SpoolSource = ignore;
-  exitOnClose = false;
   era: 'legacy' | 'modern' = 'legacy';
   private readonly holds = new Map<HoldKind, Promise<boolean>>();
   private nextPid = FIRST_PID;
@@ -136,28 +128,12 @@ export class HubWorld {
       child: () => logger,
     };
     const stand = {
-      Zo: (pid: number) => this.alive.has(pid),
-      XC: pidOf,
       _t: bareRecord,
-      Xl: {
-        addSource: (source: SpoolSource) => {
-          this.spoolSource = source;
-          return ignore;
-        },
-      },
-      yI: REAP_GRACE_MS,
-      yr: {
-        recordOwnership: (_source: string, pid: number) => {
-          this.owned.add(pid);
-          return () => {
-            this.owned.delete(pid);
-          };
-        },
-      },
       wi: (value: Configs) => ({ ...value }),
       Xu: () => this.era === 'modern',
       i: Error,
       N5: ignore,
+      IH: never,
       $a: (env: Configs) => env,
       Uu: async (args: SpawnArgs) => await Promise.resolve(args),
       $u: async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
@@ -181,6 +157,7 @@ export class HubWorld {
         freshness === undefined ||
         (freshness.cacheable && performance.now() < freshness.expiresAtMonotonicMs),
       eqT: JSON.stringify,
+      vr: { default: { isEqual: isDeepStrictEqual } },
       mV: ignore,
       pV: () => false,
       L0e: ignore,
@@ -216,11 +193,6 @@ export class HubWorld {
       logInvalidToolsTransition: ignore,
       logUncompilableOutputSchemasTransition: ignore,
     });
-    this.hub.killServerProcessTree = async (pid) => {
-      this.killed.push(pid);
-      this.alive.delete(pid);
-      await Promise.resolve();
-    };
   }
 
   async listed(name = SERVER): Promise<Tool[]> {
@@ -235,16 +207,6 @@ export class HubWorld {
   get dormant(): boolean {
     const server = this.hub.servers[SERVER];
     return server !== undefined && '$ODMz' in server;
-  }
-
-  get reapedAtExit(): number[] {
-    const reaped: number[] = [];
-    this.spoolSource({
-      append: (entry) => {
-        reaped.push(entry.pid);
-      },
-    });
-    return reaped;
   }
 
   seedCache(tools: Tool[] = TOOLS, name = SERVER, config: ServerConfig = STDIO_CONFIG): void {
@@ -300,6 +262,7 @@ export class HubWorld {
     const pid = this.nextPid;
     this.nextPid += 1;
     this.alive.add(pid);
+    this.owned.add(pid);
     return { client: this.client(), transport: this.transport(pid) };
   }
 
@@ -309,9 +272,8 @@ export class HubWorld {
       close: async () => {
         await this.held('close');
         this.closed.push(pid);
-        if (this.exitOnClose) {
-          this.alive.delete(pid);
-        }
+        this.alive.delete(pid);
+        this.owned.delete(pid);
         await Promise.resolve();
       },
     };

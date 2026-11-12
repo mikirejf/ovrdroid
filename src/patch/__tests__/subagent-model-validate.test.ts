@@ -35,7 +35,7 @@ const patched = payloadFunction<[], Validator>(
 
 describe('the droid validator checks the new fields', () => {
   test('the stand-in validator ignores them before the patch', () => {
-    const metadata = { name: 'deep', maxDepth: 0 };
+    const metadata = { name: 'agent', skills: 'poteto' };
     expect(stock.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
@@ -47,8 +47,8 @@ describe('the droid validator checks the new fields', () => {
     });
   });
 
-  test('a well-formed maxDepth and skills stay valid', () => {
-    const metadata = { name: 'deep', maxDepth: 2, skills: ['poteto-mode'] };
+  test('well-formed skills stay valid', () => {
+    const metadata = { name: 'agent', skills: ['poteto-mode'] };
     expect(patched.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
@@ -57,11 +57,9 @@ describe('the droid validator checks the new fields', () => {
     expect(patched.validateMetadata(metadata, KNOWN)).toMatchObject({ valid: true, errors: [] });
   });
 
-  test('a bad maxDepth and bad skills are both reported', () => {
-    const result = patched.validateMetadata({ name: 'deep', maxDepth: 0, skills: 'poteto' }, KNOWN);
-    expect(result.errors).toHaveLength(2);
-    expect(result.errors.join('\n')).toContain('maxDepth must be a positive integer');
-    expect(result.errors.join('\n')).toContain('skills must be a list of skill names');
+  test('bad skills are reported', () => {
+    const result = patched.validateMetadata({ name: 'agent', skills: 'poteto' }, KNOWN);
+    expect(result.errors).toEqual(['skills must be a list of skill names, not "poteto"']);
   });
 });
 

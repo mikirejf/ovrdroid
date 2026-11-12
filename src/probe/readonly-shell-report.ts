@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { entriesOf, fieldsOf, fieldsOfJson, resultText, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
+import { observedCallId } from './rewind-report.ts';
 import type { Verdict } from './stale-edit-cases.ts';
 import { toolResultsIn } from './stale-edit-cases.ts';
 import type { ToolCall } from './stub-model.ts';
@@ -204,7 +205,15 @@ export function replyFor(body: unknown, plan: Plan): ToolCall | string {
     : childReply(prompt, messages.slice(messages.lastIndexOf(prompt)), plan);
 }
 
-export function sessionOf(bodies: readonly unknown[], id: string): string | undefined {
+export function sessionOf(bodies: readonly unknown[], child: Child, leg: Leg): string | undefined {
+  const id = observedCallId(
+    bodies,
+    TASK_TOOL,
+    (input) => worded(input, 'prompt') === `${CHILD_WORD}:${child.name}:${leg}`,
+  );
+  if (id === undefined) {
+    return undefined;
+  }
   for (const body of bodies) {
     const session = SESSION.exec(toolResultsIn(body).get(id)?.text ?? '')?.groups?.['session'];
     if (session !== undefined) {
@@ -238,7 +247,14 @@ interface LegReading {
 function readLeg(evidence: ReadonlyEvidence, child: Child, leg: Leg): LegReading {
   const settings = fieldsOfJson(evidence.settings[legKey(child, leg)] ?? '');
   const results = new Map(evidence.bodies.flatMap((body) => [...toolResultsIn(body)]));
-  const answer = (step: Step) => results.get(stepId(evidence.run, { child, leg }, step))?.text;
+  const answer = (step: Step) => {
+    const id = observedCallId(evidence.bodies, step === 'create' ? 'Create' : 'Execute', (input) =>
+      worded(input, step === 'create' ? 'file_path' : 'command').endsWith(
+        `/${markerName(child, leg, step)}`,
+      ),
+    );
+    return id === undefined ? undefined : results.get(id)?.text;
+  };
   const outcome = (step: Step): Outcome => {
     if (evidence.markers.includes(markerName(child, leg, step))) {
       return 'ran';

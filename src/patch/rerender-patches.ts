@@ -39,8 +39,8 @@ const CHAT_INPUT_WRAPPER =
   'for(let $ODk of Object.keys($ODr.current.calls))if(typeof $ODp[$ODk]==="function")$ODn[$ODk]=$ODr.current.calls[$ODk];' +
   'return t($ODHm,$ODn)}';
 
-const FOOTER_CALL =
-  't(EB,{width:Na,chatDraftEmpty:m6,timerState:pe,statusState:is,sessionId:Oa,lastTokenUsage:qD,';
+const FOOTER_USAGE_PROPS =
+  'sessionId:Oa,lastTokenUsage:qD,scheduledTasks:Kc,pendingSetCount:e6.pendingSetCount,';
 
 const PROGRESS_UPDATES =
   '_e=j?.map(($t)=>({...$t,text:$e($t.text),error:$e($t.error),details:$e($t.details),valueSnippet:$e($t.valueSnippet),fullOutput:$e($t.fullOutput),parameters:Ee($t.parameters)}))';
@@ -73,8 +73,8 @@ export const rerenderPatches: readonly Patch[] = [
   },
   {
     name: 'footer-memo-key',
-    find: FOOTER_CALL,
-    replace: `${FOOTER_CALL}$ODfresh:$ODfootKey(qD),`,
+    find: FOOTER_USAGE_PROPS,
+    replace: `${FOOTER_USAGE_PROPS}$ODfresh:$ODfootKey(qD),`,
   },
   {
     name: 'chat-input-stable',

@@ -20,7 +20,7 @@ export const MOVE_TASKS =
 
 const FORK =
   'S=await c.forkSession(l,{kind:"beforeMessage",messageId:t},a,l,"rewind",' +
-  '{preserveCurrentSession:!0,keepPromptCacheKey:!0,extraTags:[{name:m6,metadata:{[Aye]:l}}]});';
+  '{preserveCurrentSession:!0,keepPromptCacheKey:!0,extraTags:[{name:m6,metadata:{[Aye]:l}}]}),';
 
 const FORK_LOOKUPS = [
   'hT().recoverParentBackgroundChildren(t,Cq,{reconcileStale:N().reachesHostingDaemon()})',
@@ -71,7 +71,7 @@ export const rewindPatches: readonly Patch[] = [
     name: 'rewind-hands-running-tasks-to-new-session',
     find: FORK,
     lookups: FORK_LOOKUPS,
-    replace: `${FORK}${HAND_OVER}`,
+    replace: `${FORK.slice(0, -1)};${HAND_OVER}let `,
   },
   {
     name: 'task-output-attaches-moved-running-task',

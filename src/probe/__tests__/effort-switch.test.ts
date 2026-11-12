@@ -174,6 +174,28 @@ describe('switchRuling reads the request bodies and the cache numbers', () => {
     );
   });
 
+  test('a warning on the output_config segment alone is the effort itself and is kept', () => {
+    const effortOnly = outcomes({
+      busts: [{ turn: 'switched', region: 'output_config', kind: 'segment_changed', index: 0 }],
+    });
+    const ruling = switchRuling(effortOnly);
+    expect(ruling.kind).toBe('kept');
+    expect(ruling.text.split('\n').at(-1)).toBe(
+      'Droid flagged its output_config segment as changed on the switched turn: that segment is the effort itself, and the request bodies show nothing else changed',
+    );
+    expect(switchVerdict(effortOnly)).toBe(ruling.text);
+  });
+
+  test('an output_config warning beside another change still busts', () => {
+    const both = outcomes({
+      body: compared(switchedBody({ temperature: 0.5 })),
+      busts: [{ turn: 'switched', region: 'output_config', kind: 'segment_changed', index: 0 }],
+    });
+    const ruling = switchRuling(both);
+    expect(ruling.kind).toBe('busted');
+    expect(ruling.text).not.toContain('mismatch in output_config');
+  });
+
   test('a warning on an earlier turn does not bust the switch', () => {
     const earlier = outcomes({
       busts: [{ turn: 'seed', region: 'tools', kind: 'removed', index: 2 }],

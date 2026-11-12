@@ -1,20 +1,19 @@
 import { entriesOf, fieldsOf, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
 
-export const NEST_WORD = 'NEST';
-export const LEVEL_ONE = 'level1:';
-export const LEVEL_TWO = 'level2:';
-export const CHILD_TITLE = 'roster level one';
-export const GRANDCHILD_TITLE = 'roster level two';
+export const LAUNCH_WORD = 'ROSTER';
+export const FIRST_CHILD_PROMPT = 'child-one:';
+export const SECOND_CHILD_PROMPT = 'child-two:';
+export const FIRST_CHILD_TITLE = 'roster child one';
+export const SECOND_CHILD_TITLE = 'roster child two';
 
 const TASK_TOOL = 'Task';
 const TOOL_RESULT = 'tool_result';
 export const ROSTER_FILTER = 'Filter agents';
-const NODE_PREFIX = /^[\s│├└─▸▾▶▼›>•●○◐◑*+-]*/u;
 
-export type RosterRole = 'main' | 'child' | 'grandchild' | 'other';
+export type RosterRole = 'main' | 'first-child' | 'second-child' | 'other';
 
-export type RosterAnswer = 'launch-child' | 'launch-grandchild' | 'hold' | 'hi' | 'ok';
+export type RosterAnswer = 'launch-children' | 'hold' | 'ok';
 
 export interface Verdict {
   pass: boolean;
@@ -49,13 +48,13 @@ function openingWords(body: unknown): string {
 
 export function roleOf(body: unknown): RosterRole {
   const first = openingWords(body);
-  if (first.includes(LEVEL_TWO)) {
-    return 'grandchild';
+  if (first.includes(FIRST_CHILD_PROMPT)) {
+    return 'first-child';
   }
-  if (first.includes(LEVEL_ONE)) {
-    return 'child';
+  if (first.includes(SECOND_CHILD_PROMPT)) {
+    return 'second-child';
   }
-  return first.includes(NEST_WORD) ? 'main' : 'other';
+  return first.includes(LAUNCH_WORD) ? 'main' : 'other';
 }
 
 function mayLaunch(body: unknown): boolean {
@@ -73,33 +72,26 @@ function mayLaunch(body: unknown): boolean {
 
 export function answerFor(body: unknown): RosterAnswer {
   const role = roleOf(body);
-  if (role === 'grandchild') {
+  if (role === 'first-child' || role === 'second-child') {
     return 'hold';
   }
-  if (role === 'child') {
-    return mayLaunch(body) ? 'launch-grandchild' : 'hi';
-  }
   if (role === 'main') {
-    return mayLaunch(body) ? 'launch-child' : 'ok';
+    return mayLaunch(body) ? 'launch-children' : 'ok';
   }
   return 'ok';
 }
 
 export interface RosterTitles {
   model: string;
-  child: string;
-  grandchild: string;
+  firstChild: string;
+  secondChild: string;
 }
 
 export const ROSTER_TITLES: RosterTitles = {
   model: 'Stub Stream',
-  child: CHILD_TITLE,
-  grandchild: GRANDCHILD_TITLE,
+  firstChild: FIRST_CHILD_TITLE,
+  secondChild: SECOND_CHILD_TITLE,
 };
-
-export function indentOf(line: string): number {
-  return NODE_PREFIX.exec(line)?.[0].length ?? 0;
-}
 
 function rowWith(lines: readonly string[], marker: string): string | undefined {
   return lines.find((line) => line.toLowerCase().includes(marker.toLowerCase()));
@@ -132,21 +124,11 @@ export function rosterVerdicts(
     return [{ pass: false, text: `the session roster is not open: no "${ROSTER_FILTER}" line` }];
   }
   const rows = lines.slice(opened + 1);
-  const child = rowWith(rows, titles.child);
-  const grandchild = rowWith(rows, titles.grandchild);
-  const nested =
-    child !== undefined &&
-    grandchild !== undefined &&
-    rows.indexOf(child) < rows.indexOf(grandchild) &&
-    indentOf(grandchild) > indentOf(child);
+  const firstChild = rowWith(rows, titles.firstChild);
+  const secondChild = rowWith(rows, titles.secondChild);
   return [
-    rowVerdict('child', child, titles.model),
-    rowVerdict('grandchild', grandchild, titles.model),
-    verdict(
-      nested,
-      `the grandchild sits under the child, indented ${indentOf(grandchild ?? '')} against ${indentOf(child ?? '')}`,
-      'the grandchild row is not indented under the child row',
-    ),
+    rowVerdict('first child', firstChild, titles.model),
+    rowVerdict('second child', secondChild, titles.model),
   ];
 }
 

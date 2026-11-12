@@ -22,13 +22,13 @@ export const TRANSCRIPTS_LINE =
 export const contextRulesPatches: readonly Patch[] = [
   {
     name: 'cursor-rules-join-agents-md',
-    find: 'async function Y(e){let{guidelines:t,skipped:n}=await $fe({startPath:e}),i=x(n),s=n.map(',
+    find: 'async function Y(e){let{guidelines:t,skipped:n}=await $fe({startPath:e}),{blocks:i,includedFilePaths:s}=x(t,"coding_guidelines","Guidelines truncated due to size limit");',
     lookups: [
       'import tt from"fs";import Q from"os"',
       'import K from"path";import*as w from"fs"',
       'findSessionGitRoot(){let o=En(this.cwd);',
     ],
-    replace: `${ALWAYS_APPLY}${RULES_LOADER}async function Y(e){let{guidelines:$ODstock,skipped:n}=await $fe({startPath:e}),t=[...$ODstock,...await $ODrules(e)],i=x(n),s=n.map(`,
+    replace: `${ALWAYS_APPLY}${RULES_LOADER}async function Y(e){let{guidelines:$ODstock,skipped:n}=await $fe({startPath:e}),t=[...$ODstock,...await $ODrules(e)],{blocks:i,includedFilePaths:s}=x(t,"coding_guidelines","Guidelines truncated due to size limit");`,
   },
   {
     name: 'cursor-rules-show-home-path',

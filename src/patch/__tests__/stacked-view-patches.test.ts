@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
-import { patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import {
   DRAWS_NOTHING,
@@ -134,12 +133,12 @@ describe.skipIf(stock === undefined)(
     });
 
     test(
-      'they apply with the shipped patch set',
+      'they apply together to the shipped bundle',
       () => {
         if (stock === undefined) {
           throw new Error('no stock Droid to patch');
         }
-        const text = patchSource(stock, patches)
+        const text = patchSource(stock, stackedViewPatches)
           .map((module) => module.text)
           .join('\n');
         expect(text).toContain('function $ODStack(');

@@ -72,7 +72,7 @@ const STOCK_SOURCE = [
   'async function*execute(t,o){let{file_path:f,old_str:l,new_str:c,change_all:d}=o;',
   'let y=await jbe({filePath:f,oldStr:l,newStr:c,changeAll:d,toolCallId:t.toolCallId});',
   'if(!y.success){yield{type:"result",isError:!0,llmError:y.message};return}',
-  `let v=t.ideReminder,${finds('edit-reply-notes-stale-edit')}}`,
+  `let v=t.ideReminder;${finds('edit-reply-notes-stale-edit')}}`,
   'return{execute,RY}',
 ].join('');
 
@@ -105,6 +105,12 @@ interface MatchEdit {
   change_all: boolean;
 }
 
+interface SerializedEdit {
+  filePath: string;
+  diffLines: unknown[];
+  systemReminder: string | undefined;
+}
+
 function stockMatch(content: string, edit: MatchEdit): Matched {
   if (edit.old_str === '' && content === '') {
     return { success: true, message: '', changesApplied: 1 };
@@ -130,7 +136,7 @@ function stockReplace(content: string, _normalized: string, edit: MatchEdit): st
 
 export function stockEdit(tracker: FakeTracker, source = patched()): StockEdit {
   const build = payloadFunction<unknown[], Built>(
-    ['At', 'CA', 'EH', '_r', 'ut', 'vr', 'Ar', 'fB', 'ld'],
+    ['At', 'CA', 'EH', '_r', 'ut', 'vr', 'Ar', 'fB', 'Yse'],
     source,
   );
   const built = build(
@@ -152,7 +158,14 @@ export function stockEdit(tracker: FakeTracker, source = patched()): StockEdit {
       await tracker.trackFileOperation(write.filePath, write.toolCallId, 'edit');
       return { success: true, message: 'written', diffLines: [] };
     },
-    () => ({ additions: 0, deletions: 0 }),
+    ({ filePath, diffLines, systemReminder }: SerializedEdit) => ({
+      success: true,
+      file_path: filePath,
+      diffLines,
+      linesAdded: 0,
+      linesRemoved: 0,
+      ...(systemReminder !== undefined && systemReminder !== '' && { systemReminder }),
+    }),
   );
   return {
     check: async (path) => await built.RY(path, 'call'),

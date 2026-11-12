@@ -80,8 +80,6 @@ export const REFUSE_RESUME_FIELDS =
 export const CHECK_DROID =
   'function $ODdroidErrors($ODmeta){' +
   'let $ODerr=[];' +
-  'if($ODmeta.maxDepth!==void 0&&!(Number.isInteger($ODmeta.maxDepth)&&$ODmeta.maxDepth>0))' +
-  '$ODerr.push("maxDepth must be a positive integer, not "+JSON.stringify($ODmeta.maxDepth));' +
   'if($ODmeta.skills!==void 0&&!(Array.isArray($ODmeta.skills)&&$ODmeta.skills.every(($ODn)=>typeof $ODn==="string")))' +
   '$ODerr.push("skills must be a list of skill names, not "+JSON.stringify($ODmeta.skills));' +
   'return $ODerr}';
@@ -154,6 +152,8 @@ const STOCK_GET_ALL_DROIDS =
 const STOCK_EFFORT_WARNING =
   'let R=this.validateModel(e.model,r);if(t.push(...R.errors),e.reasoningEffort!==void 0){if(o==="inherit")a.push("Reasoning effort is ignored when inheriting the parent model");';
 
+const TASK_EXECUTOR_HEAD = 'class ke{async*execute(t,o){let{prompt:s,subagent_type:a}=o;';
+
 export const subagentModelPatches: readonly Patch[] = [
   {
     name: 'task-schema-model-effort-fields',
@@ -166,15 +166,15 @@ export const subagentModelPatches: readonly Patch[] = [
   },
   {
     name: 'task-description-lists-model-ids',
-    find: 'let a=bZ({description:t,enableRemoteExecution:o});',
+    find: 'tool:s3e({enableRemoteExecution:t}),executorFactory:()=>new ke',
     replace:
-      'let a=bZ({description:t+"\\n\\nModel ids the `model` field takes in this session: inherit, "+$ODids().join(", ")+".",enableRemoteExecution:o});',
+      'tool:(($ODtool)=>({...$ODtool,description:$ODtool.description+"\\n\\nModel ids the `model` field takes in this session: inherit, "+$ODids().join(", ")+"."}))(s3e({enableRemoteExecution:t})),executorFactory:()=>new ke',
   },
   {
     name: 'task-model-helpers',
-    find: 'class ki extends Dp{toolRegistry=Ye();',
+    find: TASK_EXECUTOR_HEAD,
     lookups: [LAUNCH_MODEL_LOOKUP],
-    replace: `${TASK_HELPERS}class ki extends Dp{toolRegistry=Ye();`,
+    replace: TASK_HELPERS + TASK_EXECUTOR_HEAD,
   },
   {
     name: 'task-launch-splits-model-and-matches-name',
