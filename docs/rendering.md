@@ -5,6 +5,33 @@ How much work Droid does to draw a streamed reply, a resumed session and a resiz
 harness without them (`probe build --without ...`), on a quiet machine (load about 5-10), paired.
 Every row resolved.
 
+## Clickable image files in chat (Droid 1.9.0, 2026-11-12)
+
+`chat-image-file-links` replaces the stock instruction to embed generated images with a chat-only
+rule: reply with ordinary Markdown links to screenshots and images using absolute paths, not image
+embeds or inline image data. Only generated images retain the stock workspace-saving rule;
+screenshot locations are unchanged. The existing `markdown-file-links` sanitizer still converts
+those paths to encoded `file://` URLs for opening in Preview. Image inspection, `inlineImages`
+settings and requested PR/issue media attachments are unchanged.
+
+`bun run probe image-links <binary>` uses a local stub, a real PNG named `shot one#2.png`, the
+actual first chat request's system prompt and raw reply bytes after startup. It checks both prompt
+directives, the exact OSC8 file URL and Screenshot label, and absence of image-display sequences;
+graphics capability queries do not count. This proves prompt delivery and rendering, not model
+adherence. `--dump <prefix>` preserves the request and terminal evidence in `<prefix>.json`.
+
+On darwin-arm64, one run against `/Users/andrej/.local/bin/droid.orig` reproduced the old directive
+and missing clickable file URL. One against the existing patched `/Users/andrej/.local/bin/droid`
+passed URL encoding (`%20` and `%23`), label and no-image checks, but failed both prompt checks.
+Those control runs did not change the installed binary. A rebuilt copy at
+`/tmp/ovrdroid-image-links-tpZY1f/droid` (digest `573afcf1f106`, Bun 1.4.3) then passed all six
+checks in one run; `probe highlight` also rendered a code block without loading errors. All 316
+patches matched stock 1.9.0 on darwin-arm64 and linux-x64.
+
+macOS LaunchServices identified Preview as the default handler for PNG and JPEG files. Opening
+`file:///tmp/888/visuals/d1-1-now-rest.png` opened that document in Preview, confirmed by its window
+title and a screenshot. This verifies OS file-URL handling, not a physical terminal hyperlink click.
+
 ## Droid 1.3.0 copy check, 2026-11-04
 
 darwin-arm64, patched digest `6e038377039f`, Bun 1.4.3. Compared stock

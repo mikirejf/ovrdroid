@@ -6,12 +6,16 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { patchSource } from '../../binary/apply.ts';
-import { fileLinkPatches } from '../file-link-patches.ts';
+import {
+  fileLinkPatches,
+  IMAGE_LINK_DIRECTIVE,
+  STOCK_IMAGE_DIRECTIVE,
+} from '../file-link-patches.ts';
 import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { sourceApp, STOCK } from './ink-frame-harness.ts';
-import { describeStrayNames, payloadFunction } from './payload.ts';
+import { describeStrayNames, payloadFunction, rebasedNamed } from './payload.ts';
 
 const SLOW_PATCH_MS = 120_000;
 const SCRIPT_URL = ['javascript', 'alert(1)'].join(':');
@@ -34,20 +38,37 @@ describeStrayNames(fileLinkPatches);
 describe.skipIf(STOCK === undefined)(
   'markdown-file-links applies to the shipped bundle once',
   () => {
-    test('it matches once', () => {
-      const rebase = rebased();
+    test.each(fileLinkPatches.map(({ name }) => name))('%s matches once', (name) => {
+      const rebase = rebasedNamed(rebases, name);
       expect(applies(rebase)).toBe(true);
       expect(rebase.matches).toBe(1);
+    });
+
+    test('the template expression produces only the chat link directive at runtime', () => {
+      const rebase = rebasedNamed(rebases, 'chat-image-file-links');
+      const prompt = payloadFunction<[], string>([], `return \`before ${rebase.replace} after\``)();
+      expect(prompt).toBe(`before ${IMAGE_LINK_DIRECTIVE} after`);
+      expect(prompt).toContain('Save generated images inside the workspace.');
+      expect(prompt).not.toContain('Save screenshots');
     });
 
     test(
       'it ships and applies on top of every other shipped patch',
       () => {
-        expect(patches.filter((patch) => patch.name === 'markdown-file-links')).toHaveLength(1);
+        for (const { name } of fileLinkPatches) {
+          expect(patches.filter((patch) => patch.name === name)).toHaveLength(1);
+        }
+        const original = sourceApp()
+          .map((module) => module.text)
+          .join('\n');
+        expect(original.split(STOCK_IMAGE_DIRECTIVE)).toHaveLength(2);
+        expect(original).not.toContain(IMAGE_LINK_DIRECTIVE);
         const shipped = patchSource(sourceApp(), patches)
           .map((module) => module.text)
           .join('\n');
         expect(shipped.split(rebased().replace)).toHaveLength(2);
+        expect(shipped.split(IMAGE_LINK_DIRECTIVE)).toHaveLength(2);
+        expect(shipped).not.toContain(STOCK_IMAGE_DIRECTIVE);
       },
       SLOW_PATCH_MS,
     );

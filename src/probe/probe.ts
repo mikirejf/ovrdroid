@@ -145,6 +145,20 @@ registerCommands(program);
 registerWarmCommand(program);
 registerTurnCommands(program);
 
+program
+  .command('image-links')
+  .description(
+    'local stub: does the real prompt prefer image file links, and does the TUI emit a clickable encoded file URL without image graphics?',
+  )
+  .argument('<binary>')
+  .option('--dump <prefix>', 'write the captured request and raw reply to <prefix>.json')
+  .action(
+    guard(async (binary: string, options: { dump?: string }) => {
+      const { imageLinks } = await import('./image-links-command.ts');
+      await imageLinks(binary, options);
+    }),
+  );
+
 function churnOptions(command: Command): Command {
   return command
     .option('--churn <kind>', CHURN_DESCRIPTION, choice(CHURN_KINDS), DEFAULT_CHURN)
