@@ -38,13 +38,15 @@ const PROBE_REPLIES: readonly (readonly [string, string])[] = [
   [`${ESC}P$qm${ESC}\\`, `${ESC}P1$r48:2::1:2:3m${ESC}\\`],
 ];
 
-export function probeAnswerer(): (terminal: Bun.Terminal, text: string) => void {
+export function probeAnswerer(
+  extraReplies: readonly (readonly [string, string])[] = [],
+): (terminal: Pick<Bun.Terminal, 'write'>, text: string) => void {
   const answered = new Set<string>();
   let tail = '';
 
   return (terminal, text) => {
     tail += text;
-    for (const [query, reply] of PROBE_REPLIES) {
+    for (const [query, reply] of [...extraReplies, ...PROBE_REPLIES]) {
       if (!answered.has(query) && tail.includes(query)) {
         answered.add(query);
         terminal.write(reply);

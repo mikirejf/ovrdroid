@@ -159,6 +159,23 @@ program
     }),
   );
 
+program
+  .command('tool-images')
+  .description(
+    'local stub: do real Read and Script image results still reach the model while inlineImages off (and the inherited preference) suppress automatic tool previews but keep clickable file links? Requires a graphics-producing on control.',
+  )
+  .argument('<binary>')
+  .option(
+    '--dump <prefix>',
+    'write captured model requests and raw terminal output to <prefix>.json',
+  )
+  .action(
+    guard(async (binary: string, options: { dump?: string }) => {
+      const { toolImages } = await import('./tool-images-command.ts');
+      await toolImages(binary, options);
+    }),
+  );
+
 function churnOptions(command: Command): Command {
   return command
     .option('--churn <kind>', CHURN_DESCRIPTION, choice(CHURN_KINDS), DEFAULT_CHURN)

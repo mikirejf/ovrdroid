@@ -44,6 +44,7 @@ export interface SessionOptions {
   args?: readonly string[];
   screen?: boolean;
   onData?: (text: string) => undefined;
+  probeReplies?: readonly (readonly [string, string])[];
 }
 
 export const SETTLE_MS = 3000;
@@ -80,7 +81,7 @@ export function cutFrames(buffer: string): Cut {
 
 export async function openSession(binary: string, options: SessionOptions = {}): Promise<Session> {
   const decoder = new TextDecoder();
-  const answerProbes = probeAnswerer();
+  const answerProbes = probeAnswerer(options.probeReplies);
   const isPainted = paintDetector();
   const painted = Promise.withResolvers<boolean>();
 

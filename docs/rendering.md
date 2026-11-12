@@ -32,6 +32,38 @@ macOS LaunchServices identified Preview as the default handler for PNG and JPEG 
 `file:///tmp/888/visuals/d1-1-now-rest.png` opened that document in Preview, confirmed by its window
 title and a screenshot. This verifies OS file-URL handling, not a physical terminal hyperlink click.
 
+### Automatic tool-image previews (Droid 1.9.0, 2026-11-12)
+
+Images below stacked tool results are automatic previews, not assistant Markdown embeds. The
+supported Inline images preference (`general.inlineImages` internally) suppresses those previews
+without disabling image inspection or file links. The chat-only instruction above does not control
+this path.
+
+`bun run probe tool-images /Users/andrej/.local/bin/droid` passed on darwin-arm64, digest
+`573afcf1f106`: one run of three serial, isolated local-stub sessions, with previews on, off and
+omitted from the runtime overlay (inheriting the user's off preference). Each session runs a real
+Read and `Script` with `image(await tools.Read(...))` in separate settled turns, then ordinary
+Screenshot links to a 64×64 PNG named `shot one#2.png`. The feature flag is forced on and the PTY
+answers Kitty graphics, Unicode-placeholder, cell-size and terminal-version queries. Existing probe
+defaults are unchanged.
+
+| Runtime preference | Display commands during Read / Script turns | PNG results sent to model | Encoded OSC8 link |
+| ------------------ | ------------------------------------------: | ------------------------- | ----------------- |
+| on                 |                                       1 / 2 | both tools                | yes               |
+| off                |                                       0 / 0 | both tools                | yes               |
+| omitted            |                                       0 / 0 | both tools                | yes               |
+
+Counts include reuploads on repaint, not distinct images; capability queries never count as
+displays. Each image-bearing result is matched to the actual assistant tool-use id and input in the
+next model requests: Droid normalizes the stub's ids. Read returns a text block plus an image;
+Script returns an image plus completion text. Both carry nonempty base64 PNG data with previews off.
+The link target retains `%20` and `%23` with the Screenshot label. `--dump <prefix>` preserves
+requests and raw per-turn output in `<prefix>.json`.
+
+Runtime settings put `inlineImages` at the JSON root, unlike the internal `general` object. A
+rejected overlay can fall back to the persistent model. The probe therefore refuses to submit any
+prompt unless the local stub model is visible first.
+
 ## Droid 1.3.0 copy check, 2026-11-04
 
 darwin-arm64, patched digest `6e038377039f`, Bun 1.4.3. Compared stock
