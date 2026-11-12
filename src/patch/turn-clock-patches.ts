@@ -1,6 +1,6 @@
 import { CACHE_CLOCK_GLOBAL, CACHE_CLOCK_RUNTIME_GLOBAL, CACHE_TRUSTED_MS } from './cache-clock.ts';
 import type { Patch } from './patches.ts';
-import { KEEP_WARM_SET_GLOBAL } from './warmer-patches.ts';
+import { KEEP_WARM_ARMED_GLOBAL, KEEP_WARM_SET_GLOBAL } from './warmer-patches.ts';
 
 const TURN_CLOCK_STATE =
   '$ODc={session:null,sent:0,done:0,busy:!1},' +
@@ -32,7 +32,7 @@ const TURN_CLOCK_HEAD =
   `if($ODcat){let $ODrem=$ODexp-$ODnow,$ODloaded=$ODce.loaded?${CACHE_CLOCK_RUNTIME_GLOBAL}.view($ODce,$ODnow):null;if($ODago.length)$ODago.push(lt(", ",{color:a.text.muted}));` +
   '$ODago.push($ODloaded?lt($ODloaded.text,{color:$ODloaded.warn?a.warning:a.text.muted}):' +
   `$ODrem>0?lt("cache "+$ODa(Math.min($ODrem,${CACHE_TRUSTED_MS - 1})),{color:a.text.muted}):lt("cache cold",{color:a.warning}))}}` +
-  `if(${KEEP_WARM_SET_GLOBAL}?.has(w)){if($ODago.length)$ODago.push(lt(", ",{color:a.text.muted}));$ODago.push(lt("\\uD83D\\uDD25",{color:a.primary}))}` +
+  `if(${KEEP_WARM_SET_GLOBAL}?.has(w)){if($ODago.length)$ODago.push(lt(", ",{color:a.text.muted}));$ODago.push(lt("\\uD83D\\uDD25",{color:${KEEP_WARM_ARMED_GLOBAL}?.has(w)?a.primary:a.text.muted}))}` +
   'if(!$ODago.length)return ye?[lt(ye,{color:a.text.muted})]:[];' +
   'let $ODbr=ye||"[]",$ODcut=$ODbr.indexOf(",");if($ODcut<0)$ODcut=$ODbr.length-1;' +
   'return[lt($ODbr.slice(0,$ODcut)+(ye?", ":""),{color:a.text.muted}),...$ODago,lt($ODbr.slice($ODcut),{color:a.text.muted})]})()';

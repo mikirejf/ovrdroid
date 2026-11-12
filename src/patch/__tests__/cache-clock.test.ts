@@ -227,8 +227,25 @@ describe('when the footer wakes up', () => {
 });
 
 describe('the keep warm segment', () => {
-  test('shows the flame alone in the primary colour with no turn and no cache entry', () => {
+  test('shows the flame muted while waiting for the first request', () => {
     FooterWorld.keepWarm(SESSION);
+
+    expect(footer.render()).toBe('[\u{1F525}] ? for help');
+    expect(footer.colorOf('\u{1F525}')).toBe('muted');
+    expect(footer.pending).toHaveLength(0);
+  });
+
+  test('an armed warm for another session leaves the flame muted', () => {
+    FooterWorld.keepWarm(SESSION);
+    FooterWorld.armed(OTHER_SESSION);
+
+    expect(footer.render()).toBe('[\u{1F525}] ? for help');
+    expect(footer.colorOf('\u{1F525}')).toBe('muted');
+  });
+
+  test('shows the flame alone in the primary colour when a warm is armed', () => {
+    FooterWorld.keepWarm(SESSION);
+    FooterWorld.armed(SESSION);
 
     expect(footer.render()).toBe('[\u{1F525}] ? for help');
     expect(footer.colorOf('\u{1F525}')).toBe('primary');
@@ -238,6 +255,7 @@ describe('the keep warm segment', () => {
   test('follows the turn clock and the cache, separated by a muted comma', () => {
     FooterWorld.cache({ [SESSION]: SENT_AT });
     FooterWorld.keepWarm(SESSION);
+    FooterWorld.armed(SESSION);
     runTurn(SENT_AT, SENT_AT + 5 * SECOND_MS);
 
     expect(footer.render()).toBe('[\u2191<1m \u2193<1m, cache 44m, \u{1F525}] ? for help');

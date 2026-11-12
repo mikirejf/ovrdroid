@@ -3,6 +3,8 @@ import type { Patch } from './patches.ts';
 export const KEEP_WARM_COMMAND = 'keep-warm';
 export const KEEP_WARM_USAGE = `Usage: /${KEEP_WARM_COMMAND} [on|off]`;
 export const KEEP_WARM_ON = 'Keep warm on for this session';
+export const KEEP_WARM_ON_PENDING =
+  'Keep warm on for this session. Warming starts after the next request.';
 export const KEEP_WARM_OFF = 'Keep warm off for this session';
 
 const COMMAND_DESCRIPTION = 'Keep the prompt cache warm while this session is idle (on or off)';

@@ -1,5 +1,10 @@
 import { CACHE_CLOCK_ENV, CACHE_CLOCK_KEY, CACHE_CLOCK_RUNTIME_KEY } from '../cache-clock.ts';
-import { KEEP_WARM_SET_KEY, STREAMING_CORE_IMPORT, warmerPatches } from '../warmer-patches.ts';
+import {
+  KEEP_WARM_ARMED_KEY,
+  KEEP_WARM_SET_KEY,
+  STREAMING_CORE_IMPORT,
+  warmerPatches,
+} from '../warmer-patches.ts';
 import type { ClockEnvironment, ClockRuntime, Logged } from './clock-env.ts';
 import { ClockEnv } from './clock-env.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
@@ -306,6 +311,7 @@ export class World {
   }
 
   static close(): void {
+    Reflect.deleteProperty(globalThis, KEEP_WARM_ARMED_KEY);
     Reflect.deleteProperty(globalThis, KEEP_WARM_KEY);
     Reflect.deleteProperty(globalThis, KEEP_WARM_SET_KEY);
     Reflect.deleteProperty(globalThis, '__odKids');

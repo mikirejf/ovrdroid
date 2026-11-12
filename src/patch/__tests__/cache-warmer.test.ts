@@ -84,6 +84,29 @@ describe('arming', () => {
 });
 
 describe('when the timer fires', () => {
+  test.each(['network error', 'aborted reply'])(
+    '%s retries in one minute until a success restores the normal delay',
+    async (failure) => {
+      world.children = 1;
+      world.request(1);
+      world.reply =
+        failure === 'network error'
+          ? Promise.reject(new Error('no such host'))
+          : Promise.resolve({ wasAborted: true, usage: USAGE });
+
+      await world.fireCurrent();
+
+      expect(world.harness.warm.get(SESSION)?.timer.delay).toBe(MIN_WARM_DELAY_MS);
+      expect(world.logged[0]).toMatchObject({ ok: false });
+
+      world.reply = Promise.resolve({ wasAborted: false, usage: USAGE });
+      await world.fireCurrent();
+
+      expect(world.harness.warm.get(SESSION)?.timer.delay).toBe(ANTHROPIC_DELAY_MS);
+      expect(world.logged[1]).toMatchObject({ ok: true });
+    },
+  );
+
   test('a snapshot pruned from the store after four minutes still warms', async () => {
     world.children = 1;
     world.request(1);

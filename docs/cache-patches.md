@@ -86,14 +86,21 @@ The warmer fires at 45 minutes on Anthropic ([cache-lifetime.md](cache-lifetime.
 
 `/keep-warm [on|off]` makes the warmer also fire while the session is idle with no subagents. It is
 per session and in memory only: nothing goes to `ovrdroid.json`, and closing the session turns it
-off. While it is on, the footer bracket shows a 🔥; the toggle repaints the footer at once. There is
-no time limit; it keeps warming every 45 minutes (27 on other providers) until turned off or closed.
-It still warms only the session on screen and only while that session's latest snapshot is the one
-it replays. Turning it on after the chain ended (the session was idle with it off) re-arms from the
-session's last request or last successful warm: the next warm fires that long plus the normal delay
-after it, or at once when that moment has passed. Claude cache reads did not move the subscription
-meter ([cache-lifetime.md](cache-lifetime.md)), so a warm there costs next to nothing; GPT warms are
+off. While it is on, the footer bracket shows a 🔥. It is muted when no warm is armed and bright
+when one is armed. Both the toggle and changes to the armed state repaint the footer at once. With
+no replayable request in this process, turning it on says "Keep warm on for this session. Warming
+starts after the next request." The next request arms it. There is no time limit; it keeps warming
+every 45 minutes (27 on other providers) until turned off or closed. It still warms only the session
+on screen and only while that session's latest snapshot is the one it replays. Turning it on after
+the chain ended (the session was idle with it off) re-arms from the session's last request or last
+successful warm: the next warm fires that long plus the normal delay after it, or at once when that
+moment has passed. Claude cache reads did not move the subscription meter
+([cache-lifetime.md](cache-lifetime.md)), so a warm there costs next to nothing; GPT warms are
 billed.
+
+A failed warm retries after 1 minute. A successful retry restores the normal delay. A warm aborted
+by the session does not retry. This fixes a warm that failed with DNS `no such host` just after the
+Mac woke: the old 45-minute wait let a 173,720-token cache expire.
 
 pi warms only direct Anthropic, never OpenAI (pi issue #9810), and keys OpenAI's cache per session,
 so its forks miss (#8348).

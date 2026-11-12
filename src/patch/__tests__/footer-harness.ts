@@ -3,7 +3,7 @@ import { setSystemTime } from 'bun:test';
 import { CACHE_CLOCK_KEY } from '../cache-clock.ts';
 import type { Patch } from '../patches.ts';
 import { patches } from '../patches.ts';
-import { KEEP_WARM_SET_KEY } from '../warmer-patches.ts';
+import { KEEP_WARM_ARMED_KEY, KEEP_WARM_SET_KEY } from '../warmer-patches.ts';
 import type { ClockRuntime } from './clock-env.ts';
 import { ClockEnv } from './clock-env.ts';
 import { patchNamed, payloadFunction } from './payload.ts';
@@ -139,10 +139,15 @@ export class FooterWorld {
     setSystemTime();
     ClockEnv.close();
     Reflect.deleteProperty(globalThis, KEEP_WARM_SET_KEY);
+    Reflect.deleteProperty(globalThis, KEEP_WARM_ARMED_KEY);
   }
 
   static keepWarm(...sessionIds: string[]): void {
     Object.assign(globalThis, { [KEEP_WARM_SET_KEY]: new Set(sessionIds) });
+  }
+
+  static armed(...sessionIds: string[]): void {
+    Object.assign(globalThis, { [KEEP_WARM_ARMED_KEY]: new Set(sessionIds) });
   }
 
   static cache(entries: Record<string, number>): void {

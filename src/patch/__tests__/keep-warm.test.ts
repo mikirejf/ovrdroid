@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { KEEP_WARM_OFF, KEEP_WARM_ON, KEEP_WARM_USAGE } from '../keep-warm-patches.ts';
+import {
+  KEEP_WARM_OFF,
+  KEEP_WARM_ON,
+  KEEP_WARM_ON_PENDING,
+  KEEP_WARM_USAGE,
+} from '../keep-warm-patches.ts';
+import { KEEP_WARM_ARMED_KEY } from '../warmer-patches.ts';
 import { KeepWarmWorld, START } from './keep-warm-world.ts';
 import {
   ANTHROPIC_DELAY_MS,
@@ -16,14 +22,14 @@ const kw = new KeepWarmWorld();
 
 describe('the command', () => {
   test('with no argument it turns keep warm on, then off', () => {
-    expect(keepWarm()).toBe(KEEP_WARM_ON);
+    expect(keepWarm()).toBe(KEEP_WARM_ON_PENDING);
     expect(keepWarm()).toBe(KEEP_WARM_OFF);
-    expect(keepWarm()).toBe(KEEP_WARM_ON);
+    expect(keepWarm()).toBe(KEEP_WARM_ON_PENDING);
   });
 
   test.each([
-    ['on', KEEP_WARM_ON],
-    ['ON', KEEP_WARM_ON],
+    ['on', KEEP_WARM_ON_PENDING],
+    ['ON', KEEP_WARM_ON_PENDING],
     ['off', KEEP_WARM_OFF],
     ['Off', KEEP_WARM_OFF],
   ])('%s sets it and says so', (argument, message) => {
@@ -31,8 +37,8 @@ describe('the command', () => {
   });
 
   test('on and off are idempotent', () => {
-    expect(keepWarm('on')).toBe(KEEP_WARM_ON);
-    expect(keepWarm('on')).toBe(KEEP_WARM_ON);
+    expect(keepWarm('on')).toBe(KEEP_WARM_ON_PENDING);
+    expect(keepWarm('on')).toBe(KEEP_WARM_ON_PENDING);
     expect(keepWarm('off')).toBe(KEEP_WARM_OFF);
     expect(keepWarm('off')).toBe(KEEP_WARM_OFF);
   });
@@ -47,9 +53,61 @@ describe('the command', () => {
   test('the usage line names the command and its two words', () => {
     expect(KEEP_WARM_USAGE).toBe('Usage: /keep-warm [on|off]');
   });
+
+  test('with a replayable request both ways of turning it on use the normal message', () => {
+    kw.world.request(START);
+
+    expect(keepWarm('on')).toBe(KEEP_WARM_ON);
+    expect(keepWarm()).toBe(KEEP_WARM_OFF);
+    expect(keepWarm()).toBe(KEEP_WARM_ON);
+  });
 });
 
 describe('the footer signal', () => {
+  test('publishes the armed map that the footer reads', () => {
+    expect(Object.getOwnPropertyDescriptor(globalThis, KEEP_WARM_ARMED_KEY)?.value).toBe(
+      kw.world.harness.warm,
+    );
+  });
+
+  test('arming and cancelling notify after the armed state changes', () => {
+    const seen: boolean[] = [];
+    listenToClock(() => {
+      seen.push(kw.world.harness.warm.has(SESSION));
+    });
+
+    kw.world.request(START);
+    kw.world.harness.mY(SESSION);
+
+    expect(seen).toEqual([true, false]);
+  });
+
+  test('declining to warm notifies after the armed state clears', async () => {
+    kw.world.request(START);
+    const seen: boolean[] = [];
+    listenToClock(() => {
+      seen.push(kw.world.harness.warm.has(SESSION));
+    });
+
+    await kw.world.fireCurrent();
+
+    expect(seen).toEqual([false]);
+  });
+
+  test('a new request replacing an armed timer tells no one', () => {
+    kw.world.request(START);
+    let calls = 0;
+    listenToClock(() => {
+      calls += 1;
+    });
+
+    kw.world.request(START + 1);
+
+    expect(calls).toBe(0);
+    expect(kw.world.harness.warm.get(SESSION)?.snap.capturedAt).toBe(START + 1);
+    expect(kw.world.cleared).toHaveLength(1);
+  });
+
   test('turning it on or off tells the cache clock listeners, after the set has changed', () => {
     const seen: boolean[] = [];
     listenToClock(() => {

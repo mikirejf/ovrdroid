@@ -4,6 +4,7 @@ import type { Patch } from '../patch/patches.ts';
 import { escapeRegex } from '../patch/tokens.ts';
 import { turnClockPatches } from '../patch/turn-clock-patches.ts';
 import { updateNoticePatches } from '../patch/update-notice-patches.ts';
+import { KEEP_WARM_ARMED_GLOBAL } from '../patch/warmer-patches.ts';
 
 export const FRAME_NAMES = ['launch', 'turn', 'keepWarmOn', 'keepWarmOff', 'narrow'] as const;
 export type FrameName = (typeof FRAME_NAMES)[number];
@@ -110,7 +111,10 @@ const CACHE = groupsIn(
 );
 const KEEP_WARM = groupsIn(
   CLOCK_PARTS.replace,
-  /lt\("(?<segment>[^"]*)",\{color:a\.primary\}\)/u,
+  new RegExp(
+    String.raw`lt\("(?<segment>[^"]*)",\{color:${escapeRegex(KEEP_WARM_ARMED_GLOBAL)}\?\.has\(w\)\?a\.primary:`,
+    'u',
+  ),
   CLOCK_PARTS.name,
 );
 

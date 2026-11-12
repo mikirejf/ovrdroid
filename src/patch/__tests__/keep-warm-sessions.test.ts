@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { KEEP_WARM_ON } from '../keep-warm-patches.ts';
+import { KEEP_WARM_ON, KEEP_WARM_ON_PENDING } from '../keep-warm-patches.ts';
 import { KeepWarmWorld, later, START } from './keep-warm-world.ts';
 import {
   ANTHROPIC_DELAY_MS,
@@ -106,17 +106,22 @@ describe('turning it on after the chain ended', () => {
     expect(kw.pendingDelay()).toBe(ANTHROPIC_DELAY_MS - 5 * MINUTE_MS);
   });
 
-  test('with no request yet it only sets the flag, and the first request arms as usual', async () => {
-    keepWarm('on');
+  test.each(['on', undefined])(
+    'with no request yet %j says warming is pending, and the first request arms as usual',
+    async (argument) => {
+      expect(keepWarm(argument)).toBe(KEEP_WARM_ON_PENDING);
 
-    expect(kw.world.timers).toHaveLength(0);
+      expect(kw.world.timers).toHaveLength(0);
+      expect(kw.world.harness.warm.has(SESSION)).toBe(false);
 
-    kw.world.request(START);
-    expect(kw.pendingDelay()).toBe(ANTHROPIC_DELAY_MS);
-    await kw.world.fireCurrent();
+      kw.world.request(START);
+      expect(kw.world.harness.warm.has(SESSION)).toBe(true);
+      expect(kw.pendingDelay()).toBe(ANTHROPIC_DELAY_MS);
+      await kw.world.fireCurrent();
 
-    expect(kw.world.sent).toHaveLength(1);
-  });
+      expect(kw.world.sent).toHaveLength(1);
+    },
+  );
 
   test('while a timer is pending it changes nothing about the timer', () => {
     kw.world.request(START);
@@ -167,7 +172,7 @@ describe('sessions', () => {
   test('the toggle only reads and writes the current session', async () => {
     keepWarm('on');
     kw.world.current = OTHER_SESSION;
-    expect(keepWarm()).toBe(KEEP_WARM_ON);
+    expect(keepWarm()).toBe(KEEP_WARM_ON_PENDING);
     kw.world.request(START, OTHER_SESSION);
     kw.world.current = SESSION;
     keepWarm('off');
