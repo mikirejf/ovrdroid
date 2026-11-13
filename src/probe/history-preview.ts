@@ -5,9 +5,10 @@ import { FACTORY_TASK_INVOCATIONS } from '../paths.ts';
 import { DROID_TYPE, launchHeldSubagent, withScenario } from './busy-signal.ts';
 import type { Run, ScenarioOptions } from './busy-signal.ts';
 import { LOG_PATH } from './effort-switch-turn.ts';
-import { entriesOf, fieldsOfJson, worded } from './fields.ts';
+import { entriesOf, fieldsOfJson, numberAt, worded } from './fields.ts';
 import type { Fields } from './fields.ts';
 import {
+  completedHelpers,
   historyPreviewVerdicts,
   hostLoggingSeen,
   reopenedHelpers,
@@ -37,24 +38,27 @@ function invocations(): Fields[] {
   return entriesOf(fieldsOfJson(readFileSync(FACTORY_TASK_INVOCATIONS, 'utf-8')), 'invocations');
 }
 
-function completedSince(before: ReadonlySet<string>): string[] {
-  return invocations()
-    .filter(
-      (entry) =>
-        !before.has(worded(entry, 'childSessionId')) &&
-        worded(entry, 'status') === 'completed' &&
-        worded(entry, 'parentToolUseId').includes(`_${COMPLETED_TAG}`),
-    )
-    .map((entry) => worded(entry, 'childSessionId'));
-}
-
 async function launchCompleted(run: Run, index: number): Promise<string> {
   const before = new Set(invocations().map((entry) => worded(entry, 'childSessionId')));
-  await send(run.session, `${LAUNCH_WORD} ${COMPLETED_TAG}${index}`);
+  const tag = `${COMPLETED_TAG}${index}`;
+  const description = `${DROID_TYPE} ${tag}`;
+  await send(run.session, `${LAUNCH_WORD} ${tag}`);
+  const launched = await waitFor(
+    'the helper never started',
+    () =>
+      invocations().find(
+        (entry) =>
+          numberAt(entry, 'hostPid') === run.session.pid &&
+          worded(entry, 'description') === description &&
+          !before.has(worded(entry, 'childSessionId')),
+      ),
+    run.timeoutMs,
+  );
+  const parentSessionId = worded(launched, 'parentSessionId');
   const ids = await waitFor(
     'the helper never completed',
     () => {
-      const completed = completedSince(before);
+      const completed = completedHelpers(invocations(), before, { parentSessionId, description });
       return completed.length > 0 ? completed : undefined;
     },
     run.timeoutMs,
@@ -115,6 +119,7 @@ async function inspectPreviews(
     );
   }
   await run.session.quiet(LOG_FLUSH_MS, LOG_FLUSH_MS);
+  await run.session.close();
   const log = await logSlice(LOG_PATH, from);
   return {
     evidence: {

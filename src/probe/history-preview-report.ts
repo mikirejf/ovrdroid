@@ -1,4 +1,5 @@
 import { fieldsOfJson, numberAt, worded } from './fields.ts';
+import type { Fields } from './fields.ts';
 import type { Verdict } from './roster-view-report.ts';
 
 const CONTEXT = ' | Context: ';
@@ -10,6 +11,22 @@ export interface HistoryPreviewEvidence {
   previewShown: boolean;
   loggingSeen: boolean;
   reopened: readonly string[];
+}
+
+export function completedHelpers(
+  records: readonly Fields[],
+  before: ReadonlySet<string>,
+  task: { parentSessionId: string; description: string },
+): string[] {
+  return records
+    .filter(
+      (record) =>
+        worded(record, 'parentSessionId') === task.parentSessionId &&
+        worded(record, 'description') === task.description &&
+        worded(record, 'status') === 'completed' &&
+        !before.has(worded(record, 'childSessionId')),
+    )
+    .map((record) => worded(record, 'childSessionId'));
 }
 
 export function reopenedHelpers(log: string, pid: number, helpers: readonly string[]): string[] {
