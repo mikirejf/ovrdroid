@@ -13,6 +13,7 @@ import {
   TERMINAL_SIZE,
 } from './launch.ts';
 import { Ledger } from './owned-sessions.ts';
+import type { StyledLine } from './terminal-screen.ts';
 import { TerminalScreen } from './terminal-screen.ts';
 
 const FRAME_END = '\u001B[?2026l';
@@ -61,6 +62,7 @@ export interface Session {
   resize: (cols: number, rows: number) => undefined;
   frames: () => readonly Frame[];
   screen: () => string[];
+  styledScreen: () => StyledLine[];
   bytes: () => number;
   close: () => Promise<void>;
 }
@@ -193,6 +195,7 @@ export async function openSession(binary: string, options: SessionOptions = {}):
     },
     frames: () => collected,
     screen: () => screen?.lines() ?? [],
+    styledScreen: () => screen?.styledLines() ?? [],
     bytes: () => written,
     pid: child.pid,
     startedAt,

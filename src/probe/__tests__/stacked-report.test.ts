@@ -11,6 +11,7 @@ import {
   readMidThinking,
   readStacked,
   readTranscript,
+  SCROLL_HEADER,
   SKILLS,
   TAIL_TALLY,
   TALLY,
@@ -50,8 +51,18 @@ const MID_RUN = ['> Go through the files.', `  ${TALLY}`, '   ↳ false', ' ⠙ 
 const STREAMING = ['> Go through the files.', `  ${THINKING_ROW}`, ' ⠙ Thinking...'];
 const TRANSCRIPT = ['Thinking:', ...THINKING_TEXT.replaceAll('**', '').split('\n')];
 
+const SCROLL_VIEW = [`  ${SCROLL_HEADER} · page 1`, `  ${TALLY}`];
+
 function capture(screen: string[], midRun: string[] | undefined = MID_RUN) {
-  return { served: TURN_REQUESTS, screen, midRun, transcript: TRANSCRIPT, midThinking: STREAMING };
+  return {
+    served: TURN_REQUESTS,
+    screen,
+    scrollView: SCROLL_VIEW,
+    afterScroll: [`  ${TALLY}`],
+    midRun,
+    transcript: TRANSCRIPT,
+    midThinking: STREAMING,
+  };
 }
 
 function failures(screen: string[], midRun?: string[]): string[] {

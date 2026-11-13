@@ -139,6 +139,24 @@ async function frame(session: Session): Promise<string[]> {
   return session.screen();
 }
 
+const ALT_UP = '\u001B[1;3A';
+
+export interface ScrollCapture {
+  scrollView: readonly string[];
+  afterScroll: readonly string[];
+}
+
+async function frameAfter(session: Session, key: string): Promise<string[]> {
+  session.press(key);
+  return await frame(session);
+}
+
+export async function captureScrollView(session: Session): Promise<ScrollCapture> {
+  const scrollView = await frameAfter(session, ALT_UP);
+  const afterScroll = await frameAfter(session, ESC);
+  return { scrollView, afterScroll };
+}
+
 async function captureApproval(binary: string): Promise<ApprovalCapture> {
   return await runCase({
     binary,

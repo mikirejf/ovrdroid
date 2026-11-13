@@ -10,7 +10,7 @@ import { poll } from './poll.ts';
 import { send, settle } from './rewind.ts';
 import type { Session } from './session.ts';
 import { openSettledSession } from './session.ts';
-import { runStackedCases } from './stacked-cases.ts';
+import { captureScrollView, runStackedCases } from './stacked-cases.ts';
 import type { StackedCapture } from './stacked-report.ts';
 import {
   describeFindings,
@@ -232,12 +232,14 @@ async function driveTurn(session: Session, stub: Stub): Promise<StackedCapture> 
   await poll(() => (stub.served() >= TURN_REQUESTS ? true : undefined), TURN_TIMEOUT_MS);
   await settle(session);
   const screen = session.screen();
+  const scroll = await captureScrollView(session);
   session.press(CTRL_O);
   await Bun.sleep(KEY_REACT_MS);
   await session.quiet(MID_RUN_QUIET_MS, MID_RUN_TIMEOUT_MS);
   return {
     served: stub.served(),
     screen,
+    ...scroll,
     transcript: session.screen(),
     ...(midThinking !== undefined && { midThinking }),
     ...(midRun !== undefined && { midRun }),
@@ -299,7 +301,7 @@ function printFrame(title: string, frame: readonly string[] | undefined): void {
 
 export async function stacked(binary: string, options: StackedOptions): Promise<void> {
   say(
-    'a stub model opens with a thinking block, then reads a file, greps, reads another, loads two skills, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line in call order with both skill names visible and the edit inline, and does scrollback keep exactly one copy of each line? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
+    'a stub model opens with a thinking block, then reads a file, greps, reads another, loads two skills, runs two commands (one fails), edits a file and reads a third, with Tool result display set to stacked: does the thinking draw as one summary row, does a thinking block with a long first sentence before the last read wrap to at most 3 rows, do the non-edit calls share one growing line in call order with both skill names visible and the edit inline, does scrollback keep exactly one copy of each line, and does the scroll view (Alt+↑) draw the turn as the same stacked line and leave on Esc? Then two more turns of Read, Execute, Read: one whose command needs approval, and one followed by switching the setting to expanded and back.',
   );
   const capture = await captureStacked(binary, options.display);
   const cases = await runStackedCases(binary);
@@ -308,6 +310,8 @@ export async function stacked(binary: string, options: StackedOptions): Promise<
     printFrame('while the thinking streams', capture.midThinking);
     printFrame('mid-run frame', capture.midRun);
     printFrame('screen after the turn', capture.screen);
+    printFrame('scroll view', capture.scrollView);
+    printFrame('after Esc from the scroll view', capture.afterScroll);
     printFrame('after Ctrl+O', capture.transcript);
     for (const [title, frame] of cases.frames) {
       printFrame(title, frame);
@@ -323,7 +327,7 @@ export function registerStackedCommand(program: Command): void {
   program
     .command('stacked')
     .description(
-      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then a read, a grep, a read, two skill loads, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line in call order with both skill names visible and the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, and does scrollback keep exactly one copy of each line? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
+      'with Tool result display set to stacked and Show thinking on, run a stub-model turn that opens with a thinking block, then a read, a grep, a read, two skill loads, two commands (one failing), an edit and a read that a long thinking block precedes: does the thinking draw as one summary row, does a long first sentence wrap to at most 3 rows, do the non-edit calls collapse into one growing line in call order with both skill names visible and the edit inline, does a mid-run frame show the counts so far with a ↳ line for the latest call, does scrollback keep exactly one copy of each line, and does the scroll view (Alt+↑) draw the turn stacked, not expanded, and leave on Esc? Two more sessions run Read, Execute, Read: does an Execute that needs approval show its prompt while it waits and then join the line, and does switching to expanded and back redraw the history in each mode once?',
     )
     .argument('<binary>')
     .option(

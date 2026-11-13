@@ -146,6 +146,22 @@ export const REPRINT = REPRINT_FIND.replace(
   .replace('&&Ye.epoch>We.epoch;', '&&Ye.epoch>We.epoch||We.$ODstacked!==$ODstacked;')
   .replace('epoch:Ye.epoch}', 'epoch:Ye.epoch,$ODstacked:$ODstacked}');
 
+const HISTORY_SEGMENT_FIND =
+  'showThinking:D=!1,images:B,onPageHeight:V})=>{let q=S(null),K=S(new Map),X=$U(B),' +
+  'Z=k(()=>gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B}),[B,X,g.messages,D]);';
+
+export const HISTORY_UNITS =
+  'let $ODunits=gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B});' +
+  'return $ODstacked?$ODstack($ODunits,{open:!1,showThinking:D,awaiting:()=>!1}):$ODunits';
+
+const HISTORY_SEGMENT =
+  'showThinking:D=!1,images:B,onPageHeight:V,$ODstacked:$ODstacked})=>{let q=S(null),K=S(new Map),X=$U(B),' +
+  `Z=k(()=>{${HISTORY_UNITS}},[B,X,g.messages,D,$ODstacked]);`;
+
+const HISTORY_MODE_FIND = 'let K=f().getToolResultDisplay()==="compact",X=UP(bC(),q)';
+
+const HISTORY_PAGE_FIND = 'compact:K,showThinking:D,images:X,onPageHeight:V}';
+
 export const stackedViewPatches: readonly Patch[] = [
   {
     name: 'stacked-view-setting-value',
@@ -235,5 +251,23 @@ export const stackedViewPatches: readonly Patch[] = [
     find: 'liveTailMaxRows:Lr.activePane?FM:Tre,onStaticEpochReset:Vr,',
     lookups: ['xs=bD(SP),rb=xs!=="idle"'],
     replace: 'liveTailMaxRows:Lr.activePane?FM:Tre,$ODturn:rb,onStaticEpochReset:Vr,',
+  },
+  {
+    name: 'stacked-view-history-mode',
+    find: HISTORY_MODE_FIND,
+    replace: HISTORY_MODE_FIND.replace(
+      'let K=f().getToolResultDisplay()==="compact"',
+      `let $ODmode=f().getToolResultDisplay(),K=$ODmode==="compact"`,
+    ),
+  },
+  {
+    name: 'stacked-view-history-page-prop',
+    find: HISTORY_PAGE_FIND,
+    replace: HISTORY_PAGE_FIND.replace('}', `,$ODstacked:$ODmode==="${STACKED_MODE}"}`),
+  },
+  {
+    name: 'stacked-view-history-units',
+    find: HISTORY_SEGMENT_FIND,
+    replace: HISTORY_SEGMENT,
   },
 ];

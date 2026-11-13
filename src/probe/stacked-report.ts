@@ -28,6 +28,8 @@ const LONG_ROW = `Thinking: ${LONG_START}`;
 export interface StackedCapture {
   served: number;
   screen: readonly string[];
+  scrollView?: readonly string[];
+  afterScroll?: readonly string[];
   midRun?: readonly string[];
   transcript?: readonly string[];
   midThinking?: readonly string[];
@@ -51,7 +53,7 @@ const CHAIN = new RegExp(`${SEGMENT}(?: › ${SEGMENT})*`, 'gu');
 const STATS_LINE = /↳[^+]*\+\d+\D*-\d+/u;
 const EDIT_STATS = /↳[^+]*\+1\b\D*-1\b/u;
 const SUBTITLE_MARK = '↳';
-const EXECUTE_HEADER = /\bExecute\s+(?:true|false)\b/u;
+export const EXECUTE_HEADER = /\bExecute\s+(?:true|false)\b/u;
 const EDIT_HEADER = new RegExp(`\\bEdit\\s+\\S*${EDIT_FILE.replace('.', '\\.')}`, 'gu');
 const LATEST_CALL = /^\s*↳\s+false(?:\s|$)/u;
 
@@ -298,6 +300,71 @@ export function readTranscript(frame?: readonly string[]): Finding {
       };
 }
 
+export const SCROLL_HEADER = 'Transcript history';
+const READ_HEADER = /\bRead\s+\S*[abc]\.txt\b/u;
+
+function readOpened(frame: readonly string[]): Finding {
+  return flatten(frame).includes(SCROLL_HEADER)
+    ? { pass: true, says: 'Alt+↑ opens the scroll view, with its transcript history header' }
+    : {
+        pass: false,
+        says: `Alt+↑ should open the scroll view with a '${SCROLL_HEADER}' header, and no such header is on screen`,
+      };
+}
+
+function readScrollTally(frame: readonly string[]): Finding {
+  const found = chainsIn(flatten(frame)).map((chain) => chain.text);
+  const tallies = found.filter((text) => text === TALLY).length;
+  if (tallies === 1) {
+    return {
+      pass: true,
+      says: 'the scroll view draws the turn as one stacked line, in call order',
+    };
+  }
+  return {
+    pass: false,
+    says: `the scroll view should draw the turn as one line reading '${TALLY}', and shows ${tallies === 0 ? `no such line; lines that look like a tally: ${found.length === 0 ? 'none' : quoted(found)}` : `it ${tallies} times`}`,
+  };
+}
+
+function readScrollExpanded(frame: readonly string[]): Finding {
+  const rows = frame
+    .filter((line) => EXECUTE_HEADER.test(line) || READ_HEADER.test(line))
+    .map((line) => line.trim());
+  return rows.length === 0
+    ? { pass: true, says: 'the scroll view draws no call as its own expanded row' }
+    : {
+        pass: false,
+        says: `the scroll view draws calls expanded, each with its own header: ${quoted(rows)}`,
+      };
+}
+
+function readClosed(frame: readonly string[]): Finding {
+  const text = flatten(frame);
+  return !text.includes(SCROLL_HEADER) && chainsIn(text).some((chain) => chain.text === TALLY)
+    ? { pass: true, says: 'Esc leaves the scroll view and brings back the live chat' }
+    : {
+        pass: false,
+        says: `Esc should leave the scroll view and bring back the live chat with its stacked line, but the frame ${text.includes(SCROLL_HEADER) ? `still shows the '${SCROLL_HEADER}' header` : 'has no stacked line'}`,
+      };
+}
+
+export function readScrollView(capture: StackedCapture): Finding[] {
+  if (capture.served < TURN_REQUESTS) {
+    return [];
+  }
+  const { scrollView, afterScroll } = capture;
+  if (scrollView === undefined || afterScroll === undefined) {
+    return [{ pass: false, says: 'no scroll view frame was captured, so it was not tested' }];
+  }
+  const opened = readOpened(scrollView);
+  return [
+    opened,
+    ...(opened.pass ? [readScrollTally(scrollView), readScrollExpanded(scrollView)] : []),
+    readClosed(afterScroll),
+  ];
+}
+
 export function readStacked(capture: StackedCapture): Finding[] {
   if (capture.served < TURN_REQUESTS) {
     return [
@@ -309,6 +376,7 @@ export function readStacked(capture: StackedCapture): Finding[] {
   }
   return [
     ...readCapture(capture),
+    ...readScrollView(capture),
     readTranscript(capture.transcript),
     ...readMidThinking(capture.midThinking),
     ...(capture.midRun === undefined

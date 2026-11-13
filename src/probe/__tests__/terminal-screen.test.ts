@@ -74,3 +74,49 @@ describe('resizing', () => {
     expect(screen.lines()).toEqual(['abcdefgh']);
   });
 });
+
+function styled(text: string, cols = 20, rows = 4) {
+  const screen = new TerminalScreen(cols, rows);
+  screen.feed(text);
+  return screen.styledLines();
+}
+
+describe('styled lines', () => {
+  test('records the foreground and background each character was drawn with', () => {
+    const [line] = styled(`${ESC}[38;2;1;2;3;48;5;9mab${ESC}[0mc`);
+    expect(line?.text).toBe('abc');
+    expect(line?.fgs).toEqual(['38;2;1;2;3', '38;2;1;2;3', '']);
+    expect(line?.bgs).toEqual(['48;5;9', '48;5;9', '']);
+  });
+
+  test('reads basic colours and the default-colour resets', () => {
+    const [line] = styled(`${ESC}[31;42ma${ESC}[39mb${ESC}[49mc`);
+    expect(line?.fgs).toEqual(['31', '', '']);
+    expect(line?.bgs).toEqual(['42', '42', '']);
+  });
+
+  test('keeps the colours when a cursor move redraws part of a row', () => {
+    const [line] = styled(`abcd${ESC}[3G${ESC}[32mX`);
+    expect(line?.text).toBe('abXd');
+    expect(line?.fgs).toEqual(['', '', '32', '']);
+  });
+
+  test('erased cells lose their colour', () => {
+    const [line] = styled(`${ESC}[31mabc${ESC}[0m${ESC}[2G${ESC}[K`);
+    expect(line?.text).toBe('a');
+    expect(line?.fgs).toEqual(['31']);
+  });
+
+  test('lines up with the text of lines()', () => {
+    const screen = new TerminalScreen(5, 3);
+    screen.feed(`${ESC}[31mabcdefgh${ESC}[0m\r\nx`);
+    expect(screen.styledLines().map((line) => line.text)).toEqual(screen.lines());
+    expect(screen.styledLines()[0]?.fgs).toHaveLength(8);
+  });
+
+  test('gives a double-width character one colour entry', () => {
+    const [line] = styled(`${ESC}[33m漢${ESC}[0mz`);
+    expect(line?.text).toBe('漢z');
+    expect(line?.fgs).toEqual(['33', '']);
+  });
+});
