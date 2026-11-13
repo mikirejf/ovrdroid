@@ -201,8 +201,7 @@ interface Controller {
 
 type AttachArgs = [
   LiveTask | undefined,
-  Invocation | undefined,
-  string | undefined,
+  (id: string) => Invocation | undefined,
   { sessionId: string },
   (status: string) => boolean,
   { adapter: { ensureConnectedAndGetController: () => Promise<Controller> } },
@@ -217,21 +216,27 @@ interface Lookup {
 }
 
 const runAttach = payloadFunction<AttachArgs, Promise<Lookup>>(
-  ['w', 'b', 'v', 't', 'Si', 'p', 'yB', 'f', 'S'],
-  `return (async()=>{${ATTACH_MOVED_TASK}return{w,b}})()`,
+  ['S', 'lr', 't', 'Ua', 'u', '$w', 'p', 'g'],
+  `return (async()=>{${ATTACH_MOVED_TASK}return{w:S,b:S?void 0:lr(g)}})()`,
 );
 
 interface Attach {
   record: Invocation | undefined;
   machineId?: string;
   loadFails?: boolean;
+  alreadyLive?: boolean;
 }
 
 interface Attached extends Lookup {
   loaded: string[];
 }
 
-async function attach({ record, machineId, loadFails = false }: Attach): Promise<Attached> {
+async function attach({
+  record,
+  machineId,
+  loadFails = false,
+  alreadyLive = false,
+}: Attach): Promise<Attached> {
   const loaded: string[] = [];
   const controller: Controller = {
     loadSession: async ({ sessionId }) => {
@@ -248,9 +253,8 @@ async function attach({ record, machineId, loadFails = false }: Attach): Promise
   const live = (_manager: StateManager, id: string) =>
     loaded.includes(id) ? { taskId: id } : undefined;
   const found = await runAttach(
-    undefined,
-    record,
-    machineId,
+    alreadyLive ? { taskId: 'child-kept' } : undefined,
+    () => (record === undefined ? undefined : { ...record, machineId }),
     { sessionId: NEW },
     isActive,
     client,
@@ -283,5 +287,27 @@ describe('TaskOutput finds a moved running task', () => {
     });
     expect(result.w).toBeUndefined();
     expect(result.b).toBeDefined();
+  });
+
+  test('attaches a pending task but leaves foreground and missing tasks alone', async () => {
+    const owned = { parentSessionId: NEW };
+    const pending = await attach({
+      record: running('kept', { ...owned, status: 'pending' }),
+    });
+    const foreground = await attach({
+      record: running('kept', { ...owned, runInBackground: false }),
+    });
+    const missing = await attach({ record: undefined });
+    expect(pending.loaded).toEqual(['child-kept']);
+    expect([foreground.loaded, missing.loaded]).toEqual([[], []]);
+  });
+
+  test('does not reload a task the session state already knows', async () => {
+    const result = await attach({
+      record: running('kept', { parentSessionId: NEW }),
+      alreadyLive: true,
+    });
+    expect(result.w).toEqual({ taskId: 'child-kept' });
+    expect(result.loaded).toEqual([]);
   });
 });

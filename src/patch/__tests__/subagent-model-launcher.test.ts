@@ -86,7 +86,7 @@ interface CallContext {
 type Launcher = (call: TaskCall, context?: CallContext) => Promise<LaunchResult>;
 
 const STOCK_LAUNCHER =
-  'static async buildStreamJsonRpcTaskConfig(t,o,a){' +
+  'static async buildStreamJsonRpcTaskConfig(t,o){' +
   'if(t.resume){let X=await Do().loadAllDroids(),re=m();return{kind:"resume",droids:X,type:t.subagent_type}}' +
   'let{subagent_type:l}=t,y=await Do().loadAllDroids(),S=o?.sessionExecutionContext;return{kind:"launch",droids:y,type:l}}';
 

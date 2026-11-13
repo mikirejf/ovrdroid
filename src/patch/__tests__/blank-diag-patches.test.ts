@@ -63,6 +63,12 @@ interface Screen {
   name: string;
 }
 
+interface SessionCloser {
+  cancelLoadPromptEvidence: (id: string) => void;
+  transportInterruptedPromptSessions: { delete: (id: string) => void };
+  sessionStateManager: { removeSession: (id: string) => void };
+}
+
 function writerWith(fakeRequire: FakeRequire): Write {
   return payloadFunction<[FakeRequire], Write>(
     ['require'],
@@ -218,32 +224,84 @@ describe('rebased diagnostic sites preserve stock behavior', () => {
       }),
     };
     let scope: object | undefined = { daemonConnection: {} };
+    let selected: object | undefined = adapter;
     let registrations = 0;
     const fallback = {};
     const source =
-      'function a(){if(b(c),d()?.daemonConnection){let e=f(h);if(e)return e}return fallback}return a';
+      'function a(){b(c);let s=d();if(s?.awaitsDaemonConnection)throw new j("Async-task daemon connection is not bound yet");if(s?.daemonConnection){let e=f(h);if(e)return e}return fallback}return a';
     const get = payloadFunction<
-      [object, () => void, object, () => object | undefined, () => object, object, object],
+      [
+        object,
+        () => void,
+        object,
+        () => object | undefined,
+        () => object | undefined,
+        object,
+        object,
+        ErrorConstructor,
+      ],
       () => object
-    >(['globalThis', 'b', 'c', 'd', 'f', 'h', 'fallback'], patchedFixture('scoped-read', source))(
+    >(
+      ['globalThis', 'b', 'c', 'd', 'f', 'h', 'fallback', 'j'],
+      patchedFixture('scoped-read', source),
+    )(
       globals,
       () => {
         registrations += 1;
       },
       {},
       () => scope,
-      () => adapter,
+      () => selected,
       {},
       fallback,
+      Error,
     );
     expect(get()).toBe(adapter);
     expect(events).toEqual(['scoped-read']);
     found = true;
     expect(get()).toBe(adapter);
+    scope = { awaitsDaemonConnection: true, daemonConnection: {} };
+    expect(get).toThrow('Async-task daemon connection is not bound yet');
+    selected = undefined;
+    scope = { daemonConnection: {} };
+    expect(get()).toBe(fallback);
     scope = undefined;
     expect(get()).toBe(fallback);
     expect(events).toEqual(['scoped-read']);
-    expect(registrations).toBe(3);
+    expect(registrations).toBe(5);
+  });
+
+  test('session closure logs its target before keeping prompt cancellation and session cleanup', () => {
+    const calls: string[] = [];
+    const target = 'closed-session';
+    const source =
+      'return function(e,o){switch(e){case"session_closed":{this.cancelLoadPromptEvidence(o),this.transportInterruptedPromptSessions.delete(o),this.sessionStateManager.removeSession(o);break}}}';
+    const close = payloadFunction<
+      [object],
+      (this: SessionCloser, event: string, id: string) => void
+    >(
+      ['globalThis'],
+      patchedFixture('session-closed', source),
+    )({
+      __odBlank: (event: string, detail: Detail, mode: number) => {
+        expect(event).toBe('session-drop');
+        expect(detail).toEqual({ via: 'session_closed', target });
+        expect(mode).toBe(StackMode.Always);
+        calls.push('log');
+      },
+    });
+    close.call(
+      {
+        cancelLoadPromptEvidence: (id: string) => calls.push(`cancel:${id}`),
+        transportInterruptedPromptSessions: {
+          delete: (id: string) => calls.push(`delete:${id}`),
+        },
+        sessionStateManager: { removeSession: (id: string) => calls.push(`remove:${id}`) },
+      },
+      'session_closed',
+      target,
+    );
+    expect(calls).toEqual(['log', `cancel:${target}`, `delete:${target}`, `remove:${target}`]);
   });
 
   test.each([true, false])(

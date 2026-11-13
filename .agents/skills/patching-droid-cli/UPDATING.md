@@ -138,6 +138,14 @@ Fix by reason:
   captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
   the names the `replace` uses plus just enough text to match once in its module. A lookup only
   captures names, so every character past that can drift.
+- `no-lookup` with the snippet still in the bundle, but in another chunk: upstream moved the code
+  the lookup quoted out of the `find`'s module. Capture the same binding from a different use that
+  stayed in the `find`'s module, and confirm with `probe names` that it resolves to the same
+  definition. When nothing in that module uses the binding any more, move the `find` to a site in
+  the module that does.
+- `no-lookup` in several patch files at once: look for a lookup constant one patch file exports
+  and others import (a function header, say). Fix it once, in the file that owns it; when fixing in
+  parallel, give that file's owner the change and tell the importers to expect it.
 - `no-lookup` on a lookup that quotes a function header usually means upstream added a
   parameter. Before widening the lookup to the new signature, read what the new parameter does
   and check that the payload's calls, which pass fewer arguments, never reach the code that reads

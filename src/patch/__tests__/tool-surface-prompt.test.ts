@@ -10,7 +10,22 @@ const KEPT_BATCH_TAIL =
 const BATCH_RULE = patchNamed(toolSurfacePatches, 'todo-write-batch-rule-tool-neutral').replace;
 
 describe.skipIf(stockDroid === undefined)('the prompt text that steers models into Scripts', () => {
-  const { patchedText } = shipped(toolSurfacePatches);
+  const { patchedText, rebasedNamed } = shipped(toolSurfacePatches);
+
+  test('the Script-only section keeps the direct-call and dependent-step steering', () => {
+    const section = rebasedNamed('script-only-section-steers-to-scripts');
+    expect(occurrences(patchedText, section.replace)).toBe(1);
+    expect(occurrences(patchedText, section.find)).toBe(0);
+    expect(section.replace).toContain(
+      'exist only as `tools.<Name>(input)` inside a Script; never call them top level.',
+    );
+    expect(section.replace).toContain(
+      'put the calls in one Script and start independent ones together.',
+    );
+    expect(section.replace).toContain(
+      'loop inside one Script instead of spending a turn per call.',
+    );
+  });
 
   test('the rest of the TodoWrite description is untouched', () => {
     expect(occurrences(patchedText, `${BATCH_RULE}${KEPT_BATCH_TAIL}`)).toBe(1);

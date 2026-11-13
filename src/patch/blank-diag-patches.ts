@@ -100,12 +100,12 @@ function drop(via: string, target: string): string {
 export const blankDiagPatches: readonly Patch[] = [
   {
     name: 'blank-diag-scoped-read',
-    find: 'function N(){if(hJe(Tt),Ge()?.daemonConnection){let e=Be(Ue);if(e)return e}',
+    find: 'function v(){aYe(It);let e=Ge();if(e?.awaitsDaemonConnection)throw new i("Async-task daemon connection is not bound yet");if(e?.daemonConnection){let t=be(qe);if(t)return t}',
     replace:
-      'globalThis.__odBlankScope=()=>Ge();function N(){if(hJe(Tt),Ge()?.daemonConnection){let e=Be(Ue);if(e){' +
+      'globalThis.__odBlankScope=()=>Ge();function v(){aYe(It);let e=Ge();if(e?.awaitsDaemonConnection)throw new i("Async-task daemon connection is not bound yet");if(e?.daemonConnection){let t=be(qe);if(t){' +
       'let $ODsid=globalThis.__odBlankSid;' +
-      `if($ODsid&&!e.getSessionStateManager().getSessionManager($ODsid))${blankLog('scoped-read', '{}', StackMode.Throttled)};` +
-      'return e}}',
+      `if($ODsid&&!t.getSessionStateManager().getSessionManager($ODsid))${blankLog('scoped-read', '{}', StackMode.Throttled)};` +
+      'return t}}',
   },
   {
     name: 'blank-diag-empty-render',
@@ -152,8 +152,8 @@ export const blankDiagPatches: readonly Patch[] = [
   },
   {
     name: 'blank-diag-session-closed',
-    find: 'case"session_closed":{this.transportInterruptedPromptSessions.delete(o),',
-    replace: `case"session_closed":{${drop('session_closed', 'o')};this.transportInterruptedPromptSessions.delete(o),`,
+    find: 'case"session_closed":{this.cancelLoadPromptEvidence(o),',
+    replace: `case"session_closed":{${drop('session_closed', 'o')};this.cancelLoadPromptEvidence(o),`,
   },
   {
     name: 'blank-diag-reopen-on-screen',

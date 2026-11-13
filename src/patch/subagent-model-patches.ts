@@ -91,7 +91,7 @@ const MODEL_IDS =
 export const TASK_HELPERS =
   SPLIT_MODEL + MATCH_NAME + PICK_MODEL + REFUSE_RESUME_FIELDS + MODEL_IDS;
 
-export const TASK_CONFIG_LOOKUP = 'static async buildStreamJsonRpcTaskConfig(t,o,a){';
+export const TASK_CONFIG_LOOKUP = 'static async buildStreamJsonRpcTaskConfig(t,o){';
 
 const LOAD_DROIDS_LOOKUP = 'y=await Do().loadAllDroids(),S=o?.sessionExecutionContext';
 
@@ -166,9 +166,9 @@ export const subagentModelPatches: readonly Patch[] = [
   },
   {
     name: 'task-description-lists-model-ids',
-    find: 'tool:s3e({enableRemoteExecution:t}),executorFactory:()=>new ke',
+    find: 'tool:s3e(),executorFactory:()=>new ke',
     replace:
-      'tool:(($ODtool)=>({...$ODtool,description:$ODtool.description+"\\n\\nModel ids the `model` field takes in this session: inherit, "+$ODids().join(", ")+"."}))(s3e({enableRemoteExecution:t})),executorFactory:()=>new ke',
+      'tool:(($ODtool)=>({...$ODtool,description:$ODtool.description+"\\n\\nModel ids the `model` field takes in this session: inherit, "+$ODids().join(", ")+"."}))(s3e()),executorFactory:()=>new ke',
   },
   {
     name: 'task-model-helpers',

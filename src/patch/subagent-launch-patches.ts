@@ -35,19 +35,32 @@ const SKILL_BLOCK_BODY =
 
 const SKILL_PROMPT_ARGUMENT = `await(async($ODdroid)=>{${SKILL_BLOCK_BODY}})(R)`;
 
-const STOCK_EXPAND_TOOLS = '_=vi.expandTools({tools:R.metadata.tools,model:F||"inherit"}),';
+const STOCK_EXPAND_TOOLS =
+  'xx=()=>vi.expandTools({tools:R.metadata.tools,model:F||"inherit"}),xy=xx();' +
+  'if(xy.errors.length>0){let xz=xc()?.whenStartupSettles();' +
+  'if(xz)await xa(xz,o?.abortSignal).catch(()=>{throw new xe}),xy=xx();' +
+  'if(xy.errors.length>0){let xf=xy.errors.join(" ");' +
+  `return{llmError:\`Droid \${l} cannot run because its saved tools selection does not resolve: \${xf}\`,userError:\`Droid "\${l}" cannot run: \${xf}\`}}}` +
+  'let _=xy.resolved,';
+
+const TOOL_SELECTION =
+  `$ODexpand=()=>vi.$ODdroidTools(R,$ODtoolModel??(F||"inherit")),$ODselection=$ODexpand();` +
+  'if($ODselection.errors.length>0){let $ODstartup=xc()?.whenStartupSettles();' +
+  'if($ODstartup)await xa($ODstartup,o?.abortSignal).catch(()=>{throw new xe}),$ODselection=$ODexpand();' +
+  'if($ODselection.errors.length>0){let $ODerrors=$ODselection.errors.join(" ");' +
+  `return{llmError:\`Droid \${l} cannot run because its saved tools selection does not resolve: \${$ODerrors}\`,userError:\`Droid "\${l}" cannot run: \${$ODerrors}\`}}}`;
 
 export const STOCK_MCP_ENTRY_PARSER =
-  'function lr(e){let[t,...o]=e.trim().slice(4).split("/"),r=o[0];if(!t||o.length>1||r==="")return;' +
-  'let a=decodeURIComponent(t);if(!a.trim())return;if(r===void 0)return{serverName:a};' +
-  'let l=decodeURIComponent(r);return l?{serverName:a,toolName:l}:void 0}';
+  'function lr(e){let[t,...o]=e.trim().slice(pc.length).split("/"),r=o[0];if(!t||o.length>1||r==="")return;' +
+  'try{let a=decodeURIComponent(t);if(!a.trim())return;if(r===void 0)return{serverName:a};' +
+  'let l=decodeURIComponent(r);return l?{serverName:a,toolName:l}:void 0}catch{return}}';
 
 export const MCP_ENTRY_PARSER =
   '($ODentry)=>{let[$ODhead,...$ODtail]=$ODentry.trim().slice(4).split("/"),$ODtoolPart=$ODtail[0];' +
   'if(!$ODhead||$ODtail.length>1||$ODtoolPart==="")return;' +
-  'let $ODserver=decodeURIComponent($ODhead);if(!$ODserver.trim())return;' +
+  'try{let $ODserver=decodeURIComponent($ODhead);if(!$ODserver.trim())return;' +
   'if($ODtoolPart===void 0)return{serverName:$ODserver};' +
-  'let $ODtoolName=decodeURIComponent($ODtoolPart);return $ODtoolName?{serverName:$ODserver,toolName:$ODtoolName}:void 0}';
+  'let $ODtoolName=decodeURIComponent($ODtoolPart);return $ODtoolName?{serverName:$ODserver,toolName:$ODtoolName}:void 0}catch{return}}';
 
 const STOCK_READ_ONLY_CHECK =
   'static usesReadOnlyPolicy(e){return e==="read-only"}static isValidName(e)';
@@ -58,13 +71,13 @@ export const DROID_TOOLS_METHOD =
   '$ODlist=Array.isArray($ODtools)?$ODtools:typeof $ODtools==="string"&&$ODtools.includes(",")?$ODtools.split(","):void 0;' +
   'if(!$ODlist)return this.expandTools({tools:$ODtools,model:$ODmodel});' +
   `let $ODparse=${MCP_ENTRY_PARSER},` +
-  '$ODall=Ye().getAllTools(),$ODid=($ODt)=>$ODt.llmId||$ODt.id,$ODknown=new Set($ODall.map($ODid)),' +
+  '$ODall=Ye().getAllTools(),$ODid=mt,$ODknown=new Set($ODall.flatMap(($ODt)=>[$ODid($ODt),$ODt.llmId||$ODt.id])),' +
   '$ODlive=($ODname)=>J4($ODall,[{serverName:$ODname}]).length>0,' +
   '$ODplain=[],$ODextra=[],$ODunknown=[],$ODmalformed=[],$ODabsent=[];' +
   'for(let $ODraw of $ODlist){' +
   'let $ODname=String($ODraw).trim();if(!$ODname)continue;' +
   'if($ODname.toLowerCase().startsWith("mcp:")){' +
-  'let $ODref;try{$ODref=$ODparse($ODname)}catch{}' +
+  'let $ODref=$ODparse($ODname);' +
   'if(!$ODref){$ODmalformed.push($ODname);continue}' +
   'if(!$ODlive($ODref.serverName))continue;' +
   'let $ODhit=J4($ODall,[$ODref]);' +
@@ -79,17 +92,17 @@ export const DROID_TOOLS_METHOD =
   'if($ODmalformed.length)$ODproblems.push("MCP entries it cannot read (write MCP:<server> or MCP:<server>/<tool>): "+$ODmalformed.join(", "));' +
   'if($ODabsent.length)$ODproblems.push("MCP tools their running server does not have: "+$ODabsent.join(", "));' +
   'if($ODproblems.length)throw Error(\'Droid "\'+$ODdroid.metadata.name+\'" lists \'+$ODproblems.join("; ")+".");' +
-  'let $ODservers=$ODdroid.metadata.mcpServers,' +
+  'let $ODnormalized=this.normalizeTools($ODplain,$ODmodel),$ODservers=$ODdroid.metadata.mcpServers,' +
   '$ODmcp=$ODservers===void 0?$ODall.filter(($ODt)=>$ODt.isMcpTool).map($ODid):rn($ODservers),' +
-  '$ODids=new Set([...this.normalizeTools($ODplain,$ODmodel).resolved,...$ODmcp,...$ODextra]);' +
+  '$ODids=new Set([...$ODnormalized.resolved,...$ODmcp,...$ODextra]);' +
   'if($ODall.some(($ODt)=>$ODt.deferred&&$ODids.has($ODid($ODt))))$ODids.add("ToolSearch");' +
-  'return[...$ODids]}';
+  'return{...$ODnormalized,resolved:[...$ODids]}}';
 
 const FINAL_MODEL = '$ODtoolModel??(F||"inherit")';
 
 const READONLY_TOOLS =
-  `$ODfull=vi.$ODdroidTools(R,${FINAL_MODEL}),` +
-  `$ODread=t.readonly===!0?vi.expandTools({tools:"read-only",model:${FINAL_MODEL}}):void 0,` +
+  '$ODfull=$ODselection.resolved,' +
+  `$ODread=t.readonly===!0?vi.expandTools({tools:"read-only",model:${FINAL_MODEL}}).resolved:void 0,` +
   '_=!$ODread?$ODfull:R.metadata.tools===void 0?$ODread:$ODfull.filter(($ODid)=>$ODread.includes($ODid))';
 
 const SKILL_NAME_FIELD = 'g={name:c.name,description:c.description,license:c.license,';
@@ -122,7 +135,8 @@ export const subagentLaunchPatches: readonly Patch[] = [
     name: 'droid-tools-add-mcp-servers-and-reject-unknown-names',
     find: STOCK_READ_ONLY_CHECK,
     lookups: [
-      'function rn(e){let r=Ye();return J4(r.getAllTools(),e.map((t)=>({serverName:t}))).map((t)=>t.llmId||t.id)}',
+      'function rn(e){return J4(nn(),e.map((t)=>({serverName:t}))).map(mt)}',
+      'function nn(){return Ye().getAllTools().filter((t)=>t.mcpIdentity)}',
     ],
     replace: `${DROID_TOOLS_METHOD}${STOCK_READ_ONLY_CHECK}`,
   },
@@ -130,7 +144,7 @@ export const subagentLaunchPatches: readonly Patch[] = [
     name: 'task-launch-picks-model-then-expands-tools',
     find: `${STOCK_EXPAND_TOOLS}${STOCK_RESOLVE}`,
     lookups: PICK_LOOKUPS,
-    replace: `${PICK_CALL},${READONLY_TOOLS}`,
+    replace: `${PICK_CALL},${TOOL_SELECTION}let ${READONLY_TOOLS}`,
   },
   {
     name: 'task-readonly-applies-read-only-policy',

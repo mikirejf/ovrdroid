@@ -14,7 +14,6 @@ const STOCK_TOOL = Object.freeze({
 
 interface Tool extends Omit<typeof STOCK_TOOL, 'description'> {
   description: string;
-  enableRemoteExecution: boolean;
 }
 
 interface Settings {
@@ -31,23 +30,16 @@ interface Registration {
 }
 
 const registration = payloadFunction<
-  [
-    (options: { enableRemoteExecution: boolean }) => Tool,
-    boolean,
-    () => string[],
-    () => Settings,
-    typeof Executor,
-  ],
+  [() => Tool, () => string[], () => Settings, typeof Executor],
   Registration
 >(
-  ['s3e', 't', 'Cs', 'C', 'ke'],
+  ['s3e', 'Cs', 'C', 'ke'],
   `${TASK_HELPERS}return{${patchNamed(subagentModelPatches, 'task-description-lists-model-ids').replace}}`,
 );
 
-function register(remote: boolean, settings: Settings): Registration {
+function register(settings: Settings): Registration {
   return registration(
-    (options) => ({ ...STOCK_TOOL, ...options }),
-    remote,
+    () => STOCK_TOOL,
     () => ['builtin', 'shared'],
     () => settings,
     Executor,
@@ -55,13 +47,12 @@ function register(remote: boolean, settings: Settings): Registration {
 }
 
 describe('the registered Task description lists model ids', () => {
-  test.each([false, true])('preserves the tool and executor with remote=%p', (remote) => {
-    const result = register(remote, {
+  test('preserves the tool and executor', () => {
+    const result = register({
       getCustomModels: () => [{ id: 'custom:one' }, { id: 'shared' }],
     });
     expect(result.tool).toEqual({
       ...STOCK_TOOL,
-      enableRemoteExecution: remote,
       description:
         'Delegate a task.\n\nModel ids the `model` field takes in this session: inherit, builtin, shared, custom:one.',
     });
@@ -74,16 +65,16 @@ describe('the registered Task description lists model ids', () => {
   test('a registration refresh reads current ids and does not append twice', () => {
     let custom = [{ id: 'custom:old' }];
     const settings: Settings = { getCustomModels: () => custom };
-    expect(register(false, settings).tool.description).toContain('custom:old.');
+    expect(register(settings).tool.description).toContain('custom:old.');
     custom = [{ id: 'custom:new' }];
-    const { description } = register(true, settings).tool;
+    const { description } = register(settings).tool;
     expect(description).toContain('custom:new.');
     expect(description).not.toContain('custom:old');
     expect(description.split('Model ids')).toHaveLength(2);
   });
 
   test('built-in ids remain available without custom models', () => {
-    expect(register(false, { getCustomModels: () => [] }).tool.description).toEndWith(
+    expect(register({ getCustomModels: () => [] }).tool.description).toEndWith(
       'inherit, builtin, shared.',
     );
   });

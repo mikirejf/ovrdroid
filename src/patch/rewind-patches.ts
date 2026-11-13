@@ -51,14 +51,13 @@ export const HAND_OVER =
   'if($ODtags)await $ODclient.updateSessionSettings({sessionId:$ODchild,tags:$ODtags})}}' +
   'try{await $ODhandOver(l,S)}catch($ODerr){h($ODerr,"[ovrdroid] Failed to hand running tasks to the rewound session")}';
 
-const TASK_OUTPUT_FIND =
-  'w=yB(f,S)??T(),b=w?void 0:Rn(S),v=b?.machineId;' +
-  'if(b&&v&&b.parentSessionId===t.sessionId&&Si(b.status)){';
+const TASK_OUTPUT_FIND = 'S=$w(p,g)??C();';
 
 export const ATTACH_MOVED_TASK =
-  'if(!w&&b&&!v&&b.runInBackground&&b.parentSessionId===t.sessionId&&Si(b.status)){' +
-  'await(await p.adapter.ensureConnectedAndGetController()).loadSession({sessionId:S}).catch(()=>{});' +
-  'w=yB(f,S);if(w)b=void 0}';
+  'if(!S){let $ODtask=lr(g);' +
+  'if($ODtask&&!$ODtask.machineId&&$ODtask.runInBackground&&$ODtask.parentSessionId===t.sessionId&&Ua($ODtask.status)){' +
+  'await(await u.adapter.ensureConnectedAndGetController()).loadSession({sessionId:g}).catch(()=>{});' +
+  'S=$w(p,g)}}';
 
 export const rewindPatches: readonly Patch[] = [
   {
@@ -76,7 +75,11 @@ export const rewindPatches: readonly Patch[] = [
   {
     name: 'task-output-attaches-moved-running-task',
     find: TASK_OUTPUT_FIND,
-    lookups: ['p=new Do,f=p.getSessionStateManager(),g=await N3(t.sessionId),S=E3(f,a,g)'],
-    replace: TASK_OUTPUT_FIND.replace('if(b&&v', `${ATTACH_MOVED_TASK}if(b&&v`),
+    lookups: [
+      'u=new Mo,p=u.getSessionStateManager(),y=await aue(t.sessionId),g=oue(p,s,y)',
+      'C=()=>iue(lr(g))',
+      '&&Ua(c.status)?c:void 0}',
+    ],
+    replace: `${TASK_OUTPUT_FIND}${ATTACH_MOVED_TASK}`,
   },
 ];

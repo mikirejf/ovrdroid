@@ -56,11 +56,6 @@ export const askUserTextPatches: readonly Patch[] = [
     replace: 'Pose questions only the human alone can answer in plain text.',
   },
   {
-    name: 'remote-computer-asks-in-text',
-    find: 'use AskUser to confirm which computer to use before launching.',
-    replace: 'confirm in plain text which computer to use before launching.',
-  },
-  {
     name: 'readiness-pick-category-asks-in-text',
     find: 'Ask the user which category they want to fix using the AskUser tool.',
     replace: 'Ask the user in plain text which category they want to fix.',

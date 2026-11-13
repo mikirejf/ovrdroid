@@ -80,6 +80,15 @@ describe('compaction-reuse-prefix', () => {
     expect(calls.modelRequests).toEqual([MODEL]);
   });
 
+  test('tracks the model whose refusal stock would rethrow, on reuse and fallback', async () => {
+    const summarize = buildSummarize(undefined, freshSignal());
+    expect(summarize.lastModel()).toBe('initial-model');
+    await summarize({ modelId: MODEL });
+    expect(summarize.lastModel()).toBe(MODEL);
+    await summarize({ modelId: 'fallback-model' });
+    expect(summarize.lastModel()).toBe('fallback-model');
+  });
+
   test('only the first call tries the reuse path', async () => {
     const summarize = buildSummarize(undefined, freshSignal());
     await summarize({ modelId: MODEL });

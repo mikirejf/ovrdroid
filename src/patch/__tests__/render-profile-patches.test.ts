@@ -13,7 +13,7 @@ import {
   renderProfilePatches,
 } from '../render-profile-patches.ts';
 import { freeNames } from '../tokens.ts';
-import { payloadFunction } from './payload.ts';
+import { patchNamed, payloadFunction } from './payload.ts';
 import { stockDroid } from './stock-scanner.ts';
 
 const SLOW_PATCH_MS = 60_000;
@@ -23,6 +23,12 @@ const STAND_IN_RECONCILER =
   '"use strict";module.exports=function(config){var React=require("react"),Scheduler=require("scheduler");return{React,Scheduler,config}};';
 
 type Factory = (config: { tag: string }) => object;
+
+interface WorkingManager {
+  droidWorkingState: string;
+  anticipatedTurnId: string | undefined;
+  updateDroidWorkingState: (state: string) => void;
+}
 
 function evaluateModule(source: string): Factory {
   return payloadFunction<[], Factory>(
@@ -100,6 +106,43 @@ describe.skipIf(stockDroid === undefined)('the render patches fit the shipped bu
       expect(applies(rebase)).toBe(true);
     },
   );
+
+  test('working transitions record once without changing stock anticipated-turn handling', () => {
+    const method =
+      /updateDroidWorkingState\([\w$]+\)\{.*?\}(?=transitionDroidWorkingState\()/u.exec(
+        modules.join('\n'),
+      )?.[0];
+    if (method === undefined) {
+      throw new Error('stock working-state method not found');
+    }
+    const patch = patchNamed(list, 'render-profile-working');
+    const [rebase] = rebaseAll([patch], [method]);
+    if (rebase === undefined || !applies(rebase)) {
+      throw new Error('working-state recorder did not rebase');
+    }
+    const states: string[] = [];
+    const working = (_manager: WorkingManager, state: string): void => {
+      states.push(state);
+    };
+    const manager = payloadFunction<[{ $ODr: { working: typeof working } }], WorkingManager>(
+      ['globalThis'],
+      `return{droidWorkingState:"idle",anticipatedTurnId:"turn",${method.replace(rebase.find, rebase.replace)}}`,
+    )({ $ODr: { working } });
+    manager.updateDroidWorkingState('idle');
+    expect(manager.anticipatedTurnId).toBe('turn');
+    expect(states).toEqual([]);
+    manager.updateDroidWorkingState('thinking');
+    expect(manager.anticipatedTurnId).toBeUndefined();
+    expect(manager.droidWorkingState).toBe('thinking');
+    expect(states).toEqual(['thinking']);
+    manager.anticipatedTurnId = 'next-turn';
+    manager.updateDroidWorkingState('thinking');
+    expect(manager.anticipatedTurnId).toBeUndefined();
+    expect(states).toEqual(['thinking']);
+    manager.updateDroidWorkingState('idle');
+    expect(manager.droidWorkingState).toBe('idle');
+    expect(states).toEqual(['thinking', 'idle']);
+  });
 
   test(
     'they apply with the shipped patch set, hand the reconciler React and the scheduler, and add /renders',

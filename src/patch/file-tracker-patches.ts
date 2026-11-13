@@ -186,7 +186,7 @@ export const fileTrackerPatches: readonly Patch[] = [
   },
   {
     name: 'nested-tool-call-notice',
-    find: `${NESTED_RUN}${NESTED_DISPATCH}p);`,
-    replace: `${NESTED_RUN}${NESTED_CALL_CHECK}${NESTED_DISPATCH}$ODrun);`,
+    find: `${NESTED_RUN}${NESTED_DISPATCH}p)`,
+    replace: `${NESTED_RUN}${NESTED_CALL_CHECK}${NESTED_DISPATCH}$ODrun)`,
   },
 ];

@@ -66,7 +66,10 @@ interface UsageLine {
   head?: string;
 }
 
-type Summarize = (attempt: Attempt) => Promise<Summary>;
+interface Summarize {
+  (attempt: Attempt): Promise<Summary>;
+  lastModel: () => string;
+}
 
 export const SESSION = 'parent';
 export const MODEL = 'custom:droidproxy:sonnet-5-5';
@@ -218,7 +221,7 @@ export function buildSummarize(
 ): Summarize {
   return payloadFunction<unknown[], Summarize>(
     ['ta', 'hl', 'g', 'X', 'B', 'z', 'fe', 'r', 'S', 'he', 'k', 's', 'y'],
-    `let Me=!1,${script.prefix}${STOCK_SEND_TAIL};return me`,
+    `let Me=!1,qe="initial-model",${script.prefix}${STOCK_SEND_TAIL};return Object.assign(me,{lastModel:()=>qe})`,
   )(
     fakeZi,
     fakeAs,

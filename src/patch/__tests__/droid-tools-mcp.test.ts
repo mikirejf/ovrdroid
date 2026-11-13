@@ -26,6 +26,7 @@ interface McpRef {
 interface Normalized {
   resolved: string[];
   errors: string[];
+  warnings?: string[];
 }
 
 type Tools = string[] | string | undefined;
@@ -35,7 +36,7 @@ interface Droid {
 }
 
 interface DroidTools {
-  $ODdroidTools: (droid: Droid, model: string) => string[];
+  $ODdroidTools: (droid: Droid, model: string) => Normalized;
 }
 
 const BUILT_IN = ['Read', 'Grep', 'Execute', 'ToolSearch', 'TodoWrite', 'Edit'];
@@ -58,24 +59,43 @@ function mcpTool(serverName: string, toolName: string): Tool {
 const CHROME = ['click', 'navigate_page'].map((name) => mcpTool('chrome-devtools', name));
 const REGISTRY: Tool[] = [...BUILT_IN.map((llmId) => builtIn(llmId)), ...CHROME];
 
-const STOCK_SERVER_MATCH = String.raw`return a.filter((p)=>{if(!p.isMcpTool||typeof p.toolkit!=="string")return!1;let m=p.mcpIdentity?.serverName??(p.toolkit.toLowerCase().startsWith("mcp:")?p.toolkit.slice(4):void 0);if(m===void 0)return!1;return l.some((_)=>m.toLowerCase()===_.serverName.trim().toLowerCase()&&(_.toolName===void 0||p.mcpIdentity?.toolName===_.toolName))})`;
+const STOCK_SERVER_MATCH =
+  'function UAe(e,t,{foldCase:o=!1}={}){let n=new Set(e.flatMap((a)=>a.mcpIdentity?.serverName??[])),s=new Set;' +
+  'for(let a of t){let c=a.serverName.trim(),u=!o&&n.has(c)?(d)=>d===c:(d)=>um(d)===um(c);' +
+  'for(let d of e){let p=d.mcpIdentity;if(p&&u(p.serverName)&&(a.toolName===void 0||p.toolName===a.toolName))s.add(d)}}' +
+  'return e.filter((a)=>s.has(a))}';
 
-const serverMatch = payloadFunction<[Tool[], McpRef[]], Tool[]>(['a', 'l'], STOCK_SERVER_MATCH);
+const serverMatch = payloadFunction<[], (tools: Tool[], refs: McpRef[]) => Tool[]>(
+  [],
+  `function um(e){return e.toLowerCase()}return ${STOCK_SERVER_MATCH}`,
+)();
 
 function idOf(tool: Tool): string {
+  if (tool.mcpIdentity !== undefined) {
+    return `mcp:${encodeURIComponent(tool.mcpIdentity.serverName)}/${encodeURIComponent(tool.mcpIdentity.toolName)}`;
+  }
   return tool.llmId ?? tool.id;
 }
 
 function normalizerFor(registry: readonly Tool[]): (list: string[]) => Normalized {
-  const known = new Set(registry.map((tool) => idOf(tool)));
+  const known = new Map(
+    registry.flatMap((tool) => [
+      [tool.llmId ?? tool.id, idOf(tool)],
+      [idOf(tool), idOf(tool)],
+    ]),
+  );
   return (list) => {
     const invalid = list.filter((name) => !known.has(name));
     const valid = list.filter((name) => known.has(name));
     return {
-      resolved: [...new Set([...valid, HIDDEN])],
+      resolved: [...new Set([...valid.map((name) => known.get(name)), HIDDEN])].filter(
+        (name): name is string => name !== undefined,
+      ),
       errors:
         invalid.length > 0
-          ? [`Invalid tools: ${invalid.join(', ')}. Available tools: ${[...known].join(', ')}`]
+          ? [
+              `Invalid tools: ${invalid.join(', ')}. Available tools: ${[...known.keys()].join(', ')}`,
+            ]
           : [],
     };
   };
@@ -87,16 +107,20 @@ const build = payloadFunction<
     typeof serverMatch,
     (servers: string[]) => string[],
     (list: string[]) => Normalized,
+    typeof idOf,
   ],
   DroidTools
 >(
-  ['Ye', 'J4', 'rn', '$ODnormalize'],
+  ['Ye', 'J4', 'rn', '$ODnormalize', 'mt'],
   `return class{${DROID_TOOLS_METHOD}` +
-    'static expandTools($ODo){return["stock:"+String($ODo.tools)]}' +
+    'static expandTools($ODo){return{resolved:["stock:"+String($ODo.tools)],errors:[]}}' +
     'static normalizeTools($ODl){return $ODnormalize($ODl)}}',
 );
 
-function toolsFor(registry: readonly Tool[] = REGISTRY): DroidTools {
+function toolsFor(
+  registry: readonly Tool[] = REGISTRY,
+  normalize = normalizerFor(registry),
+): DroidTools {
   const all = [...registry];
   return build(
     () => ({ getAllTools: () => all }),
@@ -106,7 +130,8 @@ function toolsFor(registry: readonly Tool[] = REGISTRY): DroidTools {
         all,
         servers.map((serverName) => ({ serverName })),
       ).map((tool) => idOf(tool)),
-    normalizerFor(all),
+    normalize,
+    idOf,
   );
 }
 
@@ -118,7 +143,7 @@ function droid(tools: Tools, mcpServers?: string[]): Droid {
 }
 
 function resolve(tools: Tools, mcpServers?: string[], registry?: readonly Tool[]): string[] {
-  return toolsFor(registry).$ODdroidTools(droid(tools, mcpServers), 'inherit');
+  return toolsFor(registry).$ODdroidTools(droid(tools, mcpServers), 'inherit').resolved;
 }
 
 function launchError(tools: Tools, mcpServers?: string[]): string {
@@ -151,8 +176,8 @@ describe('a tools list gains the MCP tools the droid names', () => {
 
   test('an MCP:<server>/<tool> entry adds that one tool', () => {
     const tools = resolve(['Read', 'MCP:chrome-devtools/click'], []);
-    expect(tools).toContain('chrome-devtools___click');
-    expect(tools).not.toContain('chrome-devtools___navigate_page');
+    expect(tools).toContain('mcp:chrome-devtools/click');
+    expect(tools).not.toContain('mcp:chrome-devtools/navigate_page');
   });
 
   test('the MCP: prefix and the server name match in any case', () => {
@@ -160,8 +185,31 @@ describe('a tools list gains the MCP tools the droid names', () => {
   });
 
   test('a running MCP tool named by its llmId still works', () => {
-    expect(resolve(['Read', 'chrome-devtools___click'])).toContain('chrome-devtools___click');
+    expect(resolve(['Read', 'chrome-devtools___click'])).toContain('mcp:chrome-devtools/click');
   });
+
+  test('server and tool names use stock percent-encoded canonical IDs', () => {
+    const tool = mcpTool('my/server', 'tool x');
+    expect(resolve(['MCP:my%2Fserver/tool%20x'], [], [tool])).toContain('mcp:my%2Fserver/tool%20x');
+  });
+
+  test('an exact-case server entry selects only that server, not its case-folded neighbour', () => {
+    const registry = [...REGISTRY, mcpTool('Chrome-DevTools', 'other')];
+    expect(resolve(['MCP:chrome-devtools'], [], registry)).not.toContain(
+      'mcp:Chrome-DevTools/other',
+    );
+  });
+});
+
+test('the MCP additions preserve stock normalization errors and warnings for the launch', () => {
+  const selection = toolsFor(REGISTRY, () => ({
+    resolved: ['Read'],
+    errors: ['Tool Task cannot be enabled.'],
+    warnings: ['A saved tool was deprecated.'],
+  })).$ODdroidTools(droid(['Read'], ['chrome-devtools']), 'inherit');
+  expect(selection.errors).toEqual(['Tool Task cannot be enabled.']);
+  expect(selection.warnings).toEqual(['A saved tool was deprecated.']);
+  expect(missingFrom(selection.resolved, ['Read', 'ToolSearch', ...CHROME_IDS])).toEqual([]);
 });
 
 describe('ToolSearch follows the deferred tools', () => {
@@ -195,9 +243,9 @@ describe('a tools list with no mcpServers field keeps every MCP tool', () => {
     const registry = [...REGISTRY, mcpTool('other', 'x')];
     const named = resolve(['Read'], ['chrome-devtools'], registry);
     expect(missingFrom(named, CHROME_IDS)).toEqual([]);
-    expect(named).not.toContain('other___x');
+    expect(named).not.toContain('mcp:other/x');
     const unnamed = resolve(['Read'], undefined, registry);
-    expect(missingFrom(unnamed, [...CHROME_IDS, 'other___x'])).toEqual([]);
+    expect(missingFrom(unnamed, [...CHROME_IDS, 'mcp:other/x'])).toEqual([]);
   });
 });
 
@@ -272,7 +320,7 @@ type Parser = (entry: string) => McpRef | undefined;
 
 const stockParser = payloadFunction<[], Parser>(
   [],
-  `return ${STOCK_MCP_ENTRY_PARSER.replace('function lr', 'function')}`,
+  `let pc="mcp:";return ${STOCK_MCP_ENTRY_PARSER.replace('function lr', 'function')}`,
 )();
 const copiedParser = payloadFunction<[], Parser>([], `return ${MCP_ENTRY_PARSER}`)();
 
@@ -301,6 +349,11 @@ describe('the payload reads MCP: entries exactly as stock lr does', () => {
 });
 
 describe.skipIf(stockDroid === undefined)('the copied parser still matches the shipped one', () => {
+  test('the MCP matcher is in the shipped source exactly once', () => {
+    const pattern = new RegExp(holePattern(STOCK_SERVER_MATCH).source, 'gu');
+    expect([...stockText.matchAll(pattern)]).toHaveLength(1);
+  });
+
   test('stock lr is in the shipped source exactly once', () => {
     const pattern = new RegExp(holePattern(STOCK_MCP_ENTRY_PARSER).source, 'gu');
     expect(literalParts(STOCK_MCP_ENTRY_PARSER).every((part) => stockText.includes(part))).toBe(

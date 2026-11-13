@@ -1,187 +1,50 @@
 import { describe, expect, test } from 'bun:test';
 
-import { subagentLaunchPatches } from '../subagent-launch-patches.ts';
-import { patchNamed, payloadFunction } from './payload.ts';
+import { payloadFunction } from './payload.ts';
+import type { Level } from './subagent-launch-tools-harness.ts';
+import {
+  EVERYTHING,
+  expandedFor,
+  GPT,
+  HIDDEN,
+  launchTools,
+  lowerOf,
+  patched,
+  READ_ONLY,
+} from './subagent-launch-tools-harness.ts';
 import { SONNET } from './subagent-model-harness.ts';
 
-const HIDDEN = 'TodoWrite';
-const READ_ONLY = ['Read', 'Grep', 'Glob', 'Execute', 'Skill', HIDDEN];
-const EVERYTHING = [...READ_ONLY, 'Edit', 'Create', 'ApplyPatch', 'Task'];
-
-interface FakeDroid {
-  metadata: { tools: string[] | 'read-only' | undefined; model?: string };
-}
-
-interface FakeTools {
-  expandTools: (options: { tools: string[] | 'read-only' | undefined; model: string }) => string[];
-  $ODdroidTools: (droid: FakeDroid, model: string) => string[];
-  usesReadOnlyPolicy: (tools: unknown) => boolean;
-}
-
-interface Picked {
-  modelId?: string;
-  $ODtoolModel?: string;
-}
-
-interface PickInputs {
-  fixedModel: string | undefined;
-  declaredModel: string | undefined;
-}
-
-type Pick = (launch: unknown, inputs: PickInputs) => Picked;
-
-type Level = 'off' | 'low' | 'medium' | 'high';
-
-const RANK: Record<Level, number> = { off: 0, low: 1, medium: 2, high: 3 };
-
-function lowerOf(level: Level, cap: Level): Level {
-  return RANK[level] <= RANK[cap] ? level : cap;
-}
-
-interface FakeLauncher {
-  resolveSubagentAutonomyLevel: (dependencies: unknown, droidIsReadOnly?: boolean) => Level;
-}
-
-function launcherIn(session: Level): FakeLauncher {
-  return {
-    resolveSubagentAutonomyLevel: (_dependencies, droidIsReadOnly = false) =>
-      droidIsReadOnly ? lowerOf(session, 'low') : session,
-  };
-}
-
-interface LaunchRun {
-  tools: string[];
-  restricted: boolean;
-  readOnlyPolicy: boolean;
-  modelId: string | undefined;
-  autonomy: Level;
-}
-
-interface Launched extends LaunchRun {
-  pickInputs: PickInputs;
-}
-
-const GPT = 'custom:gpt-5';
-const EDIT_TOOLS = new Set(['Edit', 'Create', 'ApplyPatch']);
-
-function listFor(tools: string[] | 'read-only' | undefined): string[] {
-  if (tools === 'read-only') {
-    return READ_ONLY;
-  }
-  return tools === undefined ? EVERYTHING : [...new Set([...tools, HIDDEN])];
-}
-
-function expandedFor(tools: string[] | 'read-only' | undefined, model: string): string[] {
-  const base = listFor(tools);
-  if (!base.some((id) => EDIT_TOOLS.has(id)) || (model !== GPT && model !== SONNET)) {
-    return base;
-  }
-  const rest = base.filter((id) => !EDIT_TOOLS.has(id));
-  return model === GPT ? [...rest, 'ApplyPatch'] : [...rest, 'Edit', 'Create'];
-}
-
-function toolsOf(events: string[]): FakeTools {
-  const expandTools: FakeTools['expandTools'] = ({ tools, model }) => {
-    events.push(`expand:${model}`);
-    return expandedFor(tools, model);
-  };
-  return {
-    expandTools,
-    $ODdroidTools: (droid, model) => expandTools({ tools: droid.metadata.tools, model }),
-    usesReadOnlyPolicy: (tools) => tools === 'read-only',
-  };
-}
-
-function patched(name: string): string {
-  return patchNamed(subagentLaunchPatches, name).replace;
-}
-
-const run = payloadFunction<
-  [
-    { readonly: boolean | undefined },
-    FakeDroid,
-    FakeTools,
-    string | undefined,
-    Pick,
-    FakeLauncher,
-    typeof lowerOf,
-  ],
-  LaunchRun
->(
-  ['t', 'R', 'vi', 'F', '$ODpick', 'Ie', 'Rs'],
-  `let $ODl,o,A,lw,$ODids=()=>[],v={type:"custom"},${patched('task-launch-picks-model-then-expands-tools')},` +
-    `${patched('task-readonly-applies-read-only-policy')},${patched('task-readonly-restricts-enabled-tools')};` +
-    'return{tools:_,restricted:ye,readOnlyPolicy:V,modelId:O,autonomy:q}',
-);
-
-interface LaunchOptions {
-  droidModel?: string;
-  declaredModel?: string;
-  picked?: Picked;
-  events?: string[];
-  session?: Level;
-}
-
-function launchTools(
-  readonly: boolean | undefined,
-  tools?: string[] | 'read-only',
-  options: LaunchOptions = {},
-): Launched {
-  const events = options.events ?? [];
-  const metadata: FakeDroid['metadata'] = { tools };
-  if (options.declaredModel !== undefined) {
-    metadata.model = options.declaredModel;
-  }
-  let seen: PickInputs | undefined;
-  const result = run(
-    { readonly },
-    { metadata },
-    toolsOf(events),
-    options.droidModel,
-    (_launch, inputs) => {
-      events.push('pick');
-      seen = inputs;
-      return options.picked ?? {};
-    },
-    launcherIn(options.session ?? 'high'),
-    lowerOf,
-  );
-  if (seen === undefined) {
-    throw new TypeError('the launcher never called the pick');
-  }
-  return { ...result, pickInputs: seen };
-}
-
 describe('readonly on a launch applies the explorer read-only policy', () => {
-  test('a droid with no tool list keeps only the read-only tools', () => {
-    const result = launchTools(true);
+  test('a droid with no tool list keeps only the read-only tools', async () => {
+    const result = await launchTools(true);
     expect(result.tools).toEqual(READ_ONLY);
     expect(result.restricted).toBe(true);
     expect(result.readOnlyPolicy).toBe(true);
   });
 
-  test('a droid with its own tool list keeps the read-only tools it already had', () => {
-    const result = launchTools(true, ['Read', 'Edit', 'Create', 'Task']);
+  test('a droid with its own tool list keeps the read-only tools it already had', async () => {
+    const result = await launchTools(true, ['Read', 'Edit', 'Create', 'Task']);
     expect(result.tools).toEqual(['Read', HIDDEN]);
     expect(result.restricted).toBe(true);
   });
 
-  test('a droid that lists only edit tools ends with the hidden tools alone, and the list still applies', () => {
-    const result = launchTools(true, ['Edit', 'Create']);
+  test('a droid that lists only edit tools ends with the hidden tools alone, and the list still applies', async () => {
+    const result = await launchTools(true, ['Edit', 'Create']);
     expect(result.tools).toEqual([HIDDEN]);
     expect(result.restricted).toBe(true);
     expect(result.readOnlyPolicy).toBe(true);
   });
 
-  test('a droid that is already read-only stays the same', () => {
-    expect(launchTools(true, 'read-only').tools).toEqual(READ_ONLY);
+  test('a droid that is already read-only stays the same', async () => {
+    const { tools } = await launchTools(true, 'read-only');
+    expect(tools).toEqual(READ_ONLY);
   });
 
   test.each([
     ['absent', undefined],
     ['false', false],
-  ])('readonly %s changes nothing for a droid with no tool list', (_label, readonly) => {
-    const result = launchTools(readonly);
+  ])('readonly %s changes nothing for a droid with no tool list', async (_label, readonly) => {
+    const result = await launchTools(readonly);
     expect(result.tools).toEqual(EVERYTHING);
     expect(result.restricted).toBe(false);
     expect(result.readOnlyPolicy).toBe(false);
@@ -190,8 +53,8 @@ describe('readonly on a launch applies the explorer read-only policy', () => {
   test.each([
     ['absent', undefined],
     ['false', false],
-  ])('readonly %s changes nothing for a droid with its own tool list', (_label, readonly) => {
-    const result = launchTools(readonly, ['Read', 'Edit']);
+  ])('readonly %s changes nothing for a droid with its own tool list', async (_label, readonly) => {
+    const result = await launchTools(readonly, ['Read', 'Edit']);
     expect(result.tools).toEqual(['Read', 'Edit', HIDDEN]);
     expect(result.restricted).toBe(true);
     expect(result.readOnlyPolicy).toBe(false);
@@ -204,26 +67,30 @@ describe('readonly on a launch lets the shell run commands up to medium risk', (
     ['medium', 'medium'],
     ['low', 'low'],
     ['off', 'off'],
-  ] as const)('in a session at %s the subagent runs at %s', (session, expected) => {
-    expect(launchTools(true, undefined, { session }).autonomy).toBe(expected);
+  ] as const)('in a session at %s the subagent runs at %s', async (session, expected) => {
+    const { autonomy } = await launchTools(true, undefined, { session });
+    expect(autonomy).toBe(expected);
   });
 
-  test('a droid with its own tool list is capped the same way', () => {
-    expect(launchTools(true, ['Read', 'Edit']).autonomy).toBe('medium');
+  test('a droid with its own tool list is capped the same way', async () => {
+    const { autonomy } = await launchTools(true, ['Read', 'Edit']);
+    expect(autonomy).toBe('medium');
   });
 
   test.each([
     ['with the flag', true],
     ['without the flag', undefined],
-  ])('a droid whose own tools are read-only stays at low, %s', (_label, readonly) => {
-    expect(launchTools(readonly, 'read-only').autonomy).toBe('low');
+  ])('a droid whose own tools are read-only stays at low, %s', async (_label, readonly) => {
+    const { autonomy } = await launchTools(readonly, 'read-only');
+    expect(autonomy).toBe('low');
   });
 
   test.each([
     ['absent', undefined],
     ['false', false],
-  ])('readonly %s leaves the subagent at the session level', (_label, readonly) => {
-    expect(launchTools(readonly).autonomy).toBe('high');
+  ])('readonly %s leaves the subagent at the session level', async (_label, readonly) => {
+    const { autonomy } = await launchTools(readonly);
+    expect(autonomy).toBe('high');
   });
 });
 
@@ -251,14 +118,18 @@ describe('a subagent launched with readonly keeps medium when it is resumed or r
 });
 
 describe('the tools are expanded for the model the launch ends up on', () => {
-  test('the model is picked before the tools are expanded', () => {
+  test('the model is picked before the tools are expanded', async () => {
     const events: string[] = [];
-    launchTools(undefined, undefined, { droidModel: SONNET, events, picked: { modelId: SONNET } });
+    await launchTools(undefined, undefined, {
+      droidModel: SONNET,
+      events,
+      picked: { modelId: SONNET },
+    });
     expect(events).toEqual(['pick', `expand:${SONNET}`]);
   });
 
-  test('an inherit droid launched on a GPT model gets ApplyPatch, not Edit and Create', () => {
-    const { tools, modelId } = launchTools(undefined, undefined, {
+  test('an inherit droid launched on a GPT model gets ApplyPatch, not Edit and Create', async () => {
+    const { tools, modelId } = await launchTools(undefined, undefined, {
       picked: { modelId: GPT, $ODtoolModel: GPT },
     });
     expect(modelId).toBe(GPT);
@@ -267,8 +138,8 @@ describe('the tools are expanded for the model the launch ends up on', () => {
     expect(tools).not.toContain('Create');
   });
 
-  test('a launch model that moves to the Sonnet family swaps ApplyPatch for Edit and Create', () => {
-    const { tools } = launchTools(undefined, undefined, {
+  test('a launch model that moves to the Sonnet family swaps ApplyPatch for Edit and Create', async () => {
+    const { tools } = await launchTools(undefined, undefined, {
       droidModel: GPT,
       picked: { modelId: SONNET, $ODtoolModel: SONNET },
     });
@@ -277,9 +148,9 @@ describe('the tools are expanded for the model the launch ends up on', () => {
     expect(tools).not.toContain('ApplyPatch');
   });
 
-  test('a read-only launch expands both lists for the final model', () => {
+  test('a read-only launch expands both lists for the final model', async () => {
     const events: string[] = [];
-    launchTools(true, ['Read', 'Edit'], {
+    await launchTools(true, ['Read', 'Edit'], {
       droidModel: SONNET,
       events,
       picked: { modelId: GPT, $ODtoolModel: GPT },
@@ -290,9 +161,9 @@ describe('the tools are expanded for the model the launch ends up on', () => {
     ]);
   });
 
-  test('a model the pick left alone expands exactly as stock does, for the droid file model', () => {
+  test('a model the pick left alone expands exactly as stock does, for the droid file model', async () => {
     const events: string[] = [];
-    const { tools } = launchTools(undefined, ['Read', 'Edit'], {
+    const { tools } = await launchTools(undefined, ['Read', 'Edit'], {
       droidModel: SONNET,
       events,
       picked: { modelId: SONNET },
@@ -301,34 +172,34 @@ describe('the tools are expanded for the model the launch ends up on', () => {
     expect(events).toEqual(['pick', `expand:${SONNET}`]);
   });
 
-  test('a pick that chose the droid model changes nothing', () => {
-    const stockTools = launchTools(undefined, undefined, { droidModel: SONNET }).tools;
-    const picked = launchTools(undefined, undefined, {
+  test('a pick that chose the droid model changes nothing', async () => {
+    const { tools: stockTools } = await launchTools(undefined, undefined, { droidModel: SONNET });
+    const { tools: picked } = await launchTools(undefined, undefined, {
       droidModel: SONNET,
       picked: { modelId: SONNET, $ODtoolModel: SONNET },
-    }).tools;
+    });
     expect(picked).toEqual(stockTools);
   });
 
-  test('an inherit droid keeps the inherit expansion, whatever model the parent runs', () => {
+  test('an inherit droid keeps the inherit expansion, whatever model the parent runs', async () => {
     const events: string[] = [];
-    const { tools } = launchTools(undefined, undefined, { events, picked: { modelId: GPT } });
+    const { tools } = await launchTools(undefined, undefined, { events, picked: { modelId: GPT } });
     expect(tools).toEqual(EVERYTHING);
     expect(events).toEqual(['pick', 'expand:inherit']);
   });
 });
 
 describe('the pick is told which model the droid file declares', () => {
-  test('a declared id counts even when the session fell back to inherit', () => {
-    const { pickInputs } = launchTools(undefined, undefined, {
+  test('a declared id counts even when the session fell back to inherit', async () => {
+    const { pickInputs } = await launchTools(undefined, undefined, {
       declaredModel: SONNET,
       droidModel: 'inherit',
     });
     expect(pickInputs).toMatchObject({ declaredModel: SONNET, fixedModel: undefined });
   });
 
-  test('a declared id that resolves is both declared and fixed', () => {
-    const { pickInputs } = launchTools(undefined, undefined, {
+  test('a declared id that resolves is both declared and fixed', async () => {
+    const { pickInputs } = await launchTools(undefined, undefined, {
       declaredModel: SONNET,
       droidModel: SONNET,
     });
@@ -340,8 +211,9 @@ describe('the pick is told which model the droid file declares', () => {
     ['no model', undefined],
     ['an empty model', ''],
     ['a blank model', '   '],
-  ])('%s declares nothing', (_label, declaredModel) => {
-    const options: LaunchOptions = declaredModel === undefined ? {} : { declaredModel };
-    expect(launchTools(undefined, undefined, options).pickInputs.declaredModel).toBeUndefined();
+  ])('%s declares nothing', async (_label, declaredModel) => {
+    const options = declaredModel === undefined ? {} : { declaredModel };
+    const { pickInputs } = await launchTools(undefined, undefined, options);
+    expect(pickInputs.declaredModel).toBeUndefined();
   });
 });

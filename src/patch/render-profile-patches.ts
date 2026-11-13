@@ -276,7 +276,7 @@ function causePatch(name: string, rest: string): Patch {
 
 const SNAPSHOT_RETURN = 'snapshotVersion:O,streamingVersion:F,messages:G},G}';
 
-const WORKING_SET = 'updateDroidWorkingState(t){if(this.droidWorkingState===t)return;';
+const WORKING_SET = 'if(this.droidWorkingState===t)return;';
 
 const INPUT_EMIT = '{ie(iA),rA.current.emit("input",iA)}';
 

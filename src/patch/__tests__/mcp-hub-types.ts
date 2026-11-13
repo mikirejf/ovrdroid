@@ -67,6 +67,7 @@ export type Subscriptions = Record<string, Set<string>>;
 
 export interface Hub {
   servers: Record<string, ServerRecord>;
+  seeds: Map<string, { tools: Tool[] }>;
   toolsListCache: Map<string, CacheEntry>;
   clientResourceSubscriptions: Record<string, Subscriptions>;
   openPendingConnection: (name: string, config: ServerConfig) => void;

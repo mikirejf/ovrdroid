@@ -71,7 +71,7 @@ const REUSE =
   '$ODcore.sendMessage=async($ODarg)=>$ODseen=await $ODsend($ODarg);' +
   'S?.addEventListener("abort",$ODstop,{once:!0});' +
   `try{let $ODhist=$ODunseen.length?globalThis.${REUSE_GLOBAL}.extend($ODsnap,$ODunseen,$ODtext):$ODsnap.preparedHistory;` +
-  'if(typeof $ODhist==="string")$ODhow=$ODhist;else{y?.($ODsnap.modelId);' +
+  'if(typeof $ODhist==="string")$ODhow=$ODhist;else{qe=$ODsnap.modelId;y?.($ODsnap.modelId);' +
   `let $ODres=await globalThis.${REUSE_GLOBAL}.send($ODcore,{modelId:$ODsnap.modelId,isSpecMode:$ODsnap.isSpecMode,` +
   'reasoningEffort:$ODsnap.reasoningEffort,systemMessage:$ODsnap.systemMessage,preparedHistory:$ODhist,' +
   'instruction:$ODtext,maxTokensOverride:fe,sessionId:r});' +
@@ -86,7 +86,7 @@ const REUSE =
 const STOCK_SEND_HEAD = 'me=async(W)=>{';
 
 const STOCK_SEND_BODY =
-  'let L=z(W).userContent;return y?.(W.modelId),await hl(g,{providerRoutingOperation:X,systemPrompt:B,userContent:L,modelId:W.modelId,maxTokensOverride:fe,sessionId:r,abortSignal:S,';
+  'let L=z(W).userContent;return qe=W.modelId,y?.(W.modelId),await hl(g,{providerRoutingOperation:X,systemPrompt:B,userContent:L,modelId:W.modelId,maxTokensOverride:fe,sessionId:r,abortSignal:S,';
 
 const PARENT_BRIEF =
   'try{if(J.getCallingSessionId(a)){' +
@@ -130,7 +130,7 @@ export const compactionPatches: readonly Patch[] = [
     find: `${STOCK_SEND_HEAD}${STOCK_SEND_BODY}`,
     lookups: [
       'g=ta({emitLlmRetryStatus:!0})',
-      'customInstructions:k,contextLimitFallbackModelId:E,onModelRequest:y}){',
+      'customInstructions:k,contextLimitFallbackModelId:E,onModelRequest:y,',
       'return async function({messages:s,sessionId:r,previousSummary:a,',
     ],
     replace: `$ODfirst=!0,${REUSE},${STOCK_SEND_HEAD}if($ODfirst){$ODfirst=!1;let $ODdone=await $ODreuse(W);if($ODdone)return $ODdone}${STOCK_SEND_BODY}`,

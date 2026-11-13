@@ -196,9 +196,38 @@ function jsx(type: typeof statusLine, props: Omit<LineProps, '$ODstore'>): Eleme
 }
 
 export interface Helpers {
-  $ODrosterStore: (sessionId: string | null) => Roster;
+  $ODrosterStore: (sessionId: string | null, full?: boolean) => Roster;
   $ODrosterLive: (store: Roster | undefined, fallback: Model | null) => Model | null;
   $ODRosterLine: (props: LineProps) => Element | null;
+}
+
+export interface RootSelection {
+  store: Roster;
+  live: Roster | undefined;
+  model: Model | null;
+}
+
+type MissionModel = (sessionId: string, tags: string[], model: Model | null) => Model | null;
+
+interface RootFields {
+  sessionId: string;
+  tags: string[];
+  isMission: boolean;
+}
+
+export function rootSelection(
+  lib: Helpers,
+  mission: MissionModel,
+  { sessionId, tags, isMission }: RootFields,
+): RootSelection {
+  const { replace } = patchNamed(rosterRenderPatches, 'roster-render-split-root');
+  return payloadFunction<
+    [Helpers['$ODrosterStore'], MissionModel, string, string[], boolean],
+    RootSelection
+  >(
+    ['$ODrosterStore', 'bm1', 'S3', 'b9', 'v9'],
+    `let ${replace}$ODresult={store:$ODrs,live:$ODrl,model:eR};return $ODresult`,
+  )(lib.$ODrosterStore, mission, sessionId, tags, isMission);
 }
 
 export function helpers(Store: RosterClass): Helpers {

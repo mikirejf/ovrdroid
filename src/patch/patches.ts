@@ -167,11 +167,11 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'gate-first-turn-on-ide-connect',
-    find: 'if(this.refreshMcpListeners(),!this.isBlockOnMcpLoadEnabled())return;',
+    find: 'if(this.refreshMcpListeners(),!this.isBlockOnStartupLoadEnabled())return;',
     replace:
       'this.refreshMcpListeners();' +
       'if(this.ideInitPromise){let $ODtimer;await Promise.race([this.ideInitPromise.catch(()=>{}),new Promise(($ODdone)=>{$ODtimer=setTimeout($ODdone,5000);$ODtimer.unref?.()})]);clearTimeout($ODtimer)}' +
-      'if(!this.isBlockOnMcpLoadEnabled())return;',
+      'if(!this.isBlockOnStartupLoadEnabled())return;',
   },
   {
     name: 'new-session-loads-in-background',
@@ -190,9 +190,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'session-worker-starts-mcp-in-background',
-    find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnMcpLoad||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+    find: 'if(!(e.listTools===!0||e.inputFormat==="stream-json"||t.blockOnStartupLoad||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
     replace:
-      'if(!(e.listTools===!0||e.inputFormat==="stream-json"||(t.blockOnMcpLoad&&e.inputFormat!=="stream-jsonrpc")||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
+      'if(!(e.listTools===!0||e.inputFormat==="stream-json"||(t.blockOnStartupLoad&&e.inputFormat!=="stream-jsonrpc")||Zi(e))){t.startBackgroundTask("mcp_init",t.startMcp);return}',
   },
   {
     name: 'first-message-shows-at-once',

@@ -30,7 +30,7 @@ export const STOCK_HUB_METHODS = {
   prepareToolInvocation:
     'async prepareToolInvocation(a,f,d,S,w=0){let y=this.pendingConnections.get(a);if(!this.servers[a]&&y)await $d(y.resolvers.promise,d);let A=this.userMcpConfigs[a]??this.systemMcpConfigs[a];d?.throwIfAborted();let O=performance.now(),F=await AC({timeoutMs:(A?.timeout??hNe)-w,signal:d},(ce)=>$d(this.listToolsForServer(a),ce.signal));S?.(F);let{list:U}=F,Y=F.tools.find((ce)=>ce.name===f),Q=U?.callDefinitions.get(f);if(!U||!Y||!Q)throw new i("The MCP server has not listed this tool on its current connection",{name:a,toolName:f});let V=this.settledListEpochs.get(U),{client:X}=U;return{serverName:a,tool:Y,callDefinition:Q,client:X,preparationElapsedMs:w+(performance.now()-O),isCurrent:()=>V!==void 0&&this.servers[a]?.client===X&&this.toolListEpochs.get(a)===V&&(this.userMcpConfigs[a]??this.systemMcpConfigs[a])===A&&A?.disabled!==!0&&this.applyToolConfig(a,[Y]).length===1}}',
   isToolListingCurrent:
-    'isToolListingCurrent(a,f){if(!f.list)return!0;return this.servers[a]?.client===f.list.client&&this.settledListEpochs.get(f.list)===this.toolListEpochs.get(a)}',
+    'isToolListingCurrent(a,f){if(!f.list)return this.seeds.has(a);return this.servers[a]?.client===f.list.client&&this.settledListEpochs.get(f.list)===this.toolListEpochs.get(a)}',
   getExpiredToolCatalogServers:
     'getExpiredToolCatalogServers(){return[...this.toolsListCache].flatMap(([a,f])=>this.servers[a]?.client.getProtocolEra()==="modern"&&(f.state==="ready"&&!d4(f.list.freshness)||f.state==="failed"&&performance.now()>=f.retryAt)?[a]:[])}',
   listResourcesForServer:

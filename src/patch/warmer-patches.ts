@@ -58,7 +58,7 @@ const KIDS = 'function $ODWk($ODsid){try{return globalThis.__odKids?.($ODsid)??0
 
 const SNAPSHOT_STORE = 'Qh.set(t.sessionId,{snapshot:t,capturedBy:new WeakRef(Dt())})';
 const CHILD_TRACKER =
-  'function ST(){let e=Se(vi);if(e)return e;return zt??=new ze,zt}var Mm=5000;class he{detachedController=';
+  'function ST(){let e=Se(vi);if(e)return e;return zt??=new ze,zt}class he{detachedController=';
 
 const ARM =
   `function $ODWd($ODsnap){let $ODenv=Number(process.env.${WARM_DELAY_ENV});` +

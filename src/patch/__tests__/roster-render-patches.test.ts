@@ -13,6 +13,7 @@ import {
   mount,
   rosterClass,
   rosterModel,
+  rootSelection,
   statusLine,
 } from './roster-render-harness.ts';
 
@@ -153,11 +154,43 @@ describe('the root follows only the roster facts it draws', () => {
     expect(view.output?.roster.lead.droid.sessionId).toBe('lead');
   });
 
-  test('a mission session builds a store that follows nothing and reads null, as stock', () => {
+  test('no session builds a store that follows nothing and reads null, as stock', () => {
     const { view, store } = root(helpers(rosterClass(start())), null);
     expect(view.output).toBeNull();
     expect(factsOf(store())).toBeNull();
   });
+});
+
+describe('the root passes session subagents into the mission roster', () => {
+  test.each([false, true])(
+    'mission tags %s preserve the session model and live selection',
+    (isMission) => {
+      const initial = rosterModel();
+      const lib = helpers(rosterClass(new Map([['s1', initial]])));
+      const tags = isMission ? ['mission'] : [];
+      const mission = isMission ? rosterModel({ lead: 'mission' }) : null;
+      const calls: unknown[][] = [];
+      const view = mount(
+        () =>
+          rootSelection(
+            lib,
+            (...args) => {
+              calls.push(args);
+              return mission;
+            },
+            { sessionId: 's1', tags, isMission },
+          ),
+        null,
+      );
+      expect(calls).toEqual([['s1', tags, initial]]);
+      expect(view.output.model).toBe(mission ?? initial);
+      expect(view.output.live).toBe(isMission ? undefined : view.output.store);
+      const newer = rosterModel({ preview: 'new subagent preview', at: 2 });
+      view.output.store.publish(newer);
+      expect(view.renders).toBe(isMission ? 2 : 1);
+      expect(calls.at(-1)).toEqual(['s1', tags, isMission ? newer : initial]);
+    },
+  );
 });
 
 describe('the readers that draw roster details see every published model', () => {

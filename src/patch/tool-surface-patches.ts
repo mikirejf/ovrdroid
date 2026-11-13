@@ -6,7 +6,7 @@ const SURFACE_GATE =
 const SCRIPT_MODEL_GATE = 'if(!(r?.some((u)=>u===t.modelId||u===i)??!1))return"direct_only";';
 
 const SCRIPT_ONLY_SECTION =
-  '"# Script-only tool execution\\n- Guidance elsewhere that tells you to call a Script-bound tool directly, or to issue independent calls together in one message, applies to its `tools.<Name>(input)` binding: put the calls in one Script and start independent ones together."';
+  '"# Script-only tool execution\\n- Guidance elsewhere that tells you to call a Script-bound tool directly, or to issue independent calls together in one message, applies to its `tools.<path>(input)` binding: put the calls in one Script and start independent ones together."';
 
 const SCRIPT_ONLY_SECTION_STEERED = [
   '"# Script-only tool execution',

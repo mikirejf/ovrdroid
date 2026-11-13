@@ -11,9 +11,9 @@ const ROSTER_FACTS =
   'return $ODs.$ODfacts=$ODn}';
 
 const ROSTER_STORE =
-  'function $ODrosterStore($ODd){' +
+  'function $ODrosterStore($ODd,$ODfull){' +
   'let $ODs=k(()=>{let $ODn=new fQ($ODd);$ODn.$ODfactsOf=()=>$ODrosterFacts($ODn);return $ODn},[$ODd]);' +
-  'Na($ODs.subscribe,$ODs.$ODfactsOf);return $ODs}';
+  'Na($ODs.subscribe,$ODfull?$ODs.getSnapshot:$ODs.$ODfactsOf);return $ODs}';
 
 const ROSTER_LIVE =
   'var $ODquietRoster={subscribe:()=>()=>{},getSnapshot:()=>null};' +
@@ -31,7 +31,7 @@ const ROSTER_HELPERS = `${ROSTER_FACTS}${ROSTER_STORE}${ROSTER_LIVE}${ROSTER_LIN
 const STORE_HOOK =
   'function gQ(g){let y=k(()=>new fQ(g),[g]);return Na(y.subscribe,y.getSnapshot)}';
 
-const ROOT_STORE = 'yg=Rn(gP??void 0),Sg=xY(Fo,gP),Koe=gQ(yg?null:Fo),qoe=Sg??Koe,';
+const ROOT_STORE = 'ay=Np1(S3),M9=bm1(S3,b9,ay),eR=M9??ay,';
 
 const CONTROLLER_ARGS = 'lu=SZ({model:qoe,currentSessionId:Fo,';
 
@@ -59,8 +59,9 @@ export const rosterRenderPatches: readonly Patch[] = [
   {
     name: 'roster-render-split-root',
     find: ROOT_STORE,
+    lookups: ['v9=vn(b9??void 0),'],
     replace:
-      'yg=Rn(gP??void 0),Sg=xY(Fo,gP),$ODrs=$ODrosterStore(yg?null:Fo),Koe=$ODrs.getSnapshot(),qoe=Sg??Koe,$ODrl=Sg?void 0:$ODrs,',
+      '$ODrs=$ODrosterStore(S3,v9),ay=$ODrs.getSnapshot(),M9=bm1(S3,b9,ay),eR=M9??ay,$ODrl=M9?void 0:$ODrs,',
   },
   {
     name: 'roster-render-split-controller',

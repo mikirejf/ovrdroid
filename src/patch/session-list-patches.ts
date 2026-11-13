@@ -103,8 +103,7 @@ export const SESSION_LIST_STATICS =
   SESSION_BLOCK +
   SESSION_VIEW;
 
-const FF_HEAD =
-  'function ff({items:y,selectedIndex:E,helpText:A,width:D,minWidth:F=78,marginTop:U=1,fullWidth:z=!1,children:q,minVisibleCount:G,visibleCount:j,';
+const PICKER_HEAD = 'class uu{workingDirectory;search;constructor(';
 
 const LIST_COMPONENT =
   'function $ODSessionList({items:$ODitems,selectedIndex:$ODsel,width:$ODwide}){' +
@@ -129,16 +128,15 @@ const SUGGESTION_DROPDOWN =
 export const sessionListPatches: readonly Patch[] = [
   {
     name: 'session-list-view',
-    find: FF_HEAD,
+    find: PICKER_HEAD,
     lookups: [
-      'var Wre=()=>R().t("common:fileSuggestions.file"),r5=100;class uu{',
-      'children:[t(T,{borderStyle:X?void 0:"round",borderColor:X?void 0:o.border,',
-      'return l(i,{bold:Pe,wrap:Wr?"truncate-end":"wrap",children:[t(i,{color:Ne(),children:Pe?we.selectedPrefix??"> ":"  "})',
-      'noBorder:X=!1,truncateItems:Z=!1,anchorRow:e1=3}){let{t:oe}=L(),{width:ae}=Zn(),',
-      'ao=S(null),Po=S(0),go=S(null)',
-      'v(()=>{if(Po.current+=1,ao.current)clearTimeout(ao.current)',
+      'return l(T,{flexDirection:"column",width:y,height:E-1,overflow:"hidden",children:[',
+      'g.offline?t(i,{color:o.warning,wrap:"truncate-end",children:c1("common:droidsView.offline")})',
+      'let{width:q,height:K}=Zn(),X=B??q,Z=_s1(K),{maxLines:e1,tier:t1}=Z',
+      'mt=S(null),Y3=S(0),ct=S(null)',
+      'v(()=>()=>{if(mt.current)clearTimeout(mt.current);if(ct.current)clearTimeout(ct.current)},[])',
     ],
-    replace: LIST_COMPONENT + FF_HEAD,
+    replace: LIST_COMPONENT + PICKER_HEAD,
   },
   {
     name: 'session-list-render',
