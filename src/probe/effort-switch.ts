@@ -51,6 +51,7 @@ interface Labels {
 interface Measured {
   labels: Labels;
   lines: Record<TurnName, UsageLine>;
+  seedCacheRead: number;
   efforts: Record<TurnName, string>;
   busts: TurnBust[];
 }
@@ -130,6 +131,7 @@ async function runSwitch(
     return {
       labels,
       lines: { seed: seed.line, control: control.line, switched: switched.line },
+      seedCacheRead: seed.firstCacheRead,
       efforts: { seed: seed.effort, control: control.effort, switched: switched.effort },
       busts: bustsByTurn(logOf(seed.sessionId).busts, ends),
     };
@@ -173,7 +175,13 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   }
   say(`the status line showed "${measured.labels.from}", then "${measured.labels.to}" after Tab`);
   say('');
-  const outcomes = { efforts: measured.efforts, ...turns, busts: measured.busts, body };
+  const outcomes = {
+    efforts: measured.efforts,
+    ...turns,
+    seedCacheRead: measured.seedCacheRead,
+    busts: measured.busts,
+    body,
+  };
   say(switchVerdict(outcomes));
   await jsonlAppender(options.out)({
     t: new Date().toISOString(),
@@ -181,6 +189,7 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
     labels: measured.labels,
     efforts: measured.efforts,
     turns,
+    seedCacheRead: measured.seedCacheRead,
     busts: measured.busts,
     body: bodyRecord(body),
   });

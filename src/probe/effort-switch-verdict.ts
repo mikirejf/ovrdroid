@@ -30,6 +30,7 @@ export interface RequestPair {
 export interface SwitchOutcomes {
   efforts: Record<TurnName, string>;
   seed: TurnUsage;
+  seedCacheRead: number;
   control: TurnUsage;
   switched: TurnUsage;
   busts: readonly TurnBust[];
@@ -49,13 +50,15 @@ export function turnUsage(line: UsageLine): TurnUsage {
   };
 }
 
-export function turnLine(added: readonly UsageLine[], model: string, turn: TurnName): UsageLine {
-  const line = added.findLast(({ modelId }) => modelId === model);
-  if (line === undefined) {
+export function turnLines(added: readonly UsageLine[], model: string, turn: TurnName) {
+  const matching = added.filter(({ modelId }) => modelId === model);
+  const first = matching.at(0);
+  const last = matching.at(-1);
+  if (first === undefined || last === undefined) {
     const seen = added.map(({ modelId }) => modelId).join(', ') || 'none';
     throw new Error(`the ${turn} turn logged no usage line for ${model}; models logged: ${seen}`);
   }
-  return line;
+  return { first, last };
 }
 
 export function bustsByTurn(busts: readonly BustLine[], ends: TurnEnds): TurnBust[] {
@@ -144,7 +147,7 @@ function otherSettings(body: BodyComparison): string[] {
 }
 
 function bustReasons(outcomes: SwitchOutcomes, body: BodyComparison): string[] {
-  const { seed, switched } = outcomes;
+  const { seedCacheRead, switched } = outcomes;
   const reasons: string[] = [];
   if (body.divergence !== undefined) {
     reasons.push(changedPrompt(body.divergence));
@@ -160,16 +163,16 @@ function bustReasons(outcomes: SwitchOutcomes, body: BodyComparison): string[] {
       .filter((bust) => bust.turn === 'switched' && !isEffortSegment(bust))
       .map((bust) => bustLine(bust)),
   );
-  if (seed.cacheRead > 0 && switched.cacheRead <= seed.cacheRead) {
+  if (seedCacheRead > 0 && switched.cacheRead <= seedCacheRead) {
     reasons.push(
-      `the switched turn read none of the conversation from the cache: it read ${whole(switched.cacheRead)}, no more than the ${whole(seed.cacheRead)} the seed turn read, which is only the tools and system prompt cached before the conversation started`,
+      `the switched turn read none of the conversation from the cache: it read ${whole(switched.cacheRead)}, no more than the ${whole(seedCacheRead)} the seed turn's first request read from the tools and system prompt cached before the conversation started`,
     );
   }
   return reasons;
 }
 
 function keptText(outcomes: SwitchOutcomes): string {
-  const { efforts, seed, control, switched } = outcomes;
+  const { efforts, seedCacheRead, control, switched } = outcomes;
   const cached = control.cacheRead + control.cacheWrite;
   const lines = [
     `${switchingFrom(efforts)} did not bust the cache: the switched request extended the control request with only the effort changed`,
@@ -185,9 +188,9 @@ function keptText(outcomes: SwitchOutcomes): string {
       `Droid flagged its ${EFFORT_SETTING} segment as changed on the switched turn: that segment is the effort itself, and the request bodies show nothing else changed`,
     );
   }
-  if (seed.cacheRead === 0) {
+  if (seedCacheRead === 0) {
     lines.push(
-      'the seed turn read nothing from the cache (a cold start), so the check that the switched turn read the conversation could not run',
+      "the seed turn's first request read nothing from the cache (a cold start), so the check that the switched turn read the conversation could not run",
     );
   }
   return lines.join('\n');

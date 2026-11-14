@@ -203,7 +203,7 @@ export const patches: readonly Patch[] = [
       'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3),',
     lookups: [
       'k4=Fu(U1.queuePlacement);if(R3&&k4==="end_of_turn"){let B3=Qy({text:P4,images:Ju(U1.images),files:U1.files})',
-      'd2=U1.requestId??e2?.requestId??st(),F2=U1.messageId??e2?.messageId??st(),xe,He=!1,k2,r3=!1,$2=()=>{',
+      'd2=U1.requestId??e2?.requestId??st(),F2=U1.messageId??e2?.messageId??st(),xe',
     ],
     replace:
       'i4=E3??E1.current,$ODe=null;if(!i4&&Fu(U1.queuePlacement)==="end_of_turn"){' +
@@ -217,7 +217,7 @@ export const patches: readonly Patch[] = [
       's3=await n3(z1())}if(w2)return"rejected_with_notice";' +
       'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
       'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3);' +
-      'if($ODe&&$ODe!==Pe)$2(),xe=void 0;let ',
+      'if($ODe&&$ODe!==Pe)xe?.remove(),xe=void 0;let ',
   },
   {
     name: 'live-reply-shows-every-line',

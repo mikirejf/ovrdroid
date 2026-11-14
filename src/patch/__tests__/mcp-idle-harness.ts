@@ -46,7 +46,7 @@ export interface Timer {
   unref: () => void;
 }
 
-type SpawnArgs = Pick<ServerConfig, 'command' | 'url'>;
+type SpawnArgs = Pick<ServerConfig, 'command' | 'url'> & { cwd?: string };
 
 const PATCHED = patchSource(
   [{ name: 'hub.js', text: STOCK_HUB_MODULE }],
@@ -106,6 +106,8 @@ export class HubWorld {
   readonly hub: Hub;
   readonly files = new Map<string, string>();
   readonly timers: Timer[] = [];
+  readonly prepared: SpawnArgs[] = [];
+  readonly released: SpawnArgs[] = [];
   readonly spawned: SpawnArgs[] = [];
   readonly closed: number[] = [];
   readonly alive = new Set<number>();
@@ -115,6 +117,7 @@ export class HubWorld {
   readonly env: Record<string, string> = {};
   tools: Tool[] = TOOLS;
   failSpawns = 0;
+  spawnCwd?: string;
   era: 'legacy' | 'modern' = 'legacy';
   private readonly holds = new Map<HoldKind, Promise<boolean>>();
   private nextPid = FIRST_PID;
@@ -135,7 +138,16 @@ export class HubWorld {
       N5: ignore,
       IH: never,
       $a: (env: Configs) => env,
-      Uu: async (args: SpawnArgs) => await Promise.resolve(args),
+      Uu: async (args: SpawnArgs) => {
+        this.prepared.push(args);
+        return await Promise.resolve({
+          ...args,
+          cwd: this.spawnCwd ?? args.cwd,
+          release: () => {
+            this.released.push(args);
+          },
+        });
+      },
       $u: async ({ serverArgs }: { serverArgs: SpawnArgs }) => await this.connect(serverArgs),
       H_: () => 'identity',
       CB: ignore,

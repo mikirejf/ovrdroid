@@ -40,10 +40,11 @@ const pageUnits = payloadFunction<
     boolean,
     undefined,
     boolean,
+    string,
   ],
   Unit[]
 >(
-  ['va', 'iD', 'gC', 'Tc', '$m', 'g', 'D', 'B', '$ODstacked'],
+  ['va', 'iD', 'gC', 'Tc', '$m', 'g', 'D', 'B', '$ODstacked', 'R'],
   `${TABLES}${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}${HISTORY_UNITS}`,
 );
 
@@ -63,6 +64,7 @@ function page(stacked: boolean): Unit[] {
     false,
     undefined,
     stacked,
+    stacked ? 'stacked' : 'expanded',
   );
 }
 

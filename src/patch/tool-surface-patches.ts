@@ -3,7 +3,7 @@ import type { Patch } from './patches.ts';
 const SURFACE_GATE =
   '{toolName:e,surface:o,policy:t}){if(o==="direct")return t.mode!=="script_only"||';
 
-const SCRIPT_MODEL_GATE = 'if(!(r?.some((u)=>u===t.modelId||u===i)??!1))return"direct_only";';
+const SCRIPT_MODEL_GATE = 'return n?.some((s)=>s===t.modelId||s===o)?"script_only":"direct_only"';
 
 const SCRIPT_ONLY_SECTION =
   '"# Script-only tool execution\\n- Guidance elsewhere that tells you to call a Script-bound tool directly, or to issue independent calls together in one message, applies to its `tools.<path>(input)` binding: put the calls in one Script and start independent ones together."';
@@ -29,7 +29,7 @@ export const toolSurfacePatches: readonly Patch[] = [
   {
     name: 'script-mode-every-model',
     find: SCRIPT_MODEL_GATE,
-    replace: '',
+    replace: 'return"script_only"',
   },
   {
     name: 'todo-write-direct',

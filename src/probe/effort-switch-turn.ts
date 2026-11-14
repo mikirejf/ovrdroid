@@ -5,7 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { MS_PER_SECOND, say } from '../cli.ts';
 import { FACTORY_LOGS } from '../paths.ts';
 import type { TurnName } from './effort-switch-verdict.ts';
-import { turnLine } from './effort-switch-verdict.ts';
+import { turnLines } from './effort-switch-verdict.ts';
 import { submit, transcriptsIn } from './live-session.ts';
 import { callerOf, replyCount, replyEfforts } from './live-transcript.ts';
 import { LIVE_LOG } from './logs-report.ts';
@@ -35,6 +35,7 @@ export interface Drive {
 export interface Taken {
   sessionId: string;
   line: UsageLine;
+  firstCacheRead: number;
   effort: string;
 }
 
@@ -77,5 +78,11 @@ export async function takeTurn(drive: Drive, turn: TurnName, sessionId?: string)
   if (effort === undefined || effort === '') {
     throw new Error(`the ${turn} turn's reply in the transcript carries no reasoningEffort`);
   }
-  return { sessionId: ended.id, line: turnLine(added, drive.model, turn), effort };
+  const { first, last } = turnLines(added, drive.model, turn);
+  return {
+    sessionId: ended.id,
+    line: last,
+    firstCacheRead: first.cacheReadInputTokens,
+    effort,
+  };
 }

@@ -202,27 +202,30 @@ describe('wiring', () => {
       [
         (subscribe: typeof subscription, getSnapshot: () => string) => string,
         typeof subscription,
-        () => { getToolResultDisplay: () => string },
+        () => { getToolOutputDisplay: () => string },
       ],
       { compact: boolean; stacked: boolean }
     >(['ke', 'Js', 'f'], `let ${MODE.split(',c1=')[0]};return{compact:s1,stacked:$ODstacked}`);
-    const states = ['expanded', 'compact', 'stacked', 'expanded'].map((value) =>
-      readMode(
-        (subscribe, getSnapshot) => {
-          expect(subscribe).toBe(subscription);
-          const snapshot = getSnapshot();
-          snapshots.push(snapshot);
-          return snapshot;
-        },
-        subscription,
-        () => ({ getToolResultDisplay: () => value }),
-      ),
+    const states = ['expanded', 'compact', 'stacked', 'concise', 'minimal', 'expanded'].map(
+      (value) =>
+        readMode(
+          (subscribe, getSnapshot) => {
+            expect(subscribe).toBe(subscription);
+            const snapshot = getSnapshot();
+            snapshots.push(snapshot);
+            return snapshot;
+          },
+          subscription,
+          () => ({ getToolOutputDisplay: () => value }),
+        ),
     );
-    expect(snapshots).toEqual(['expanded', 'compact', 'stacked', 'expanded']);
+    expect(snapshots).toEqual(['expanded', 'compact', 'stacked', 'concise', 'minimal', 'expanded']);
     expect(states).toEqual([
       { compact: false, stacked: false },
       { compact: true, stacked: false },
       { compact: false, stacked: true },
+      { compact: true, stacked: false },
+      { compact: true, stacked: false },
       { compact: false, stacked: false },
     ]);
   });

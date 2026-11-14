@@ -267,38 +267,40 @@ describe('Scripts', () => {
 });
 
 describe('the setting', () => {
-  test('the settings item cycles expanded, compact, stacked', () => {
-    const patch = patchNamed(stackedViewPatches, 'stacked-view-setting-cycle');
-    let current = 'expanded';
-    const item = payloadFunction<
-      [() => string, () => { setToolResultDisplay: (value: string) => void }],
-      { action: () => void }
-    >(['Io', 'f'], `return{${patch.replace}}}`)(
-      () => current,
-      () => ({
-        setToolResultDisplay: (value) => {
-          current = value;
-        },
-      }),
-    );
-    const seen = [1, 2, 3].map(() => {
-      item.action();
-      return current;
-    });
-    expect(seen).toEqual(['compact', 'stacked', 'expanded']);
-  });
+  test.each([
+    [false, ['compact', 'stacked', 'expanded']],
+    [true, ['concise', 'minimal', 'stacked', 'expanded']],
+  ] as const)(
+    'the settings item preserves stock modes and cycles stacked, concise flag %s',
+    (flag, expected) => {
+      const patch = patchNamed(stackedViewPatches, 'stacked-view-setting-cycle');
+      let current = 'expanded';
+      const cycle = payloadFunction<[], (value: string, enabled: boolean) => string>(
+        [],
+        `${patch.replace}return I3e`,
+      )();
+      const seen = expected.map(() => {
+        current = cycle(current, flag);
+        return current;
+      });
+      expect(seen).toEqual([...expected]);
+    },
+  );
 
   test('the value label reads Stacked', () => {
     const patch = patchNamed(stackedViewPatches, 'stacked-view-setting-label');
-    const label = payloadFunction<[], (value: string) => string>(
+    const label = payloadFunction<
       [],
-      `${patch.replace}"Expanded":"Compact"}return QD`,
+      (value: string, translate: (key: string) => string) => string
+    >(
+      [],
+      `var D3e={expanded:"Expanded",compact:"Compact",concise:"Concise",minimal:"Minimal"};${patch.replace}return QD`,
     )();
-    expect(['expanded', 'compact', 'stacked'].map((value) => label(value))).toEqual([
-      'Expanded',
-      'Compact',
-      'Stacked',
-    ]);
+    expect(
+      ['expanded', 'compact', 'stacked', 'concise', 'minimal'].map((value) =>
+        label(value, (key) => key),
+      ),
+    ).toEqual(['Expanded', 'Compact', 'Stacked', 'Concise', 'Minimal']);
   });
 });
 

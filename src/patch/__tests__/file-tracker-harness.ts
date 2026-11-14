@@ -43,10 +43,17 @@ export class FakeTracker {
 
 export type Hooks = (event: string, ...args: unknown[]) => Promise<object[]>;
 
+export interface HookVerdict {
+  kind: 'proceed';
+  contexts: string[];
+  systemMessages: string[];
+  errors: string[];
+}
+
 export type Content = string | object;
 
 export interface ToolOutcome {
-  results: object[];
+  results: HookVerdict;
   result: Content;
   modelContent: string | undefined;
 }
@@ -75,7 +82,7 @@ const install = payloadFunction<[() => FakeTracker, EventEmitter, typeof fsPromi
 
 const afterTool = payloadFunction<
   [
-    Hooks,
+    (event: string, ...args: unknown[]) => Promise<HookVerdict>,
     EventEmitter,
     { id: string; name: string; tool: { mcpIdentity: object | undefined } },
     Content,
@@ -85,7 +92,7 @@ const afterTool = payloadFunction<
   Promise<ToolOutcome>
 >(
   ['_o', 'process', 'd', 'result', 'transformed', 'tool'],
-  'const I=()=>"/",JR=()=>"default",q="s",C="",w=0,o={abortController:{signal:{}}};' +
+  'const AZ=process,I=()=>"/",JR=()=>"default",q="s",C="",w=0,o={abortController:{signal:{}}};' +
     'return(async function(){let{content:z,modelContent:re}={content:result,modelContent:transformed};' +
     `try{${beforeCall('d.id', 'd.name')}await tool();` +
     `let x=0,${noticePatch.replace};return{results:ie,result:z,modelContent:re}}finally{${callEnd('d.id')}}}).call({context:{},updateAction:undefined})`,
@@ -192,7 +199,20 @@ export function busWithListeners(tracker: FakeTracker, reads: string[] = []): Ev
 
 export async function runOn(bus: EventEmitter, call: ToolCall): Promise<ToolOutcome> {
   return await afterTool(
-    call.hooks,
+    async (...args) => {
+      const results = await call.hooks(...args);
+      if (results.length > 0) {
+        bus.emit('project-notification', {
+          notification: {
+            type: 'hook_execution_completed',
+            hookEventName: 'PostToolUse',
+            hookToolCallId: call.id,
+            hookResults: results,
+          },
+        });
+      }
+      return { kind: 'proceed', contexts: [], systemMessages: [], errors: [] };
+    },
     bus,
     { id: call.id, name: call.name ?? 'Execute', tool: { mcpIdentity: call.mcpIdentity } },
     call.result ?? WRITE_RESULT,
@@ -205,7 +225,11 @@ export async function outcomeOf(call: ToolCall): Promise<ToolOutcome> {
   return await runOn(busWithListeners(call.tracker, call.reads), call);
 }
 
-export async function toolCall(tracker: FakeTracker, id: string, hooks: Hooks): Promise<object[]> {
+export async function toolCall(
+  tracker: FakeTracker,
+  id: string,
+  hooks: Hooks,
+): Promise<HookVerdict> {
   const outcome = await outcomeOf({ tracker, id, hooks });
   return outcome.results;
 }

@@ -89,14 +89,14 @@ const STOCK_SEND_BODY =
   'let L=z(W).userContent;return qe=W.modelId,y?.(W.modelId),await hl(g,{providerRoutingOperation:X,systemPrompt:B,userContent:L,modelId:W.modelId,maxTokensOverride:fe,sessionId:r,abortSignal:S,';
 
 const PARENT_BRIEF =
-  'try{if(J.getCallingSessionId(a)){' +
-  'let $ODbrief=(await J.getAllMessageEvents(a))' +
+  'try{let $ODsession=p();if($ODsession.getCallingSessionId(a)){' +
+  'let $ODbrief=(await $ODsession.getAllMessageEvents(a))' +
   '.flatMap(($ODevent)=>$ODevent.message.role==="user"?$ODevent.message.content:[])' +
   '.find(($ODblock)=>$ODblock.type==="text"&&$ODblock.text&&!$ODblock.text.startsWith("<system-reminder>"))?.text;' +
   `ae+="\\n\\n"+($ODbrief?${JSON.stringify(PARENT_BRIEF_LEAD)}+"\\n\\n"+$ODbrief+"\\n\\n":"")+${JSON.stringify(PARENT_NOTE)}}}catch{}`;
 
 const SUMMARIZER_END =
-  'return s("[Compaction] Summarizer response OK, extracted summary",{length:ae.length}),ae}}';
+  'return s("[Compaction] Summarizer response OK, extracted summary",{length:ae.length}),';
 
 export const compactionPatches: readonly Patch[] = [
   {
@@ -139,7 +139,7 @@ export const compactionPatches: readonly Patch[] = [
     name: 'compaction-parent-brief',
     find: SUMMARIZER_END,
     lookups: [
-      'J=p(),T=F.getCompactionModel()',
+      'h=f(),Te=p(),{requestedModelId:',
       'return async function({messages:r,sessionId:a,previousSummary:d,',
     ],
     replace: `${PARENT_BRIEF}${SUMMARIZER_END}`,

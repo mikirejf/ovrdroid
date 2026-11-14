@@ -42,14 +42,6 @@ describe.skipIf(stockDroid === undefined)('the counter patches fit the shipped b
     },
   );
 
-  test(
-    'they apply on top of the shipped patch set, which also edits Ink',
-    () => {
-      expect(() => patchSource(shipped(), [...patches, ...counterPatches])).not.toThrow();
-    },
-    SLOW_PATCH_MS,
-  );
-
   test('each counter lands once in the patched bundle', () => {
     const patched = patchSource(shipped(), counterPatches)
       .map((module) => module.text)
@@ -136,6 +128,35 @@ afterEach(() => {
     rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test.skipIf(stockDroid === undefined)(
+  'the counters count each message-list render on top of the shipped patch set',
+  () => {
+    const patched = patchSource(shipped(), [...patches, ...counterPatches])
+      .map((module) => module.text)
+      .join('\n');
+    const opening = /\(\{groupedMessages:[^}]+\}\)=>\{globalThis\.\$ODc\.list\+\+;/u.exec(
+      patched,
+    )?.[0];
+    if (opening === undefined) {
+      throw new Error('the message-list render entry has no counter');
+    }
+    const render = payloadFunction<[object], null>(
+      ['$ODprops'],
+      `return (${opening}return null})($ODprops)`,
+    );
+    Reflect.deleteProperty(Bun.env, COUNTER_VARIABLE);
+    startInk(fakeStdout());
+
+    expect(render({ groupedMessages: [] })).toBeNull();
+    expect(counters()['list']).toBe(1);
+    expect(
+      render({ groupedMessages: [], isAgentActive: true, isSessionPromptActive: true }),
+    ).toBeNull();
+    expect(counters()['list']).toBe(2);
+  },
+  SLOW_PATCH_MS,
+);
 
 describe('the counter start payload', () => {
   test('with the variable unset it hands back the shipped log and touches nothing', () => {

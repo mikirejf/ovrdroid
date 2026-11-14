@@ -66,6 +66,7 @@ export type CacheEntry =
 export type Subscriptions = Record<string, Set<string>>;
 
 export interface Hub {
+  cwd?: string;
   servers: Record<string, ServerRecord>;
   seeds: Map<string, { tools: Tool[] }>;
   toolsListCache: Map<string, CacheEntry>;

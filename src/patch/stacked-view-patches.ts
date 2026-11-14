@@ -110,12 +110,12 @@ export const STACK_VIEW =
   '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
 
 const MODE_FIND =
-  's1=ke(Js,()=>f().getToolResultDisplay()==="compact"),c1=b({staticKey:M,cuts:new Map}),' +
+  'r1=ke(Js,()=>f().getToolOutputDisplay()),s1=r1!=="expanded",c1=b({staticKey:M,cuts:new Map}),' +
   'd1=y(()=>{let Y1=c1.current.staticKey===M?c1.current.cuts:new Map,H1=wr1(Y1,n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))));return c1.current={staticKey:M,cuts:H1},H1},[n1,M]),';
 
 export const MODE = MODE_FIND.replace(
-  's1=ke(Js,()=>f().getToolResultDisplay()==="compact"),',
-  `$ODmode=ke(Js,()=>f().getToolResultDisplay()),s1=$ODmode==="compact",$ODstacked=$ODmode==="${STACKED_MODE}",`,
+  's1=r1!=="expanded",',
+  `$ODmode=r1,s1=r1!=="expanded"&&r1!=="${STACKED_MODE}",$ODstacked=r1==="${STACKED_MODE}",`,
 )
   .replace(
     'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2)))',
@@ -124,14 +124,14 @@ export const MODE = MODE_FIND.replace(
   .replace('},[n1,M]),', '},[n1,M,$ODstacked]),');
 
 const UNITS_OPTIONS =
-  '{includeHeader:!0,reskin:!0,staticToolIds:i1,view:{kind:"chat",showThinking:D},images:f1,streamingCuts:d1}';
+  '{includeHeader:!0,reskin:!0,staticToolIds:i1,view:{kind:"chat",showThinking:D},images:f1,streamingCuts:d1,toolOutputMode:r1}';
 
-const UNITS_DEPS = '[i1,f1,L1,n1,D,d1]';
+const UNITS_DEPS = '[i1,f1,L1,n1,D,d1,r1]';
 
 const UNITS_STACKED =
   'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:D,awaiting:($ODid)=>q?.has($ODid)===!0}):$ODunits}';
 
-const STATIC_KEY_FIND = 'g1=M,D1=y(()=>jr1({previousState:b1.current,units:h1,';
+const STATIC_KEY_FIND = 'g1=M,p1=h1.at(-1),';
 
 export const STATIC_KEY = STATIC_KEY_FIND.replace('g1=M,', 'g1=$ODstacked?M+":stacked":M,');
 
@@ -147,20 +147,20 @@ export const REPRINT = REPRINT_FIND.replace(
   .replace('epoch:Ye.epoch}', 'epoch:Ye.epoch,$ODstacked:$ODstacked}');
 
 const HISTORY_SEGMENT_FIND =
-  'showThinking:D=!1,images:B,onPageHeight:V})=>{let q=S(null),K=S(new Map),X=$U(B),' +
-  'Z=k(()=>gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B}),[B,X,g.messages,D]);';
+  'toolOutputMode:R,showThinking:D=!1,images:B,onPageHeight:V})=>{let q=S(null),K=S(new Map),X=$U(B),' +
+  'Z=k(()=>gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B,toolOutputMode:R}),[B,X,g.messages,D,R]);';
 
 export const HISTORY_UNITS =
-  'let $ODunits=gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B});' +
+  'let $ODunits=gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B,toolOutputMode:R});' +
   'return $ODstacked?$ODstack($ODunits,{open:!1,showThinking:D,awaiting:()=>!1}):$ODunits';
 
 const HISTORY_SEGMENT =
-  'showThinking:D=!1,images:B,onPageHeight:V,$ODstacked:$ODstacked})=>{let q=S(null),K=S(new Map),X=$U(B),' +
-  `Z=k(()=>{${HISTORY_UNITS}},[B,X,g.messages,D,$ODstacked]);`;
+  'toolOutputMode:R,showThinking:D=!1,images:B,onPageHeight:V,$ODstacked:$ODstacked})=>{let q=S(null),K=S(new Map),X=$U(B),' +
+  `Z=k(()=>{${HISTORY_UNITS}},[B,X,g.messages,D,R,$ODstacked]);`;
 
-const HISTORY_MODE_FIND = 'let K=f().getToolResultDisplay()==="compact",X=UP(bC(),q)';
+const HISTORY_MODE_FIND = 'let K=f().getToolOutputDisplay(),X=UP(bC(),q)';
 
-const HISTORY_PAGE_FIND = 'compact:K,showThinking:D,images:X,onPageHeight:V}';
+const HISTORY_PAGE_FIND = 'toolOutputMode:K,showThinking:D,images:X,onPageHeight:V}';
 
 export const stackedViewPatches: readonly Patch[] = [
   {
@@ -170,21 +170,49 @@ export const stackedViewPatches: readonly Patch[] = [
       'var $ce;((a)=>{a.Expanded="expanded";a.Compact="compact";a.Stacked="stacked"})($ce||={});',
   },
   {
-    name: 'stacked-view-setting-cycle',
-    find: 'action:()=>{let Xe=Io()==="expanded"?"compact":"expanded";f().setToolResultDisplay(Xe)',
+    name: 'stacked-view-setting-output-value',
+    find: 'a.Compact="compact";a.Concise="concise";a.Minimal="minimal"',
+    replace: 'a.Compact="compact";a.Concise="concise";a.Minimal="minimal";a.Stacked="stacked"',
+  },
+  {
+    name: 'stacked-view-setting-legacy-map',
+    find: 'function CW(e){return e==="expanded"?"expanded":"compact"}',
+    replace: 'function CW(e){return e==="stacked"?"stacked":e==="expanded"?"expanded":"compact"}',
+  },
+  {
+    name: 'stacked-view-setting-legacy-read',
+    find: 'switch(n){case"expanded":return"expanded";case"compact":return"compact";default:return}',
     replace:
-      'action:()=>{let Xe=Io()==="expanded"?"compact":Io()==="compact"?"stacked":"expanded";f().setToolResultDisplay(Xe)',
+      'switch(n){case"expanded":return"expanded";case"compact":return"compact";case"stacked":return"stacked";default:return}',
+  },
+  {
+    name: 'stacked-view-setting-resolve',
+    find: 'resolveToolOutputDisplay(e){if(!e)return this.settings.general?.toolResultDisplay==="compact"?"compact":"expanded";',
+    replace:
+      'resolveToolOutputDisplay(e){if(!e)return this.settings.general?.toolResultDisplay==="stacked"?"stacked":this.settings.general?.toolResultDisplay==="compact"?"compact":"expanded";',
+  },
+  {
+    name: 'stacked-view-setting-cycle',
+    find: 'function I3e(C,y){let A=y?["expanded","concise","minimal"]:["expanded","compact"],P=A.indexOf(C);return A[(P+1)%A.length]}',
+    replace:
+      'function I3e(C,y){let A=y?["expanded","concise","minimal","stacked"]:["expanded","compact","stacked"],P=A.indexOf(C);return A[(P+1)%A.length]}',
+  },
+  {
+    name: 'stacked-view-setting-row-mode',
+    find: 'action:()=>{let V1=f(),B2=I3e(V1.getToolOutputDisplay(),n1);V1.setToolOutputDisplay(B2);let v3=CW(B2);A2(n1?{toolOutputDisplay:B2,toolResultDisplay:v3}:{toolResultDisplay:v3})}',
+    replace:
+      'action:(($ODmode)=>()=>{let V1=f(),B2=I3e($ODmode,n1);V1.setToolOutputDisplay(B2);let v3=CW(B2);A2(n1?{toolOutputDisplay:B2,toolResultDisplay:v3}:{toolResultDisplay:v3})})(f().getToolOutputDisplay())',
   },
   {
     name: 'stacked-view-setting-label',
-    find: 'function QD(g,y){return g==="expanded"?',
-    replace: 'function QD(g,y){return g==="stacked"?"Stacked":g==="expanded"?',
+    find: 'function QD(g,y){return y(D3e[g])}',
+    replace: 'function QD(g,y){return g==="stacked"?"Stacked":y(D3e[g])}',
   },
   {
     name: 'stacked-view-helpers',
     find: 'var Xxe=a.toolName,VW=a.toolParam;',
     lookups: [
-      'function va(g){return"toolName"in g&&"status"in g}function b1e(g){return!va(g)&&g.messageType==="hook_execution"',
+      'function va(g){return"toolName"in g&&"status"in g}',
       'return iD(g,y,void 0,v.showThinking,v)}',
       'function Jxe(g,y){let S=g.toolInput;if(!S)return null;switch(g.toolName){case"Read":',
       'function zW(g,y){let S=he(g),M=(process.stdout.columns||80)-tbe;',
@@ -256,8 +284,8 @@ export const stackedViewPatches: readonly Patch[] = [
     name: 'stacked-view-history-mode',
     find: HISTORY_MODE_FIND,
     replace: HISTORY_MODE_FIND.replace(
-      'let K=f().getToolResultDisplay()==="compact"',
-      `let $ODmode=f().getToolResultDisplay(),K=$ODmode==="compact"`,
+      'let K=f().getToolOutputDisplay()',
+      'let $ODmode=f().getToolOutputDisplay(),K=$ODmode',
     ),
   },
   {

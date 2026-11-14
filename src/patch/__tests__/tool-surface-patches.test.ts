@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
+import { readApp } from '../../binary/graph.ts';
+import { backupPath, INSTALLED_DROID } from '../../paths.ts';
+import { applies, rebaseAll } from '../rebase.ts';
+import { holePattern } from '../tokens.ts';
 import { toolSurfacePatches } from '../tool-surface-patches.ts';
 
 type Mode = 'direct_only' | 'script_only' | 'mixed';
@@ -24,7 +28,7 @@ function named(name: string) {
 }
 
 const patch = named('todo-write-direct');
-const sonnetPatch = named('script-mode-every-model');
+const modelPatch = named('script-mode-every-model');
 
 function buildGate(source: string): Gate {
   // SAFETY: the body is the shipped surface gate with its outer sets bound: the always-direct set, the script-bound set and the subagent tool.
@@ -102,12 +106,12 @@ describe('every other tool is gated as before', () => {
 type Resolve = (session: { modelId: string; override?: Mode }) => Mode;
 
 const STOCK_RESOLVER =
-  'function dQ(t){let r=Ta(B3)?.models,o=_t(t.modelId)?At(t.modelId,C().getCustomModels()):void 0,i=o?Wl(o):void 0;if(!(r?.some((u)=>u===t.modelId||u===i)??!1))return"direct_only";return t.override??"script_only"}';
+  'function tI(t){if(t.override!==void 0)return t.override;let n=uo(AP)?.models,o=yt(t.modelId)?Hp(t.modelId,f().getCustomModels()):t.modelId;return n?.some((s)=>s===t.modelId||s===o)?"script_only":"direct_only"}';
 
 const RESOLVER_BINDINGS = `
-const B3="script_tool_models";
-const Ta=(flag)=>flag===B3?{models:["claude-opus-5-5"]}:void 0;
-const _t=(id)=>id.startsWith("custom:");
+const AP="script_tool_models";
+const uo=(flag)=>flag===AP&&models!==undefined?{models}:void 0;
+const yt=(id)=>id.startsWith("custom:");
 const registry=[
   {id:"custom:droidproxy:sonnet-5-5",model:"claude-sonnet-5-5"},
   {id:"custom:droidproxy:haiku-5-5",model:"claude-haiku-5-5"},
@@ -116,19 +120,19 @@ const registry=[
   {id:"custom:droidproxy:gpt",model:"gpt-6.1-sol"},
   {id:"custom:mine:fast",model:"claude-sonnet-5-5"},
 ];
-const At=(id,models)=>models.find((m)=>m.id===id);
-const C=()=>({getCustomModels:()=>registry});
-const Wl=(m)=>m.model;
+const Hp=(id,registry)=>registry.find((m)=>m.id===id)?.model;
+const f=()=>({getCustomModels:()=>registry});
 `;
 
-function buildResolver(source: string): Resolve {
+function buildResolver(source: string, models: readonly string[] | undefined): Resolve {
   // SAFETY: the body is the shipped mode resolver with its flag store, custom model registry and id helpers stubbed.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${RESOLVER_BINDINGS}${source};return dQ`)() as Resolve;
+  return new Function('models', `${RESOLVER_BINDINGS}${source};return tI`)(models) as Resolve;
 }
 
-const stockMode = buildResolver(STOCK_RESOLVER);
-const patchedMode = buildResolver(STOCK_RESOLVER.replace(sonnetPatch.find, sonnetPatch.replace));
+const PATCHED_RESOLVER = STOCK_RESOLVER.replace(modelPatch.find, modelPatch.replace);
+const stockMode = buildResolver(STOCK_RESOLVER, ['claude-opus-5-5']);
+const patchedMode = buildResolver(PATCHED_RESOLVER, ['claude-opus-5-5']);
 
 const SCRIPT_ONLY_PATCHED = [
   'claude-sonnet-5-5',
@@ -146,6 +150,18 @@ const SCRIPT_ONLY_PATCHED = [
 ];
 
 describe('script mode', () => {
+  test.each([{ models: undefined }, { models: [] }] as const)(
+    'ignores an absent or empty model list: %j',
+    ({ models }) => {
+      expect(buildResolver(STOCK_RESOLVER, models)({ modelId: 'claude-opus-5-5' })).toBe(
+        'direct_only',
+      );
+      expect(buildResolver(PATCHED_RESOLVER, models)({ modelId: 'claude-opus-5-5' })).toBe(
+        'script_only',
+      );
+    },
+  );
+
   test.each(SCRIPT_ONLY_PATCHED)(
     '%s runs script_only patched and direct_only on stock',
     (modelId) => {
@@ -170,5 +186,29 @@ describe('script mode', () => {
     ['claude-opus-5-5', 'mixed'],
   ])('the override still wins on %s: %s', (modelId, override) => {
     expect(patchedMode({ modelId, override })).toBe(override);
+  });
+});
+
+const stockBinary = Bun.file(backupPath(INSTALLED_DROID));
+const modules = (await stockBinary.exists())
+  ? readApp(await stockBinary.bytes()).map((module) => module.text)
+  : undefined;
+
+describe.skipIf(modules === undefined)('tool surface patches on the stock binary', () => {
+  const rebased = rebaseAll(toolSurfacePatches, modules ?? []);
+
+  test.each(rebased.map((entry) => [entry.name, entry] as const))(
+    '%s rebases independently of the other shipped patches',
+    (_name, entry) => {
+      expect(applies(entry)).toBe(true);
+      expect(entry.matches).toBe(1);
+    },
+  );
+
+  test('the resolver fixture matches stock up to minified names', () => {
+    const pattern = new RegExp(holePattern(STOCK_RESOLVER).source, 'gu');
+    expect(
+      (modules ?? []).reduce((count, text) => count + [...text.matchAll(pattern)].length, 0),
+    ).toBe(1);
   });
 });

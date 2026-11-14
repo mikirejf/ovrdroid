@@ -46,8 +46,8 @@ export const counterPatches: readonly Patch[] = [
   },
   {
     name: 'counter-message-list',
-    find: 'activeMachineName:t1,remoteImageScope:r1})=>{',
-    replace: 'activeMachineName:t1,remoteImageScope:r1})=>{globalThis.$ODc.list++;',
+    find: 'isSessionPromptActive:s1=!1})=>{',
+    replace: 'isSessionPromptActive:s1=!1})=>{globalThis.$ODc.list++;',
   },
   {
     name: 'counter-markdown',

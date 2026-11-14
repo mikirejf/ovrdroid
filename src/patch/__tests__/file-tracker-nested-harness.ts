@@ -17,10 +17,12 @@ const NESTED_PATCH = 'nested-tool-call-notice';
 const ID = String.raw`[\w$]+`;
 
 const ROLES = {
-  admit: String.raw`=await (?<admit>${ID})\(${ID},${ID},${ID},${ID}\),${ID}=\(\)=>\(`,
-  sandbox: String.raw`=\(\)=>\((?<sandbox>${ID})\(${ID},${ID},${ID}\),`,
-  run: String.raw`\(${ID},${ID},${ID}\),(?<run>${ID})\(\{toolName:`,
-  span: String.raw`=\(\)=>(?<span>${ID})\(${ID},\{sessionId:`,
+  admit: String.raw`=await (?<admit>${ID})\(${ID},${ID},${ID},${ID}\),\{toolInput:`,
+  sandbox: String.raw`return (?<sandbox>${ID})\(${ID},${ID},${ID},${ID}\),`,
+  run: String.raw`return (?<run>${ID})\(\{toolName:`,
+  control: String.raw`=await (?<control>${ID})\(${ID},${ID},${ID},${ID},${ID},async\(\)=>`,
+  approve: String.raw`=await (?<approve>${ID})\(${ID},${ID},${ID},${ID}\);if\(${ID}\.abortSignal`,
+  span: String.raw`return await (?<span>${ID})\(${ID},\{sessionId:`,
   parent: String.raw`\.\.\.(?<parent>${ID})\(${ID}\.parentToolUseId\)`,
   queue: String.raw`=await (?<queue>${ID})\(${ID}\.sessionId,${ID}\.tool,`,
   mayHaveMutated: String.raw`mayHaveMutated:(?<mayHaveMutated>${ID})\(${ID},${ID},${ID}\)`,
@@ -131,6 +133,11 @@ export function nestedDispatch(
       [roles.admit, admit],
       [roles.sandbox, () => {}],
       [roles.run, run],
+      [
+        roles.control,
+        async (...args: [Stand, Stand, Stand, Stand, Stand, Body]) => await args[5](),
+      ],
+      [roles.approve, () => ({})],
       [roles.span, async (_dependencies: Stand, _call: Stand, body: Body) => await body()],
       [roles.parent, () => ({})],
       [roles.queue, async (_session: string, _tool: Stand, body: Body) => await body()],

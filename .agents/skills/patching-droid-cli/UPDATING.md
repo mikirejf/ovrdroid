@@ -296,6 +296,11 @@ This is also the trap that makes eyeballing wrong. A name carried over by hand c
 new build to unrelated code in a different chunk (a wordmark name that became a markdown regex), so
 it compiles, ships, and draws garbage. `names` says which one you have.
 
+A clean rebase also proves nothing about **scope**. A lookup can capture a local of a neighbouring
+function, which the `replace` cannot see at its splice point: it renames cleanly and reads an
+unrelated binding, or nothing, at runtime. Capture a module-scope binding (an import, a getter)
+and call it inside the payload, and test the payload spliced into the real stock text.
+
 A patch that hangs a flag on a function (`X.$done`) must hang it on a name that both the writing
 site and the reading site can see. Across chunks that means an **exported** name the reader
 imports; `names` on the reader's anchor tells you which, and a lookup in the writer's module must
@@ -320,6 +325,17 @@ When a payload leaves a dormant placeholder in a stock object, audit new readers
 too. Admission may need to wake it before reading live capabilities, while catalog refresh should
 keep using cached state without waking it. Test both readers as well as execution; forwarding a
 new method argument alone does not prove the placeholder still works.
+
+A `find` that still matches says nothing about the **shapes** around it. When a value the payload
+reads changes shape (a list of results becomes one aggregate verdict, a boolean prop becomes a mode
+string), a check like `.length>0` keeps compiling and silently switches the payload off. Read every
+value the payload consumes in the new extraction, and test each shape and mode.
+
+When upstream replaces a setting's API (a boolean becomes an enum, a feature-flagged resolver, a
+legacy mapping), re-anchoring the UI that shows a custom value is not enough. Follow the value
+through validation, legacy mapping, flag-dependent resolution and persistence; any of them can
+quietly turn it into a stock value. Test the patched setter and resolver together, under each flag,
+and after a reload from stored preferences.
 
 When upstream moves a step (matching, say) into its own helper, a payload that redid the step by
 hand can call the helper: one borrowed binding instead of several, and it inherits upstream's new
@@ -526,6 +542,11 @@ probe enumerates it, so session readers must skip folders that disappear, while 
 filesystem errors. Exercise that interleaving in a test; a passing standalone probe does not cover
 the gate's concurrent cleanup.
 
+A cache check that compares turns must take its baseline from the right request. A turn with a
+tool round-trip logs several usage lines, and only the first one shows what was cached before the
+conversation; a later one already includes the conversation, so a check that uses it reports a bust
+that never happened.
+
 A check that fails once is not flaky until you have looked. Compare Droid's own log for the failed
 run with a passing run's: a step that never happened (a settings call missing) points at a real
 race, which stock usually shares. A cache check that fails on numbers alone has not shown Droid
@@ -545,6 +566,9 @@ empty folder outside git) and that Droid already trusts, or the trust dialog sta
 
 No gate looks at the screen. A patch that paints (header lines, logo accents, footer text) can
 build, pass every probe, and draw nothing or draw in the wrong place. Launch the copy and look.
+The same goes for a setting a patch adds a value to: drive the real settings row in a PTY, press
+it one step at a time, and read the row and the settings file after each step. A unit test of the
+cycle function passes while the row's action feeds it a stale value read at event time.
 
 `bun run ovrdroid apply` is the first gate that reads your `replace` strings as code, so treat its
 `bun build failed` as a patch bug and not a harness one. `--version` proves nothing: it skips the

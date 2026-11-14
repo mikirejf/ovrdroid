@@ -95,10 +95,10 @@ const SEGMENT_REF_LOOKUP = 'let q=S(null),K=S(new Map),X=$U(B)';
 
 const STATE_UNCHANGED = 'c1.error===l1.error&&Tu1(c1.window,l1.window,Z.current))return;';
 
-const SEGMENT_PROPS = '({page:g,isMeasured:y,contentWidth:E,compact:A,';
+const SEGMENT_PROPS = '({page:g,isMeasured:y,contentWidth:E,toolOutputMode:A,';
 
 const SEGMENT_DRAW =
-  'children:Z.map((e1)=>{let t1=T8(e1,{contentWidth:E,showThinking:D,compact:A,renderRegion:"dynamic"});';
+  'children:Z.map((e1)=>{let t1=T8(e1,{contentWidth:E,showThinking:D,compact:A!=="expanded",renderRegion:"dynamic"});';
 
 export const FOCUS_UNIT =
   '$ODfocus!==void 0&&e1.kind==="item"&&e1.item.id===$ODfocus?{...e1,item:{...e1.item,$ODfocus:!0}}:e1';

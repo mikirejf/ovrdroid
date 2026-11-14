@@ -226,6 +226,20 @@ interface FocusUnit {
   item?: { id: string; $ODfocus?: boolean };
 }
 
+interface FocusRenderOptions {
+  compact: boolean;
+  contentWidth: number;
+  showThinking: boolean;
+  renderRegion: string;
+}
+
+interface FocusRendered {
+  unit: FocusUnit;
+  options: FocusRenderOptions;
+}
+
+type FocusRenderer = (unit: FocusUnit, options: FocusRenderOptions) => FocusRendered;
+
 describe('marking the highlighted message', () => {
   const mark = payloadFunction<[FocusUnit, string?], FocusUnit>(
     ['e1', '$ODfocus'],
@@ -247,6 +261,33 @@ describe('marking the highlighted message', () => {
     const unit = { kind: 'item', item: { id: 'm1' } };
     expect(mark(unit)).toBe(unit);
   });
+
+  test.each(['expanded', 'compact', 'stacked'])(
+    'drawing the focused segment preserves the %s output mode',
+    (mode) => {
+      const { replace } = patchNamed(rewindScrollPatches, 'transcript-history-segment-marks-focus');
+      const draw = payloadFunction<
+        [FocusUnit[], string, number, boolean, string, FocusRenderer],
+        FocusRendered[]
+      >(
+        ['Z', '$ODfocus', 'E', 'D', 'A', 'T8'],
+        `${replace.replace('children:', 'return ')}return t1})`,
+      );
+      const unit = { kind: 'item', item: { id: 'm1' } };
+      const [rendered] = draw([unit], 'm1', 80, true, mode, (item, options) => ({
+        unit: item,
+        options,
+      }));
+      expect(rendered?.unit.item?.$ODfocus).toBe(true);
+      expect(unit.item).toEqual({ id: 'm1' });
+      expect(rendered?.options).toEqual({
+        contentWidth: 80,
+        showThinking: true,
+        compact: mode !== 'expanded',
+        renderRegion: 'dynamic',
+      });
+    },
+  );
 
   test('the focused message takes the menu highlight color for its bar and text', () => {
     const { replace } = patchNamed(rewindScrollPatches, 'user-message-focus-color');

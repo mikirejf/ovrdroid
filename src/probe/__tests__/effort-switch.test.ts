@@ -6,14 +6,13 @@ import { compareBodies } from '../bodies.ts';
 import type { SwitchOutcomes, TurnUsage } from '../effort-switch-verdict.ts';
 import {
   bodyRecord,
-  bustsByTurn,
   findRequests,
   switchRuling,
   switchVerdict,
-  turnLine,
+  turnLines,
   turnUsage,
 } from '../effort-switch-verdict.ts';
-import type { BustLine, UsageLine } from '../logs.ts';
+import type { UsageLine } from '../logs.ts';
 
 const MODEL = 'custom:droidproxy:sonnet-5-5';
 const CONTROL_END = '2026-10-15T10:00:20.000Z';
@@ -58,6 +57,7 @@ function outcomes(overrides: Partial<SwitchOutcomes> = {}): SwitchOutcomes {
   return {
     efforts: { seed: 'high', control: 'high', switched: 'medium' },
     seed: turn(13_594, 10_015),
+    seedCacheRead: 13_594,
     control: turn(20_965, 2666),
     switched: turn(23_631, 23),
     busts: [],
@@ -85,23 +85,6 @@ function usageLine(modelId: string, at: string, cacheRead = 0): UsageLine {
   };
 }
 
-function bustLine(at: string): BustLine {
-  return {
-    kind: 'bust',
-    at,
-    sessionId: 's',
-    modelId: MODEL,
-    previousModelId: MODEL,
-    providerPath: 'anthropic',
-    reason: 'not-append-only',
-    firstMismatchIndex: 4,
-    previousSegmentLabel: 'a',
-    currentSegmentLabel: 'b',
-    mismatchRegion: 'system',
-    mismatchKind: 'content-changed',
-  };
-}
-
 describe('switchRuling reads the request bodies and the cache numbers', () => {
   test('the usual history pattern is kept and carries no note', () => {
     const ruling = switchRuling(outcomes());
@@ -126,11 +109,15 @@ describe('switchRuling reads the request bodies and the cache numbers', () => {
   });
 
   test('a cold seed is kept but says the dropped-conversation check could not run', () => {
-    const cold = outcomes({ seed: turn(0, 24_000), control: turn(21_814, 2744) });
+    const cold = outcomes({
+      seed: turn(20_000, 4000),
+      seedCacheRead: 0,
+      control: turn(21_814, 2744),
+    });
     const ruling = switchRuling({ ...cold, switched: turn(24_558, 25) });
     expect(ruling.kind).toBe('kept');
     expect(ruling.text.split('\n').at(-1)).toBe(
-      'the seed turn read nothing from the cache (a cold start), so the check that the switched turn read the conversation could not run',
+      "the seed turn's first request read nothing from the cache (a cold start), so the check that the switched turn read the conversation could not run",
     );
   });
 
@@ -203,7 +190,29 @@ describe('switchRuling reads the request bodies and the cache numbers', () => {
     expect(switchRuling(earlier).kind).toBe('kept');
   });
 
-  test('a switched turn that read no more than the seed read lost the conversation', () => {
+  test('a seed tool round-trip does not make a partially cached conversation look busted', () => {
+    const requests = [
+      { ...usageLine(MODEL, 't1', 14_603), reason: 'tool_use' },
+      usageLine(MODEL, 't2', 26_144),
+    ];
+    const { first, last } = turnLines(requests, MODEL, 'seed');
+    const measured = outcomes({
+      seed: turnUsage(last),
+      seedCacheRead: first.cacheReadInputTokens,
+      control: turn(26_238, 25),
+      switched: turn(22_657, 3631),
+    });
+    expect(measured.seed.cacheRead).toBe(26_144);
+    expect(measured.seedCacheRead).toBe(14_603);
+    const ruling = switchRuling(measured);
+    expect(ruling.kind).toBe('kept');
+    expect(ruling.text).not.toContain('read none of the conversation');
+    expect(ruling.text).toContain(
+      'control turn read 26,238 and wrote 25; switched turn read 22,657 and wrote 3,631',
+    );
+  });
+
+  test('a switched turn that read no more than the first seed request lost the conversation', () => {
     const dropped = outcomes({
       seed: turn(13_594, 10_015),
       control: turn(20_965, 2666),
@@ -212,7 +221,7 @@ describe('switchRuling reads the request bodies and the cache numbers', () => {
     const ruling = switchRuling(dropped);
     expect(ruling.kind).toBe('busted');
     expect(ruling.text).toContain(
-      'the switched turn read none of the conversation from the cache: it read 13,594, no more than the 13,594 the seed turn read',
+      "the switched turn read none of the conversation from the cache: it read 13,594, no more than the 13,594 the seed turn's first request read",
     );
   });
 
@@ -338,19 +347,21 @@ describe('bodyRecord writes what the bodies showed', () => {
   });
 });
 
-describe('turnLine picks the usage line that carries the turn', () => {
-  test('it takes the last line logged by the session model', () => {
-    const added = [usageLine(MODEL, 't1', 10), usageLine(MODEL, 't2', 20)];
-    expect(turnLine(added, MODEL, 'seed').cacheReadInputTokens).toBe(20);
+describe('turnLines keeps the initial request and the turn completion separate', () => {
+  test('it takes the first and last lines logged by the session model', () => {
+    const first = usageLine(MODEL, 't1', 10);
+    const last = usageLine(MODEL, 't2', 20);
+    expect(turnLines([first, last], MODEL, 'seed')).toEqual({ first, last });
   });
 
   test('it skips lines from another model', () => {
-    const added = [usageLine(MODEL, 't1', 10), usageLine('other-model', 't2', 99)];
-    expect(turnLine(added, MODEL, 'seed').cacheReadInputTokens).toBe(10);
+    const line = usageLine(MODEL, 't1', 10);
+    const added = [usageLine('other-model', 't0', 99), line, usageLine('other-model', 't2', 99)];
+    expect(turnLines(added, MODEL, 'seed')).toEqual({ first: line, last: line });
   });
 
   test('it throws and names the models logged when none matches', () => {
-    expect(() => turnLine([usageLine('other-model', 't1')], MODEL, 'control')).toThrow(
+    expect(() => turnLines([usageLine('other-model', 't1')], MODEL, 'control')).toThrow(
       `the control turn logged no usage line for ${MODEL}; models logged: other-model`,
     );
   });
@@ -361,28 +372,5 @@ describe('turnLine picks the usage line that carries the turn', () => {
       cacheRead: 50,
       cacheWrite: 7,
     });
-  });
-});
-
-describe('bustsByTurn files a warning under the first turn that ended after it', () => {
-  const ends = {
-    seed: '2026-10-15T10:00:10.000Z',
-    control: '2026-10-15T10:00:20.000Z',
-    switched: '2026-10-15T10:00:30.000Z',
-  };
-
-  test('a warning between two turn ends belongs to the later turn', () => {
-    const found = bustsByTurn([bustLine('2026-10-15T10:00:25.000Z')], ends);
-    expect(found).toEqual([
-      { turn: 'switched', region: 'system', kind: 'content-changed', index: 4 },
-    ]);
-  });
-
-  test('a warning before the seed ends belongs to the seed', () => {
-    expect(bustsByTurn([bustLine('2026-10-15T10:00:05.000Z')], ends)[0]?.turn).toBe('seed');
-  });
-
-  test('a warning after the last turn is dropped', () => {
-    expect(bustsByTurn([bustLine('2026-10-15T10:01:00.000Z')], ends)).toEqual([]);
   });
 });

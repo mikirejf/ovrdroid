@@ -115,12 +115,21 @@ export function callEnd(id: string): string {
   return `process.emit(${JSON.stringify(TOOL_CALL_END_EVENT)},${id})`;
 }
 
-const PERMISSION_FN = 'this.createTuiRequestPermissionFn(t);';
-const AFTER_PERMISSION_FN = 'cZ(ue??null);let xe=()=>Xqe(g.name,';
+const PERMISSION_FN = 'this.createTuiRequestPermissionFn(t),';
+const AFTER_PERMISSION_FN = 'xe=()=>Xqe(g.name,';
 const RUNNER_FINALLY = '}finally{this._runningTools.delete(g.id),';
 
-const HOOKS_CALL =
-  'ie=await _o("PostToolUse",{session_id:q,transcript_path:C,cwd:I(),permission_mode:JR(w),hook_event_name:"PostToolUse",tool_name:d.name,tool_input:d.input,tool_response:z},{...this.context,updateAction:this.updateAction,sessionId:q,toolCallId:d.id,abortSignal:o.abortController.signal},d.tool.mcpIdentity);';
+const HOOKS_RUN =
+  '_o("PostToolUse",{session_id:q,transcript_path:C,cwd:I(),permission_mode:JR(w),hook_event_name:"PostToolUse",tool_name:d.name,tool_input:d.input,tool_response:z},{...this.context,updateAction:this.updateAction,sessionId:q,toolCallId:d.id,abortSignal:o.abortController.signal},d.tool.mcpIdentity)';
+
+const HOOKS_CALL = `ie=await ${HOOKS_RUN};`;
+
+const OBSERVED_HOOKS_CALL =
+  '$ODhooksRan=!1,ie=await(async()=>{' +
+  'let $ODcompleted=({notification:$ODnotice})=>{' +
+  'if($ODnotice.type==="hook_execution_completed"&&$ODnotice.hookEventName==="PostToolUse"&&$ODnotice.hookToolCallId===d.id&&$ODnotice.hookResults.length>0)$ODhooksRan=!0};' +
+  'AZ.on("project-notification",$ODcompleted);' +
+  `try{return await ${HOOKS_RUN}}finally{AZ.off("project-notification",$ODcompleted)}})();`;
 
 const FOLD_FUNCTION =
   '$ODfold=($ODresult,$ODnotes)=>{' +
@@ -138,7 +147,7 @@ const TAKE_SNAPSHOT = `$ODsnap=await${collectWaits(TOOL_HOOKS_START_EVENT, 'd.id
 
 const FOLD_NOTES =
   'let $ODnotes=[];' +
-  'if(ie.length>0){let $ODwaits=[];' +
+  'if($ODhooksRan){let $ODwaits=[];' +
   `process.emit(${JSON.stringify(TOOL_HOOKS_DONE_EVENT)},d.id,$ODsnap,$ODwaits);` +
   '$ODnotes.push(...(await Promise.all($ODwaits)).flat())}' +
   `{let $ODwaits=[];${callDone('d.id', 'd.name')}` +
@@ -147,19 +156,19 @@ const FOLD_NOTES =
   'z=$ODfold(z,$ODshown);' +
   're!==void 0&&(re=$ODfold(re,$ODshown))}';
 
-const MODEL_CONTENT_BINDING = '{content:z,modelContent:re}=await this.raceToolWithBatchAbort(';
+const MODEL_CONTENT_BINDING = 'if(a===void 0)return b(d,h),null;let{content:z,modelContent:re}=a;';
 
-const NESTED_RUN =
-  'p=()=>K(o,{sessionId:o.sessionId,toolUseId:e.toolUseId,toolName:e.toolName,input:n,...t,...D(r.parentToolUseId)},s),';
+const NESTED_CALL_BINDING =
+  'return await ao(o,{sessionId:o.sessionId,toolUseId:e.toolUseId,toolName:e.toolName,';
 
-const NESTED_DISPATCH = 'u=await AJ(o.sessionId,c.tool,';
+const NESTED_DISPATCH = 'C=await _Y(o.sessionId,n.tool,';
 
 const NESTED_CALL_CHECK =
-  `$ODrun=async()=>{try{${beforeCall('e.toolUseId', 'e.toolName')}` +
-  `let $ODout=await p(),$ODwaits=[];${callDone('e.toolUseId', 'e.toolName')}` +
+  `async()=>{try{${beforeCall('e.toolUseId', 'e.toolName')}` +
+  `let $ODout=await T(),$ODwaits=[];${callDone('e.toolUseId', 'e.toolName')}` +
   'let $ODnotes=(await Promise.all($ODwaits)).filter(Boolean);' +
   'return $ODnotes.length===0?$ODout:{...$ODout,llmReminders:[...$ODout.llmReminders??[],...$ODnotes]}' +
-  `}finally{${callEnd('e.toolUseId')}}},`;
+  `}finally{${callEnd('e.toolUseId')}}}`;
 
 export const fileTrackerPatches: readonly Patch[] = [
   {
@@ -171,7 +180,7 @@ export const fileTrackerPatches: readonly Patch[] = [
   {
     name: 'tool-call-start-stat',
     find: PERMISSION_FN + AFTER_PERMISSION_FN,
-    replace: PERMISSION_FN + beforeCall('g.id', 'g.name') + AFTER_PERMISSION_FN,
+    replace: `${PERMISSION_FN}$ODpre=await${collectWaits(TOOL_CALL_START_EVENT, '$ODwaits,g.id,g.name')},${AFTER_PERMISSION_FN}`,
   },
   {
     name: 'tool-call-end-live',
@@ -181,12 +190,13 @@ export const fileTrackerPatches: readonly Patch[] = [
   {
     name: 'tool-call-done-notice',
     find: HOOKS_CALL,
-    lookups: [MODEL_CONTENT_BINDING],
-    replace: FOLD_FUNCTION + TAKE_SNAPSHOT + HOOKS_CALL + FOLD_NOTES,
+    lookups: [MODEL_CONTENT_BINDING, 'AZ.emit("tool-streaming-update",'],
+    replace: FOLD_FUNCTION + TAKE_SNAPSHOT + OBSERVED_HOOKS_CALL + FOLD_NOTES,
   },
   {
     name: 'nested-tool-call-notice',
-    find: `${NESTED_RUN}${NESTED_DISPATCH}p)`,
-    replace: `${NESTED_RUN}${NESTED_CALL_CHECK}${NESTED_DISPATCH}$ODrun)`,
+    find: `${NESTED_DISPATCH}T)`,
+    lookups: [NESTED_CALL_BINDING],
+    replace: `${NESTED_DISPATCH}${NESTED_CALL_CHECK})`,
   },
 ];
