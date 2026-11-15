@@ -1,9 +1,7 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND, say } from '../cli.ts';
-import { FACTORY_DROIDS } from '../paths.ts';
-import { makeTempDir } from '../temp.ts';
 import { anyFailed, describeVerdicts } from './busy-signal-report.ts';
 import type { FrameGapEvidence, GapAnswer } from './frame-gap-report.ts';
 import {
@@ -18,7 +16,8 @@ import {
 } from './frame-gap-report.ts';
 import { TERMINAL_SIZE } from './launch.ts';
 import { poll } from './poll.ts';
-import { droidFilePath, droidFileText, send, settle, waitFor } from './rewind.ts';
+import { withScratchProject } from './project-droid.ts';
+import { droidFileText, send, settle, waitFor } from './rewind.ts';
 import type { Session } from './session.ts';
 import { openSettledSession } from './session.ts';
 import { streamEvents, stubSettings, toolEvents } from './stub-model.ts';
@@ -33,7 +32,6 @@ const FLAGS = { flags: { droids_view: false }, configs: {} };
 export const DEFAULT_FRAME_GAP_TIMEOUT_S = 60;
 
 export interface FrameGapOptions {
-  cwd: string;
   timeout: number;
 }
 
@@ -171,34 +169,31 @@ export async function captureFrameGap(
   options: FrameGapOptions,
 ): Promise<FrameGapEvidence> {
   const stub = startStub(`toolu_framegap${crypto.randomUUID().slice(0, 8)}`);
-  const dir = makeTempDir('frame-gap');
-  const droidFile = droidFilePath(DROID_TYPE);
+  const droid = { type: DROID_TYPE, text: droidFileText(DROID_TYPE) };
   let output = '';
   try {
-    mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, droidFileText(DROID_TYPE));
-    const { session } = await openSettledSession(binary, {
-      cwd: options.cwd,
-      env: stubEnv(dir, stub.url),
-      collect: false,
-      screen: true,
-      onData: (text) => {
-        output += text;
-      },
-    });
-    return await runStages({
-      session,
-      stub,
-      output: () => output,
-      timeoutMs: options.timeout * MS_PER_SECOND,
+    return await withScratchProject('frame-gap', droid, async ({ dir, cwd }) => {
+      const { session } = await openSettledSession(binary, {
+        cwd,
+        env: stubEnv(dir, stub.url),
+        collect: false,
+        screen: true,
+        onData: (text) => {
+          output += text;
+        },
+      });
+      return await runStages({
+        session,
+        stub,
+        output: () => output,
+        timeoutMs: options.timeout * MS_PER_SECOND,
+      });
     });
   } finally {
     await stub.stop();
-    for (const made of [dir, droidFile]) {
-      rmSync(made, { recursive: true, force: true });
-    }
   }
 }
+
 export async function frameGap(binary: string, options: FrameGapOptions): Promise<void> {
   say(
     `a stub model streams a ${REPLY_LINES}-paragraph reply that fills a ${TERMINAL_SIZE.cols}x${TERMINAL_SIZE.rows} screen and launches a background droid; the frame shrinks when the turn ends and again when the droid finishes`,

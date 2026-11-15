@@ -273,6 +273,8 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
 }
 
 const ESCAPE_STAMP = '__odEscAt';
+const ESCAPE_NOW_MS = Date.UTC(2026, 0, 1);
+const escapeClock = { now: () => ESCAPE_NOW_MS };
 
 export function inputEscape(sites: Sites): (counted: boolean) => boolean {
   const rebase = sites.rebase('escape-twice-reaches-stop');
@@ -284,7 +286,10 @@ export function inputEscape(sites: Sites): (counted: boolean) => boolean {
   );
   const handler = evaluate<(count: () => boolean) => () => boolean>(
     `(${named('Hr')})=>${source}`,
-    new Map<string, Stand>([[named('X'), false]]),
+    new Map<string, Stand>([
+      [named('X'), false],
+      ['Date', escapeClock],
+    ]),
   );
   return (counted) => handler(() => counted)();
 }
@@ -316,6 +321,7 @@ export function escapeWorld(sites: Sites): EscapeWorld {
     [found('e'), undefined],
     [found('shell'), { isExecuting: false }],
     [named('V3'), () => stops.push(1)],
+    ['Date', escapeClock],
   ]);
   const handler = evaluate<(working: string, pending: boolean) => (key: KeyEvent) => boolean>(
     `(${named('Ss')},${named('JC')})=>${source}`,
@@ -325,7 +331,7 @@ export function escapeWorld(sites: Sites): EscapeWorld {
     stops,
     press: ({ working, pending }) => handler(working, pending)({}),
     lastSwallowedAgo: (ms) => {
-      Reflect.set(globalThis, ESCAPE_STAMP, Date.now() - ms);
+      Reflect.set(globalThis, ESCAPE_STAMP, ESCAPE_NOW_MS - ms);
     },
     forget: () => {
       Reflect.deleteProperty(globalThis, ESCAPE_STAMP);

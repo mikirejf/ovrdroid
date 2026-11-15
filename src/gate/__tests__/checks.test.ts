@@ -53,7 +53,7 @@ describe('gateChecks', () => {
 
   test('puts the stock before the patched build in the typing-during-startup A/B', () => {
     expect(commandOf('typing-start')).toBe(
-      'bun run probe typing-start -r 10 /s/droid /t/droid.tmp',
+      'bun run probe typing-start -r 10 --gaps 25 /s/droid /t/droid.tmp',
     );
   });
 
@@ -64,7 +64,12 @@ describe('gateChecks', () => {
     expect(commandOf('tool-surface')).toBe(
       'bun run probe tool-surface /g/droid-bodies --model-id custom:droidproxy:haiku-5-5',
     );
-    expect(laneNames('live')).toContainEqual(['bodies-build', 'tool-surface', 'effort-switch']);
+    expect(laneNames('live')).toContainEqual([
+      'bodies-build',
+      'tool-surface',
+      'effort-switch',
+      'compaction-turn',
+    ]);
   });
 
   test('pins cachekey to GPT-6 Luna instead of inheriting the exec model from the environment', () => {
@@ -77,6 +82,16 @@ describe('gateChecks', () => {
     expect(commandOf('effort-switch')).toBe(
       `bun run probe effort-switch /g/droid-bodies --model ${PROBE_MODEL} --yes`,
     );
+  });
+
+  test('runs the compaction-turn cache check on the bodies binary, because its verdict reads request bodies', () => {
+    expect(commandOf('compaction-turn')).toBe(
+      `bun run probe compaction-turn /g/droid-bodies --model-id ${PROBE_MODEL}`,
+    );
+  });
+
+  test('runs one digest session, because its verdict reads compaction paths and one session compacts several times', () => {
+    expect(commandOf('digest-run')).toBe('bun run probe digest-run -r 1 /t/droid.tmp');
   });
 
   test('checks the release it gates, not the newest one', () => {
@@ -95,7 +110,7 @@ describe('gateChecks', () => {
       ['digest-run'],
       ['warm'],
       ['cachekey'],
-      ['bodies-build', 'tool-surface', 'effort-switch'],
+      ['bodies-build', 'tool-surface', 'effort-switch', 'compaction-turn'],
     ]);
   });
 
@@ -140,6 +155,8 @@ describe('gateChecks', () => {
         'skill-carry',
         'readonly-shell',
         'digest-run',
+        'compaction-turn',
+        'deferred-load',
       ].toSorted(),
     );
   });

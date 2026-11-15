@@ -14,7 +14,7 @@ const echoing = await script(dir, 'echoing.sh', [
   'stty raw -echo',
   `printf '${PAINT_OUTPUT}'`,
   START_HOOK,
-  'while :; do dd bs=1 count=1 2>/dev/null; done',
+  'exec cat',
 ]);
 const stillborn = await script(dir, 'stillborn.sh', ['exit 3']);
 

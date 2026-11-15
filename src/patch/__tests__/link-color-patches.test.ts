@@ -1,11 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { patchSource } from '../../binary/apply.ts';
 import { linkColorPatches } from '../link-color-patches.ts';
 import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
-import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { shippedText, STOCK } from './ink-frame-harness.ts';
 import { describeStrayNames, payloadFunction } from './payload.ts';
 
 const SLOW_PATCH_MS = 120_000;
@@ -41,9 +40,7 @@ describe.skipIf(STOCK === undefined)(
       'it ships and applies on top of every other shipped patch',
       () => {
         expect(patches.filter((patch) => patch.name === 'markdown-link-color')).toHaveLength(1);
-        const shipped = patchSource(sourceApp(), patches)
-          .map((module) => module.text)
-          .join('\n');
+        const shipped = shippedText();
         expect(shipped.split(rebased().replace)).toHaveLength(2);
         expect(shipped).not.toContain(rebased().find);
       },

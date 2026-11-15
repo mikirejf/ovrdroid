@@ -1,12 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND, say } from '../cli.ts';
-import { FACTORY_DROIDS, ovrdroidFile } from '../paths.ts';
+import { ovrdroidFile } from '../paths.ts';
 import { makeTempDir } from '../temp.ts';
 import { digestKey, readDigestFolder } from './digest-key.ts';
 import type { DigestKey } from './digest-key.ts';
-import { DIGEST_PARENT_PROMPT, DIGEST_READER, DIGEST_READER_FILE } from './digest-prompt.ts';
+import { DIGEST_PARENT_PROMPT, withDigestReader } from './digest-prompt.ts';
 import type { RunResult } from './digest-run-report.ts';
 import {
   describeBinary,
@@ -120,18 +120,22 @@ async function sessionResult(job: Job, context: Context, dir: string): Promise<R
   mkdirSync(cwd);
   const startedAt = performance.now();
   const folder = sessionFolder(cwd);
-  return await runDirectExec(
-    job.binary,
-    {
-      cwd,
-      dir,
-      model: PROBE_MODEL,
-      effort: EFFORT,
-      autonomy: AUTONOMY,
-      prompt: context.prompt,
-      timeoutMs: context.timeoutMs,
-    },
-    (end) => readEnd(context, { job, folder, startedAt, end }),
+  return await withDigestReader(
+    cwd,
+    async () =>
+      await runDirectExec(
+        job.binary,
+        {
+          cwd,
+          dir,
+          model: PROBE_MODEL,
+          effort: EFFORT,
+          autonomy: AUTONOMY,
+          prompt: context.prompt,
+          timeoutMs: context.timeoutMs,
+        },
+        (end) => readEnd(context, { job, folder, startedAt, end }),
+      ),
   );
 }
 
@@ -149,17 +153,6 @@ function promptText(file: string | undefined): string {
   return file === undefined
     ? DIGEST_PARENT_PROMPT
     : readFileSync(file, 'utf-8').replace(TRAILING_NEWLINES, '');
-}
-
-async function withReader<T>(use: () => Promise<T>): Promise<T> {
-  const file = path.join(FACTORY_DROIDS, `${DIGEST_READER}.md`);
-  mkdirSync(FACTORY_DROIDS, { recursive: true });
-  writeFileSync(file, DIGEST_READER_FILE);
-  try {
-    return await use();
-  } finally {
-    rmSync(file, { force: true });
-  }
 }
 
 export async function digestRun(
@@ -180,19 +173,16 @@ export async function digestRun(
   );
 
   const failures: string[] = [];
-  const finished = await withReader(
-    async () =>
-      await inPool(jobs, options.parallel, async (job) => {
-        try {
-          return [{ index: job.index, result: await runJob(job, context) }];
-        } catch (error) {
-          failures.push(
-            `${job.label} run ${job.run}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          return [];
-        }
-      }),
-  );
+  const finished = await inPool(jobs, options.parallel, async (job) => {
+    try {
+      return [{ index: job.index, result: await runJob(job, context) }];
+    } catch (error) {
+      failures.push(
+        `${job.label} run ${job.run}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
+  });
 
   for (const [index, binary] of binaries.entries()) {
     const own = finished.flat().flatMap((done) => (done.index === index ? [done.result] : []));

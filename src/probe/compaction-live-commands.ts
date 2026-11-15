@@ -66,7 +66,7 @@ export function registerCompactionLiveCommands(program: Command): void {
   program
     .command('compaction-turn')
     .description(
-      'MAKES REAL MODEL CALLS: does the user message after an auto-compaction still extend the request before it, so it reads the cache? Reads digest files under a low compaction limit so Droid compacts mid-turn, sends one more message, and shows where that request stops extending the one before, in what Droid sent and, with --proxy-logs, in what CLIProxyAPI forwarded. The binary must be a `probe build --bodies` build',
+      'MAKES REAL MODEL CALLS: does a session that auto-compacts mid-turn keep its prompt cache? Reads digest files under a low compaction limit so Droid compacts mid-turn, then sends one more message. Fails when a request stops extending the one before it (bar the first after each compaction), or when the next user message reads less than 90% of its cached prefix; shows where a request stops extending, in what Droid sent and, with --proxy-logs, in what CLIProxyAPI forwarded. The binary must be a `probe build --bodies` build',
     )
     .argument('<binary>')
     .option('--model-id <id>', 'customModels id the session runs on', PROBE_MODEL)

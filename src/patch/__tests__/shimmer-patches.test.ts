@@ -1,11 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { patchSource } from '../../binary/apply.ts';
 import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { shimmerPatches } from '../shimmer-patches.ts';
-import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { shippedText, STOCK } from './ink-frame-harness.ts';
 import { payloadFunction, strayNames } from './payload.ts';
 
 const SLOW_PATCH_MS = 120_000;
@@ -43,9 +42,7 @@ describe.skipIf(STOCK === undefined)(
       () => {
         const shipped = new Set(shimmerPatches.map((patch) => patch.name));
         expect(patches.filter((patch) => shipped.has(patch.name))).toHaveLength(shipped.size);
-        const text = patchSource(sourceApp(), patches)
-          .map((module) => module.text)
-          .join('\n');
+        const text = shippedText();
         expect(text.split('globalThis.$ODcolorize')).toHaveLength(3);
       },
       SLOW_PATCH_MS,

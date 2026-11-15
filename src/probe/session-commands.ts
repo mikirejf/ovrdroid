@@ -209,11 +209,6 @@ export function registerSessionCommands(program: Command): void {
     )
     .argument('<binary>')
     .option(
-      '--cwd <dir>',
-      'directory to start Droid in; Droid must already trust it',
-      process.cwd(),
-    )
-    .option(
       '--timeout <seconds>',
       'how long to wait for the held agents to finish and report',
       count,
@@ -227,11 +222,6 @@ export function registerSessionCommands(program: Command): void {
       'launch with HERDR_ENV=1 and hold a background sub-agent in a stub model: does the OSC 9;4 progress stay at 3 (busy) from the turn through the sub-agent and the droids view (Alt+S), reach 0 once it finishes, on a session switch and at exit, and does the droids view show the model chip?',
     )
     .argument('<binary>')
-    .option(
-      '--cwd <dir>',
-      'directory to start Droid in; Droid must already trust it',
-      process.cwd(),
-    )
     .option('--timeout <seconds>', 'how long to wait for each step', count, DEFAULT_BUSY_TIMEOUT_S)
     .option('--out <dir>', 'save the payload timeline and the droids-view screen in this directory')
     .option('--view', 'fail when the droids view does not open', false)

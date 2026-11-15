@@ -11,11 +11,6 @@ export function registerRosterViewCommand(program: Command): void {
     )
     .argument('<binary>')
     .option(
-      '--cwd <dir>',
-      'directory to start Droid in; Droid must already trust it',
-      process.cwd(),
-    )
-    .option(
       '--timeout <seconds>',
       'how long to wait for each step',
       count,

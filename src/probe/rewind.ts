@@ -1,14 +1,13 @@
-import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND } from '../cli.ts';
-import { FACTORY_DROIDS, FACTORY_SESSIONS, FACTORY_TASK_INVOCATIONS } from '../paths.ts';
-import { makeTempDir } from '../temp.ts';
+import { FACTORY_TASK_INVOCATIONS } from '../paths.ts';
 import { entriesOf, fieldsOf, fieldsOfJson, worded } from './fields.ts';
-import { sessionFolderName } from './ledger.ts';
+import { sessionFolder } from './live-session.ts';
 import { sessionSettingsFileOf, transcriptFileOf } from './live-transcript.ts';
 import { poll } from './poll.ts';
+import { withScratchProject } from './project-droid.ts';
 import type {
   ChatFiles,
   RewindEvidence,
@@ -35,10 +34,6 @@ const DROID_TYPE = 'ovrdroid-rewind-probe';
 export function droidFileText(type: string): string {
   return `---\nname: ${type}\ndescription: Says hi for a probe.\nmodel: inherit\n---\nSay hi.\n`;
 }
-
-export function droidFilePath(type: string): string {
-  return path.join(FACTORY_DROIDS, `${type}.md`);
-}
 const REWIND_COMMAND = '/rewind-conversation';
 const BACKSPACE = '\u007F';
 const CLEAR_KEYS = 30;
@@ -59,7 +54,6 @@ const AFTER_PROMPT = launchPrompt('after');
 export const DEFAULT_REWIND_TIMEOUT_S = 60;
 
 export interface RewindOptions {
-  cwd: string;
   timeout: number;
 }
 
@@ -335,35 +329,32 @@ async function driveRewind(drive: Drive): Promise<RewindEvidence> {
 }
 
 export async function runRewind(binary: string, options: RewindOptions): Promise<RewindEvidence> {
-  const run = randomUUID().slice(0, 8);
+  const run = crypto.randomUUID().slice(0, 8);
   const callId = (tag: string) => `toolu_rewind${run}_${tag}`;
-  const droidFile = droidFilePath(DROID_TYPE);
-  const dir = makeTempDir('rewind');
   const stub = startStub(callId, DROID_TYPE);
+  const droid = { type: DROID_TYPE, text: droidFileText(DROID_TYPE) };
   try {
-    mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, droidFileText(DROID_TYPE));
-    const settingsFile = path.join(dir, 'settings.json');
-    writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
-    const { session } = await openSettledSession(binary, {
-      cwd: options.cwd,
-      env: { FACTORY_RUNTIME_SETTINGS_PATH: settingsFile },
-      screen: true,
-    });
-    try {
-      return await driveRewind({
-        session,
-        folder: path.join(FACTORY_SESSIONS, sessionFolderName(realpathSync(options.cwd))),
-        callId: stub.callId,
-        release: stub.release,
-        timeoutMs: options.timeout * MS_PER_SECOND,
+    return await withScratchProject('rewind', droid, async ({ dir, cwd }) => {
+      const settingsFile = path.join(dir, 'settings.json');
+      writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
+      const { session } = await openSettledSession(binary, {
+        cwd,
+        env: { FACTORY_RUNTIME_SETTINGS_PATH: settingsFile },
+        screen: true,
       });
-    } finally {
-      await session.close();
-    }
+      try {
+        return await driveRewind({
+          session,
+          folder: sessionFolder(cwd),
+          callId: stub.callId,
+          release: stub.release,
+          timeoutMs: options.timeout * MS_PER_SECOND,
+        });
+      } finally {
+        await session.close();
+      }
+    });
   } finally {
     await stub.stop();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(droidFile, { force: true });
   }
 }

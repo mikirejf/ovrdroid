@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND, say } from '../cli.ts';
-import { FACTORY_DROIDS } from '../paths.ts';
-import { makeTempDir } from '../temp.ts';
 import { poll } from './poll.ts';
+import { withScratchProject } from './project-droid.ts';
 import { send, settle, waitFor } from './rewind.ts';
 import type { RosterAnswer, RosterTitles } from './roster-view-report.ts';
 import {
@@ -35,7 +34,6 @@ export const DEFAULT_ROSTER_TIMEOUT_S = 60;
 export const SAVED_ROSTER_FILE = 'roster-view.txt';
 
 export interface RosterViewOptions {
-  cwd: string;
   timeout: number;
   out: string | undefined;
 }
@@ -162,32 +160,32 @@ export async function runRosterView(
 ): Promise<RosterEvidence> {
   const run = randomUUID().slice(0, 8);
   const stub = startStub((tag) => `toolu_roster${run}_${tag}`);
-  const dir = makeTempDir('roster-view');
-  const droidFile = path.join(FACTORY_DROIDS, `${DROID_TYPE}.md`);
   try {
-    mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, DROID_FILE);
-    const settingsFile = path.join(dir, 'settings.json');
-    writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
-    const flagsFile = path.join(dir, 'feature-flags.json');
-    writeFileSync(flagsFile, JSON.stringify({ flags: { droids_view: false }, configs: {} }));
-    const { session } = await openSettledSession(binary, {
-      cwd: options.cwd,
-      env: {
-        FACTORY_RUNTIME_SETTINGS_PATH: settingsFile,
-        FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: flagsFile,
+    return await withScratchProject(
+      'roster-view',
+      { type: DROID_TYPE, text: DROID_FILE },
+      async ({ dir, cwd }) => {
+        const settingsFile = path.join(dir, 'settings.json');
+        writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
+        const flagsFile = path.join(dir, 'feature-flags.json');
+        writeFileSync(flagsFile, JSON.stringify({ flags: { droids_view: false }, configs: {} }));
+        const { session } = await openSettledSession(binary, {
+          cwd,
+          env: {
+            FACTORY_RUNTIME_SETTINGS_PATH: settingsFile,
+            FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: flagsFile,
+          },
+          screen: true,
+        });
+        try {
+          return await openRoster(session, options.timeout * MS_PER_SECOND);
+        } finally {
+          await session.close();
+        }
       },
-      screen: true,
-    });
-    try {
-      return await openRoster(session, options.timeout * MS_PER_SECOND);
-    } finally {
-      await session.close();
-    }
+    );
   } finally {
     await stub.stop();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(droidFile, { force: true });
   }
 }
 

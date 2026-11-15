@@ -17,6 +17,8 @@ export interface GateInputs {
 
 const AB_RUNS = '24';
 
+const SPEED_RUNS = '6';
+
 const GATE_MODEL = PROBE_MODEL;
 
 const LIVE_LANES_AT_ONCE = 4;
@@ -56,11 +58,12 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
       },
       probe('tool-surface', bodiesBuild, '--model-id', GATE_MODEL),
       probe('effort-switch', bodiesBuild, '--model', GATE_MODEL, '--yes'),
+      probe('compaction-turn', bodiesBuild, '--model-id', GATE_MODEL),
     ],
   };
 
   const live: Lane<Check>[] = [
-    alone(probe('digest-run', target)),
+    alone(probe('digest-run', '-r', '1', target)),
     alone(probe('warm', target, '--yes')),
     alone(probe('cachekey', target, '--model', 'custom:droidproxy:gpt-6-luna')),
     bodies,
@@ -70,6 +73,7 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
     alone(probe('mcp-children', target)),
     alone(probe('compaction-fallback', target)),
     alone(probe('skill-carry', target)),
+    alone(probe('deferred-load', target)),
     alone(probe('readonly-shell', target)),
   ];
 
@@ -83,10 +87,10 @@ export function gateChecks(inputs: GateInputs): GatePhase[] {
     serial('timing', [
       probe('effort', target),
       probe('ab', '-r', AB_RUNS, stock, target),
-      probe('typing-start', '-r', '10', stock, target),
-      probe('keys', '-r', '12', stock, target),
-      probe('resume', stock, target),
-      probe('stream', '-r', '10', stock, target),
+      probe('typing-start', '-r', '10', '--gaps', '25', stock, target),
+      probe('keys', '-r', SPEED_RUNS, stock, target),
+      probe('resume', '-r', SPEED_RUNS, stock, target),
+      probe('stream', '-r', SPEED_RUNS, stock, target),
     ]),
   ];
 }

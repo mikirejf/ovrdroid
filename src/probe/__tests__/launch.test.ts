@@ -9,8 +9,8 @@ import { PAINT_OUTPUT, rejection, script, scriptDir, START_HOOK } from './script
 
 const LAUNCH_SRC = path.join(import.meta.dir, '..', 'launch.ts');
 const dir = scriptDir('launch');
-const RECORD_DELAY_MS = 2000;
-const SESSION_BOUND_MS = 3000;
+const RECORD_DELAY_MS = 1000;
+const SESSION_BOUND_MS = 500;
 
 afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -50,7 +50,7 @@ const crashing = await script(dir, 'crashing.sh', [
   'sleep 0.05',
   'exit 42',
 ]);
-const silent = await script(dir, 'silent.sh', ['sleep 30']);
+const silent = await script(dir, 'silent.sh', ['exec sleep 30']);
 const stillborn = await script(dir, 'stillborn.sh', ['exit 3']);
 
 describe('launch', () => {

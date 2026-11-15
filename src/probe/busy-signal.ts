@@ -1,15 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND } from '../cli.ts';
-import { FACTORY_DROIDS } from '../paths.ts';
-import { makeTempDir } from '../temp.ts';
 import type { BusyEvidence, Chunk, MarkName, Recording } from './busy-signal-report.ts';
 import { describeTimeline, IDLE, progressEvents } from './busy-signal-report.ts';
 import { poll } from './poll.ts';
+import { withScratchProject } from './project-droid.ts';
 import { LAUNCH_WORD } from './rewind-report.ts';
-import { droidFilePath, droidFileText, send, settle, startStub, waitFor } from './rewind.ts';
+import { droidFileText, send, settle, startStub, waitFor } from './rewind.ts';
 import { openSettledSession } from './session.ts';
 import type { Session } from './session.ts';
 import { stubSettings } from './stub-model.ts';
@@ -33,7 +32,6 @@ export const SAVED_FILES = {
 } as const;
 
 export interface BusySignalOptions {
-  cwd: string;
   timeout: number;
   out: string | undefined;
   switchSession: boolean;
@@ -140,23 +138,24 @@ async function finishHeldSubagent(
   recorder.mark('finished');
 }
 
-export interface ScenarioOptions extends Pick<BusySignalOptions, 'cwd' | 'timeout'> {
+export interface ScenarioOptions extends Pick<BusySignalOptions, 'timeout'> {
   sharedProcessAgents?: boolean;
 }
 
 interface Scenario {
   binary: string;
+  cwd: string;
   options: ScenarioOptions;
   fixture: Fixture;
 }
 
 async function runScenario(
-  { binary, options, fixture }: Scenario,
+  { binary, cwd, options, fixture }: Scenario,
   drive: (run: Run) => Promise<void>,
 ): Promise<Recorder> {
   const recorder = new Recorder();
   const { session } = await openSettledSession(binary, {
-    cwd: options.cwd,
+    cwd,
     env: fixture.env,
     screen: true,
     onData: (text) => {
@@ -179,38 +178,35 @@ export async function withScenario(
 ): Promise<Recorder> {
   const run = randomUUID().slice(0, 8);
   const stub = startStub((tag) => `toolu_busy${run}_${tag}`, DROID_TYPE);
-  const dir = makeTempDir('busy-signal');
-  const droidFile = droidFilePath(DROID_TYPE);
+  const droid = { type: DROID_TYPE, text: droidFileText(DROID_TYPE) };
   try {
-    mkdirSync(FACTORY_DROIDS, { recursive: true });
-    writeFileSync(droidFile, droidFileText(DROID_TYPE));
-    const settingsFile = path.join(dir, 'settings.json');
-    writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
-    const flagsFile = path.join(dir, 'feature-flags.json');
-    writeFileSync(
-      flagsFile,
-      JSON.stringify({
-        flags: { droids_view: true, shared_process_agents: options.sharedProcessAgents },
-        configs: {},
-      }),
-    );
-    const fixture: Fixture = {
-      release: stub.release,
-      env: {
-        FACTORY_RUNTIME_SETTINGS_PATH: settingsFile,
-        FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: flagsFile,
-        HERDR_ENV: '1',
-        HERDR_BIN_PATH: 'true',
-        TERM_PROGRAM: 'herdr',
-      },
-    };
-    return await runScenario({ binary, options, fixture }, async (held) => {
-      await drive(held, fixture);
+    return await withScratchProject('busy-signal', droid, async ({ dir, cwd }) => {
+      const settingsFile = path.join(dir, 'settings.json');
+      writeFileSync(settingsFile, JSON.stringify(stubSettings(stub.url)));
+      const flagsFile = path.join(dir, 'feature-flags.json');
+      writeFileSync(
+        flagsFile,
+        JSON.stringify({
+          flags: { droids_view: true, shared_process_agents: options.sharedProcessAgents },
+          configs: {},
+        }),
+      );
+      const fixture: Fixture = {
+        release: stub.release,
+        env: {
+          FACTORY_RUNTIME_SETTINGS_PATH: settingsFile,
+          FACTORY_FEATURE_FLAGS_SNAPSHOT_PATH: flagsFile,
+          HERDR_ENV: '1',
+          HERDR_BIN_PATH: 'true',
+          TERM_PROGRAM: 'herdr',
+        },
+      };
+      return await runScenario({ binary, cwd, options, fixture }, async (held) => {
+        await drive(held, fixture);
+      });
     });
   } finally {
     await stub.stop();
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(droidFile, { force: true });
   }
 }
 

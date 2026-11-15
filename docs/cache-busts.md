@@ -63,6 +63,17 @@ prefix, zero busts.
   shows up inside the Script tool: the same run on `sonnet-5-5` read 27,569, then 28,217, and
   rewrote nothing.
 
+The update gate checks these three patches with `probe deferred-load <binary>`, which makes no model
+calls. A stub custom model named `claude-haiku-5-5` (the name must match a registry model that
+supports mid-conversation tool changes, or Droid never defers) answers one direct-mode `droid exec`
+turn with `ToolSearch select:GenerateDroid`, then `LS`, then a reply. It fails when a request stops
+extending the one before it, leaving out tools marked `defer_loading`, which the API keeps out of
+the cached prefix. On Droid 1.11.0, 2026-11-14, 3 of 3 runs each: the patched build sends
+`GenerateDroid` deferred with a `tool_reference` and passes; stock appends it in full to `tools` and
+fails at char 27,438 of a 57,923-char prompt. Each run takes 3 to 6s. It also needs Factory's
+`mid_conversation_tool_changes` flag, which is on for this account; if Factory turns it off, the
+patched build behaves like stock and the check fails.
+
 The gate's cap matters. A shorter cap lets a slow MCP server join on turn two, so the 15s cap patch
 was dropped ([first-message.md](first-message.md)).
 
@@ -111,6 +122,34 @@ patched build, 2026-11-09:
   Fable, 39,324 on Opus).
 - Before the patch, the same request read 0 when its new account had never seen the prefix, and the
   next turn could land on yet another account.
+
+The update gate runs `compaction-turn` without proxy logs, so it judges only what Droid sent and
+what Droid logged. It fails when any request of the reading turn stops extending the one before it,
+bar the first after each compaction, or when the next message reads under 90% of the cached prefix.
+The reading turn reads each file through its own Script call, so this is the gate's turn-to-turn
+check with tool calls in between. On the patched Droid 1.11.0, 2026-11-14, `haiku-5-5`: 2 of 2 runs
+passed, the next message read 74,280 of 74,280 and 74,190 of 74,190, in about 50s each. In one run a
+request that extended the one before it read 22,167 of a 52,584-token prefix; the other run read it
+whole. That looks like a miss outside Droid's request, so the gate does not check each request's
+cache read.
+
+## Measured: adding or removing a droid busts every open session
+
+Droid lists the available droids in the reminder block at `messages[1]` of every request, and cuts
+each description to fit a budget the whole list shares. One droid file more or less in
+`~/.factory/droids` changes the cut of every line, so the next user message in every open session
+stops extending its previous request at `messages[1]` and re-writes nearly its whole cache.
+Tool-call requests inside a turn keep the old list, so the bust lands on the next user message.
+
+Found on Droid 1.11.0, 2026-11-14, in the update gate: `compaction-turn` ran on `haiku-5-5` while
+the `warm` probe removed its `ovrdroid-warm-probe` droid from `~/.factory/droids`. Its next message
+read 14,603 of a 75,169-token prefix and wrote 59,942. The changed lines went from `toy sp…` to
+`toy spikes in…`: the same descriptions, cut 7 characters longer once the list was one droid
+shorter.
+
+So no probe writes droid files into `~/.factory/droids` any more; each writes them into the project
+folder of the session it launches. A droid the user adds or edits still busts every open session
+once. No patch touches that list, so stock Droid does the same.
 
 ## Still open
 

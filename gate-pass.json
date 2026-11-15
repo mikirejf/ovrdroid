@@ -3,7 +3,7 @@
   "patchDigest": "6a3527402c7f",
   "bunVersion": "1.4.3",
   "platform": "darwin-arm64",
-  "passedAt": "2026-11-14T02:18:52.416Z",
+  "passedAt": "2026-11-14T11:37:20.819Z",
   "checks": [
     "verify",
     "builds",
@@ -14,6 +14,7 @@
     "bodies-build",
     "tool-surface",
     "effort-switch",
+    "compaction-turn",
     "effort-clear",
     "rewind",
     "notice",

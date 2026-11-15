@@ -5,7 +5,6 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { patchSource } from '../../binary/apply.ts';
 import {
   fileLinkPatches,
   IMAGE_LINK_DIRECTIVE,
@@ -14,7 +13,7 @@ import {
 import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
-import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { shippedText, sourceApp, STOCK } from './ink-frame-harness.ts';
 import { describeStrayNames, payloadFunction, rebasedNamed } from './payload.ts';
 
 const SLOW_PATCH_MS = 120_000;
@@ -63,9 +62,7 @@ describe.skipIf(STOCK === undefined)(
           .join('\n');
         expect(original.split(STOCK_IMAGE_DIRECTIVE)).toHaveLength(2);
         expect(original).not.toContain(IMAGE_LINK_DIRECTIVE);
-        const shipped = patchSource(sourceApp(), patches)
-          .map((module) => module.text)
-          .join('\n');
+        const shipped = shippedText();
         expect(shipped.split(rebased().replace)).toHaveLength(2);
         expect(shipped.split(IMAGE_LINK_DIRECTIVE)).toHaveLength(2);
         expect(shipped).not.toContain(STOCK_IMAGE_DIRECTIVE);

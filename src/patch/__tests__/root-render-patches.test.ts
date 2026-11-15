@@ -5,7 +5,7 @@ import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { rootRenderPatches } from '../root-render-patches.ts';
-import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { shippedPatched, sourceApp, STOCK } from './ink-frame-harness.ts';
 import { payloadFunction } from './payload.ts';
 
 const SLOW_PATCH_MS = 120_000;
@@ -37,7 +37,7 @@ describe.skipIf(STOCK === undefined)(
       () => {
         const shipped = new Set(patches.map((patch) => patch.name));
         expect(rootRenderPatches.every((patch) => shipped.has(patch.name))).toBe(true);
-        const app = patchSource(sourceApp(), patches);
+        const app = shippedPatched();
         expect(app.length).toBe(sourceApp().length);
       },
       SLOW_PATCH_MS,

@@ -137,18 +137,36 @@ async function settle(): Promise<void> {
   await Bun.sleep(5);
 }
 
+interface Patched {
+  rebased: ReturnType<typeof rebaseAll>;
+  text: string;
+}
+
+const patchedApps = new WeakMap<App, Patched>();
+
+function patchedApp(app: App): Patched {
+  let found = patchedApps.get(app);
+  if (found === undefined) {
+    found = {
+      rebased: rebaseAll(
+        sessionMentionPatches,
+        app.map((module) => module.text),
+      ),
+      text: joinApp(patchSource(app, sessionMentionPatches)),
+    };
+    patchedApps.set(app, found);
+  }
+  return found;
+}
+
 export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driver {
-  const rebased = rebaseAll(
-    sessionMentionPatches,
-    app.map((module) => module.text),
-  );
+  const { rebased, text: patched } = patchedApp(app);
   const renames = new Map(
     ['session-mention-invalidate', 'session-mention-close-cancels', 'session-mention-suggest']
       .map((name) => rebasedNamed(rebased, name))
       .flatMap((rebase) => Object.entries(rebase.renames)),
   );
   const named = (name: string): string => renames.get(name) ?? name;
-  const patched = joinApp(patchSource(app, sessionMentionPatches));
   const callback = callbackAround(
     patched,
     rebasedNamed(rebased, 'session-mention-invalidate').replace,

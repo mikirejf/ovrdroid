@@ -1,8 +1,9 @@
 import { PROBE_MODEL } from './launch.ts';
+import { withProjectDroid } from './project-droid.ts';
 
-export const DIGEST_READER = 'ovrdroid-digest-reader';
+const DIGEST_READER = 'ovrdroid-digest-reader';
 
-export const DIGEST_READER_FILE = [
+const DIGEST_READER_FILE = [
   '---',
   `name: ${DIGEST_READER}`,
   'description: Reads the digest files for the ovrdroid digest-run probe and answers questions about them.',
@@ -12,6 +13,10 @@ export const DIGEST_READER_FILE = [
   'Do the task your prompt gives you, exactly as it says. Your parent reads only your final reply, so the final reply carries every finding, including the ones from before a compaction.',
   '',
 ].join('\n');
+
+export async function withDigestReader<T>(cwd: string, use: () => Promise<T>): Promise<T> {
+  return await withProjectDroid(cwd, { type: DIGEST_READER, text: DIGEST_READER_FILE }, use);
+}
 
 export const DIGEST_PARENT_PROMPT = [
   `Call the Task tool exactly once, with subagent_type "${DIGEST_READER}", description "Digests read test", and as its prompt the text after the line PROMPT below, word for word. Do no other work and call no other tool. When the subagent returns, reply with its reply word for word.`,

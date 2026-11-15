@@ -58,8 +58,8 @@ Two identical binaries, interleaved, differ by a standard deviation of ~126ms on
 
 ## The gate's verdict: worse with confidence, and by more than the floor
 
-Every paired probe the gate runs (`ab`, `keys`, `resume`, `stream`, `typing-start`, and `idle`)
-hands its measures to `failOnRegressions` in `src/probe/regressions.ts`. A measure fails only when
+Every paired probe the gate runs (`ab`, `keys`, `resume`, `stream` and `typing-start`), and `idle`,
+hand their measures to `failOnRegressions` in `src/probe/regressions.ts`. A measure fails only when
 both hold:
 
 1. The patched build is worse with confidence. Each measure is tested at 1 - 0.05/m, where m is the

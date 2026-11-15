@@ -14,7 +14,6 @@ export function registerHistoryPreviewCommand(program: Command): void {
       'finish stub helpers, open their saved replies in the roster: does reading history reopen agent runtimes and consume helper slots?',
     )
     .argument('<binary>')
-    .option('--cwd <dir>', 'trusted directory to start Droid in', process.cwd())
     .option(
       '--count <n>',
       'helpers to finish before opening the roster',

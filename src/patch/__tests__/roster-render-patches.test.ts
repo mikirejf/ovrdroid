@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { patchSource } from '../../binary/apply.ts';
 import { patches } from '../patches.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { rosterRenderPatches } from '../roster-render-patches.ts';
-import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { shippedText, STOCK } from './ink-frame-harness.ts';
 import { describeStrayNames, rebasedNamed } from './payload.ts';
 import type { Helpers, Model, Roster, View } from './roster-render-harness.ts';
 import {
@@ -46,9 +45,7 @@ describe.skipIf(STOCK === undefined)(
       () => {
         const shipped = new Set(patches.map((patch) => patch.name));
         expect(rosterRenderPatches.every((patch) => shipped.has(patch.name))).toBe(true);
-        const text = patchSource(sourceApp(), patches)
-          .map((module) => module.text)
-          .join('\n');
+        const text = shippedText();
         for (const owned of [
           '$ODrosterStore',
           '$ODrosterLive',

@@ -233,7 +233,7 @@ All live in `src/probe/`:
 - `probe heapdiff <a> <b>` compares two heap snapshots.
 - `probe census` lists every process by footprint and finds orphans.
 - `probe rewind <binary>` rewinds while background agents run and says which chat each one belongs
-  to afterwards. It needs a folder Droid already trusts (`--cwd`, default the current one).
+  to afterwards. It runs in its own scratch folder under `/tmp`, with its droid file there.
 - `probe readonly-shell <binary>` launches and resumes a `readonly: true` child and a
   `tools: read-only` droid, and says which of a medium-risk command, a high-risk one and `Create`
   each could run. Stub model, no real calls.

@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { MS_PER_SECOND, say } from '../cli.ts';
 import { WARM_DELAY_ENV } from '../patch/warmer-patches.ts';
-import { FACTORY_DROIDS } from '../paths.ts';
 import { logOf } from './effort-switch-turn.ts';
 import { openLiveSession, sessionFolder, submit, withLiveDir } from './live-session.ts';
+import { withProjectDroid } from './project-droid.ts';
 import { SETTLE_MS, SETTLE_TIMEOUT_MS } from './session.ts';
 import type { Drive } from './warm-session.ts';
 import {
@@ -105,10 +105,7 @@ async function runWarm(binary: string, options: WarmOptions, dir: string): Promi
   const cwd = path.join(dir, 'work');
   mkdirSync(cwd);
   const delayMs = options.delay * MS_PER_SECOND;
-  const droidFile = path.join(FACTORY_DROIDS, `${DROID_TYPE}.md`);
-  mkdirSync(FACTORY_DROIDS, { recursive: true });
-  writeFileSync(droidFile, DROID_FILE);
-  try {
+  return await withProjectDroid(cwd, { type: DROID_TYPE, text: DROID_FILE }, async () => {
     const session = await openLiveSession(binary, {
       cwd,
       dir,
@@ -133,9 +130,7 @@ async function runWarm(binary: string, options: WarmOptions, dir: string): Promi
     } finally {
       await session.close();
     }
-  } finally {
-    rmSync(droidFile, { force: true });
-  }
+  });
 }
 
 export async function warmProbe(binary: string, options: WarmOptions): Promise<void> {

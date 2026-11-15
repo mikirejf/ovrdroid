@@ -3,8 +3,12 @@ import path from 'node:path';
 
 import { MS_PER_SECOND, say, whole } from '../cli.ts';
 import { bodiesEnv, newBodiesFile, parseBodies } from './bodies.ts';
-import { digestFiles, mainTranscript, promptFor } from './compaction-capture.ts';
-import { describeRequests, nextTurnPairing } from './compaction-turn-report.ts';
+import { digestFiles, mainTranscript } from './compaction-capture.ts';
+import {
+  compactionTurnVerdict,
+  describeRequests,
+  nextTurnPairing,
+} from './compaction-turn-report.ts';
 import { logOf } from './effort-switch-turn.ts';
 import { openLiveSession, sessionFolder, submit, withLiveDir } from './live-session.ts';
 import { turnEnded } from './live-transcript.ts';
@@ -28,6 +32,7 @@ export interface CompactionTurnOptions {
 interface Run {
   sessionId: string;
   compactions: number;
+  compactedAt: number[];
   nextAt: number;
   marker: string;
 }
@@ -40,6 +45,16 @@ interface Wait {
 interface Places {
   out: string;
   dir: string;
+}
+
+export function readingPrompt(files: readonly string[], tag: string): string {
+  return [
+    `Read each of these ${files.length} files in full, one file per tool call, in this order:`,
+    ...files.map((file) => `- ${file}`),
+    "Each call must bring its file's whole text into your context: if you read through the Script tool, run one Script per file and pass the file's full text to text().",
+    'Then reply with the single word "done". Do no other work.',
+    `(probe ${tag})`,
+  ].join('\n');
 }
 
 async function finished({ folder, timeoutMs }: Wait, tag: string, what: string) {
@@ -73,7 +88,7 @@ async function drive(
   try {
     await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);
     const wait = { folder: sessionFolder(cwd), timeoutMs: options.timeout * MS_PER_SECOND };
-    await submit(session, promptFor(digestFiles(options.files), tag));
+    await submit(session, readingPrompt(digestFiles(options.files), tag));
     const read = await finished(wait, tag, 'the reading turn');
     const compactions = compactionsOf(read.id, read.text).length;
     if (compactions === 0) {
@@ -83,9 +98,17 @@ async function drive(
     }
     const nextAt = Date.now();
     await submit(session, `Reply with only the word two. (probe ${tag}-next)`);
-    await finished(wait, `${tag}-next`, 'the next turn');
+    const after = await finished(wait, `${tag}-next`, 'the next turn');
     await Bun.sleep(FLUSH_MS);
-    return { sessionId: read.id, compactions, nextAt, marker: path.basename(dir) };
+    return {
+      sessionId: read.id,
+      compactions,
+      compactedAt: compactionsOf(after.id, after.text).map((record) =>
+        Date.parse(record.timestamp),
+      ),
+      nextAt,
+      marker: path.basename(dir),
+    };
   } finally {
     await session.close();
   }
@@ -105,9 +128,14 @@ export async function compactionTurn(
     async (dir) => await drive(binary, options, { out, dir }),
   );
   say(`session ${run.sessionId} compacted ${run.compactions} time(s) during the reading turn`);
+  for (const at of run.compactedAt) {
+    say(`  compaction stored at ${new Date(at).toISOString()}`);
+  }
+  say(`next user message sent at ${new Date(run.nextAt).toISOString()}`);
   say('');
   say("Droid's usage log for the session:");
-  for (const line of logOf(run.sessionId).usage) {
+  const { usage } = logOf(run.sessionId);
+  for (const line of usage) {
     say(
       `  ${line.at} ${line.reason}: read ${whole(line.cacheReadInputTokens)}, wrote ${whole(line.cachedTokensWritten)}, uncached ${whole(line.inputTokens)}`,
     );
@@ -131,5 +159,16 @@ export async function compactionTurn(
     for (const line of describeProxyEntries(entries)) {
       say(line);
     }
+  }
+  const verdict = compactionTurnVerdict({
+    rows,
+    nextAt: run.nextAt,
+    compactedAt: run.compactedAt,
+    usage,
+  });
+  say('');
+  say(verdict.text);
+  if (!verdict.pass) {
+    process.exitCode = 1;
   }
 }

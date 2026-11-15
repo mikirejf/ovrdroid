@@ -1,6 +1,8 @@
 import { patchSource } from '../../binary/apply.ts';
 import type { App } from '../../binary/graph.ts';
+import { joinApp } from '../../binary/graph.ts';
 import { inkFramePatches } from '../ink-frame-patches.ts';
+import { patches } from '../patches.ts';
 import type { Rebase } from '../rebase.ts';
 import { rebaseAll } from '../rebase.ts';
 import { stock } from './session-mention-harness.ts';
@@ -45,6 +47,19 @@ export function textOf(app: App, name: string): string {
     throw new Error(`${name} is missing from the app`);
   }
   return found.text;
+}
+
+let shippedApp: App | undefined;
+let shippedJoined: string | undefined;
+
+export function shippedPatched(): App {
+  shippedApp ??= patchSource(sourceApp(), patches);
+  return shippedApp;
+}
+
+export function shippedText(): string {
+  shippedJoined ??= joinApp(shippedPatched());
+  return shippedJoined;
 }
 
 export function patchedApp(): App {
