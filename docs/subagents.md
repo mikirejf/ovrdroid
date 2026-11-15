@@ -209,6 +209,10 @@ So the flag no longer promises an unchanged repo. The child has no edit tools, b
 it rates medium can write files. The field's description tells the caller to say "write only in a
 temp folder" in the prompt.
 
+A resume may repeat `readonly: true` when the child's saved session tags hold `read-only`: it then
+runs as a plain resume, since the child keeps its tools. A child launched writable refuses it, with
+an error that says so and points to a new read-only launch, so the flag is never silently dropped.
+
 Not handled: a `tools: read-only` droid's child resumed after its task-store record is gone (48
 hours after the task ends) under a different `subagent_type`, or after its droid file lost
 `tools: read-only`, comes back at medium. Its tools stay read-only.
@@ -234,9 +238,10 @@ All live in `src/probe/`:
 - `probe census` lists every process by footprint and finds orphans.
 - `probe rewind <binary>` rewinds while background agents run and says which chat each one belongs
   to afterwards. It runs in its own scratch folder under `/tmp`, with its droid file there.
-- `probe readonly-shell <binary>` launches and resumes a `readonly: true` child and a
-  `tools: read-only` droid, and says which of a medium-risk command, a high-risk one and `Create`
-  each could run. Stub model, no real calls.
+- `probe readonly-shell <binary>` launches a `readonly: true` child, a `tools: read-only` droid and
+  a writable child, resumes each with `readonly: true`, and says which of a medium-risk command, a
+  high-risk one and `Create` each could run, and that the writable child's resume was refused. Stub
+  model, no real calls.
 
 ## What fills the machine
 

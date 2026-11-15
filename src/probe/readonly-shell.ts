@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { MS_PER_SECOND } from '../cli.ts';
 import { sessionFolder, withLiveDir } from './live-session.ts';
-import type { Plan, ReadonlyEvidence } from './readonly-shell-report.ts';
+import type { Child, Plan, ReadonlyEvidence } from './readonly-shell-report.ts';
 import {
   CHILDREN,
   droidFile,
@@ -12,6 +12,7 @@ import {
   legKey,
   noticesIn,
   replyFor,
+  resumeAnswer,
   resumePrompt,
   sessionOf,
 } from './readonly-shell-report.ts';
@@ -72,14 +73,35 @@ interface LegRun {
   what: string;
 }
 
-async function runLeg(drive: Drive, leg: LegRun): Promise<void> {
-  await send(drive.session, leg.prompt);
+async function finishLeg(drive: Drive, leg: Omit<LegRun, 'prompt'>): Promise<void> {
   await waitFor(
     `${leg.what} did not finish`,
     () => (noticesIn(drive.bodies) >= leg.notices ? true : undefined),
     drive.timeoutMs,
   );
   await settle(drive.session);
+}
+
+async function runLeg(drive: Drive, leg: LegRun): Promise<void> {
+  await send(drive.session, leg.prompt);
+  await finishLeg(drive, leg);
+}
+
+async function resumeLeg(drive: Drive, child: Child, session: string): Promise<boolean> {
+  await send(drive.session, resumePrompt(child, session));
+  const answer = await waitFor(
+    `the resume of ${child.droid} got no answer from the Task tool`,
+    () => resumeAnswer(drive.bodies, child),
+    drive.timeoutMs,
+  );
+  if (!answer.startsWith('Error')) {
+    return true;
+  }
+  await settle(drive.session);
+  if (child.resumeRefused) {
+    return false;
+  }
+  throw new Error(`the resume of ${child.droid} with readonly: true was refused: ${answer}`);
 }
 
 function settingsOf(folder: string, session: string): string {
@@ -103,13 +125,13 @@ async function driveChildren(drive: Drive): Promise<Record<string, string>> {
       throw new Error(`Droid started no sub-agent for ${child.droid}`);
     }
     settings[legKey(child, 'launch')] = settingsOf(drive.folder, session);
+    // oxlint-disable-next-line no-await-in-loop
+    if (!(await resumeLeg(drive, child, session))) {
+      continue;
+    }
     notices += 1;
     // oxlint-disable-next-line no-await-in-loop
-    await runLeg(drive, {
-      prompt: resumePrompt(child, session),
-      notices,
-      what: `the resume of ${child.droid}`,
-    });
+    await finishLeg(drive, { notices, what: `the resume of ${child.droid}` });
     settings[legKey(child, 'resume')] = settingsOf(drive.folder, session);
   }
   return settings;

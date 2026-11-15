@@ -70,10 +70,13 @@ export const PICK_MODEL =
   'return{modelId:$ODm,reasoningEffort:$ODe!==void 0&&$ODm?$ODs.clamp($ODm,$ODe):$ODe,complexity:void 0,$ODtoolModel:$ODl.model}}';
 
 export const REFUSE_RESUME_FIELDS =
-  'function $ODresume($ODt){' +
+  'function $ODresume($ODt,$ODsessions){' +
   'if(!$ODt.resume)return;' +
-  'if($ODt.readonly===!0)' +
-  'throw Error("readonly applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the tools it started with. Resume without readonly");' +
+  'if($ODt.readonly===!0){' +
+  'let $ODfile=$ODsessions.findSessionFile({sessionId:$ODt.resume,searchAllProjects:!0});' +
+  'if(!$ODfile)throw Error("No saved session "+$ODt.resume+" was found, so readonly cannot be checked against the subagent it resumes. Resume without readonly");' +
+  'if(!($ODsessions.readSavedSessionTags($ODt.resume,$ODfile)??[]).some(($ODtag)=>$ODtag.name==="read-only"))' +
+  'throw Error("This subagent was launched writable, so readonly cannot apply on resume: a resumed subagent keeps the tools it started with. Resume without readonly, or launch a new subagent with readonly: true")}' +
   'for(let $ODk of["model","effort","complexity"])if($ODt[$ODk]!==void 0)' +
   'throw Error($ODk+" applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the model and effort it started with. Resume without "+$ODk)}';
 
@@ -181,7 +184,7 @@ export const subagentModelPatches: readonly Patch[] = [
     find: `${TASK_CONFIG_LOOKUP}if(t.resume){let X=await Do().loadAllDroids(),`,
     lookups: [LAUNCH_MODEL_LOOKUP, BUILT_INS_LOOKUP],
     replace:
-      `${TASK_CONFIG_LOOKUP}$ODresume(t);let $ODdroids=await Do().loadAllDroids();` +
+      `${TASK_CONFIG_LOOKUP}$ODresume(t,m());let $ODdroids=await Do().loadAllDroids();` +
       'if(typeof t.subagent_type==="string")t.subagent_type=$ODname(t.subagent_type,' +
       '[...$ODdroids.map(($ODd)=>$ODd.metadata.name),' +
       '...oO(o?.sessionExecutionContext?.sessionTags??m().getCurrentSessionTags()).map(($ODb)=>$ODb.name)]);' +

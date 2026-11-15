@@ -30,6 +30,9 @@ function childNamed(name: string) {
 
 const FLAG = childNamed('flag');
 const TOOLS = childNamed('tools');
+const WRITABLE = childNamed('writable');
+const WRITABLE_REFUSAL =
+  'This subagent was launched writable, so readonly cannot apply on resume: a resumed subagent keeps the tools it started with.';
 
 function user(text: string) {
   return { role: 'user', content: [{ type: 'text', text }] };
@@ -59,33 +62,60 @@ function stepKey(name: string, leg: string, step: string): string {
   return `${name}-${leg}-${step}`;
 }
 
-function evidenceOf(ran: readonly string[], silent: readonly string[] = []): ReadonlyEvidence {
-  const keys = CHILDREN.flatMap(({ name }) =>
-    LEGS.flatMap((leg) => STEPS.map((step) => stepKey(name, leg, step))),
+function resumeAsked(name: string, answer: string): object {
+  const id = `call_0123456789abcdef_resume_${name}`;
+  return parentAsks(
+    {
+      role: 'assistant',
+      content: [
+        {
+          type: 'tool_use',
+          id,
+          name: 'Task',
+          input: { prompt: `readonly-child:${name}:resume`, resume: 's-9', readonly: true },
+        },
+      ],
+    },
+    result(id, answer),
+  );
+}
+
+function evidenceOf(
+  ran: readonly string[],
+  silent: readonly string[] = [],
+  answers: readonly object[] = [resumeAsked(WRITABLE.name, WRITABLE_REFUSAL)],
+): ReadonlyEvidence {
+  const keys = CHILDREN.flatMap(({ name, resumeRefused }) =>
+    LEGS.filter((leg) => !(resumeRefused && leg === 'resume')).flatMap((leg) =>
+      STEPS.map((step) => stepKey(name, leg, step)),
+    ),
   );
   return {
     run: RUN,
     markers: ran,
-    bodies: keys
-      .filter((key) => !silent.includes(key))
-      .map((key, index) =>
-        childAsks(
-          {
-            role: 'assistant',
-            content: [
-              {
-                type: 'tool_use',
-                id: `call_0123456789abcdef_${index}`,
-                name: key.endsWith('-create') ? 'Create' : 'Execute',
-                input: key.endsWith('-create')
-                  ? { file_path: `/m/${key}` }
-                  : { command: `touch /m/${key}` },
-              },
-            ],
-          },
-          result(`call_0123456789abcdef_${index}`, ran.includes(key) ? 'ok' : REFUSAL),
+    bodies: [
+      ...answers,
+      ...keys
+        .filter((key) => !silent.includes(key))
+        .map((key, index) =>
+          childAsks(
+            {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: `call_0123456789abcdef_${index}`,
+                  name: key.endsWith('-create') ? 'Create' : 'Execute',
+                  input: key.endsWith('-create')
+                    ? { file_path: `/m/${key}` }
+                    : { command: `touch /m/${key}` },
+                },
+              ],
+            },
+            result(`call_0123456789abcdef_${index}`, ran.includes(key) ? 'ok' : REFUSAL),
+          ),
         ),
-      ),
+    ],
     settings: {
       'flag-launch': JSON.stringify({ autonomyLevel: 'medium', tags: [{ name: 'read-only' }] }),
       'flag-resume': JSON.stringify({ autonomyLevel: 'medium', tags: [{ name: 'read-only' }] }),
@@ -94,7 +124,13 @@ function evidenceOf(ran: readonly string[], silent: readonly string[] = []): Rea
   };
 }
 
-const SHIPPED = ['flag-launch-medium', 'flag-resume-medium'];
+const SHIPPED = [
+  'flag-launch-medium',
+  'flag-resume-medium',
+  'writable-launch-medium',
+  'writable-launch-high',
+  'writable-launch-create',
+];
 
 describe('replyFor', () => {
   test('launches the flagged child with readonly: true', () => {
@@ -116,13 +152,13 @@ describe('replyFor', () => {
     expect(JSON.stringify(reply)).not.toContain('readonly"');
   });
 
-  test('resumes the session it is given, without the flag', () => {
-    const reply = replyFor(parentAsks(user(resumePrompt(FLAG, 's-1'))), PLAN);
-    expect(reply).toMatchObject({
-      id: callId(RUN, FLAG, 'resume'),
-      input: { resume: 's-1', prompt: 'readonly-child:flag:resume' },
-    });
-    expect(JSON.stringify(reply)).not.toContain('readonly"');
+  test('resumes every child with readonly: true, writable or not', () => {
+    for (const child of [FLAG, TOOLS, WRITABLE]) {
+      expect(replyFor(parentAsks(user(resumePrompt(child, 's-1'))), PLAN)).toMatchObject({
+        id: callId(RUN, child, 'resume'),
+        input: { resume: 's-1', prompt: `readonly-child:${child.name}:resume`, readonly: true },
+      });
+    }
   });
 
   test('says ok to the parent after a tool result, a notice, and a request without the Task tool', () => {
@@ -179,6 +215,7 @@ describe('droidFile', () => {
   test('only the tools child gets tools: read-only', () => {
     expect(droidFile(TOOLS)).toContain('\ntools: read-only\n');
     expect(droidFile(FLAG)).not.toContain('tools:');
+    expect(droidFile(WRITABLE)).not.toContain('tools:');
     expect(droidFile(FLAG)).toContain(`name: ${FLAG.droid}\n`);
   });
 });
@@ -219,18 +256,44 @@ describe('noticesIn', () => {
 describe('readonlyVerdicts', () => {
   test('passes when the flagged child runs only the medium command and the tools child runs nothing', () => {
     const verdicts = readonlyVerdicts(evidenceOf(SHIPPED));
-    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, true, true, true]);
+    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, true, true, true, true, true]);
     expect(verdicts[0]?.text).toBe(
       'a sub-agent launched with readonly: true ran a medium-risk shell command, was refused a high-risk shell command, was refused Create (session autonomy medium)',
     );
-    expect(verdicts[1]?.text).toContain('readonly: true, once resumed, ran a medium-risk');
+    expect(verdicts[1]?.text).toContain(
+      'readonly: true, once resumed with readonly: true, ran a medium-risk',
+    );
     expect(verdicts[2]?.text).toContain('(session autonomy low)');
     expect(verdicts[3]?.text).toContain('(session autonomy unknown, no read-only tag)');
+    expect(verdicts[4]?.text).toContain(
+      'a sub-agent launched writable ran a medium-risk shell command, ran a high-risk shell command, wrote a file with Create',
+    );
+    expect(verdicts[5]?.text).toBe(
+      `a sub-agent launched writable, resumed with readonly: true, was refused: ${WRITABLE_REFUSAL}`,
+    );
+  });
+
+  test('fails when the writable child resumes with readonly: true', () => {
+    const verdicts = readonlyVerdicts(
+      evidenceOf(SHIPPED, [], [resumeAsked(WRITABLE.name, 'Task resumed in background.')]),
+    );
+    expect(verdicts[5]).toEqual({
+      pass: false,
+      text: 'a sub-agent launched writable, resumed with readonly: true, was not refused as launched writable; Droid answered: Task resumed in background.',
+    });
+  });
+
+  test('says not exercised when the writable resume got no answer', () => {
+    const verdicts = readonlyVerdicts(evidenceOf(SHIPPED, [], []));
+    expect(verdicts[5]?.pass).toBe(false);
+    expect(verdicts[5]?.text).toStartWith('not exercised: ');
   });
 
   test('fails when the flagged child is refused the medium command, and quotes the refusal', () => {
-    const verdicts = readonlyVerdicts(evidenceOf(['flag-launch-medium']));
-    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, false, true, true]);
+    const verdicts = readonlyVerdicts(
+      evidenceOf(SHIPPED.filter((key) => key !== 'flag-resume-medium')),
+    );
+    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, false, true, true, true, true]);
     expect(verdicts[1]?.text).toEndWith(
       `; expected instead: ran a medium-risk shell command; Droid answered: ${REFUSAL}`,
     );
@@ -238,7 +301,7 @@ describe('readonlyVerdicts', () => {
 
   test('fails when a tools: read-only droid runs the medium command', () => {
     const verdicts = readonlyVerdicts(evidenceOf([...SHIPPED, 'tools-resume-medium']));
-    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, true, true, false]);
+    expect(verdicts.map((verdict) => verdict.pass)).toEqual([true, true, true, false, true, true]);
     expect(verdicts[3]?.text).toContain(
       'expected instead: was refused a medium-risk shell command',
     );

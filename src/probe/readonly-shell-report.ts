@@ -32,6 +32,8 @@ export interface Child {
   name: string;
   droid: string;
   flagged: boolean;
+  readOnlyTools: boolean;
+  resumeRefused: boolean;
   who: string;
   expected: Record<Step, Outcome>;
 }
@@ -41,6 +43,8 @@ export const CHILDREN: readonly Child[] = [
     name: 'flag',
     droid: 'ovrdroid-readonly-flag-probe',
     flagged: true,
+    readOnlyTools: false,
+    resumeRefused: false,
     who: 'a sub-agent launched with readonly: true',
     expected: { medium: 'ran', high: 'refused', create: 'refused' },
   },
@@ -48,10 +52,23 @@ export const CHILDREN: readonly Child[] = [
     name: 'tools',
     droid: 'ovrdroid-readonly-tools-probe',
     flagged: false,
+    readOnlyTools: true,
+    resumeRefused: false,
     who: 'a sub-agent whose droid file says tools: read-only',
     expected: { medium: 'refused', high: 'refused', create: 'refused' },
   },
+  {
+    name: 'writable',
+    droid: 'ovrdroid-readonly-writable-probe',
+    flagged: false,
+    readOnlyTools: false,
+    resumeRefused: true,
+    who: 'a sub-agent launched writable',
+    expected: { medium: 'ran', high: 'ran', create: 'ran' },
+  },
 ];
+
+const WRITABLE_REFUSAL = 'launched writable, so readonly cannot apply on resume';
 
 const SAW: Record<Step, Record<Outcome, string>> = {
   medium: {
@@ -84,7 +101,7 @@ export interface ReadonlyEvidence {
 }
 
 export function droidFile(child: Child): string {
-  const tools = child.flagged ? '' : `tools: ${READ_ONLY}\n`;
+  const tools = child.readOnlyTools ? `tools: ${READ_ONLY}\n` : '';
   return `---\nname: ${child.droid}\ndescription: Runs shell commands for a probe.\nmodel: inherit\n${tools}---\nDo what the prompt says.\n`;
 }
 
@@ -181,7 +198,11 @@ function parentReply(request: Fields, last: Fields | undefined, plan: Plan): Too
   const resume = RESUME.exec(text)?.groups;
   const resumed = childNamed(resume?.['child']);
   if (resumed !== undefined) {
-    return taskCall(plan, { child: resumed, leg: 'resume' }, { resume: resume?.['session'] ?? '' });
+    return taskCall(
+      plan,
+      { child: resumed, leg: 'resume' },
+      { resume: resume?.['session'] ?? '', readonly: true },
+    );
   }
   const launched = childNamed(LAUNCH.exec(text)?.groups?.['child']);
   if (launched === undefined) {
@@ -205,22 +226,29 @@ export function replyFor(body: unknown, plan: Plan): ToolCall | string {
     : childReply(prompt, messages.slice(messages.lastIndexOf(prompt)), plan);
 }
 
-export function sessionOf(bodies: readonly unknown[], child: Child, leg: Leg): string | undefined {
+function taskAnswers(bodies: readonly unknown[], child: Child, leg: Leg): string[] {
   const id = observedCallId(
     bodies,
     TASK_TOOL,
     (input) => worded(input, 'prompt') === `${CHILD_WORD}:${child.name}:${leg}`,
   );
   if (id === undefined) {
-    return undefined;
+    return [];
   }
-  for (const body of bodies) {
-    const session = SESSION.exec(toolResultsIn(body).get(id)?.text ?? '')?.groups?.['session'];
-    if (session !== undefined) {
-      return session;
-    }
-  }
-  return undefined;
+  return bodies.flatMap((body) => {
+    const text = toolResultsIn(body).get(id)?.text;
+    return text === undefined ? [] : [text];
+  });
+}
+
+export function sessionOf(bodies: readonly unknown[], child: Child, leg: Leg): string | undefined {
+  return taskAnswers(bodies, child, leg)
+    .map((text) => SESSION.exec(text)?.groups?.['session'])
+    .find((session) => session !== undefined);
+}
+
+export function resumeAnswer(bodies: readonly unknown[], child: Child): string | undefined {
+  return taskAnswers(bodies, child, 'resume')[0];
 }
 
 export function noticesIn(bodies: readonly unknown[]): number {
@@ -276,7 +304,7 @@ function readLeg(evidence: ReadonlyEvidence, child: Child, leg: Leg): LegReading
 }
 
 function legVerdict({ child, leg, level, tagged, outcomes, answers }: LegReading): Verdict {
-  const who = leg === 'launch' ? child.who : `${child.who}, once resumed,`;
+  const who = leg === 'launch' ? child.who : `${child.who}, once resumed with readonly: true,`;
   const saw = STEPS.map((step) => SAW[step][outcomes[step]]).join(', ');
   const session = `session autonomy ${level === '' ? 'unknown' : level}${tagged ? '' : `, no ${READ_ONLY} tag`}`;
   const text = `${who} ${saw} (${session})`;
@@ -292,6 +320,27 @@ function legVerdict({ child, leg, level, tagged, outcomes, answers }: LegReading
   return { pass: false, text: `${untested}${text}; expected instead: ${wanted}${said}` };
 }
 
+function refusalVerdict(evidence: ReadonlyEvidence, child: Child): Verdict {
+  const who = `${child.who}, resumed with readonly: true,`;
+  const answer = resumeAnswer(evidence.bodies, child);
+  if (answer === undefined) {
+    return { pass: false, text: `not exercised: ${who} got no answer from the Task tool` };
+  }
+  const said = answer.split('\n', 1)[0]?.slice(0, ANSWER_CHARS) ?? '';
+  return answer.includes(WRITABLE_REFUSAL)
+    ? { pass: true, text: `${who} was refused: ${said}` }
+    : {
+        pass: false,
+        text: `${who} was not refused as launched writable; Droid answered: ${said}`,
+      };
+}
+
 export function readonlyVerdicts(evidence: ReadonlyEvidence): Verdict[] {
-  return CHILDREN.flatMap((child) => LEGS.map((leg) => legVerdict(readLeg(evidence, child, leg))));
+  return CHILDREN.flatMap((child) =>
+    LEGS.map((leg) =>
+      leg === 'resume' && child.resumeRefused
+        ? refusalVerdict(evidence, child)
+        : legVerdict(readLeg(evidence, child, leg)),
+    ),
+  );
 }

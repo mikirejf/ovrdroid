@@ -17,10 +17,42 @@ interface TaskCall {
   complexity?: string;
 }
 
-const refuseResumeFields = payloadFunction<[], (call: TaskCall) => void>(
+interface Tag {
+  name: string;
+}
+
+interface SavedSessions {
+  findSessionFile: (query: { sessionId: string; searchAllProjects: boolean }) => string | null;
+  readSavedSessionTags: (sessionId: string, transcriptPath: string) => readonly Tag[] | undefined;
+}
+
+const READ_ONLY_CHILD = 'read-only-child';
+const WRITABLE_CHILD = 'writable-child';
+const UNTAGGED_CHILD = 'untagged-child';
+const MISSING_CHILD = 'missing-child';
+
+const SAVED_TAGS = new Map<string, readonly Tag[] | undefined>([
+  [READ_ONLY_CHILD, [{ name: 'task-subagent' }, { name: 'read-only' }]],
+  [WRITABLE_CHILD, [{ name: 'task-subagent' }]],
+  [UNTAGGED_CHILD, undefined],
+]);
+
+const SAVED_SESSIONS: SavedSessions = {
+  findSessionFile: ({ sessionId }) =>
+    SAVED_TAGS.has(sessionId) ? `/sessions/project/${sessionId}.jsonl` : null,
+  readSavedSessionTags: (sessionId, transcriptPath) =>
+    transcriptPath === `/sessions/project/${sessionId}.jsonl`
+      ? SAVED_TAGS.get(sessionId)
+      : undefined,
+};
+
+const refuseResumeFields = payloadFunction<[], (call: TaskCall, sessions: SavedSessions) => void>(
   [],
   `${REFUSE_RESUME_FIELDS}return $ODresume`,
 )();
+
+const WRITABLE_REFUSAL =
+  'This subagent was launched writable, so readonly cannot apply on resume: a resumed subagent keeps the tools it started with. Resume without readonly, or launch a new subagent with readonly: true';
 
 const RESUME_EXTRAS = [
   ['model', { model: OPUS }],
@@ -29,42 +61,65 @@ const RESUME_EXTRAS = [
 ] as const;
 
 describe('a resume refuses the fields that only a new launch uses', () => {
-  const resumed: TaskCall = { subagent_type: 'poteto-agent', resume: 'abc' };
+  const resumed: TaskCall = { subagent_type: 'poteto-agent', resume: WRITABLE_CHILD };
 
   test('a resume without them goes through, readonly false included', () => {
     expect(() => {
-      refuseResumeFields(resumed);
+      refuseResumeFields(resumed, SAVED_SESSIONS);
     }).not.toThrow();
     expect(() => {
-      refuseResumeFields({ ...resumed, readonly: false });
+      refuseResumeFields({ ...resumed, readonly: false }, SAVED_SESSIONS);
     }).not.toThrow();
   });
 
-  test('readonly true is refused, and the error says the tools stay as they were', () => {
+  test('readonly true goes through when the resumed child was launched read-only', () => {
     expect(() => {
-      refuseResumeFields({ ...resumed, readonly: true });
+      refuseResumeFields({ ...resumed, resume: READ_ONLY_CHILD, readonly: true }, SAVED_SESSIONS);
+    }).not.toThrow();
+  });
+
+  test('readonly true is refused when the resumed child was launched writable', () => {
+    expect(() => {
+      refuseResumeFields({ ...resumed, readonly: true }, SAVED_SESSIONS);
+    }).toThrow(WRITABLE_REFUSAL);
+    expect(() => {
+      refuseResumeFields({ ...resumed, resume: UNTAGGED_CHILD, readonly: true }, SAVED_SESSIONS);
+    }).toThrow(WRITABLE_REFUSAL);
+  });
+
+  test('readonly true is refused when the resumed session is not found, and the error names it', () => {
+    expect(() => {
+      refuseResumeFields({ ...resumed, resume: MISSING_CHILD, readonly: true }, SAVED_SESSIONS);
     }).toThrow(
-      'readonly applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the tools it started with',
+      `No saved session ${MISSING_CHILD} was found, so readonly cannot be checked against the subagent it resumes. Resume without readonly`,
     );
   });
 
   test.each(RESUME_EXTRAS)('%s is refused, and the error names it', (field, extra) => {
+    const message = `${field} applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the model and effort it started with. Resume without ${field}`;
     expect(() => {
-      refuseResumeFields({ ...resumed, ...extra });
-    }).toThrow(
-      `${field} applies only to a new launch, so it cannot be combined with resume. The resumed subagent keeps the model and effort it started with. Resume without ${field}`,
-    );
+      refuseResumeFields({ ...resumed, ...extra }, SAVED_SESSIONS);
+    }).toThrow(message);
+    expect(() => {
+      refuseResumeFields(
+        { ...resumed, resume: READ_ONLY_CHILD, readonly: true, ...extra },
+        SAVED_SESSIONS,
+      );
+    }).toThrow(message);
   });
 
   test('a new launch is never refused', () => {
     expect(() => {
-      refuseResumeFields({
-        subagent_type: 'poteto-agent',
-        readonly: true,
-        model: OPUS,
-        effort: 'high',
-        complexity: 'heavy',
-      });
+      refuseResumeFields(
+        {
+          subagent_type: 'poteto-agent',
+          readonly: true,
+          model: OPUS,
+          effort: 'high',
+          complexity: 'heavy',
+        },
+        SAVED_SESSIONS,
+      );
     }).not.toThrow();
   });
 });
@@ -123,7 +178,7 @@ const MODEL_TOOLS: ModelTools = { validateModel: (id) => ({ valid: isKnown(id) }
 const SETTINGS: Settings = { getCustomModels: () => [] };
 
 const MISSION_TAG = 'mission';
-const SESSION = { getCurrentSessionTags: (): readonly string[] => [] };
+const SESSION = { getCurrentSessionTags: (): readonly string[] => [], ...SAVED_SESSIONS };
 
 function builtInsFor(tags: readonly string[] | undefined): { name: string }[] {
   return tags?.includes(MISSION_TAG) === true
@@ -184,15 +239,25 @@ describe('the Task launcher loads the droid registry once per call', () => {
     expect(result).toMatchObject({ kind: 'resume', type: 'poteto-agent', droids });
   });
 
-  test('a resume with readonly is refused before anything loads', async () => {
+  test('a resume with readonly of a read-only child goes on as a plain resume', async () => {
+    const registry = { loads: 0 };
+    const result = await launcherOf(
+      registry,
+      droids,
+    )({ subagent_type: 'poteto-agent', resume: READ_ONLY_CHILD, readonly: true });
+    expect(registry.loads).toBe(1);
+    expect(result).toMatchObject({ kind: 'resume', type: 'poteto-agent', droids });
+  });
+
+  test('a resume with readonly of a writable child is refused before anything loads', async () => {
     const registry = { loads: 0 };
     const message = await failureOf(
       launcherOf(
         registry,
         droids,
-      )({ subagent_type: 'poteto-agent', resume: 'abc', readonly: true }),
+      )({ subagent_type: 'poteto-agent', resume: WRITABLE_CHILD, readonly: true }),
     );
-    expect(message).toContain('readonly applies only to a new launch');
+    expect(message).toBe(WRITABLE_REFUSAL);
     expect(registry.loads).toBe(0);
   });
 
