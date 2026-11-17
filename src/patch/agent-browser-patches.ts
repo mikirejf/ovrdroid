@@ -54,12 +54,10 @@ export const agentBrowserPatches: readonly Patch[] = [
   },
   {
     name: 'agent-browser-terminal-system-binary',
-    find: 'if(r[u]=[...a.filter((c)=>!d.split(g.delimiter).includes(c)),d].join(g.delimiter),Dz(e.command))await wN(),r.AGENT_BROWSER_SKILLS_DIR=xN();',
-    lookups: [
-      'let s=g.join(Q(),G(),"bin"),o=fw(e.command)?E_()??e2():void 0,a=o?[g.dirname(o),s]:[s]',
-    ],
+    find: 'if(n[u]=[...c.filter((p)=>!d.split(g.delimiter).includes(p)),d].join(g.delimiter),Hoe(o))await CM(),n.AGENT_BROWSER_SKILLS_DIR=fM();',
+    lookups: ['let s=g.join(z(),Y(),"bin"),o=e.commandAsWritten??e.command'],
     replace:
-      'r[u]=[...a.filter((c)=>!d.split(g.delimiter).includes(c)),d].join(g.delimiter);if(Dz(e.command))r[u]=$ODabPath(r[u],s);',
+      'n[u]=[...c.filter((p)=>!d.split(g.delimiter).includes(p)),d].join(g.delimiter);if(Hoe(o))n[u]=$ODabPath(n[u],s);',
   },
   {
     name: 'agent-browser-doctor-system-binary',

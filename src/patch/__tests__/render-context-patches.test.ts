@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { AsyncLocalStorage, AsyncResource } from 'node:async_hooks';
 
 import { renderContextPatches } from '../render-context-patches.ts';
 import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
@@ -30,10 +30,12 @@ function scheduling(patched: boolean): Scheduling {
   const scheduler = patchNamed(renderContextPatches, 'render-root-context-scheduler');
   const host = patchNamed(renderContextPatches, 'render-root-context-host');
   const field = patched ? 'replace' : 'find';
-  return payloadFunction<[RequireHooks], Scheduling>(
-    ['require'],
-    `${snapshot.replace.slice(0, -snapshot.find.length)}var ${scheduler[field]};return{immediate:NQ,schedulerTimeout:RQ,schedulerCancelTimeout:vQ,${host[field]}}`,
-  )(() => ({ AsyncLocalStorage }));
+  return payloadFunction<[RequireHooks, typeof AsyncResource], Scheduling>(
+    ['require', 'AsyncResource'],
+    `${snapshot.replace.slice(0, -snapshot.find.length)}var ${scheduler[field]};` +
+      'return{immediate:NQ,schedulerTimeout:RQ,schedulerCancelTimeout:vQ,' +
+      `scheduleMicrotask:AsyncResource.bind(($ODcb)=>queueMicrotask($ODcb)),${host[field]}}`,
+  )(() => ({ AsyncLocalStorage }), AsyncResource);
 }
 
 async function observe(
@@ -48,7 +50,7 @@ async function observe(
 }
 
 describe('render scheduling uses the module initialization context', () => {
-  test.each(['immediate', 'schedulerTimeout', 'scheduleMicrotask', 'scheduleTimeout'] as const)(
+  test.each(['immediate', 'schedulerTimeout', 'scheduleTimeout'] as const)(
     '%s leaves the agent scope while the stock callback inherits it',
     async (method) => {
       const storage = new AsyncLocalStorage<AgentScope>();
@@ -65,6 +67,17 @@ describe('render scheduling uses the module initialization context', () => {
       expect(observed.after).toBeUndefined();
     },
   );
+
+  test('stock and patched host microtasks both leave the agent scope', async () => {
+    const storage = new AsyncLocalStorage<AgentScope>();
+    const scope = { sessionId: 'agent-1', daemonConnection: 'connected' };
+    const stock = scheduling(false);
+    const patched = scheduling(true);
+    await storage.run(scope, async () => {
+      expect(await observe(stock.scheduleMicrotask, storage)).toBeUndefined();
+      expect(await observe(patched.scheduleMicrotask, storage)).toBeUndefined();
+    });
+  });
 
   test.each(['immediate', 'schedulerTimeout', 'scheduleTimeout'] as const)(
     '%s forwards callback arguments',

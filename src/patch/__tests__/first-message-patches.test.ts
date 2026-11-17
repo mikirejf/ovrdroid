@@ -102,6 +102,40 @@ describe.skipIf(sites === undefined)('first-message-shows-at-once', () => {
     expect(world.notices).toEqual(['send failed']);
   });
 
+  test.each([[true], [false]])(
+    'shows the message while re-opening an archived session (success=%s)',
+    async (succeeded) => {
+      const { world, manager } = newSession('s1');
+      const reopened = Promise.withResolvers<null>();
+      const requested: string[] = [];
+      world.unarchive = async (id) => {
+        requested.push(id);
+        return await reopened.promise;
+      };
+
+      const result = world.send('hello');
+      world.createSession('s1');
+      await settle();
+      expect(requested).toEqual(['s1']);
+      expect(manager('s1').shown()).toEqual(['hello']);
+      expect(world.sent).toEqual([]);
+
+      if (succeeded) {
+        reopened.resolve(null);
+        expect(await result).toBe('accepted');
+        expect(world.sent.map((sent) => sent.sessionId)).toEqual(['s1']);
+        expect(manager('s1').added).toBe(1);
+      } else {
+        reopened.reject(new Error('unarchive failed'));
+        expect(await result).toBe('rejected_with_notice');
+        expect(world.notices).toEqual(['unarchive failed']);
+        expect(world.sent).toEqual([]);
+        expect(manager('s1').shown()).toEqual([]);
+        expect(manager('s1').state).toBe('idle');
+      }
+    },
+  );
+
   test('leaves a busy session and a non end-of-turn message to stock', async () => {
     const { world, manager } = newSession('s1');
     manager('s1').state = 'streaming_assistant_message';

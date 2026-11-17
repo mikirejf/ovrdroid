@@ -157,6 +157,7 @@ export interface SendWorld {
   readonly notices: string[];
   currentId: string | null;
   failSend: boolean;
+  unarchive?: (id: string) => Promise<null>;
   send: (
     message: string,
     queuePlacement?: string,
@@ -169,10 +170,13 @@ export interface SendWorld {
 export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): SendWorld {
   const rebase = sites.rebase('first-message-shows-at-once');
   const named = renamed(rebase);
-  const source = arrowBefore(sites.text, rebase);
+  const source = arrowAt(
+    sites.text,
+    sites.text.lastIndexOf(`async(${named('ne')})=>{`, sites.text.indexOf(rebase.replace)),
+  );
   const head = groups(
     source,
-    /^async\([\w$]+\)=>\{let [\w$]+=(?<client>[\w$]+)\(\),[\w$]+=!1,[\w$]+=(?<service>[\w$]+)\(\)\.getCurrentSessionId\(\)/u,
+    /^async\([\w$]+\)=>\{let [\w$]+=(?<client>[\w$]+)\(\),/u,
     'send callback head',
   );
   const pending = groups(
@@ -185,10 +189,9 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     /let [\w$]+=[\w$]+\.current\|\|(?<creating>[\w$]+)\.current\?null:(?<live>[\w$]+)\.current/u,
     'session refs',
   );
-  const ids = groups(source, /\?\?[\w$]+\?\.requestId\?\?(?<id>[\w$]+)\(\)/u, 'request id');
   const failure = groups(
     source,
-    /(?<log>[\w$]+)\([\w$]+,"\[Daemon\] Failed to send message"\);let [\w$]+=[\w$]+\(\);return (?<notice>[\w$]+)\([\w$]+\?(?<describe>[\w$]+)\([\w$]+,[\w$]+\):(?<plain>[\w$]+)\(/u,
+    /(?<log>[\w$]+)\([\w$]+,"\[Daemon\] Failed to send message"\);let [\w$]+=[\w$]+\(\);return (?<notice>[\w$]+)\([\w$]+(?:\?\?[\w$]+)?\?(?<describe>[\w$]+)\([\w$]+,[\w$]+\):(?<plain>[\w$]+)\(/u,
     'send failure notice',
   );
   const sent: Sent[] = [];
@@ -216,6 +219,7 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
   const client = {
     getSessionStateManager: () => ({ getSessionManager: (id: string) => managers.get(id) ?? null }),
     ensureRemoteSessionReady: () => null,
+    unarchiveSession: async (id: string) => await world.unarchive?.(id),
     subscribeToSessionNotifications: () => () => null,
     sendTuiMessage: async (args: Sent & { beforeDispatch: () => boolean }) => {
       await Promise.resolve();
@@ -230,28 +234,29 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
   const stubs = new Map<string, Stand>([
     [head('client'), () => client],
     [
-      head('service'),
+      named('m'),
       () => ({
         getCurrentSessionId: () => world.currentId,
+        getCurrentSessionArchivedAt: () => (world.unarchive === undefined ? undefined : 1),
         ensureCurrentSession: async () => await Promise.resolve(world.currentId),
       }),
     ],
     [pending('set'), submissions],
     [pending('flag'), () => null],
-    [named('E1'), { current: null }],
+    [named('A1'), { current: null }],
     [refs('creating'), { current: null }],
     [refs('live'), { current: null }],
-    [named('z1'), async () => await session.promise],
+    [named('p2'), async () => await session.promise],
     [
-      ids('id'),
+      named('pt'),
       () => {
         nextId += 1;
         return `id-${nextId}`;
       },
     ],
-    [named('Fu'), (placement: string | undefined) => placement ?? 'end_of_turn'],
-    [named('Qy'), (content: Content) => content],
-    [named('Ju'), (images: string[] | undefined) => images],
+    [named('cT'), (placement: string | undefined) => placement ?? 'end_of_turn'],
+    [named('u3'), (content: Content) => content],
+    [named('Bh'), (images: string[] | undefined) => images],
     [failure('log'), () => null],
     [failure('describe'), (error: Error) => error.message],
     [failure('plain'), (error: Error) => error.message],

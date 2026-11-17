@@ -165,12 +165,12 @@ describe.skipIf(stockDroid === undefined)('the stock hook notification contract'
   test('completed hooks expose their event, tool call id and individual results', () => {
     const completed = new RegExp(
       holePattern(
-        'de.emit("project-notification",{notification:{type:"hook_execution_completed",hookId:y,hookEventName:s,hookMatcher:g,...P,hookOrder:k,...U&&gM(s,U)&&{hookPreventedAction:!0},hookStatus:Z?"error":"completed",hookResults:j}})',
+        'he.emit("project-notification",{notification:{type:"hook_execution_completed",hookId:y,hookEventName:s,hookMatcher:g,...x,hookOrder:k,...j&&yM(s,j)&&{hookPreventedAction:!0},hookStatus:U?"error":"completed",hookResults:(D??[]).map((Q,q)=>({...S[q],...Q}))}})',
       ).source,
       'u',
     );
     const context = new RegExp(
-      holePattern('P={hookToolCallId:a?.toolCallId,...o.message_id&&{hookParentId:o.message_id}};')
+      holePattern('x={hookToolCallId:a?.toolCallId,...o.message_id&&{hookParentId:o.message_id}};')
         .source,
       'u',
     );

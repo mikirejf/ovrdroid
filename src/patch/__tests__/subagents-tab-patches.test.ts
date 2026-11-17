@@ -166,7 +166,7 @@ describe('the shipped binary', () => {
     test('the Subagents tab comes last, after Archived', () => {
       expect(patchedText).toMatch(
         new RegExp(
-          `labelKey:"sessions.tabs.archived",showPath:!0,filter:\\w+\\},\\{id:"${SUBAGENT_TAB_ID}"`,
+          `labelKey:"sessions.tabs.archived",showPath:!0,filter:[\\w$]+\\},\\{id:"${SUBAGENT_TAB_ID}"`,
           'u',
         ),
       );

@@ -283,6 +283,12 @@ describe.skipIf(STOCK === undefined)('inline code in a paragraph', () => {
     expect(patched.lines.join('\n')).not.toContain(NO_BREAK_SPACE);
   });
 
+  test('preserves the stock newline normalization before joining the command', () => {
+    const multiline = inlineCodeParagraph('git\r\npush\r--no-verify\n-u origin devkit-run3', 45);
+    expect(multiline.stock.lines).toEqual(stock.lines);
+    expect(multiline.patched.lines).toEqual(patched.lines);
+  });
+
   test('tells the Text to leave the lines alone', () => {
     expect(patched.wrap).toBe(UNWRAPPED);
   });

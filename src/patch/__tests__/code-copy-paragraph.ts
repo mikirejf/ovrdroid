@@ -82,10 +82,9 @@ function escaped(name: string): string {
   return name.replaceAll('$', String.raw`\$`);
 }
 
-function lineBuilderIn(app: App): LineBuilder {
+function lineBuilderIn(app: App, segment: string): LineBuilder {
   const wordsRebase = rebasedNamed(rebases, 'code-copy-no-break-space-joins-words');
   const entry = stockName(rebasedNamed(rebases, 'code-copy-long-word-entry'), 'VH');
-  const segment = stockName(rebasedNamed(rebases, 'code-copy-inline-code-joined'), 'rt');
   const text = textOf(app, moduleHolding(sourceApp(), wordsRebase.find));
   const paint = required(COLOR_LOOKUP.exec(text)?.groups?.['paint'], 'color lookup in the wrapper');
   const built = evaluateProgram<Record<string, Stand>>({
@@ -103,6 +102,7 @@ function textElement(_type: Stand, props: TextProps): TextElement {
 
 function rendererIn(app: App): Renderer {
   const segmentRebase = rebasedNamed(rebases, 'code-copy-inline-code-joined');
+  const segment = stockName(segmentRebase, 'ht');
   const paragraphRebase = rebasedNamed(rebases, 'code-copy-paragraph-text-unwrapped');
   const text = textOf(app, moduleHolding(sourceApp(), segmentRebase.find));
   const paragraph = stockName(paragraphRebase, 'HM');
@@ -111,7 +111,7 @@ function rendererIn(app: App): Renderer {
     'u',
   );
   const name = required(flow.exec(text)?.groups?.['flow'], 'inline flow renderer');
-  const lines = lineBuilderIn(app);
+  const lines = lineBuilderIn(app, segment);
   const program = evaluateProgram<Record<string, Renderer | undefined>>({
     moduleText: text,
     source: closureOf(text, [name]),
@@ -120,7 +120,7 @@ function rendererIn(app: App): Renderer {
       [stockName(paragraphRebase, 't'), textElement],
       [stockName(paragraphRebase, 'o'), null],
       [stockName(rebasedNamed(rebases, 'code-copy-long-word-entry'), 'VH'), lines.entry],
-      [stockName(segmentRebase, 'rt'), lines.segment],
+      [segment, lines.segment],
     ]),
   });
   const renderer = program[name];

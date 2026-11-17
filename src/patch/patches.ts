@@ -75,6 +75,20 @@ const MARK_PAINTED =
 
 const SHELL_FRAME_WRITE = `n=r.write(\`\${je.SYNC_OUTPUT_START}\${t}\${e}\${je.SYNC_OUTPUT_END}\`);`;
 
+const WEB_FETCH_REGISTRATION =
+  'id:"fetch_url",llmId:Wr,backendOnly:!0,uiGroupId:"fetch_url",displayName:"Web Fetch",description:Ane(),executionLocation:"server",modelResultBudgetBytes:Ul,inputSchema:le,isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!1,sideEffects:["network"],outputSchemas:{result:b},toolkit:"Web Search",';
+
+const NEW_SESSION_OPTIONS_END = 'startCause:S1.startCause,...Y1});';
+
+const SEND_WAIT_FOR_SESSION =
+  'if(V3=n3,!V3){if(Qe??=await g3(m().ensureCurrentSession()),te)return"rejected_with_notice";' +
+  'let Ut=_3();if(Ut){if(await Ut,te)return"rejected_with_notice"}' +
+  'V3=await g3(p2())}if(te)return"rejected_with_notice";' +
+  'if(Qe??=m().getCurrentSessionId(),!V3)return D3(),"rejected_with_notice";';
+
+const SEND_SESSION_MANAGER =
+  'let M3=ne.message,st=be.getSessionStateManager(),N3=st.getSessionManager(V3)';
+
 export const patches: readonly Patch[] = [
   {
     name: 'kitty-probe-timeout',
@@ -156,9 +170,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'web-fetch-always-loaded',
-    find: 'toolkit:"Web Search",deferred:!0,isToolEnabled:!0});var de=/^(\\d{4})-(\\d{2})-(\\d{2})$/;',
-    replace:
-      'toolkit:"Web Search",deferred:!1,isToolEnabled:!0});var de=/^(\\d{4})-(\\d{2})-(\\d{2})$/;',
+    find: `${WEB_FETCH_REGISTRATION}deferred:!0,isToolEnabled:!0`,
+    replace: `${WEB_FETCH_REGISTRATION}deferred:!1,isToolEnabled:!0`,
   },
   {
     name: 'web-search-always-loaded',
@@ -175,9 +188,8 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'new-session-loads-in-background',
-    find: '{title:ke.title}:{},...at});return await Cu(Sn),Sn}',
-    replace:
-      '{title:ke.title}:{},...at});if(ke?.missionV2)return await Cu(Sn),Sn;return Cu(Sn),Sn}',
+    find: `${NEW_SESSION_OPTIONS_END}return await Si(Ae),Ae}`,
+    replace: `${NEW_SESSION_OPTIONS_END}let $ODload=Si(Ae);if(S1.missionV2)await $ODload;return Ae}`,
   },
   {
     name: 'session-load-reads-loaded-settings',
@@ -196,28 +208,21 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'first-message-shows-at-once',
-    find:
-      'i4=E3??E1.current;if(s3=i4,!s3){if(Z2??=await n3(f().ensureCurrentSession()),w2)return"rejected_with_notice";' +
-      's3=await n3(z1())}if(w2)return"rejected_with_notice";' +
-      'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
-      'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3),',
+    find: `n3=P2??A1.current;${SEND_WAIT_FOR_SESSION}${SEND_SESSION_MANAGER},`,
     lookups: [
-      'k4=Fu(U1.queuePlacement);if(R3&&k4==="end_of_turn"){let B3=Qy({text:P4,images:Ju(U1.images),files:U1.files})',
-      'd2=U1.requestId??e2?.requestId??st(),F2=U1.messageId??e2?.messageId??st(),xe',
+      'F3=cT(ne.queuePlacement);if(I3&&F3==="end_of_turn"){let Ut=u3({text:M3,images:Bh(ne.images),files:ne.files})',
+      'e2=ne.requestId??x2?.requestId??pt(),R2=ne.messageId??x2?.messageId??pt(),y2',
     ],
     replace:
-      'i4=E3??E1.current,$ODe=null;if(!i4&&Fu(U1.queuePlacement)==="end_of_turn"){' +
-      'let $ODm=Z2?J1.getSessionStateManager().getSessionManager(Z2):null;' +
+      'n3=P2??A1.current,$ODe=null;if(!n3&&cT(ne.queuePlacement)==="end_of_turn"){' +
+      'let $ODm=Qe?be.getSessionStateManager().getSessionManager(Qe):null;' +
       'if($ODm&&$ODm.getDroidWorkingState()==="idle"){let $ODi=$ODm.getStore().getInteractionMode();' +
-      '$ODm.addOptimisticMessage(d2,{id:F2,role:U1.role??"user",content:Qy({text:U1.message,images:Ju(U1.images),files:U1.files}),' +
-      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...U1.visibility&&{visibility:U1.visibility}}),' +
-      '$ODm.setThinking(),$ODe=$ODm,xe={remove:()=>{$ODm.removeOptimisticMessage(d2);' +
-      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(d2)===void 0}}}' +
-      'if(s3=i4,!s3){if(Z2??=await n3(f().ensureCurrentSession()),w2)return"rejected_with_notice";' +
-      's3=await n3(z1())}if(w2)return"rejected_with_notice";' +
-      'if(Z2??=f().getCurrentSessionId(),!s3)return Ye(),"rejected_with_notice";' +
-      'let P4=U1.message,G4=J1.getSessionStateManager(),Pe=G4.getSessionManager(s3);' +
-      'if($ODe&&$ODe!==Pe)xe?.remove(),xe=void 0;let ',
+      '$ODm.addOptimisticMessage(e2,{id:R2,role:ne.role??"user",content:u3({text:ne.message,images:Bh(ne.images),files:ne.files}),' +
+      'createdAt:Date.now(),updatedAt:Date.now(),...$ODi&&{interactionMode:$ODi},...ne.visibility&&{visibility:ne.visibility}}),' +
+      '$ODm.setThinking(),$ODe=$ODm,y2={remove:()=>{$ODm.removeOptimisticMessage(e2);' +
+      'if($ODm.getDroidWorkingState()==="thinking")$ODm.stopStreaming()},isConfirmed:()=>$ODm.getOptimisticMessage(e2)===void 0}}}' +
+      `${SEND_WAIT_FOR_SESSION}${SEND_SESSION_MANAGER};` +
+      'if($ODe&&$ODe!==N3)y2?.remove(),y2=void 0;let ',
   },
   {
     name: 'live-reply-shows-every-line',

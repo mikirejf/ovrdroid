@@ -19,9 +19,8 @@ export const renderContextPatches: readonly Patch[] = [
   },
   {
     name: 'render-root-context-host',
-    find: 'scheduleMicrotask:queueMicrotask,scheduleTimeout:setTimeout,cancelTimeout:clearTimeout',
+    find: 'scheduleTimeout:setTimeout,cancelTimeout:clearTimeout',
     replace:
-      'scheduleMicrotask:($ODcb)=>queueMicrotask(()=>$ODroot($ODcb)),' +
       'scheduleTimeout:($ODcb,$ODms,...$ODargs)=>setTimeout(()=>$ODroot($ODcb,...$ODargs),$ODms),' +
       'cancelTimeout:clearTimeout',
   },

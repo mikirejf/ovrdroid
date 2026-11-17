@@ -1,9 +1,9 @@
 {
-  "droidVersion": "1.11.0",
-  "patchDigest": "6a3527402c7f",
+  "droidVersion": "1.13.1",
+  "patchDigest": "24ccc9f2e492",
   "bunVersion": "1.4.3",
   "platform": "darwin-arm64",
-  "passedAt": "2026-11-14T11:37:20.819Z",
+  "passedAt": "2026-11-17T22:40:56.345Z",
   "checks": [
     "verify",
     "builds",
@@ -21,6 +21,7 @@
     "mcp-children",
     "compaction-fallback",
     "skill-carry",
+    "deferred-load",
     "readonly-shell",
     "effort",
     "ab",

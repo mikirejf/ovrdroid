@@ -3,19 +3,6 @@ import { describe, expect, test } from 'bun:test';
 import { inkFramePatches, SHARED_CACHE_LINES, WRAP_CACHE_ENTRIES } from '../ink-frame-patches.ts';
 import { applies } from '../rebase.ts';
 import { moduleHolding, rebased, renamed, sourceApp, STOCK, textOf } from './ink-frame-harness.ts';
-import type { Char, Style } from './ink-frame-tokenizer.ts';
-import {
-  arraysUpTo,
-  BLUE_BACKGROUND,
-  BOLD,
-  copyOf,
-  LINK,
-  ODD_END,
-  randomTexts,
-  RED,
-  sameItemByItem,
-  tokenizers,
-} from './ink-frame-tokenizer.ts';
 import { FRAMES, wrappers } from './ink-frame-wrap.ts';
 import { closureOf } from './module-closure.ts';
 import type { Stand } from './session-mention-harness.ts';
@@ -37,86 +24,6 @@ describe.skipIf(STOCK === undefined)(
     });
   },
 );
-
-describe.skipIf(STOCK === undefined)('ink-style-diff-same-skip', () => {
-  test('stock prints nothing between two lists that are equal item by item', () => {
-    const { stockCode } = tokenizers();
-    const lists = arraysUpTo(2);
-    let covered = 0;
-    for (const before of lists) {
-      for (const after of lists) {
-        if (sameItemByItem(before, after)) {
-          covered += 1;
-          expect(stockCode.f(stockCode.h(before, after))).toBe('');
-        }
-      }
-    }
-    expect(covered).toBe(lists.length);
-    for (const list of arraysUpTo(3)) {
-      expect(stockCode.f(stockCode.h(list, copyOf(list)))).toBe('');
-    }
-  });
-
-  test('the patched cP prints what stock prints for every pair of neighbours up to two styles', () => {
-    const { stockCode, patchedCode } = tokenizers();
-    const lists = arraysUpTo(2);
-    let loud = 0;
-    for (const before of lists) {
-      for (const after of lists) {
-        const chars = (): Char[] => [
-          { type: 'char', value: 'a', styles: copyOf(before) },
-          { type: 'char', value: 'b', styles: copyOf(after) },
-        ];
-        expect(patchedCode.cP(chars())).toBe(stockCode.cP(chars()));
-        if (stockCode.f(stockCode.h(before, after)) !== '') {
-          loud += 1;
-        }
-      }
-    }
-    expect(loud).toBeGreaterThan(lists.length);
-  });
-
-  test('the patched cP prints what stock prints for runs with reordered and different-endCode styles', () => {
-    const { stockCode, patchedCode } = tokenizers();
-    const cases: Style[][][] = [
-      [],
-      [[]],
-      [[], [], []],
-      [[BOLD], [BOLD], [BOLD]],
-      [
-        [BOLD, RED],
-        [RED, BOLD],
-      ],
-      [[BOLD, RED], [BOLD, RED], [BOLD]],
-      [[RED], [ODD_END], [RED]],
-      [[], [RED], [], [RED, BLUE_BACKGROUND], [RED, BLUE_BACKGROUND]],
-      [[LINK, BOLD], [LINK, BOLD], [LINK], []],
-    ];
-    for (const styled of cases) {
-      const chars = (): Char[] =>
-        styled.map((styles, index) => ({
-          type: 'char',
-          value: String.fromCodePoint(97 + index),
-          styles: copyOf(styles),
-        }));
-      expect(patchedCode.cP(chars())).toBe(stockCode.cP(chars()));
-    }
-  });
-
-  test('the patched cP prints what stock prints over random styled text', () => {
-    const { stockCode, patchedCode } = tokenizers();
-    let styledOutputs = 0;
-    for (const text of randomTexts(600)) {
-      const chars = stockCode.sP(stockCode.lP(text));
-      const printed = patchedCode.cP(chars);
-      expect(printed).toBe(stockCode.cP(chars));
-      if (printed.includes('\u001B[')) {
-        styledOutputs += 1;
-      }
-    }
-    expect(styledOutputs).toBeGreaterThan(300);
-  });
-});
 
 function outputClass(): new () => { caches: Caches } {
   const rebase = rebased('ink-output-caches-shared');

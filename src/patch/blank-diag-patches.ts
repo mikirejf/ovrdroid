@@ -71,6 +71,9 @@ const STOCK_CLEARS =
 const AGENT_START =
   'l("[Compaction] Start (agent)",{type:"compaction",state:"start",reason:C,source:"agent"}),K9().trigger({sessionId:R.sessionId,';
 
+const AGENT_END =
+  'finally{if(this.compactionAbortRef=null,K.clearCompactionReason(),AX(A.sessionId),xe)';
+
 const MANUAL_START =
   'l("[Compaction] Start (manual)",{type:"compaction",state:"start",reason:"manual",source:"jsonrpc",modelId:r,isByok:c});let p=null;try{let t=await tPe({messages:d,sessionId:u,';
 
@@ -119,10 +122,10 @@ export const blankDiagPatches: readonly Patch[] = [
   },
   {
     name: 'blank-diag-epoch-reset',
-    find: '"queued-askuser-resolved":void 0;if(J){let n1=g.epoch+1,',
+    find: 'if(t1){let o1=C.epoch+1,',
     replace:
-      '"queued-askuser-resolved":void 0;if(J){globalThis.__odBlankEpoch={reason:J,at:Date.now()};' +
-      `${blankLog('epoch-reset', '{reason:J,epoch:g.epoch+1}', StackMode.None)};let n1=g.epoch+1,`,
+      'if(t1){globalThis.__odBlankEpoch={reason:t1,at:Date.now()};' +
+      `${blankLog('epoch-reset', '{reason:t1,epoch:C.epoch+1}', StackMode.None)};let o1=C.epoch+1,`,
   },
   {
     name: 'blank-diag-terminal-clear',
@@ -170,8 +173,11 @@ export const blankDiagPatches: readonly Patch[] = [
   },
   {
     name: 'blank-diag-compaction-agent-end',
-    find: 'finally{if(this.compactionAbortRef=null,F.clearCompactionReason(),Ne)',
-    replace: `finally{${blankLog('compaction', '{phase:"end",path:"agent",outcome:Ne?"succeeded":"failed"}', StackMode.None)};if(this.compactionAbortRef=null,F.clearCompactionReason(),Ne)`,
+    find: AGENT_END,
+    replace: AGENT_END.replace(
+      'finally{',
+      `finally{${blankLog('compaction', '{phase:"end",path:"agent",outcome:xe?"succeeded":"failed"}', StackMode.None)};`,
+    ),
   },
   {
     name: 'blank-diag-compaction-manual-start',

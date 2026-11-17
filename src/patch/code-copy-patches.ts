@@ -58,6 +58,8 @@ const PARAGRAPH_LINES =
 const PARAGRAPH_TEXT =
   'function HM(f,w,v){let k=dS(f,w);return t(o,{italic:w.config.italic,children:k.join(`\n`)||" "},v)}';
 
+const INLINE_CODE = String.raw`case"inlineCode":C.segment(ht(q.value.replace(/\r\n?|\n/g," ")`;
+
 export const codeCopyPatches: readonly Patch[] = [
   {
     name: 'code-copy-prompt-short',
@@ -97,8 +99,8 @@ export const codeCopyPatches: readonly Patch[] = [
   },
   {
     name: 'code-copy-inline-code-joined',
-    find: 'case"inlineCode":f.segment(rt(F.value,',
-    replace: `case"inlineCode":f.segment(rt(F.value.replaceAll(" ",${NO_BREAK_SPACE_ESCAPE}),`,
+    find: `${INLINE_CODE},`,
+    replace: `${INLINE_CODE}.replaceAll(" ",${NO_BREAK_SPACE_ESCAPE}),`,
   },
   {
     name: 'code-copy-no-break-space-joins-words',

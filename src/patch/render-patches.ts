@@ -33,7 +33,7 @@ export const renderPatches = [
   ...stackedViewPatches,
   {
     name: 'resume-expand-once',
-    find: 'expandUiMessages(){if(this.renderLimit===null)return!1;let t=un(this.store.getMessages()).length,o=this.renderLimit*2;if(o>=t)this.renderLimit=null;else this.renderLimit=o;return this.store.notifyMessagesChanged(),this.renderLimit!==null}',
+    find: 'expandUiMessages(){if(this.renderLimit===null)return!1;let t=this.getDisplayMessagesBeforeLimit().length,o=this.renderLimit*2;if(o>=t)this.renderLimit=null;else this.renderLimit=o;return this.store.notifyMessagesChanged(),this.renderLimit!==null}',
     replace:
       'expandUiMessages(){if(this.renderLimit===null)return!1;this.renderLimit=null;return this.store.notifyMessagesChanged(),!1}',
   },

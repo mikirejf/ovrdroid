@@ -206,6 +206,9 @@ then read the stock code around where it was (step 2's extractions, side by side
 - **Droid replaced the slow path.** A patch that skipped an expensive call is obsolete when stock
   now calls something cheap instead. Read the new function before deciding it is cheap, then
   delete the patch.
+- **Droid wrapped the site in the payload's own guard.** A patch that skips work behind a
+  condition goes `missing` when upstream puts its own check around the same call. Read the new
+  helper the call now sits behind; when it tests what the payload tests, delete the patch.
 - **Droid adopted half the payload's idea.** When stock starts carrying a field or behaviour a
   payload added, use stock's version and drop yours, keeping only the part stock still lacks.
 - **Droid now persists what the payload caches.** Before re-anchoring a patch that keeps its own

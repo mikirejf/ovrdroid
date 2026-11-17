@@ -6,8 +6,10 @@ import { patches } from '../patches.ts';
 import { rebaseAll } from '../rebase.ts';
 import { blockEnd } from '../tokens.ts';
 import {
+  arrowBefore,
   evaluate,
   FakeManager,
+  groups,
   patchedSites,
   renamed,
   sendWorld,
@@ -18,6 +20,8 @@ import { requireStock, stockDroid } from './stock-scanner.ts';
 
 const NAMES = [
   'shutdown-flush-deadline',
+  'web-fetch-always-loaded',
+  'new-session-loads-in-background',
   'session-load-reads-loaded-settings',
   'first-message-shows-at-once',
   'escape-stop-hint-says-twice',
@@ -45,6 +49,11 @@ interface HintState {
   isEscClaimed?: boolean;
 }
 
+interface NewSessionOptions {
+  startCause: { source: string };
+  sessionId?: string;
+}
+
 describe.skipIf(stockDroid === undefined)('core patches on stock source', () => {
   test('shutdown retains cleanup budgets but caps telemetry flushing at ten milliseconds', () => {
     const { rebase } = site('shutdown-flush-deadline');
@@ -55,6 +64,70 @@ describe.skipIf(stockDroid === undefined)('core patches on stock source', () => 
     )();
     expect(values).toEqual([2000, 10_000, 10, 250]);
   });
+
+  test('only Web Fetch stops deferring when its patch is applied', () => {
+    const { rebase, text } = site('web-fetch-always-loaded');
+    expect(rebase.find).toContain('id:"fetch_url"');
+    expect(rebase.replace).toBe(rebase.find.replace('deferred:!0', 'deferred:!1'));
+    expect(text).toContain(rebase.replace);
+    expect(text).toMatch(/id:"web_search"[^}]+\},toolkit:"Web Search",deferred:!0/u);
+  });
+
+  test.each([[false], [true]])(
+    'new local session waits for daemon load only for a workstream (workstream=%s)',
+    async (missionV2) => {
+      const { rebase, text } = site('new-session-loads-in-background');
+      const named = renamed(rebase);
+      const source = arrowBefore(text, rebase);
+      const stock = groups(
+        source,
+        /let [\w$]+=[\w$]+\.missionV2\?void 0:(?<remote>[\w$]+)\.current;.*?let [\w$]+=[\w$]+\.missionV2\?await (?<mission>[\w$]+)\(\):void 0,[\w$]+=await (?<create>[\w$]+)\(/u,
+        'new session callback',
+      );
+      const loaded = Promise.withResolvers<boolean>();
+      const loadIds: string[] = [];
+      const options: NewSessionOptions[] = [];
+      const startCause = { source: 'startup' };
+      const missionOptions = { sessionId: 'workstream' };
+      const create = evaluate<
+        (input: {
+          skipScheduledTaskLeaveWarning: boolean;
+          missionV2: boolean;
+          startCause: NewSessionOptions['startCause'];
+        }) => Promise<string>
+      >(
+        source,
+        new Map<string, Stand>([
+          [stock('remote'), { current: null }],
+          [stock('mission'), () => missionOptions],
+          [
+            stock('create'),
+            (input: NewSessionOptions) => {
+              options.push(input);
+              return 's1';
+            },
+          ],
+          [
+            named('Si'),
+            async (id: string) => {
+              loadIds.push(id);
+              return await loaded.promise;
+            },
+          ],
+        ]),
+      );
+      const result = create({ skipScheduledTaskLeaveWarning: true, missionV2, startCause });
+      await Bun.sleep(1);
+      expect(options).toEqual([missionV2 ? { startCause, ...missionOptions } : { startCause }]);
+      expect(loadIds).toEqual(['s1']);
+      expect(await Promise.race([result, Promise.resolve('pending')])).toBe(
+        missionV2 ? 'pending' : 's1',
+      );
+
+      loaded.resolve(true);
+      expect(await result).toBe('s1');
+    },
+  );
 
   test('a scoped session waits for settings initialization before reading the saved session', async () => {
     const { rebase } = site('session-load-reads-loaded-settings');

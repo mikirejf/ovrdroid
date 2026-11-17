@@ -22,7 +22,7 @@ const EXPAND = patchNamed(renderPatches, 'resume-expand-once');
 function managerClassWith(method: string): ManagerClass {
   return payloadFunction<[], ManagerClass>(
     [],
-    `const un=(t)=>t;return class{renderLimit=30;constructor(t){this.store=t}${method}}`,
+    `return class{renderLimit=30;constructor(t){this.store=t}getDisplayMessagesBeforeLimit(){return this.store.getMessages()}${method}}`,
   )();
 }
 

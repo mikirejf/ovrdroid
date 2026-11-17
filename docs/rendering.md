@@ -144,11 +144,11 @@ expands once.
 `main-transcript-markdown-cache`. Droid has a markdown LRU cache, but it only worked under a
 `scopeKey`, and only the detail panel set one. The main transcript now uses it.
 
-`ink-style-diff-same-skip`, `ink-output-caches-shared`, `ink-frame-wrap-cache` and
-`ink-blank-cell-shared`. These cut per-frame Ink work. Stock did a style diff per character with
-Sets, recreated its caches every frame, rewrapped every line, and made a fresh cell object for each
-of height times width. A scratch bench fell from 3.0 to 0.38ms for a 20-paragraph frame, with
-byte-identical output.
+`ink-output-caches-shared`, `ink-frame-wrap-cache` and `ink-blank-cell-shared`. These cut per-frame
+Ink work. Stock recreated its caches every frame, rewrapped every line, and made a fresh cell object
+for each of height times width. A scratch bench fell from 3.0 to 0.38ms for a 20-paragraph frame,
+with byte-identical output. `ink-style-diff-same-skip` was part of that bench and is gone since
+1.13.1, where stock skips the style diff for equal neighbouring styles itself.
 
 `markdown-parse-memo`. The live tail was parsed twice per streaming update.
 

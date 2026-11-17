@@ -130,8 +130,7 @@ export const sessionListPatches: readonly Patch[] = [
     name: 'session-list-view',
     find: PICKER_HEAD,
     lookups: [
-      'return l(T,{flexDirection:"column",width:y,height:E-1,overflow:"hidden",children:[',
-      'g.offline?t(i,{color:o.warning,wrap:"truncate-end",children:c1("common:droidsView.offline")})',
+      'return l(T,{flexDirection:"column",width:Q,children:[t(i,{color:o.error,children:r1("common:askUser.invalidQuestionnaire")})',
       'let{width:q,height:K}=Zn(),X=B??q,Z=_s1(K),{maxLines:e1,tier:t1}=Z',
       'mt=S(null),Y3=S(0),ct=S(null)',
       'v(()=>()=>{if(mt.current)clearTimeout(mt.current);if(ct.current)clearTimeout(ct.current)},[])',

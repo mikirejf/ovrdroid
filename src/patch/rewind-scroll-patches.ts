@@ -71,7 +71,7 @@ const APP_EXIT_LOOKUP = 'exitTranscriptHistory:iu,recordTranscriptHistoryPageHei
 
 const MENU_CONTEXT = 'onRewindSelect:(b1)=>{Gy(b1)},';
 
-const MENU_CONTEXT_DEPS = 'onIdeInstanceDisconnect:Cq}),[Gt,R2,uV,Gy,PV,';
+const MENU_CONTEXT_DEPS = 'onFolderTrustSettle:tV}),[';
 
 const MENU_PANE = 'onSelect:(B)=>{A.onRewindSelect(B),E()},onCancel:E})';
 
