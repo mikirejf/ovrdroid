@@ -92,6 +92,11 @@ export const subagentsTabPatches: readonly Patch[] = [
     replace: `{sessions:J1,forkIndentById:a2}=y(()=>l2.id==="${SUBAGENT_TAB_ID}"?{sessions:L2,forkIndentById:new Map}:Lu1(L2,g),[L2,g,l2])`,
   },
   {
+    name: 'session-rewind-marker',
+    find: `x2=a2.get(Y1.id)??0,j2=Math.min(Math.max(x2-1,0),Math.floor(Ne/4)),H3=x2>0?\`\${"  ".repeat(j2)}\\u21B3 \`:"",`,
+    replace: `x2=a2.get(Y1.id)??0,j2=Math.min(Math.max(x2-1,0),Math.floor(Ne/4)),H3=x2>0?\`\${"  ".repeat(j2)}\${Y1.tags.includes("rewind")?"\\u27F2 rewind ":"\\u21B3 "}\`:"",`,
+  },
+  {
     name: 'subagent-tab-prefix',
     find: 'children:[H3,s3?c(i,{color:a.text.muted,children:[s3," "]}):null,Y1.title?',
     replace:
