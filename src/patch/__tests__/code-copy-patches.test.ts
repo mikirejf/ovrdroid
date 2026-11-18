@@ -339,29 +339,21 @@ function communications(source: string): string[] {
 
 describe.skipIf(STOCK === undefined)('the system prompt', () => {
   const patched = joinApp(
-    patchSource(sourceApp(), [
-      patchNamed(codeCopyPatches, 'code-copy-prompt-short'),
-      patchNamed(codeCopyPatches, 'code-copy-prompt-long'),
-    ]),
+    patchSource(sourceApp(), [patchNamed(codeCopyPatches, 'code-copy-prompt-long')]),
   );
   const stockPrompt = joinApp(sourceApp());
   const requested = 'No emojis unless requested.\n';
 
-  test('both Communication variants say the line right after the formatting rule', () => {
-    const prompts = communications(patched);
-    expect(prompts).toHaveLength(2);
-    for (const prompt of prompts) {
-      expect(prompt).toContain(`${requested}${COPY_PROMPT_LINE}\n- Use a comma`);
-    }
+  test('adds the command-copy instruction right after the formatting rule', () => {
+    const [prompt] = communications(patched);
+    expect(prompt).toContain(`${requested}${COPY_PROMPT_LINE}\n- Use a comma`);
   });
 
-  test('control: stock Droid has both variants and neither carries the line', () => {
+  test('control: stock Droid has one Communication prompt without the command-copy instruction', () => {
     const prompts = communications(stockPrompt);
-    expect(prompts).toHaveLength(2);
-    for (const prompt of prompts) {
-      expect(prompt).toContain(requested);
-      expect(prompt).not.toContain(COPY_PROMPT_LINE);
-    }
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain(`${requested}- Use a comma`);
+    expect(prompts[0]).not.toContain(COPY_PROMPT_LINE);
   });
 
   test('the line is the exact text the model reads', () => {

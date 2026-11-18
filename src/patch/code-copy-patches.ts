@@ -37,9 +37,6 @@ const PROMPT_EXPRESSION = `\n\`+${JSON.stringify(COPY_PROMPT_LINE)}+\``;
 const COMMUNICATION_HEAD =
   '- Before a long-running step, post one brief progress note. Do not interrupt short work or recap after every tool call.\n- Name what a tool accomplished, not the tool. Include identifiers only when the user is working with them.\n- Format only when structure carries meaning. No emojis unless requested.';
 
-const SHORT_COMMUNICATION =
-  '# Communication\n- In final responses, lead with the outcome, then include only what the user needs to understand or verify it.\n';
-
 const LONG_COMMUNICATION = '- Use short sentences. Keep each paragraph focused on one topic.\n';
 
 const WRAP_LINES_HEAD =
@@ -61,11 +58,6 @@ const PARAGRAPH_TEXT =
 const INLINE_CODE = String.raw`case"inlineCode":C.segment(ht(q.value.replace(/\r\n?|\n/g," ")`;
 
 export const codeCopyPatches: readonly Patch[] = [
-  {
-    name: 'code-copy-prompt-short',
-    find: `${SHORT_COMMUNICATION}${COMMUNICATION_HEAD}`,
-    replace: `${SHORT_COMMUNICATION}${COMMUNICATION_HEAD}${PROMPT_EXPRESSION}`,
-  },
   {
     name: 'code-copy-prompt-long',
     find: `${LONG_COMMUNICATION}${COMMUNICATION_HEAD}`,

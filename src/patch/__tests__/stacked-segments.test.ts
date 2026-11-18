@@ -62,22 +62,33 @@ function drawText(_type: string, props: TextProps): string {
 }
 
 const drawStack = payloadFunction<
-  [typeof drawText],
-  (props: { group: { tools: Call[]; $ODopen?: boolean } }) => string
+  [typeof drawText, (call: Call) => string, (subtitle: string, width: number) => string],
+  (props: { group: { tools: Call[]; $ODopen?: boolean }; contentWidth: number }) => string
 >(
-  ['t'],
-  'var l=t,c="Box",o="Text",S2="ToolName",a={text:{muted:"muted"},error:"error"},VW="param",Xxe="name";' +
+  ['t', '$ODsubtitle', 'zW'],
+  'var l=t,c="Box",o="Text",S2="ToolName",a={text:{muted:"muted"},error:"error"},VW="param",Xxe="name",tbe=6;' +
     'function Uu(value){return value}function cbe(){return"completed"}function LA(noun,count){return noun+(count===1?"":"s")}' +
     `${TABLES}${SEGMENTS}${STACK_VIEW}return $ODStack`,
-)(drawText);
+)(
+  drawText,
+  () => 'the latest command',
+  (subtitle, width) => subtitle.slice(0, width),
+);
 
 function drawCalls(...calls: Omit<Call, 'id'>[]): string {
   const tools: Call[] = [];
   for (const [index, call] of calls.entries()) {
     tools.push({ id: `c${index}`, ...call });
   }
-  return drawStack({ group: { tools } });
+  return drawStack({ group: { tools }, contentWidth: 80 });
 }
+
+test('the open run passes the chat width less stock padding to the subtitle helper', () => {
+  const tools = [{ id: 'latest', toolName: 'Execute' }];
+  expect(drawStack({ group: { tools, $ODopen: true }, contentWidth: 16 })).toBe(
+    'Execute 1 command↳ the latest',
+  );
+});
 
 describe('skill names in stacked view', () => {
   test('keeps every loaded skill name in call order after the run closes', () => {

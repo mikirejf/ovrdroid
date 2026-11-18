@@ -97,7 +97,7 @@ export const SEGMENTS =
   'return $ODout}';
 
 export const STACK_VIEW =
-  'function $ODStack({group:$ODg}){' +
+  'function $ODStack({group:$ODg,contentWidth:$ODw}){' +
   'let $ODlist=$ODsegments($ODg.tools),$ODsub=$ODg.$ODopen?$ODsubtitle($ODg.tools.at(-1)):null;' +
   'return l(c,{flexDirection:"column",marginLeft:3,children:[' +
   't(c,{flexDirection:"row",flexWrap:"wrap",children:$ODlist.map(([$ODname,$ODcalls],$ODi)=>{' +
@@ -107,60 +107,73 @@ export const STACK_VIEW =
   'return l(c,{children:[t(S2,{text:Uu($ODname),isPending:$ODstate==="active",color:$ODstate==="not-executed"?a.text.muted:Xxe}),' +
   't(o,{color:VW,children:" "+(typeof $ODskill==="string"?$ODskill:$ODcount+" "+LA($ODcallNouns.get($ODname)??"call",$ODcount))}),' +
   '$ODfailed>0?t(o,{color:a.error,children:" ("+$ODfailed+" failed)"}):null,$ODsep]},$ODi)})}),' +
-  '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub)})}):null]})}';
+  '$ODsub?t(c,{marginLeft:1,children:t(o,{color:a.text.muted,wrap:"truncate-end",children:"\\u21B3 "+zW($ODsub,$ODw-tbe)})}):null]})}';
 
+const SESSION_STATIC_KEY = `B===void 0||B===R1?P:\`\${P}@\${B}\``;
 const MODE_FIND =
-  'r1=ke(Js,()=>f().getToolOutputDisplay()),s1=r1!=="expanded",c1=b({staticKey:M,cuts:new Map}),' +
-  'd1=y(()=>{let Y1=c1.current.staticKey===M?c1.current.cuts:new Map,H1=wr1(Y1,n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))));return c1.current={staticKey:M,cuts:H1},H1},[n1,M]),';
+  'L1=Be($k,()=>f().getToolOutputDisplay()),x1=Be($k,()=>f().getShowHookOutput()),M1=L1!=="expanded",' +
+  `k1=S(void 0),R1=k1.current?.staticKey===P?k1.current.drawnSessionId??B:B,A1=${SESSION_STATIC_KEY},` +
+  'T1=k(()=>_a1(k1.current?.state.baseStaticKey===A1?k1.current.cuts:new Map,d1.filter((G1)=>!(("toolName"in G1)&&("status"in G1)))),[d1,A1]),';
 
 export const MODE = MODE_FIND.replace(
-  's1=r1!=="expanded",',
-  `$ODmode=r1,s1=r1!=="expanded"&&r1!=="${STACKED_MODE}",$ODstacked=r1==="${STACKED_MODE}",`,
+  'M1=L1!=="expanded",',
+  `$ODstacked=L1==="${STACKED_MODE}",M1=L1!=="expanded"&&!$ODstacked,`,
 )
   .replace(
-    'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2)))',
-    'n1.filter((p2)=>!(("toolName"in p2)&&("status"in p2))&&!($ODstacked&&p2.messageType==="thinking"))',
+    `A1=${SESSION_STATIC_KEY}`,
+    `$ODsessionStaticKey=${SESSION_STATIC_KEY},A1=$ODstacked?$ODsessionStaticKey+":stacked":$ODsessionStaticKey`,
   )
-  .replace('},[n1,M]),', '},[n1,M,$ODstacked]),');
+  .replace(
+    'd1.filter((G1)=>!(("toolName"in G1)&&("status"in G1)))',
+    'd1.filter((G1)=>!(("toolName"in G1)&&("status"in G1))&&!($ODstacked&&G1.messageType==="thinking"))',
+  )
+  .replace('[d1,A1]', '[d1,A1,$ODstacked]');
 
 const UNITS_OPTIONS =
-  '{includeHeader:!0,reskin:!0,staticToolIds:i1,view:{kind:"chat",showThinking:D},images:f1,streamingCuts:d1,toolOutputMode:r1}';
+  '{includeHeader:!0,reskin:!0,staticToolIds:c1,view:{kind:"chat",showThinking:q},images:_1,streamingCuts:T1,toolOutputMode:L1,hookRowsShown:x1}';
 
-const UNITS_DEPS = '[i1,f1,L1,n1,D,d1,r1]';
+const UNITS_DEPS = '[c1,x1,_1,D1,d1,q,T1,L1]';
 
 const UNITS_STACKED =
-  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:D,awaiting:($ODid)=>q?.has($ODid)===!0}):$ODunits}';
-
-const STATIC_KEY_FIND = 'g1=M,p1=h1.at(-1),';
-
-export const STATIC_KEY = STATIC_KEY_FIND.replace('g1=M,', 'g1=$ODstacked?M+":stacked":M,');
+  'return $ODstacked?$ODstack($ODunits,{open:$ODturn,showThinking:q,awaiting:($ODid)=>Z?.has($ODid)===!0}):$ODunits}';
 
 const REPRINT_FIND =
-  'qe=b({baseStaticKey:$e,epoch:0});ur(()=>{Ne.current=Ye;let We=qe.current,tt=We.baseStaticKey===Ye.baseStaticKey&&Ye.epoch>We.epoch;' +
-  'if(qe.current={baseStaticKey:Ye.baseStaticKey,epoch:Ye.epoch},tt)ee?.()},[Ye,ee]);';
+  'vn(()=>{let G1=k1.current?.state;if(k1.current={state:q1,cuts:T1,staticKey:P,drawnSessionId:R1},' +
+  'G1?.baseStaticKey===q1.baseStaticKey&&q1.epoch>G1.epoch)r1?.()},[q1,T1,r1,P,R1]);';
 
 export const REPRINT = REPRINT_FIND.replace(
-  'qe=b({baseStaticKey:$e,epoch:0})',
-  'qe=b({baseStaticKey:$e,epoch:0,$ODstacked:$ODstacked})',
+  'let G1=k1.current?.state;',
+  'let $ODprevious=k1.current,G1=$ODprevious?.state;',
 )
-  .replace('&&Ye.epoch>We.epoch;', '&&Ye.epoch>We.epoch||We.$ODstacked!==$ODstacked;')
-  .replace('epoch:Ye.epoch}', 'epoch:Ye.epoch,$ODstacked:$ODstacked}');
+  .replace('drawnSessionId:R1}', 'drawnSessionId:R1,$ODstacked:$ODstacked}')
+  .replace(
+    '&&q1.epoch>G1.epoch)',
+    '&&q1.epoch>G1.epoch||$ODprevious&&$ODprevious.$ODstacked!==$ODstacked)',
+  )
+  .replace('[q1,T1,r1,P,R1]', '[q1,T1,r1,P,R1,$ODstacked]');
 
-const HISTORY_SEGMENT_FIND =
-  'toolOutputMode:R,showThinking:D=!1,images:B,onPageHeight:V})=>{let q=S(null),K=S(new Map),X=$U(B),' +
-  'Z=k(()=>gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B,toolOutputMode:R}),[B,X,g.messages,D,R]);';
+const HISTORY_SEGMENT_HEAD =
+  'hookRowsShown:B,showThinking:H=!1,images:V,onPageHeight:q})=>{let K=S(null),Q=S(new Map),Z=sY(V),';
 
-export const HISTORY_UNITS =
-  'let $ODunits=gC(Tc($m(g.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:D},images:B,toolOutputMode:R});' +
-  'return $ODstacked?$ODstack($ODunits,{open:!1,showThinking:D,awaiting:()=>!1}):$ODunits';
+const HISTORY_UNIT_CALL =
+  'Qs(ic(UB(C.messages)),{includeHeader:!1,reskin:!0,view:{kind:"chat",showThinking:H},images:V,toolOutputMode:P,hookRowsShown:B})';
+
+const HISTORY_UNITS_DEPS = '[B,V,Z,C.messages,H,P]';
+
+const HISTORY_SEGMENT_FIND = `${HISTORY_SEGMENT_HEAD}t1=k(()=>${HISTORY_UNIT_CALL},${HISTORY_UNITS_DEPS});`;
+
+const HISTORY_UNITS =
+  `let $ODunits=${HISTORY_UNIT_CALL};` +
+  'return $ODstacked?$ODstack($ODunits,{open:!1,showThinking:H,awaiting:()=>!1}):$ODunits';
 
 const HISTORY_SEGMENT =
-  'toolOutputMode:R,showThinking:D=!1,images:B,onPageHeight:V,$ODstacked:$ODstacked})=>{let q=S(null),K=S(new Map),X=$U(B),' +
-  `Z=k(()=>{${HISTORY_UNITS}},[B,X,g.messages,D,R,$ODstacked]);`;
+  `$ODstacked:$ODstacked,${HISTORY_SEGMENT_HEAD}` +
+  `t1=k(()=>{${HISTORY_UNITS}},${HISTORY_UNITS_DEPS.replace(']', ',$ODstacked]')});`;
 
-const HISTORY_MODE_FIND = 'let K=f().getToolOutputDisplay(),X=UP(bC(),q)';
+const HISTORY_MODE_FIND = 'let K=f().getToolOutputDisplay(),Q=f().getShowHookOutput()';
 
-const HISTORY_PAGE_FIND = 'toolOutputMode:K,showThinking:D,images:X,onPageHeight:V}';
+const HISTORY_PAGE_FIND =
+  'toolOutputMode:K,hookRowsShown:Q,showThinking:B,images:Z,onPageHeight:V}';
 
 export const stackedViewPatches: readonly Patch[] = [
   {
@@ -215,7 +228,7 @@ export const stackedViewPatches: readonly Patch[] = [
       'function va(g){return"toolName"in g&&"status"in g}',
       'return iD(g,y,void 0,v.showThinking,v)}',
       'function Jxe(g,y){let S=g.toolInput;if(!S)return null;switch(g.toolName){case"Read":',
-      'function zW(g,y){let S=he(g),M=(process.stdout.columns||80)-tbe;',
+      'var tbe=6;function zW(g,y){return Gc(he(g),y)}',
       'ie=f().getShowHookOutput()&&[re?.before??[],re?.after??[]].some((le)=>le.length>0&&!cw(le));',
       'function uD(g){if(!g)return!1;return(Array.isArray(g)?g:QS(g)).some((S)=>S.hookStatus==="executing")}',
       'function cbe(g){let y=g.map((S)=>Xw({status:S.status,result:S.result,isError:S.isError,executionPhase:S.executionPhase}));',
@@ -233,7 +246,7 @@ export const stackedViewPatches: readonly Patch[] = [
     name: 'stacked-view-draw',
     find: 'if(vM(g))return t(c,{width:"100%",marginTop:1,children:t(iM,{group:g,contentWidth:y,compact:v.compact})}',
     replace:
-      'if(vM(g))return t(c,{width:"100%",marginTop:1,children:g.$ODstack===!0?t($ODStack,{group:g}):t(iM,{group:g,contentWidth:y,compact:v.compact})}',
+      'if(vM(g))return t(c,{width:"100%",marginTop:1,children:g.$ODstack===!0?t($ODStack,{group:g,contentWidth:y}):t(iM,{group:g,contentWidth:y,compact:v.compact})}',
   },
   {
     name: 'stacked-view-thinking-row',
@@ -260,14 +273,9 @@ export const stackedViewPatches: readonly Patch[] = [
   },
   {
     name: 'stacked-view-units',
-    find: `h1=y(()=>Ld(n1,${UNITS_OPTIONS}),${UNITS_DEPS});`,
-    lookups: ['showThinking:D=!1,permissionToolIds:R,staticToolIds:V,pendingPermissionToolIds:q,'],
-    replace: `h1=y(()=>{let $ODunits=Ld(n1,${UNITS_OPTIONS});${UNITS_STACKED},${UNITS_DEPS.replace(']', ',$ODstacked,$ODturn,q]')});`,
-  },
-  {
-    name: 'stacked-view-static-key',
-    find: STATIC_KEY_FIND,
-    replace: STATIC_KEY,
+    find: `P1=k(()=>Qs(d1,${UNITS_OPTIONS}),${UNITS_DEPS});`,
+    lookups: ['showThinking:q=!1,permissionToolIds:K,staticToolIds:Q,pendingPermissionToolIds:Z,'],
+    replace: `P1=k(()=>{let $ODunits=Qs(d1,${UNITS_OPTIONS});${UNITS_STACKED},${UNITS_DEPS.replace(']', ',$ODstacked,$ODturn,Z]')});`,
   },
   {
     name: 'stacked-view-mode-reprint',

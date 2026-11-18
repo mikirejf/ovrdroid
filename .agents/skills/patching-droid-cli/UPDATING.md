@@ -414,6 +414,13 @@ platforms. Write any new one the same way:
   `rebase.find` from `rebaseAll`, never a raw `PATCH.find`, which is in one platform's names; and
   read a captured binding with `renamed(rebase)` (`session-mention-keys.ts`). That includes the
   markers a harness slices stock code on: an `indexOf('=g(')` breaks on the first rename.
+- `renamed(rebase)` maps only names the `replace` uses. A name a harness reads from a `find` or
+  lookup that the payload never names (a generator the payload calls only through its result)
+  comes back in the source build's spelling, so a stub keyed on it silently binds nothing. Find
+  such a binding by its role in the stock text instead.
+- When upstream turns a string literal into a reference to a constant (`llmId:"X"` becomes
+  `llmId:K.X`), a test that asserts the literal fails while the payload is still right. Match
+  both forms, and check the constant's value when it is the reference form.
 - Match a minified name with `[\w$]+`, never `\w+`: the minifier hands out `$`-prefixed names, and
   a regex that skips them breaks the release it first picks one.
 - Compare a stock piece with `holePattern`, which ignores minified names (`stock-source.test.ts`).

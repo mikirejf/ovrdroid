@@ -364,6 +364,11 @@ describe.skipIf(stockDroid === undefined)('the copied parser still matches the s
 
   test('the payload names the tool search tool by the name the shipped one has', () => {
     expect(DROID_TOOLS_METHOD).toContain('$ODids.add("ToolSearch")');
-    expect(stockText.split('id:"tool-search-cli",llmId:"ToolSearch"')).toHaveLength(2);
+    const llmId = /id:"tool-search-cli",llmId:(?<value>"ToolSearch"|[\w$]+\.ToolSearch)[,}]/gu;
+    const found = [...stockText.matchAll(llmId)];
+    expect(found).toHaveLength(1);
+    if (found[0]?.groups?.['value'] !== '"ToolSearch"') {
+      expect(stockText).toContain('ToolSearch:"ToolSearch"');
+    }
   });
 });

@@ -91,7 +91,7 @@ const MENU_FOLLOWS =
   '$ODshown.current=K,$ODonSeek?.($ODrow.messageId,K<$ODprev)},[K,g,$ODonSeek]);' +
   'U(()=>()=>{$ODend.current?.()},[]);';
 
-const SEGMENT_REF_LOOKUP = 'let q=S(null),K=S(new Map),X=$U(B)';
+const SEGMENT_REF_LOOKUP = 'onPageHeight:p2})=>{let h2=S(null),j2=S(new Map),';
 
 const STATE_UNCHANGED = 'c1.error===l1.error&&Tu1(c1.window,l1.window,Z.current))return;';
 
@@ -146,7 +146,7 @@ export const rewindScrollPatches: readonly Patch[] = [
     lookups: [
       ...HOOK_LOOKUPS,
       'let f1=m().getCurrentSessionId();if(!f1)return;let h1=V.current;',
-      'U(()=>{rw(B,Z)},[B,Z])',
+      'return U(()=>{rw(h2,j2)},[h2,j2]),',
     ],
     replace: SEEK_API,
   },

@@ -44,6 +44,7 @@ describe.skipIf(sites === undefined)('first-message-shows-at-once', () => {
     await settle();
     expect(manager('s1').shown()).toEqual(['hello']);
     expect(manager('s1').state).toBe('thinking');
+    expect([...manager('s1').optimistic.keys()]).toEqual(['id-1']);
     expect(world.sent).toEqual([]);
 
     world.createSession('s1');

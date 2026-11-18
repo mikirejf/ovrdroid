@@ -1,9 +1,9 @@
 {
-  "droidVersion": "1.13.1",
-  "patchDigest": "24ccc9f2e492",
+  "droidVersion": "1.14.0",
+  "patchDigest": "0d1d680781ff",
   "bunVersion": "1.4.3",
   "platform": "darwin-arm64",
-  "passedAt": "2026-11-17T22:40:56.345Z",
+  "passedAt": "2026-11-18T13:44:40.070Z",
   "checks": [
     "verify",
     "builds",

@@ -136,7 +136,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       UU_LOOKUP,
       'children:bt.cwd?ZT(bt.cwd):""',
       'title:Li(be,Math.max(8,Math.floor(Le/2))),machine:',
-      'let{slice:U}=Ar(D,F-QS.length);',
+      'let{slice:U}=Ar(D.text,F);if(U&&',
     ],
     replace: `static isInPathContext({text:y,cursorPosition:E}){return uu.extractPathQuery({text:y,cursorPosition:E})!==null}${SESSION_STATICS}}`,
   },

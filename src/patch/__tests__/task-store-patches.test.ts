@@ -21,6 +21,7 @@ interface View {
 
 interface StoreOptions {
   throwOnError: boolean;
+  maxBytes?: number;
   $ODcompact?: boolean;
 }
 
@@ -209,31 +210,26 @@ describe('task store pruning', () => {
 });
 type SerializeStoreArgs = [string, string, Store, StoreOptions | null];
 
-type SerializeStore = (...args: SerializeStoreArgs) => string;
+type SerializeStore = (...args: SerializeStoreArgs) => string | { size: number };
 
-const STOCK_TAIL = ';return c}catch(l){throw l}}';
+const STOCK_SERIALIZER =
+  `function ro(e,t,s,n){let o=\`\${e}.\${process.pid}.\${Date.now()}.tmp\`,c="serialize";` +
+  'try{let l=JSON.stringify(s,null,2);if(n?.maxBytes!==void 0){let d=Buffer.byteLength(l,"utf8");if(d>n.maxBytes)return{size:d}}';
 
 const buildSerializer = payloadFunction<[], SerializeStore>(
   [],
-  `${compact.replace}${STOCK_TAIL};return jo`,
+  `${STOCK_SERIALIZER.replace(compact.find, compact.replace)}return l}catch(l){throw l}};return ro`,
 );
 
-function writeWith(options: StoreOptions | null): string {
-  return buildSerializer()(
-    'store.json',
-    'store.json.bak',
-    { invocations: [entry({ id: 'a', status: 'completed', ageHours: 1 })] },
-    options,
-  );
-}
+const ONE_ENTRY = { invocations: [entry({ id: 'é', status: 'completed', ageHours: 1 })] };
 
-const ONE_ENTRY = { invocations: [entry({ id: 'a', status: 'completed', ageHours: 1 })] };
+function writeWith(options: StoreOptions | null): ReturnType<SerializeStore> {
+  return buildSerializer()('store.json', 'store.json.bak', ONE_ENTRY, options);
+}
 
 describe('task store compact output', () => {
   test('writes one line of JSON when asked', () => {
-    const data = writeWith({ throwOnError: true, $ODcompact: true });
-    expect(data).not.toContain('\n');
-    expect(JSON.parse(data)).toEqual(ONE_ENTRY);
+    expect(writeWith({ throwOnError: true, $ODcompact: true })).toBe(JSON.stringify(ONE_ENTRY));
   });
 
   test('keeps the two-space indent for every other store', () => {
@@ -242,5 +238,16 @@ describe('task store compact output', () => {
 
   test('keeps the two-space indent when a store passes no options', () => {
     expect(writeWith(null)).toBe(JSON.stringify(ONE_ENTRY, null, 2));
+  });
+
+  test('checks the UTF-8 byte length of the JSON it will write', () => {
+    const options = { throwOnError: true, $ODcompact: true };
+    const data = JSON.stringify(ONE_ENTRY);
+    const size = Buffer.byteLength(data, 'utf-8');
+    expect(writeWith({ ...options, maxBytes: size })).toBe(data);
+    expect(writeWith({ ...options, maxBytes: data.length })).toEqual({ size });
+    expect(writeWith({ throwOnError: true, maxBytes: size })).toEqual({
+      size: Buffer.byteLength(JSON.stringify(ONE_ENTRY, null, 2), 'utf-8'),
+    });
   });
 });

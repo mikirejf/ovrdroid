@@ -1,12 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 
-import { dormantWorld, HubWorld, SERVER, STDIO_CONFIG } from './mcp-idle-harness.ts';
+import { HubWorld, SERVER, STDIO_CONFIG, TOOLS } from './mcp-idle-harness.ts';
+
+const CONFIG = { ...STDIO_CONFIG, env: { SHARED: 'configured', EXTRA: 'server' } };
 
 describe.each(['cold start', 'dormant wake'] as const)('%s', (start) => {
   test.each(['success', 'failure'] as const)(
-    'releases stdio preparation after %s',
+    'merges stdio env and releases preparation after %s',
     async (outcome) => {
-      const world = start === 'dormant wake' ? await dormantWorld() : new HubWorld();
+      const world = new HubWorld({ [SERVER]: CONFIG });
+      if (start === 'dormant wake') {
+        world.seedCache(TOOLS, SERVER, CONFIG);
+        await world.hub.addServer(SERVER, CONFIG);
+        expect(world.spawned).toEqual([]);
+      }
+      Object.assign(world.env, { SHARED: 'inherited', BASE: 'process' });
       world.hub.cwd = '/project';
       world.spawnCwd = '/sandbox/project';
       world.failSpawns = Number(outcome === 'failure');
@@ -14,7 +22,7 @@ describe.each(['cold start', 'dormant wake'] as const)('%s', (start) => {
       const connection = Promise.allSettled([
         start === 'dormant wake'
           ? world.hub.callTool(SERVER, 'click')
-          : world.hub.addServer(SERVER, STDIO_CONFIG),
+          : world.hub.addServer(SERVER, CONFIG),
       ]);
       await HubWorld.settle();
 
@@ -22,6 +30,11 @@ describe.each(['cold start', 'dormant wake'] as const)('%s', (start) => {
       expect(world.prepared[0]).toMatchObject({ cwd: '/project', command: STDIO_CONFIG.command });
       expect(world.spawned).toHaveLength(1);
       expect(world.spawned[0]).toMatchObject({ cwd: '/sandbox/project' });
+      expect(world.spawned[0]?.env).toEqual({
+        SHARED: 'configured',
+        EXTRA: 'server',
+        BASE: 'process',
+      });
       expect(world.spawned[0]).not.toHaveProperty('release');
       expect(world.released).toEqual([]);
 

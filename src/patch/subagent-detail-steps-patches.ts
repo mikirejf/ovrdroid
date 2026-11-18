@@ -44,7 +44,7 @@ export const subagentDetailStepsPatches: readonly Patch[] = [
     name: 'subagent-detail-steps-component',
     find: STOCK_TASK_RESULT,
     lookups: [
-      'var U2=200,N1=10;function Sy(',
+      '{maxUpdates:N1,includeResultParameters:!0,includeResultFullOutput:!0}',
       'l(c,{flexDirection:"column",marginBottom:1,children:[t(o,{color:a.text.muted,bold:!0,children:u().t("common:toolDisplay.task.inputLabel")})',
     ],
     replace: `${STOCK_TASK_RESULT}${DETAIL_STEPS}`,

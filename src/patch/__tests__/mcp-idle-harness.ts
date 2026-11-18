@@ -46,7 +46,8 @@ export interface Timer {
   unref: () => void;
 }
 
-type SpawnArgs = Pick<ServerConfig, 'command' | 'url'> & { cwd?: string };
+type Env = Record<string, string>;
+type SpawnArgs = Pick<ServerConfig, 'command' | 'url'> & { cwd?: string; env?: Env };
 
 const PATCHED = patchSource(
   [{ name: 'hub.js', text: STOCK_HUB_MODULE }],
@@ -114,7 +115,7 @@ export class HubWorld {
   readonly owned = new Set<number>();
   readonly changed: string[] = [];
   readonly calls: string[] = [];
-  readonly env: Record<string, string> = {};
+  readonly env: Env = {};
   tools: Tool[] = TOOLS;
   failSpawns = 0;
   spawnCwd?: string;
@@ -135,9 +136,12 @@ export class HubWorld {
       wi: (value: Configs) => ({ ...value }),
       Xu: () => this.era === 'modern',
       i: Error,
-      N5: ignore,
+      N5: ({ values }: { values?: Env }) => values,
       IH: never,
-      $a: (env: Configs) => env,
+      $a: (env: Env, overrides: { name: string; value: string }[]) => ({
+        ...env,
+        ...Object.fromEntries(overrides.map(({ name, value }) => [name, value])),
+      }),
       Uu: async (args: SpawnArgs) => {
         this.prepared.push(args);
         return await Promise.resolve({

@@ -56,11 +56,6 @@ export const wideTerminalPatches: readonly Patch[] = [
     replace: `function X9(d){let f=globalThis.__odBoxWidth(dE(d.columns,iy)),E=dE(d.rows,Gy);return\`\${f}x\${E}x\${d.columns}\`}`,
   },
   {
-    name: 'wide-terminal-tool-line-width',
-    find: 'C=(process.stdout.columns||80)-Cae;',
-    replace: 'C=globalThis.__odBoxWidth(process.stdout.columns||80)-Cae;',
-  },
-  {
     name: 'wide-terminal-resize-watch-start',
     find: 'z=d.columns,q=!1,Z=()=>{',
     replace: 'z=d.columns,$ODcapped=globalThis.__odBoxWidth(d.columns),q=!1,Z=()=>{',

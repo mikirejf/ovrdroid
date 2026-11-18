@@ -179,6 +179,11 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     /^async\([\w$]+\)=>\{let [\w$]+=(?<client>[\w$]+)\(\),/u,
     'send callback head',
   );
+  const ids = groups(
+    source,
+    /\.requestId\?\?[\w$]+\?\.requestId\?\?(?<generate>[\w$]+)\(\),[\w$]+=[\w$]+\.messageId\?\?[\w$]+\?\.messageId\?\?\k<generate>\(\)/u,
+    'send ID generator',
+  );
   const pending = groups(
     source,
     /\((?<set>[\w$]+)\.current\.add\([\w$]+\),(?<flag>[\w$]+)\(!0\)/u,
@@ -248,7 +253,7 @@ export function sendWorld(sites: Sites, managers: Map<string, FakeManager>): Sen
     [refs('live'), { current: null }],
     [named('p2'), async () => await session.promise],
     [
-      named('pt'),
+      ids('generate'),
       () => {
         nextId += 1;
         return `id-${nextId}`;

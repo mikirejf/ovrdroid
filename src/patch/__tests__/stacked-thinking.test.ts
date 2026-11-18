@@ -194,32 +194,91 @@ describe('the thinking row', () => {
   });
 });
 
+interface CutMessage {
+  messageType?: string;
+  toolName?: string;
+  status?: string;
+}
+
+interface CutsState {
+  staticKey: number;
+  drawnSessionId?: string;
+  state: { baseStaticKey: number | string };
+  cuts: Map<string, number[]>;
+}
+
+const readMode = payloadFunction<
+  [
+    (subscribe: symbol, snapshot: () => string | boolean) => string | boolean,
+    symbol,
+    () => { getToolOutputDisplay: () => string; getShowHookOutput: () => boolean },
+    (initial: undefined) => { current: CutsState | undefined },
+    number,
+    string | undefined,
+    (compute: () => CutMessage[]) => CutMessage[],
+    (previous: Map<string, number[]>, messages: CutMessage[]) => CutMessage[],
+    CutMessage[],
+  ],
+  { compact: boolean; stacked: boolean; baseStaticKey: number | string; messages: CutMessage[] }
+>(
+  ['Be', '$k', 'f', 'S', 'P', 'B', 'k', '_a1', 'd1'],
+  `let ${MODE.slice(0, -1)};return{compact:M1,stacked:$ODstacked,baseStaticKey:A1,messages:T1}`,
+);
+
+function readCuts(
+  mode: string,
+  previous: CutsState,
+  {
+    messages = [],
+    staticKey,
+    sessionId,
+  }: {
+    messages?: CutMessage[];
+    staticKey?: number;
+    sessionId?: string;
+  } = {},
+) {
+  const subscription = Symbol('settings subscription');
+  const snapshots: (string | boolean)[] = [];
+  const priors: CutsState['cuts'][] = [];
+  const result = readMode(
+    (subscribe, snapshot) => {
+      expect(subscribe).toBe(subscription);
+      const value = snapshot();
+      snapshots.push(value);
+      return value;
+    },
+    subscription,
+    () => ({ getToolOutputDisplay: () => mode, getShowHookOutput: () => true }),
+    () => ({ current: previous }),
+    staticKey ?? previous.staticKey,
+    sessionId,
+    (compute) => compute(),
+    (prior, items) => {
+      priors.push(prior);
+      return items;
+    },
+    messages,
+  );
+  expect(snapshots).toEqual([mode, true]);
+  return { ...result, prior: priors[0] };
+}
+
 describe('wiring', () => {
+  const previous: CutsState = {
+    staticKey: 1,
+    drawnSessionId: 'original-session',
+    state: { baseStaticKey: 1 },
+    cuts: new Map([['previous', [4]]]),
+  };
+
   test('the settings subscription distinguishes expanded, compact and stacked', () => {
-    const subscription = Symbol('settings subscription');
-    const snapshots: string[] = [];
-    const readMode = payloadFunction<
-      [
-        (subscribe: typeof subscription, getSnapshot: () => string) => string,
-        typeof subscription,
-        () => { getToolOutputDisplay: () => string },
-      ],
-      { compact: boolean; stacked: boolean }
-    >(['ke', 'Js', 'f'], `let ${MODE.split(',c1=')[0]};return{compact:s1,stacked:$ODstacked}`);
     const states = ['expanded', 'compact', 'stacked', 'concise', 'minimal', 'expanded'].map(
-      (value) =>
-        readMode(
-          (subscribe, getSnapshot) => {
-            expect(subscribe).toBe(subscription);
-            const snapshot = getSnapshot();
-            snapshots.push(snapshot);
-            return snapshot;
-          },
-          subscription,
-          () => ({ getToolOutputDisplay: () => value }),
-        ),
+      (mode) => {
+        const { compact, stacked } = readCuts(mode, previous);
+        return { compact, stacked };
+      },
     );
-    expect(snapshots).toEqual(['expanded', 'compact', 'stacked', 'concise', 'minimal', 'expanded']);
     expect(states).toEqual([
       { compact: false, stacked: false },
       { compact: true, stacked: false },
@@ -230,10 +289,30 @@ describe('wiring', () => {
     ]);
   });
 
-  test('streaming cuts skip thinking messages so the head row sees the whole text', () => {
-    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-mode');
-    expect(replace).toContain('&&!($ODstacked&&p2.messageType==="thinking")');
-    expect(replace).toContain('},[n1,M,$ODstacked]),');
+  test('streaming cuts skip thinking only in stacked; neither mode cuts tool calls', () => {
+    const thinkingMessage = { messageType: 'thinking' };
+    const reply = { messageType: 'text' };
+    const call = { toolName: 'Read', status: 'executing' };
+    const messages = [thinkingMessage, reply, call];
+    expect(readCuts('stacked', previous, { messages }).messages).toEqual([reply]);
+    expect(readCuts('expanded', previous, { messages }).messages).toEqual([thinkingMessage, reply]);
+  });
+
+  test('stacked preserves the stock session key and isolates its streaming cuts', () => {
+    const sameSession = { sessionId: 'original-session' };
+    const nextSession = { sessionId: 'next-session' };
+    const unchanged = readCuts('expanded', previous, sameSession);
+    const switched = readCuts('stacked', previous, sameSession);
+    const resumed = readCuts('stacked', previous, nextSession);
+    const parentReset = readCuts('stacked', previous, { ...nextSession, staticKey: 2 });
+    expect(unchanged.baseStaticKey).toBe(1);
+    expect(unchanged.prior).toBe(previous.cuts);
+    expect(switched.baseStaticKey).toBe('1:stacked');
+    expect(switched.prior?.size).toBe(0);
+    expect(resumed.baseStaticKey).toBe('1@next-session:stacked');
+    expect(parentReset.baseStaticKey).toBe('2:stacked');
+    const stacked = { ...previous, state: { baseStaticKey: switched.baseStaticKey } };
+    expect(readCuts('stacked', stacked, sameSession).prior).toBe(previous.cuts);
   });
 
   test('the thinking branch draws the summary row only for a marked item', () => {

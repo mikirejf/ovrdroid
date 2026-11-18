@@ -30,8 +30,14 @@ function site(name: string) {
   return { rebase, text: module.text };
 }
 
+const MCP_STATUS_WARNING = { sessionId: 'session' };
+const READINESS_LABELS = { sessionId: 'session', turnId: 'turn', outcome: 'degraded' };
+
 interface Gate {
-  awaitMcpReadinessBeforeAgentTurnIfEnabled: (turn: string, request?: string) => Promise<void>;
+  awaitMcpReadinessBeforeAgentTurnIfEnabled: (
+    turn: string,
+    request?: string,
+  ) => Promise<typeof MCP_STATUS_WARNING | undefined>;
 }
 
 interface TimerHandle {
@@ -45,13 +51,14 @@ function gateWorld(ide: Promise<null> | null, block: boolean) {
   const open = text.indexOf('{', start);
   const method = text.slice(start, blockEnd(text, open) + 1);
   const bindings =
-    /await (?<phase>[\w$]+)\(\{step:"mcp_readiness",run:async\(\)=>(?<outcome>[\w$]+)\(/u.exec(
+    /await (?<phase>[\w$]+)\(\{step:"mcp_readiness",run:\(\)=>this\.awaitMcpReadinessBeforeAgentTurn\([^)]*\),labelsOf:\(\{outcome:[\w$]+\}\)=>\(\{[^}]*,outcome:(?<outcomeLabel>[\w$]+)\(/u.exec(
       method,
     )?.groups;
-  if (bindings?.['phase'] === undefined || bindings['outcome'] === undefined) {
+  if (bindings?.['phase'] === undefined || bindings['outcomeLabel'] === undefined) {
     throw new Error('the stock readiness phase instrumentation changed');
   }
-  const events: string[] = [];
+  const readiness = { outcome: 'start_failed', mcpStatusWarning: MCP_STATUS_WARNING };
+  const events: (string | typeof READINESS_LABELS)[] = [];
   const timers: { run: () => void; ms: number; unrefed: boolean }[] = [];
   const cleared: TimerHandle[] = [];
   const setTimer = (run: () => void, ms: number): TimerHandle => {
@@ -65,19 +72,23 @@ function gateWorld(ide: Promise<null> | null, block: boolean) {
   };
   const phase = async (options: {
     step: string;
-    run: () => Promise<string>;
-    labelsOf: (outcome: string) => { turnId: string };
+    run: () => Promise<typeof readiness>;
+    labelsOf: (result: typeof readiness) => typeof READINESS_LABELS;
   }) => {
     events.push(options.step);
     const result = await options.run();
-    events.push(options.labelsOf(result).turnId);
+    events.push(options.labelsOf(result));
+    return result;
   };
   const gate = payloadFunction<
     [typeof phase, (value: string) => string, typeof setTimer, (timer: TimerHandle) => void],
     Gate
-  >([bindings['phase'], bindings['outcome'], 'setTimeout', 'clearTimeout'], `return {${method}}`)(
+  >(
+    [bindings['phase'], bindings['outcomeLabel'], 'setTimeout', 'clearTimeout'],
+    `return {${method}}`,
+  )(
     phase,
-    (value) => value,
+    (value) => (value === 'start_failed' ? 'degraded' : value),
     setTimer,
     (timer) => {
       cleared.push(timer);
@@ -90,7 +101,7 @@ function gateWorld(ide: Promise<null> | null, block: boolean) {
     sessionController: { getSessionId: () => 'session' },
     awaitMcpReadinessBeforeAgentTurn: async (turn: string, request: string) => {
       events.push(`${turn}:${request}`);
-      return await Promise.resolve('ready');
+      return await Promise.resolve(readiness);
     },
   });
   return { gate, events, timers, cleared };
@@ -166,8 +177,8 @@ describe.skipIf(stockDroid === undefined)('gate-first-turn-on-ide-connect', () =
     expect(world.events).toEqual(['refresh']);
     expect(world.timers.map(({ ms, unrefed }) => [ms, unrefed])).toEqual([[5000, true]]);
     ide.resolve(null);
-    await result;
-    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:request', 'turn']);
+    expect(await result).toBe(MCP_STATUS_WARNING);
+    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:request', READINESS_LABELS]);
     expect(world.cleared).toHaveLength(1);
   });
 
@@ -176,13 +187,14 @@ describe.skipIf(stockDroid === undefined)('gate-first-turn-on-ide-connect', () =
     const world = gateWorld(ide.promise, false);
     let done = false;
     const result = (async () => {
-      await world.gate.awaitMcpReadinessBeforeAgentTurnIfEnabled('turn');
+      const warning = await world.gate.awaitMcpReadinessBeforeAgentTurnIfEnabled('turn');
       done = true;
+      return warning;
     })();
     await Bun.sleep(0);
     expect(done).toBe(false);
     ide.resolve(null);
-    await result;
+    expect(await result).toBeUndefined();
     expect(done).toBe(true);
     expect(world.events).toEqual(['refresh']);
   });
@@ -190,7 +202,7 @@ describe.skipIf(stockDroid === undefined)('gate-first-turn-on-ide-connect', () =
   test('an IDE failure does not reject the turn', async () => {
     const world = gateWorld(Promise.reject(new Error('IDE disconnected')), true);
     await world.gate.awaitMcpReadinessBeforeAgentTurnIfEnabled('turn');
-    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', 'turn']);
+    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', READINESS_LABELS]);
     expect(world.cleared).toHaveLength(1);
   });
 
@@ -202,7 +214,7 @@ describe.skipIf(stockDroid === undefined)('gate-first-turn-on-ide-connect', () =
     expect(world.timers).toHaveLength(1);
     world.timers[0]?.run();
     await result;
-    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', 'turn']);
+    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', READINESS_LABELS]);
     expect(world.cleared).toHaveLength(1);
     ide.resolve(null);
   });
@@ -210,7 +222,7 @@ describe.skipIf(stockDroid === undefined)('gate-first-turn-on-ide-connect', () =
   test('without IDE initialization it proceeds without creating a timer', async () => {
     const world = gateWorld(null, true);
     await world.gate.awaitMcpReadinessBeforeAgentTurnIfEnabled('turn');
-    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', 'turn']);
+    expect(world.events).toEqual(['refresh', 'mcp_readiness', 'turn:turn', READINESS_LABELS]);
     expect(world.timers).toEqual([]);
     expect(world.cleared).toEqual([]);
   });

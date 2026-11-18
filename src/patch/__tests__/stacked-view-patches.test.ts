@@ -5,7 +5,6 @@ import { applies, rebaseAll } from '../rebase.ts';
 import {
   DRAWS_NOTHING,
   HOOKS_SHOW,
-  REPRINT,
   RUN_CALLS,
   RUN_UNIT,
   STACK,
@@ -308,66 +307,14 @@ interface LiveUnit {
   kind: string;
   awaitsImages?: boolean;
   group?: { $ODlive?: boolean };
-  item?: { sourceMessageStreaming?: boolean };
+  item?: { awaitsEarlierRows?: boolean };
 }
-
-interface ReprintRef {
-  current: { baseStaticKey: string; epoch: number; $ODstacked?: boolean } | undefined;
-}
-
-describe('switching display modes', () => {
-  test('the static key carries stacked so the committed list resets', () => {
-    const { replace } = patchNamed(stackedViewPatches, 'stacked-view-static-key');
-    expect(replace).toContain('g1=$ODstacked?M+":stacked":M,');
-  });
-
-  test('a switch into or out of stacked clears and reprints, expanded to compact does not', () => {
-    const ref: ReprintRef = { current: undefined };
-    let resets = 0;
-    const effect = payloadFunction<
-      [
-        (initial: ReprintRef['current']) => ReprintRef,
-        (run: () => void) => void,
-        () => void,
-        string,
-        { baseStaticKey: string; epoch: number },
-        boolean,
-        { current: unknown },
-      ],
-      undefined
-    >(['b', 'ur', 'ee', '$e', 'Ye', '$ODstacked', 'Ne'], `var qe;${REPRINT}`);
-    const render = (stacked: boolean, epoch = 0) => {
-      const key = stacked ? '1:stacked' : '1';
-      effect(
-        (initial) => {
-          ref.current ??= initial;
-          return ref;
-        },
-        (run) => {
-          run();
-        },
-        () => {
-          resets += 1;
-        },
-        key,
-        { baseStaticKey: key, epoch },
-        stacked,
-        { current: undefined },
-      );
-      return resets;
-    };
-    expect([render(true), render(true), render(false), render(false), render(true)]).toEqual([
-      0, 0, 1, 1, 2,
-    ]);
-    expect(render(true, 1)).toBe(3);
-  });
-});
 
 describe('keeping the open run live', () => {
   const patch = patchNamed(stackedViewPatches, 'stacked-view-open-run-live');
   const live = payloadFunction<[], (unit: LiveUnit) => boolean>(
     [],
-    `${patch.replace}(C.kind==="item"||C.kind==="proposal-body")&&C.item.sourceMessageStreaming===!0}return Wr1`,
+    `${patch.replace}(C.kind==="item"||C.kind==="proposal-body")&&C.item.awaitsEarlierRows===!0}return Wr1`,
   )();
 
   test('an open stacked run counts as live', () => {
@@ -379,8 +326,8 @@ describe('keeping the open run live', () => {
     expect(live({ kind: 'collapsed-group', group: {} })).toBe(false);
   });
 
-  test('a streaming item and an item awaiting images stay live as in stock', () => {
-    expect(live({ kind: 'item', item: { sourceMessageStreaming: true } })).toBe(true);
+  test('an item waiting on earlier rows or images stays live as in stock', () => {
+    expect(live({ kind: 'item', item: { awaitsEarlierRows: true } })).toBe(true);
     expect(live({ kind: 'item', awaitsImages: true, item: {} })).toBe(true);
   });
 });

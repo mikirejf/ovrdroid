@@ -163,10 +163,10 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'draft-dismiss-no-rerender',
-    find: 'let N=f(()=>{_({type:"draft-edited"})},[]);return{display:P,dismissAfterDraftEdit:N}',
-    lookups: ['O({staticKey:'],
+    find: 'let A=g(()=>{y({type:"draft-edited"})},[]);return{display:C,dismissAfterDraftEdit:A}',
+    lookups: ['let B=S(void 0);if(!C&&!B.current)B.current=WT(y)'],
     replace:
-      'let $ODref=O(P);$ODref.current=P;let N=f(()=>{let $ODnow=$ODref.current;if($ODnow.notice.kind==="hidden"||$ODnow.dismissed)return;_({type:"draft-edited"})},[]);return{display:P,dismissAfterDraftEdit:N}',
+      'let $ODref=S(C);$ODref.current=C;let A=g(()=>{let $ODnow=$ODref.current;if($ODnow.notice.kind==="hidden"||$ODnow.dismissed)return;y({type:"draft-edited"})},[]);return{display:C,dismissAfterDraftEdit:A}',
   },
   {
     name: 'web-fetch-always-loaded',

@@ -11,7 +11,8 @@ const PRUNE_IN_VIEW =
   'if(!$ODwrote&&$ODkept.length===d.invocations.length)return!1;d.invocations=$ODkept;' +
   'return a.invocations=at(d),!0}';
 
-const SAVE_HEAD = `function jo(e,o,t,r){let a=\`\${e}.\${process.pid}.\${Date.now()}.tmp\`;try{let c=JSON.stringify(t,null,`;
+const SERIALIZE = 'let l=JSON.stringify(s,null,';
+const SIZE_GUARD = ';if(n?.maxBytes!==void 0)';
 
 export const taskStorePatches: readonly Patch[] = [
   {
@@ -21,7 +22,7 @@ export const taskStorePatches: readonly Patch[] = [
   },
   {
     name: 'task-store-writes-compact-json',
-    find: `${SAVE_HEAD}2)`,
-    replace: `${SAVE_HEAD}r?.${COMPACT_OPTION}?void 0:2)`,
+    find: `${SERIALIZE}2)${SIZE_GUARD}`,
+    replace: `${SERIALIZE}n?.${COMPACT_OPTION}?void 0:2)${SIZE_GUARD}`,
   },
 ];
