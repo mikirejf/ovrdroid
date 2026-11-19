@@ -2,8 +2,6 @@ import type { Patch } from './patches.ts';
 
 export const CHAT_INPUT_CALLBACKS = [
   'onSubmit',
-  'onInputChange',
-  'onCursorPositionChange',
   'onModelCycle',
   'onWarning',
   'onCopied',

@@ -96,7 +96,7 @@ export const warmerPatches: readonly Patch[] = [
     find: `function pY(t){z5(t.capturedAt),${SNAPSHOT_STORE}}`,
     lookups: [
       'let o=ee(t.modelId);return o.modelProvider==="anthropic"&&!o.isUnknownFallback}',
-      'let t=C(),s=t.getCustomModels();',
+      'C().getCustomModels()){return Jye({modelPolicy:C().getModelPolicy(),',
       'function p(){let t=Te(IX);if(t)return t;if(!kv)kv=new Oi,',
       'n("[Prompt-Caching] Failed to refresh cached prefix",{sessionId:',
       `let{createOneShotSendMessageClient:c}=${STREAMING_CORE_IMPORT}`,

@@ -113,6 +113,7 @@ describe('building the main chat units', () => {
 interface LayoutState {
   baseStaticKey: number | string;
   epoch: number;
+  committedUnits: string[];
 }
 
 interface LayoutCommit {
@@ -134,39 +135,56 @@ describe('switching display modes', () => {
     const effect = payloadFunction<
       [
         typeof ref,
-        (run: () => void) => void,
+        (run: () => void, deps: unknown[]) => void,
         LayoutState,
         LayoutCommit['cuts'],
         () => void,
+        (units: LayoutState['committedUnits'], cuts: LayoutCommit['cuts']) => void,
         number,
         string,
         boolean,
       ],
       undefined
-    >(['k1', 'vn', 'q1', 'T1', 'r1', 'P', 'R1', '$ODstacked'], REPRINT);
+    >(['k1', 'vn', 'q1', 'T1', 'r1', 'ie', 'P', 'R1', '$ODstacked'], REPRINT);
     const render = (
       mode: string,
       epoch = 0,
       { staticKey = 1, drawnSessionId = 'initial' } = {},
     ) => {
       const stacked = mode === 'stacked';
-      const state = { baseStaticKey: stacked ? `${staticKey}:stacked` : staticKey, epoch };
+      const state = {
+        baseStaticKey: stacked ? `${staticKey}:stacked` : staticKey,
+        epoch,
+        committedUnits: ['unit'],
+      };
       const cuts = new Map([['thought', [4]]]);
+      let committed = false;
+      const reset = () => {
+        expect(committed).toBe(false);
+        expect(ref.current?.state).toBe(state);
+        resets += 1;
+      };
+      const onCommit = (units: LayoutState['committedUnits'], streamingCuts: typeof cuts) => {
+        expect(units).toBe(state.committedUnits);
+        expect(streamingCuts).toBe(cuts);
+        expect(ref.current?.state).toBe(state);
+        committed = true;
+      };
       effect(
         ref,
-        (run) => {
+        (run, deps) => {
+          expect(deps).toEqual([state, cuts, reset, onCommit, staticKey, drawnSessionId, stacked]);
           run();
         },
         state,
         cuts,
-        () => {
-          resets += 1;
-          expect(ref.current?.state).toBe(state);
-        },
+        reset,
+        onCommit,
         staticKey,
         drawnSessionId,
         stacked,
       );
+      expect(committed).toBe(true);
       expect(ref.current).toEqual({ state, cuts, staticKey, drawnSessionId, $ODstacked: stacked });
       return resets;
     };

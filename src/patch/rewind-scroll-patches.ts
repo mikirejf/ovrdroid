@@ -13,7 +13,7 @@ const PAGE_MEASURE_WITH_TOPS =
   '$ODtops[i1.odMessageId]=Math.max($ODtops[i1.odMessageId]??0,t1-s1.getComputedTop())}' +
   'V(g.index,t1,r1.toSorted((i1,s1)=>i1-s1),o1.toSorted((i1,s1)=>i1-s1),$ODtops)}';
 
-const HOOK_START = 'function zp1(g){let{maxRows:y,onOpen:E,onExit:A}=g,';
+const HOOK_START = 'function qve(g){let{onOpen:k,onExit:A}=g,[P,B]=_(),F=g.maxRows(P?.error),';
 
 export const SEEK_WINDOW =
   'function $ODseekWindow($ODw,$ODs,$ODrows){' +
@@ -31,47 +31,51 @@ export const SEEK_WINDOW =
   ':{...$ODw,rowsFromEnd:$ODr}}';
 
 const APPLY_STEP =
-  'J5(()=>{i1.current=(l1)=>{let c1=V.current;if(!c1)return;if(l1.effect==="exit"){o1();return}';
+  'd7(()=>{ce.current=(be)=>{let we=H.current;if(!we)return;if(be.effect==="exit"){ie();return}';
 
 const SEEK_STEP =
-  'if(c1.odTarget!==void 0&&l1.window){let $ODw=$ODseekWindow(l1.window,c1,Z.current);' +
-  'if($ODw===void 0){r1(),t1({sessionId:c1.sessionId,openingUnit:"page",odTarget:c1.odTarget,odTops:{}}),' +
-  's1({index:0,cursor:void 0});return}l1={...l1,window:$ODw}}';
+  'if(we.odTarget!==void 0&&be.window){let $ODw=$ODseekWindow(be.window,we,Z.current);' +
+  'if($ODw===void 0){re(),ne({sessionId:we.sessionId,openingUnit:"page",odTarget:we.odTarget,odTops:{}}),' +
+  'ue({index:0,cursor:void 0});return}be={...be,window:$ODw}}';
 
 const HOOK_LOOKUPS = [
-  'r1=C(()=>{q.current+=1,K.current.clear(),t1(void 0)},[t1])',
-  'E(),r1(),t1({sessionId:f1,openingUnit:c1}),s1({index:0,cursor:void 0});return}',
-  'J5(()=>{Z.current=y},[y]);',
+  're=C(()=>{q.current+=1,X.current.clear(),ne(void 0)},[ne])',
+  'k(),re(),ne({sessionId:Me,openingUnit:we}),ue({index:0,cursor:void 0});return}',
+  'd7(()=>{Z.current=F},[F]);',
 ];
 
 const LOAD_FAILED =
   'r("[TranscriptHistory] Failed to load transcript page",{cause:x1});let T1=V.current;if(!T1)return;';
 
-const RECORD_AND_RETURN =
-  'd1=C((l1,c1,f1,h1)=>{let y1=V.current;if(!y1?.window)return;' +
-  'let x1=vu1(y1.window,{[l1]:c1},Z.current,{[l1]:f1},{[l1]:h1});i1.current({window:x1,effect:"none"}),u1()},[u1]);' +
-  'return{transcriptHistory:D,pageTranscriptHistory:a1,resetTranscriptHistory:r1,exitTranscriptHistory:o1,' +
-  'recordTranscriptHistoryPageHeight:d1}}';
+const RECORD_HEIGHT =
+  'Ee=C((be,we,Me,Ae)=>{let Re=H.current;if(!Re?.window)return;' +
+  'let Ie=hye(Re.window,{[be]:we},Z.current,{[be]:Me},{[be]:Ae});' +
+  'ce.current({window:Ie,effect:"none"}),ve()},[ve])';
+
+const HOOK_RETURN =
+  'return{transcriptHistory:P,pageTranscriptHistory:Le,resetTranscriptHistory:re,exitTranscriptHistory:ie,' +
+  'recordTranscriptHistoryPageHeight:Ee,maxRows:F';
 
 const SEEK_API =
-  'd1=C((l1,c1,f1,h1,$ODtops)=>{let y1=V.current;if(!y1?.window)return;' +
-  'if(y1.odTops&&$ODtops)y1.odTops[l1]=$ODtops;' +
-  'let x1=vu1(y1.window,{[l1]:c1},Z.current,{[l1]:f1},{[l1]:h1});i1.current({window:x1,effect:"none"}),u1()},[u1]),' +
-  '$ODseekTo=C(($ODid,$ODnewer)=>{let f1=m().getCurrentSessionId();if(!f1)return;let h1=V.current;' +
-  'if(!h1||h1.sessionId!==f1||!h1.odTops){E(),r1(),t1({sessionId:f1,openingUnit:"page",odTarget:$ODid,odTops:{}}),' +
-  's1({index:0,cursor:void 0});return}' +
-  't1({...h1,odTarget:$ODid,odNewer:$ODnewer});if(h1.window)i1.current({window:h1.window,effect:"none"})},[E,r1,t1,s1]);' +
-  'U(()=>{let c1=V.current;if(c1?.odTarget!==void 0&&c1.window)i1.current({window:c1.window,effect:"none"})},[y]);' +
-  'return{transcriptHistory:D,pageTranscriptHistory:a1,resetTranscriptHistory:r1,exitTranscriptHistory:o1,' +
-  'recordTranscriptHistoryPageHeight:d1,odSeekTranscriptHistory:$ODseekTo}}';
+  `${RECORD_HEIGHT.replace('(be,we,Me,Ae)', '(be,we,Me,Ae,$ODtops)').replace(
+    'if(!Re?.window)return;',
+    'if(!Re?.window)return;if(Re.odTops&&$ODtops)Re.odTops[be]=$ODtops;',
+  )},` +
+  '$ODseekTo=C(($ODid,$ODnewer)=>{let $ODsessionId=m().getCurrentSessionId();if(!$ODsessionId)return;' +
+  'let $ODstate=H.current;if(!$ODstate||$ODstate.sessionId!==$ODsessionId||!$ODstate.odTops){' +
+  'k(),re(),ne({sessionId:$ODsessionId,openingUnit:"page",odTarget:$ODid,odTops:{}}),' +
+  'ue({index:0,cursor:void 0});return}' +
+  'ne({...$ODstate,odTarget:$ODid,odNewer:$ODnewer});' +
+  'if($ODstate.window)ce.current({window:$ODstate.window,effect:"none"})},[k,re,ne,ue]);' +
+  'U(()=>{let $ODstate=H.current;if($ODstate?.odTarget!==void 0&&$ODstate.window)' +
+  'ce.current({window:$ODstate.window,effect:"none"})},[F]);' +
+  `${HOOK_RETURN},odSeekTranscriptHistory:$ODseekTo}}`;
 
-const APP_HOOK = 'recordTranscriptHistoryPageHeight:ty1}=zp1({maxRows:bj,onOpen:l2,onExit:Gt});';
+const APP_HOOK = 'exitTranscriptHistory:Zu,recordTranscriptHistoryPageHeight:nRe,maxRows:rRe}=qve(';
 
-const APP_EXIT_LOOKUP = 'exitTranscriptHistory:iu,recordTranscriptHistoryPageHeight:ty1}=zp1(';
+const MENU_CONTEXT = 'onRewindSelect:(He)=>{Sb(He)},';
 
-const MENU_CONTEXT = 'onRewindSelect:(b1)=>{Gy(b1)},';
-
-const MENU_CONTEXT_DEPS = 'onFolderTrustSettle:tV}),[';
+const MENU_CONTEXT_DEPS = 'onFolderTrustSettle:vK}),[';
 
 const MENU_PANE = 'onSelect:(B)=>{A.onRewindSelect(B),E()},onCancel:E})';
 
@@ -142,30 +146,30 @@ export const rewindScrollPatches: readonly Patch[] = [
   },
   {
     name: 'transcript-history-seek-api',
-    find: RECORD_AND_RETURN,
+    find: `${RECORD_HEIGHT};${HOOK_RETURN}}}`,
     lookups: [
       ...HOOK_LOOKUPS,
-      'let f1=m().getCurrentSessionId();if(!f1)return;let h1=V.current;',
-      'return U(()=>{rw(h2,j2)},[h2,j2]),',
+      'let Me=m().getCurrentSessionId();if(!Me)return;let Ae=H.current;',
+      'U(()=>{Jw(g,"ActiveWorkerPreview")},[g]);',
     ],
     replace: SEEK_API,
   },
   {
     name: 'app-takes-transcript-history-seek',
     find: APP_HOOK,
-    replace: APP_HOOK.replace('ty1}=', 'ty1,odSeekTranscriptHistory:$ODseekHistory}='),
+    replace: APP_HOOK.replace('}=', ',odSeekTranscriptHistory:$ODseekHistory}='),
   },
   {
     name: 'rewind-menu-context-seeks-history',
     find: MENU_CONTEXT,
-    lookups: [APP_EXIT_LOOKUP],
-    replace: `${MENU_CONTEXT}odRewindSeek:$ODseekHistory,odRewindEnd:iu,`,
+    lookups: [APP_HOOK],
+    replace: `${MENU_CONTEXT}odRewindSeek:$ODseekHistory,odRewindEnd:Zu,`,
   },
   {
     name: 'rewind-menu-context-seek-deps',
     find: MENU_CONTEXT_DEPS,
-    lookups: [APP_EXIT_LOOKUP],
-    replace: `${MENU_CONTEXT_DEPS}$ODseekHistory,iu,`,
+    lookups: [APP_HOOK],
+    replace: `${MENU_CONTEXT_DEPS}$ODseekHistory,Zu,`,
   },
   {
     name: 'rewind-pane-leaves-history',

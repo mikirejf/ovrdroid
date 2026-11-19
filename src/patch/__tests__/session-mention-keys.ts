@@ -112,19 +112,15 @@ function stockBashEscape(
   bash: { active: boolean },
 ): () => boolean {
   const arrow = new RegExp(
-    String.raw`[^\w$]${escaped(name)}=${escaped(wrapper)}\((?<arrow>\(\)=>(?<flag>[\w$]+)\.current&&(?<leave>[\w$]+)\(\)),\[`,
+    String.raw`[^\w$]${escaped(name)}=${escaped(wrapper)}\((?<arrow>\(\)=>(?<store>[\w$]+)\.getState\(\)\.active\.isBashMode&&(?<leave>[\w$]+)\(\)),\[`,
     'u',
   ).exec(patched);
   return evaluate<() => boolean>(
     group(arrow, 'arrow', 'bash-mode Esc callback'),
     new Map<string, Stand>([
       [
-        group(arrow, 'flag', 'bash-mode Esc callback'),
-        {
-          get current() {
-            return bash.active;
-          },
-        },
+        group(arrow, 'store', 'bash-mode Esc callback'),
+        { getState: () => ({ active: { isBashMode: bash.active } }) },
       ],
       [
         group(arrow, 'leave', 'bash-mode Esc callback'),
@@ -208,17 +204,14 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       ],
     ]),
   );
-  const marker = /"tab"\)\|\|[\w$]+\([\w$]+,"return"/u;
-  let handlerAt = patched.indexOf('{suggestion:');
-  while (handlerAt !== -1 && !marker.test(patched.slice(Math.max(0, handlerAt - 120), handlerAt))) {
-    handlerAt = patched.indexOf('{suggestion:', handlerAt + 1);
-  }
+  const scopeRebase = rebasedNamed(rebased, 'session-mention-scope-key');
+  const handlerAt = patched.indexOf(scopeRebase.replace);
   if (handlerAt === -1) {
     throw new Error('the stock suggestion key handler is missing');
   }
   const handler = arrowAround(patched, handlerAt, callbackName(rebased));
   const parts =
-    /let\{showSuggestions:[\w$]+,suggestions:[\w$]+\}=(?<state>[\w$]+)\(\);.*?"upArrow"\)\)return (?<move>[\w$]+)\(.*?return (?<select>[\w$]+)\(\{suggestion:[\w$]+\[(?<index>[\w$]+)\.current\],input:(?<input>[\w$]+)\.current,cursorPosition:(?<cursor>[\w$]+)\.current\}\),!0;if\((?<is>[\w$]+)\([\w$]+,"escape"\)\)return (?<un>[\w$]+)\(\)/u.exec(
+    /let\{showSuggestions:[\w$]+,suggestions:[\w$]+\}=(?<state>[\w$]+)\(\);.*?"upArrow"\)\)return (?<move>[\w$]+)\(.*?return (?<select>[\w$]+)\(\{suggestion:[\w$]+\[(?<index>[\w$]+)\.current\],input:(?<store>[\w$]+)\.getState\(\)\.active\.text,cursorPosition:\k<store>\.getState\(\)\.active\.cursor\}\),!0;if\((?<is>[\w$]+)\([\w$]+,"escape"\)\)return (?<un>[\w$]+)\(\)/u.exec(
       handler,
     );
   const quiet = {
@@ -226,7 +219,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       return hooks.entry.keyIndex;
     },
   };
-  const scopeNamed = renamed(rebasedNamed(rebased, 'session-mention-scope-key'));
+  const scopeNamed = renamed(scopeRebase);
   const what = 'suggestion key handler';
   const press = evaluate<(event: KeyEvent) => boolean>(
     handler,
@@ -247,20 +240,8 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
       [group(parts, 'select', what), selectRow],
       [group(parts, 'index', what), quiet],
       [
-        group(parts, 'input', what),
-        {
-          get current(): string {
-            return hooks.entry.text;
-          },
-        },
-      ],
-      [
-        group(parts, 'cursor', what),
-        {
-          get current(): number {
-            return hooks.entry.cursor;
-          },
-        },
+        group(parts, 'store', what),
+        { getState: () => ({ active: { text: hooks.entry.text, cursor: hooks.entry.cursor } }) },
       ],
       [
         group(parts, 'un', what),

@@ -56,19 +56,18 @@ function stackWith(showHookOutput: boolean): (units: Unit[]) => Unit[] {
       (...args: [Call, number, undefined, boolean, DrawOptions]) => object | null,
       () => { getShowHookOutput: () => boolean },
       (hooks: Hooks) => boolean,
-      (list: Hook[]) => boolean,
+      (list: Hook[], show: boolean) => boolean,
     ],
     (units: Unit[], options: typeof OPTIONS) => Unit[]
   >(
-    ['va', 'iD', 'f', 'uD', 'cw'],
+    ['va', 'iD', 'f', 'uD', 'j8'],
     `${TABLES}${HOOKS_SHOW}${RUN_CALLS}${DRAWS_NOTHING}${RUN_UNIT}${STACK}return $ODstack`,
   )(
     () => true,
     (...args) => (args[0].hidden === true && args[4].associatedHooks === undefined ? null : {}),
     () => ({ getShowHookOutput: () => showHookOutput }),
     (hooks) => [...hooks.before, ...hooks.after].some((entry) => entry.hookStatus === 'executing'),
-    (list) =>
-      list.length > 0 && list.every((entry) => entry.hookStatus === 'completed' && entry.quiet),
+    (list, show) => show && list.some((entry) => !entry.quiet),
   );
   return (units) => stack(units, OPTIONS);
 }

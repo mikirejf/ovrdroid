@@ -40,7 +40,8 @@ export const TABLES =
 
 export const HOOKS_SHOW =
   'function $ODhooksShow($ODh){' +
-  'return $ODh!==void 0&&f().getShowHookOutput()&&!uD($ODh)&&[$ODh.before,$ODh.after].some(($ODl)=>$ODl.length>0&&!cw($ODl))}';
+  'if($ODh===void 0||uD($ODh))return!1;let $ODshow=f().getShowHookOutput();' +
+  'return j8($ODh.before,$ODshow)||j8($ODh.after,$ODshow)}';
 
 export const RUN_CALLS =
   'function $ODrunCalls($ODu){' +
@@ -139,7 +140,7 @@ const UNITS_STACKED =
 
 const REPRINT_FIND =
   'vn(()=>{let G1=k1.current?.state;if(k1.current={state:q1,cuts:T1,staticKey:P,drawnSessionId:R1},' +
-  'G1?.baseStaticKey===q1.baseStaticKey&&q1.epoch>G1.epoch)r1?.()},[q1,T1,r1,P,R1]);';
+  'G1?.baseStaticKey===q1.baseStaticKey&&q1.epoch>G1.epoch)r1?.();ie?.(q1.committedUnits,T1)},[q1,T1,r1,ie,P,R1]);';
 
 export const REPRINT = REPRINT_FIND.replace(
   'let G1=k1.current?.state;',
@@ -150,7 +151,7 @@ export const REPRINT = REPRINT_FIND.replace(
     '&&q1.epoch>G1.epoch)',
     '&&q1.epoch>G1.epoch||$ODprevious&&$ODprevious.$ODstacked!==$ODstacked)',
   )
-  .replace('[q1,T1,r1,P,R1]', '[q1,T1,r1,P,R1,$ODstacked]');
+  .replace('[q1,T1,r1,ie,P,R1]', '[q1,T1,r1,ie,P,R1,$ODstacked]');
 
 const HISTORY_SEGMENT_HEAD =
   'hookRowsShown:B,showThinking:H=!1,images:V,onPageHeight:q})=>{let K=S(null),Q=S(new Map),Z=sY(V),';
@@ -229,7 +230,7 @@ export const stackedViewPatches: readonly Patch[] = [
       'return iD(g,y,void 0,v.showThinking,v)}',
       'function Jxe(g,y){let S=g.toolInput;if(!S)return null;switch(g.toolName){case"Read":',
       'var tbe=6;function zW(g,y){return Gc(he(g),y)}',
-      'ie=f().getShowHookOutput()&&[re?.before??[],re?.after??[]].some((le)=>le.length>0&&!cw(le));',
+      'if(!j8(g,f().getShowHookOutput()))return 0;',
       'function uD(g){if(!g)return!1;return(Array.isArray(g)?g:QS(g)).some((S)=>S.hookStatus==="executing")}',
       'function cbe(g){let y=g.map((S)=>Xw({status:S.status,result:S.result,isError:S.isError,executionPhase:S.executionPhase}));',
       'function LA(g,y){if(y===1)return g;if(g==="search")return"searches";',

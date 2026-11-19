@@ -7,8 +7,7 @@ const LABEL_LINE_STRAIGHT = `function xfe(g,y,S){let M=Math.max(1,Math.floor(g))
 const BLOCKQUOTE_BAR =
   'paddingLeft:1,borderStyle:"single",borderLeft:!0,borderRight:!1,borderTop:!1,borderBottom:!1,borderColor:y.config.colors.blockquote,';
 
-const LABELED_BOX_BODY =
-  'paddingX:1,children:l(c,{flexDirection:"column",width:"100%",children:[Vs,al,da]})';
+const LABELED_BOX_BODY = 'paddingX:1,children:l(c,{flexDirection:"column",width:"100%",';
 
 const PLAIN_BOX_SIDES = 'borderDimColor:!V,width:E,paddingX:Eh.paddingX,';
 

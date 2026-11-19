@@ -95,7 +95,7 @@ export const wideTerminalPatches: readonly Patch[] = [
   },
   {
     name: 'wide-terminal-command-busy',
-    find: 'terminal-setup":"immediate",themes:"immediate",vim:"immediate"};',
-    replace: `terminal-setup":"immediate",themes:"immediate",vim:"immediate",${WIDTH_COMMAND}:"immediate"};`,
+    find: ',vim:"immediate"};',
+    replace: `,${WIDTH_COMMAND}:"immediate",vim:"immediate"};`,
   },
 ];

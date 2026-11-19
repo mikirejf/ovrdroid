@@ -15,10 +15,14 @@ function marker(
   tags: string[],
   { depth, width = 80 }: { depth?: number; width?: number } = {},
 ): string {
-  return payloadFunction<[Map<string, number>, Session, number], string>(
-    ['a2', 'Y1', 'Ne'],
-    `let ${source.slice(0, -1)};return H3`,
-  )(new Map(depth === undefined ? [] : [['session', depth]]), { id: 'session', tags }, width);
+  return payloadFunction<[Map<string, number>, { session: Session }, number], string>(
+    ['V1', 'Vt', 'B2'],
+    `let ${source}return i3`,
+  )(
+    new Map(depth === undefined ? [] : [['session', depth]]),
+    { session: { id: 'session', tags } },
+    width,
+  );
 }
 
 describe('session fork markers', () => {

@@ -22,8 +22,8 @@ const STOCK_BOX =
 export const subagentInputPatches: readonly Patch[] = [
   {
     name: 'subagent-input-prop',
-    find: 'draftPastedBlocksRef:Jt}){',
-    replace: 'draftPastedBlocksRef:Jt,$ODsubagent}){',
+    find: 'missionV2Kind:i1,missionTitle:m1,',
+    replace: 'missionV2Kind:i1,missionTitle:m1,$ODsubagent,',
   },
   {
     name: 'subagent-input-label',

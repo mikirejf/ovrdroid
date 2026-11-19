@@ -80,8 +80,6 @@ function callbacks(log: string[], tag: string): Required<Pick<InputProps, Callba
     };
   return {
     onSubmit: make('onSubmit'),
-    onInputChange: make('onInputChange'),
-    onCursorPositionChange: make('onCursorPositionChange'),
     onModelCycle: make('onModelCycle'),
     onWarning: make('onWarning'),
     onCopied: make('onCopied'),
@@ -141,7 +139,7 @@ describe('chat-input-stable', () => {
     const render = mounted();
     const rendered = render({ width: 80, onSubmit: undefined });
     expect(rendered.props.onSubmit).toBeUndefined();
-    expect(Object.keys(rendered.props)).not.toContain('onInputChange');
+    expect(Object.keys(rendered.props)).not.toContain('onCopied');
   });
 
   test('a callback that goes away and comes back keeps one stand-in', () => {

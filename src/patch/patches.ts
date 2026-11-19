@@ -175,8 +175,9 @@ export const patches: readonly Patch[] = [
   },
   {
     name: 'web-search-always-loaded',
-    find: 'toolkit:"Web Search",deferred:!0,isToolEnabled:!0});var V_=4;',
-    replace: 'toolkit:"Web Search",deferred:!1,isToolEnabled:!0});var V_=4;',
+    find: 'llmInputSchema:k,isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!1,sideEffects:["network"],outputSchemas:{result:VJ},toolkit:"Web Search",deferred:!0,isToolEnabled:!0',
+    replace:
+      'llmInputSchema:k,isVisibleToUser:!0,isTopLevelTool:!0,requiresConfirmation:!1,sideEffects:["network"],outputSchemas:{result:VJ},toolkit:"Web Search",deferred:!1,isToolEnabled:!0',
   },
   {
     name: 'gate-first-turn-on-ide-connect',

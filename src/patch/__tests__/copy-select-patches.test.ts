@@ -114,11 +114,12 @@ describe('the label line of the chat input', () => {
 
 describe('the labeled box of the chat input', () => {
   const patch = patchNamed(copySelectPatches, 'copy-select-labeled-box-no-sides');
-  const box = (tail: string): Box =>
+  const inputRef = { current: null };
+  const box = (body: string): Box =>
     payloadFunction<unknown[], Box>(
-      ['l', 'c', 'gs', 'V', 'E', 'Vs', 'al', 'da'],
-      `return l(c,{borderStyle:"round",borderColor:gs,borderDimColor:!V,borderTop:!1,width:E,${tail}})`,
-    )(element, 'Box', 'magenta', true, WIDTH, 'rows', null, null);
+      ['l', 'c', 'gs', 'V', 'E', 'inputRef'],
+      `return l(c,{borderStyle:"round",borderColor:gs,borderDimColor:!V,borderTop:!1,width:E,${body}ref:inputRef,children:["rows",null,null]})})`,
+    )(element, 'Box', 'magenta', true, WIDTH, inputRef);
   const stock = box(patch.find);
   const patched = box(patch.replace);
 
@@ -142,7 +143,11 @@ describe('the labeled box of the chat input', () => {
   test('puts the text in the same columns, with the same wrap width', () => {
     expect(sideColumns(patched)).toEqual(sideColumns(stock));
     expect(patched.width).toBe(stock.width);
+  });
+
+  test('preserves the input content box and its ref', () => {
     expect(patched.children).toEqual(stock.children);
+    expect(patched.children).toHaveProperty('ref', inputRef);
   });
 });
 

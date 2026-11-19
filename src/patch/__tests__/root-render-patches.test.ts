@@ -45,98 +45,6 @@ describe.skipIf(STOCK === undefined)(
   },
 );
 
-interface Draft {
-  current: string;
-}
-
-type Write = (text: string, options: { updateInput: boolean }) => void;
-
-type InputChange = (text: string) => void;
-
-interface Played {
-  events: string[];
-  draft: string;
-}
-
-function arrowOf(statement: string): string {
-  const arrow = /^onInputChange:(?<arrow>.*)$/u.exec(statement)?.groups?.['arrow'];
-  if (arrow === undefined) {
-    throw new Error('the patch text is not an onInputChange property');
-  }
-  return arrow;
-}
-
-function played(statement: string, start: string, texts: readonly string[]): Played {
-  const rebase = rebased('input-change-noop');
-  const names = ['kt', 'lt', 'bi'].map((name) => rebase.renames[name] ?? name);
-  const events: string[] = [];
-  const draft: Draft = { current: start };
-  const change = payloadFunction<[Draft, () => void, Write], InputChange>(
-    names,
-    `return ${arrowOf(statement)}`,
-  )(
-    draft,
-    () => {
-      events.push('dismiss');
-    },
-    (text, options) => {
-      draft.current = text;
-      events.push(`write ${JSON.stringify(text)} updateInput=${options.updateInput}`);
-    },
-  );
-  for (const text of texts) {
-    change(text);
-  }
-  return { events, draft: draft.current };
-}
-
-describe.skipIf(STOCK === undefined)('input-change-noop', () => {
-  const { find, replace } = rebased('input-change-noop');
-
-  test('stock writes the draft it already holds, once per report', () => {
-    expect(played(find, 'hello', ['hello', 'hello']).events).toEqual([
-      'write "hello" updateInput=false',
-      'write "hello" updateInput=false',
-    ]);
-  });
-
-  test('the same text reaches neither the dismiss call nor the write', () => {
-    expect(played(replace, 'hello', ['hello', 'hello'])).toEqual({ events: [], draft: 'hello' });
-  });
-
-  test('an empty draft reported empty again is left alone', () => {
-    expect(played(replace, '', ['']).events).toEqual([]);
-  });
-
-  test('a changed text dismisses, then writes without touching the input', () => {
-    expect(played(replace, 'hello', ['hello!']).events).toEqual([
-      'dismiss',
-      'write "hello!" updateInput=false',
-    ]);
-  });
-
-  test('a run of reports ends on the draft stock ends on, with only the repeats dropped', () => {
-    const texts = ['a', 'a', 'ab', 'ab', 'a', '', ''];
-    const stock = played(find, '', texts);
-    const patched = played(replace, '', texts);
-    expect(stock.events.filter((event) => event.startsWith('write'))).toHaveLength(7);
-    expect(patched.events).toEqual([
-      'dismiss',
-      'write "a" updateInput=false',
-      'dismiss',
-      'write "ab" updateInput=false',
-      'dismiss',
-      'write "a" updateInput=false',
-      'dismiss',
-      'write "" updateInput=false',
-    ]);
-    expect(patched.draft).toBe(stock.draft);
-    expect(patched.events.filter((event) => event === 'dismiss')).toHaveLength(
-      stock.events.filter((event) => event === 'dismiss').length,
-    );
-  });
-});
-
 interface Summary {
   decompSessionType?: string;
   decompMissionId?: string;
@@ -239,7 +147,7 @@ function play(Class: ServiceClass, summaries: Host['summaries'], steps: readonly
 }
 
 describe.skipIf(STOCK === undefined)('decomp-miss-cache', () => {
-  const patchedText = methodIn(patchSource(sourceApp(), rootRenderPatches.slice(1)));
+  const patchedText = methodIn(patchSource(sourceApp(), rootRenderPatches));
   const Stock = serviceWith(methodIn(sourceApp()));
   const Patched = serviceWith(patchedText);
 

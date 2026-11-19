@@ -21,6 +21,7 @@ import { requireStock, stockDroid } from './stock-scanner.ts';
 const NAMES = [
   'shutdown-flush-deadline',
   'web-fetch-always-loaded',
+  'web-search-always-loaded',
   'new-session-loads-in-background',
   'session-load-reads-loaded-settings',
   'first-message-shows-at-once',
@@ -71,6 +72,13 @@ describe.skipIf(stockDroid === undefined)('core patches on stock source', () => 
     expect(rebase.replace).toBe(rebase.find.replace('deferred:!0', 'deferred:!1'));
     expect(text).toContain(rebase.replace);
     expect(text).toMatch(/id:"web_search"[^}]+\},toolkit:"Web Search",deferred:!0/u);
+  });
+
+  test('only Web Search stops deferring when its patch is applied', () => {
+    const { rebase, text } = site('web-search-always-loaded');
+    expect(rebase.replace).toBe(rebase.find.replace('deferred:!0', 'deferred:!1'));
+    expect(text).toMatch(/id:"web_search"[^}]+\},toolkit:"Web Search",deferred:!1/u);
+    expect(text).toMatch(/id:"fetch_url"[^}]+\},toolkit:"Web Search",deferred:!0/u);
   });
 
   test.each([[false], [true]])(

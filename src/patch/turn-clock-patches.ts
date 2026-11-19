@@ -2,6 +2,8 @@ import { CACHE_CLOCK_GLOBAL, CACHE_CLOCK_RUNTIME_GLOBAL, CACHE_TRUSTED_MS } from
 import type { Patch } from './patches.ts';
 import { KEEP_WARM_ARMED_GLOBAL, KEEP_WARM_SET_GLOBAL } from './warmer-patches.ts';
 
+const TURN_CLOCK_TRACK_ANCHOR = 'let Me=ve!==void 0,ye=Ehe({statusState:x,sessionId:w,';
+
 const TURN_CLOCK_STATE =
   '$ODc={session:null,sent:0,done:0,busy:!1},' +
   '$ODa=($ODms)=>{let $ODmin=Math.floor($ODms/6e4);if($ODmin<1)return"<1m";if($ODmin<60)return $ODmin+"m";' +
@@ -46,14 +48,13 @@ export const turnClockPatches: readonly Patch[] = [
   },
   {
     name: 'turn-clock-track',
-    find: 'droidsHint:se,remoteDroidLocation:ce,btwTag:de}){',
+    find: TURN_CLOCK_TRACK_ANCHOR,
     lookups: [
-      'ye=Ehe({statusState:x,sessionId:w,',
       'L]=_(()=>{if(I.sessionId!==null&&',
       'W(()=>()=>{let Z=q.current,',
       'df(),K=V.subscribe(J),Y=setInterval(()=>{V.refresh()},',
     ],
-    replace: `droidsHint:se,remoteDroidLocation:ce,btwTag:de}){${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}`,
+    replace: `${TURN_CLOCK_TRACK}${TURN_CLOCK_TICK}${TURN_CLOCK_TRACK_ANCHOR}`,
   },
   {
     name: 'turn-clock-parts',

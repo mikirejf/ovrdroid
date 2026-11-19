@@ -138,6 +138,9 @@ Fix by reason:
   captures, such as a leading keyword or an argument the payload never reads. Trim the lookup to
   the names the `replace` uses plus just enough text to match once in its module. A lookup only
   captures names, so every character past that can drift.
+- `no-lookup` because upstream stopped calling a helper at the site the lookup quoted, while the
+  helper itself is still defined in the module: capture it from its definition (`X=(a)=>…`)
+  rather than hunting for another call, which the next rewrite can drop too.
 - `no-lookup` with the snippet still in the bundle, but in another chunk: upstream moved the code
   the lookup quoted out of the `find`'s module. Capture the same binding from a different use that
   stayed in the `find`'s module, and confirm with `probe names` that it resolves to the same
@@ -225,6 +228,11 @@ When you delete a patch, check its **companion** patches in the same file too. A
 matches can be dead: it styled rows of a list upstream removed, and the code it hooks is now shared
 by other rows that never carry its field. A clean `rebased` says nothing about whether anything
 still reaches the payload.
+
+When upstream drops a prop or callback, search the whole patch set for its name, not just the
+patch that went `missing`. A payload can list prop names as data (a set of callbacks a wrapper
+steadies, say) that no `find` quotes, so nothing drifts; only a test that reads the stock call
+site notices the name is gone.
 
 When upstream removes a whole feature rather than one site, the companions spread past the file:
 UI that draws the feature's output, roster or list patches that walk its data, frontmatter fields
