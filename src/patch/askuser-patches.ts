@@ -36,8 +36,8 @@ export const askUserTextPatches: readonly Patch[] = [
   },
   {
     name: 'send-message-asks-in-text',
-    find: 'Use AskUser for questions only the human can answer.',
-    replace: 'Pose questions only the human can answer in plain text.',
+    find: 'asks the human questions only the human can answer with AskUser',
+    replace: 'asks the human in plain text when only the human can answer',
   },
   {
     name: 'mission-scope-review-asks-in-text',
@@ -51,9 +51,14 @@ export const askUserTextPatches: readonly Patch[] = [
     replace: 'ask them in plain text when a decision is theirs',
   },
   {
+    name: 'mission-orchestrator-delegates-asks-in-text',
+    find: 'tell the agent to ask them with AskUser rather than bringing it to you.',
+    replace: 'tell the agent to ask them in plain text rather than bringing it to you.',
+  },
+  {
     name: 'mission-agent-asks-in-text',
-    find: 'Use AskUser only for questions the human alone can answer.',
-    replace: 'Pose questions only the human alone can answer in plain text.',
+    find: 'Ask the human the questions only they can answer with AskUser',
+    replace: 'Ask the human in plain text when only they can answer',
   },
   {
     name: 'readiness-pick-category-asks-in-text',

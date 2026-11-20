@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { MAIN_MARKDOWN_SCOPE, renderPatches } from '../render-patches.ts';
+import { patchSource } from '../../binary/apply.ts';
+import { rebasePatch } from '../rebase.ts';
+import { renderPatches } from '../render-patches.ts';
+import { moduleHolding, sourceApp, STOCK, textOf } from './ink-frame-harness.ts';
 import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 
 describeStrayNames(renderPatches);
@@ -72,7 +75,7 @@ describe('resume-expand-once', () => {
 
 interface Element {
   type: string;
-  props: { id?: string; scopeKey?: string; children?: Element; units?: string };
+  props: { scopeKey?: string; children?: Element; units?: string[] };
 }
 
 const MAIN_TRANSCRIPT = patchNamed(renderPatches, 'main-transcript-markdown-cache');
@@ -80,23 +83,34 @@ const MAIN_TRANSCRIPT = patchNamed(renderPatches, 'main-transcript-markdown-cach
 function transcriptWith(statement: string): Element {
   return payloadFunction<[], Element>(
     [],
-    `const t=(type,props)=>({type,props}),E0="Static",t4="List",mL="Scope",$e={committedUnits:"units"},y=80,E=86,ot=1,be=!1,F=!0,K=[],G=[];return ${statement}`,
+    `const t=(type,props)=>({type,props}),hV="List",coe="Scope",D1=["unit"],x=80,k=86,g1=1,Pe=!1,q=!0,X=[],Z=[];return ${statement}`,
   )();
 }
 
 describe('main-transcript-markdown-cache', () => {
-  test('stock renders the committed list straight under the static region', () => {
-    const tree = transcriptWith(MAIN_TRANSCRIPT.find);
-    expect(tree.props.id).toBe('StaticMessageList');
-    expect(tree.props.children?.type).toBe('List');
-  });
+  test.skipIf(STOCK === undefined)(
+    'wraps the committed list inside the stock static region',
+    () => {
+      const app = sourceApp();
+      const rebase = rebasePatch(
+        MAIN_TRANSCRIPT,
+        app.map((module) => module.text),
+      );
+      const name = moduleHolding(app, rebase.find);
+      expect(textOf(app, name)).toContain(`id:"StaticMessageList",children:${rebase.find}})`);
+      expect(textOf(patchSource(app, [MAIN_TRANSCRIPT]), name)).toContain(
+        `id:"StaticMessageList",children:${rebase.replace}})`,
+      );
+    },
+  );
 
-  test('the committed list sits inside a markdown scope', () => {
-    const tree = transcriptWith(MAIN_TRANSCRIPT.replace);
-    expect(tree.props.id).toBe('StaticMessageList');
-    expect(tree.props.children?.type).toBe('Scope');
-    expect(tree.props.children?.props.scopeKey).toBe(MAIN_MARKDOWN_SCOPE);
-    expect(tree.props.children?.props.children?.type).toBe('List');
-    expect(tree.props.children?.props.children?.props.units).toBe('units');
+  test('the markdown scope leaves every committed list prop intact', () => {
+    const stock = transcriptWith(MAIN_TRANSCRIPT.find);
+    expect(stock.type).toBe('List');
+    expect(stock.props.units).toEqual(['unit']);
+    expect(transcriptWith(MAIN_TRANSCRIPT.replace)).toEqual({
+      type: 'Scope',
+      props: { scopeKey: 'main', children: stock },
+    });
   });
 });

@@ -236,8 +236,7 @@ export const stackedViewPatches: readonly Patch[] = [
       'function LA(g,y){if(y===1)return g;if(g==="search")return"searches";',
       're=oe?.name??Uu(v)',
       't(S2,{text:re,isPending:A==="active",color:L}),l(o,{color:VW,children:[" ",ie," ",LA(le,ie)]}),q>0&&t(o,{color:a.error',
-      'if(vM(g))return t(c,{width:"100%",marginTop:1,',
-      'u().t("common:thinking.contentEncrypted")',
+      't(c,{children:p0.type==="redacted_thinking"?t(o,{color:a.text.muted,italic:!0,children:u().t("common:thinking.contentEncrypted")})',
     ],
     replace:
       `var Xxe=a.toolName,VW=a.toolParam;${TABLES}` +
@@ -245,9 +244,9 @@ export const stackedViewPatches: readonly Patch[] = [
   },
   {
     name: 'stacked-view-draw',
-    find: 'if(vM(g))return t(c,{width:"100%",marginTop:1,children:t(iM,{group:g,contentWidth:y,compact:v.compact})}',
+    find: 't(iM,{group:g,contentWidth:y,compact:v.compact})',
     replace:
-      'if(vM(g))return t(c,{width:"100%",marginTop:1,children:g.$ODstack===!0?t($ODStack,{group:g,contentWidth:y}):t(iM,{group:g,contentWidth:y,compact:v.compact})}',
+      'g.$ODstack===!0?t($ODStack,{group:g,contentWidth:y}):t(iM,{group:g,contentWidth:y,compact:v.compact})',
   },
   {
     name: 'stacked-view-thinking-row',

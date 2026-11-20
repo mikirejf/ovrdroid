@@ -572,6 +572,12 @@ caused it: the provider or proxy can drop cached tokens on its own. Compare the 
 (`probe build --bodies`) before blaming a patch, and judge whether the new request extends the old
 one, ignoring the `cache_control` marker that moves to the newest message every turn.
 
+A probe that waits for lines in Droid's shared log (`~/.factory/logs/droid-log-single.log`) loses
+them when the log rotates mid-run: earlier lines move to a numbered fragment, the live file starts
+over, and a count of lines for the session never grows past what it saw before. Give each run its
+own log with `FACTORY_LOG_FILE`, created before launch (`isolatedTurnLog` in
+`src/probe/effort-switch-turn.ts`).
+
 Probes that read `~/.factory/settings.json` must expand `${VAR}` references the way Droid does
 (`expandEnv` in `src/probe/credentials.ts`).
 

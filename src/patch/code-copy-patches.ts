@@ -34,10 +34,8 @@ export const COPY_PROMPT_LINE =
 
 const PROMPT_EXPRESSION = `\n\`+${JSON.stringify(COPY_PROMPT_LINE)}+\``;
 
-const COMMUNICATION_HEAD =
-  '- Before a long-running step, post one brief progress note. Do not interrupt short work or recap after every tool call.\n- Name what a tool accomplished, not the tool. Include identifiers only when the user is working with them.\n- Format only when structure carries meaning. No emojis unless requested.';
-
-const LONG_COMMUNICATION = '- Use short sentences. Keep each paragraph focused on one topic.\n';
+const COMMUNICATION_FORMAT =
+  '- Format only when structure carries meaning. No emojis unless requested.';
 
 const WRAP_LINES_HEAD =
   'function P(n,t){let e=Math.max(1,Math.floor(t)),r=[],i=[],o=0,l=()=>{r.push(i),i=[],o=0};for(let s of G(n)){let c=s.length>0&&!z(s[0]),u=h(s),a=s,m=u;while(a.length>0){let d=e-o;if(m<=d){i.push(...a),o+=m,a=[],m=0;continue}if(!c){let{slice:g}=E(a,d);i.push(...g),o+=h(g);break}if(d<=0){l();continue}if(u<=e&&o>0){l();continue}';
@@ -60,8 +58,8 @@ const INLINE_CODE = String.raw`case"inlineCode":C.segment(ht(q.value.replace(/\r
 export const codeCopyPatches: readonly Patch[] = [
   {
     name: 'code-copy-prompt-long',
-    find: `${LONG_COMMUNICATION}${COMMUNICATION_HEAD}`,
-    replace: `${LONG_COMMUNICATION}${COMMUNICATION_HEAD}${PROMPT_EXPRESSION}`,
+    find: COMMUNICATION_FORMAT,
+    replace: `${COMMUNICATION_FORMAT}${PROMPT_EXPRESSION}`,
   },
   {
     name: 'code-copy-long-word-whole',

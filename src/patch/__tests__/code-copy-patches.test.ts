@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { patchSource } from '../../binary/apply.ts';
-import { joinApp } from '../../binary/graph.ts';
+import type { App } from '../../binary/graph.ts';
 import {
   CODE_COPY_GLOBAL,
   codeCopyPatches,
@@ -14,6 +14,7 @@ import type { Rebase } from '../rebase.ts';
 import { applies, rebaseAll } from '../rebase.ts';
 import { inlineCodeParagraph } from './code-copy-paragraph.ts';
 import { sourceApp, STOCK } from './ink-frame-harness.ts';
+import { closureOf, declarationAround } from './module-closure.ts';
 import { describeStrayNames, patchNamed, payloadFunction, rebasedNamed } from './payload.ts';
 
 describeStrayNames(codeCopyPatches);
@@ -331,29 +332,31 @@ describe.skipIf(STOCK === undefined)('inline code wider than the whole line', ()
   });
 });
 
-function communications(source: string): string[] {
-  return [...source.matchAll(/`# Communication\n[^`]*`(?:\+"[^"]*"\+`[^`]*`)?/gu)].map(
-    ([template]) => payloadFunction<[], string>([], `return ${template}`)(),
+function communications(app: App): string[] {
+  return app.flatMap(({ text }) =>
+    Array.from(text.matchAll(/`# Communication\n/gu), ({ index }) => {
+      const name = declarationAround(text, index);
+      return payloadFunction<[], string>([], `${closureOf(text, [name])};return ${name}`)();
+    }),
   );
 }
 
 describe.skipIf(STOCK === undefined)('the system prompt', () => {
-  const patched = joinApp(
-    patchSource(sourceApp(), [patchNamed(codeCopyPatches, 'code-copy-prompt-long')]),
-  );
-  const stockPrompt = joinApp(sourceApp());
+  const stockPrompts = communications(sourceApp());
+  const patch = patchNamed(codeCopyPatches, 'code-copy-prompt-long');
   const requested = 'No emojis unless requested.\n';
 
-  test('adds the command-copy instruction right after the formatting rule', () => {
-    const [prompt] = communications(patched);
-    expect(prompt).toContain(`${requested}${COPY_PROMPT_LINE}\n- Use a comma`);
+  test('adds the command-copy instruction after the formatting rule without changing the stock text', () => {
+    const patched = communications(patchSource(sourceApp(), [patch]));
+    expect(patched).toEqual(
+      stockPrompts.map((prompt) => prompt.replace(requested, `${requested}${COPY_PROMPT_LINE}\n`)),
+    );
   });
 
   test('control: stock Droid has one Communication prompt without the command-copy instruction', () => {
-    const prompts = communications(stockPrompt);
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toContain(`${requested}- Use a comma`);
-    expect(prompts[0]).not.toContain(COPY_PROMPT_LINE);
+    expect(stockPrompts).toHaveLength(1);
+    expect(stockPrompts[0]).toContain(`${requested}- Use a comma`);
+    expect(stockPrompts[0]).not.toContain(COPY_PROMPT_LINE);
   });
 
   test('the line is the exact text the model reads', () => {

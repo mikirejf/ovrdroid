@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -26,6 +26,7 @@ const PROMPTS: Record<TurnName, string> = {
 
 export interface Drive {
   session: Session;
+  readLog: (sessionId: string) => LogRecords;
   folder: string;
   tag: string;
   model: string;
@@ -39,11 +40,20 @@ export interface Taken {
   effort: string;
 }
 
-export function logOf(sessionId: string): LogRecords {
-  const records = parseLog(readFileSync(LOG_PATH, 'utf-8'));
+export function logOf(sessionId: string, file = LOG_PATH): LogRecords {
+  const records = parseLog(readFileSync(file, 'utf-8'));
   return {
     usage: records.usage.filter((line) => line.sessionId === sessionId && !line.subagent),
     busts: records.busts.filter((bust) => bust.sessionId === sessionId),
+  };
+}
+
+export function isolatedTurnLog(dir: string) {
+  const file = path.join(dir, LIVE_LOG);
+  writeFileSync(file, '', { flag: 'wx' });
+  return {
+    env: { FACTORY_LOG_FILE: file },
+    read: (sessionId: string) => logOf(sessionId, file),
   };
 }
 
@@ -52,7 +62,7 @@ function mainTranscript(folder: string, tag: string) {
 }
 
 export async function takeTurn(drive: Drive, turn: TurnName, sessionId?: string): Promise<Taken> {
-  const before = sessionId === undefined ? 0 : logOf(sessionId).usage.length;
+  const before = sessionId === undefined ? 0 : drive.readLog(sessionId).usage.length;
   const replies = Object.keys(PROMPTS).indexOf(turn) + 1;
   await submit(drive.session, `${PROMPTS[turn]} (probe ${drive.tag})`);
   const ended = await poll(() => {
@@ -63,14 +73,14 @@ export async function takeTurn(drive: Drive, turn: TurnName, sessionId?: string)
     throw new Error(`the ${turn} turn did not finish within ${drive.timeoutMs / MS_PER_SECOND}s`);
   }
   const logged = await poll(
-    () => (logOf(ended.id).usage.length > before ? true : undefined),
+    () => (drive.readLog(ended.id).usage.length > before ? true : undefined),
     LOG_WAIT_MS,
   );
   if (logged === undefined) {
     throw new Error(`Droid logged no usage line for the ${turn} turn within ${LOG_WAIT_MS}ms`);
   }
   await delay(LOG_FLUSH_MS);
-  const added = logOf(ended.id).usage.slice(before);
+  const added = drive.readLog(ended.id).usage.slice(before);
   say(
     `${turn} turn: Droid logged ${added.length} usage line${added.length === 1 ? '' : 's'} (${added.map(({ modelId, reason }) => `${modelId} ${reason}`).join('; ')})`,
   );

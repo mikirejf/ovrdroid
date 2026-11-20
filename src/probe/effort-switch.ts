@@ -6,7 +6,7 @@ import { MS_PER_SECOND, say, whole } from '../cli.ts';
 import { ovrdroidFile } from '../paths.ts';
 import { bodiesEnv, newBodiesFile } from './bodies.ts';
 import type { Drive } from './effort-switch-turn.ts';
-import { logOf, LOG_PATH, takeTurn } from './effort-switch-turn.ts';
+import { isolatedTurnLog, takeTurn } from './effort-switch-turn.ts';
 import type { TurnBust, TurnEnds, TurnName, TurnUsage } from './effort-switch-verdict.ts';
 import {
   bodyRecord,
@@ -102,18 +102,20 @@ async function runSwitch(
 ): Promise<Measured> {
   const cwd = path.join(dir, 'work');
   mkdirSync(cwd);
+  const log = isolatedTurnLog(dir);
   const session = await openLiveSession(binary, {
     cwd,
     dir,
     model: options.model,
     effort: options.from,
     collect: true,
-    env: bodiesEnv(bodiesFile),
+    env: { ...bodiesEnv(bodiesFile), ...log.env },
   });
   try {
     await session.quiet(SETTLE_MS, SETTLE_TIMEOUT_MS);
     const context: Drive = {
       session,
+      readLog: log.read,
       folder: sessionFolder(cwd),
       tag: randomUUID().slice(0, 8),
       model: options.model,
@@ -133,7 +135,7 @@ async function runSwitch(
       lines: { seed: seed.line, control: control.line, switched: switched.line },
       seedCacheRead: seed.firstCacheRead,
       efforts: { seed: seed.effort, control: control.effort, switched: switched.effort },
-      busts: bustsByTurn(logOf(seed.sessionId).busts, ends),
+      busts: bustsByTurn(log.read(seed.sessionId).busts, ends),
     };
   } finally {
     await session.close();
@@ -149,7 +151,7 @@ export async function effortSwitch(binary: string, options: EffortSwitchOptions)
   say('  seed: the first turn, which writes the cache');
   say('  control: a second turn at the same effort, which should read it');
   say(`  switched: a third turn after Tab moves the status-line label to ${options.to}`);
-  say(`Droid's own log (${LOG_PATH}) gives the cache numbers for each turn`);
+  say(`Droid writes the cache numbers for each turn to a log just for this run`);
   say('the verdict rests on the request bodies: the binary must be a `probe build --bodies` build');
   say('');
   if (!options.yes) {

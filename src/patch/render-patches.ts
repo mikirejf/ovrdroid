@@ -12,10 +12,8 @@ import { stackedViewPatches } from './stacked-view-patches.ts';
 import { streamRenderPatches } from './stream-render-patches.ts';
 import { todoRenderPatches } from './todo-render-patches.ts';
 
-export const MAIN_MARKDOWN_SCOPE = 'main';
-
 const COMMITTED_LIST =
-  't(t4,{units:$e.committedUnits,contentWidth:y,headerWidth:E,staticKey:ot,compact:be,showThinking:F,permissionToolIds:K,pendingPermissionToolIds:G})';
+  't(hV,{units:D1,contentWidth:x,headerWidth:k,staticKey:g1,compact:Pe,showThinking:q,permissionToolIds:X,pendingPermissionToolIds:Z})';
 
 export const renderPatches = [
   ...inkFramePatches,
@@ -39,8 +37,8 @@ export const renderPatches = [
   },
   {
     name: 'main-transcript-markdown-cache',
-    find: `t(E0,{id:"StaticMessageList",children:${COMMITTED_LIST}})`,
-    lookups: ['function mL({scopeKey:'],
-    replace: `t(E0,{id:"StaticMessageList",children:t(mL,{scopeKey:"${MAIN_MARKDOWN_SCOPE}",children:${COMMITTED_LIST}})})`,
+    find: COMMITTED_LIST,
+    lookups: ['function coe({scopeKey:'],
+    replace: `t(coe,{scopeKey:"main",children:${COMMITTED_LIST}})`,
   },
 ];
