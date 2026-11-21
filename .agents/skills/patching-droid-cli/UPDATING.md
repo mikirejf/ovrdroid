@@ -441,6 +441,10 @@ platforms. Write any new one the same way:
   the minifier emits, including namespace (`import*as X from"fs"`), default and combined imports,
   and Node built-ins that are not records in the binary. A leftover form fails as a `SyntaxError`
   inside the evaluation, not as a missing name.
+- A harness that evaluates collected stock code with `new Function` fails with `import.meta is only
+  valid inside modules` once the closure reaches a declaration that reads `import.meta`. Replace each
+  `import.meta` expression with a stand-in parameter carrying the test file's own metadata and a
+  `require` (`stock-scanner.ts`), rather than trimming the declaration out.
 - Assert a patch landed by its rebased `replace` (`rebasedNamed(name).replace`), never by a
   literal in one build's names: `toContain('toolUseId:a.id')` fails on the first rename.
 - A test that runs a payload with a copied stock tail can close the function right after the

@@ -117,13 +117,13 @@ export const compactionPatches: readonly Patch[] = [
     name: 'compaction-reuse-extender',
     find: 'capturedAt:Date.now()};DJ(jn);',
     lookups: [
-      'js=Yn({rawHistory:ae,lastSummary:this.lastSummaryRef,reminders:Ot,keepHistoryReminders:jt})',
+      'js=Yn({rawHistory:ae,lastSummary:this.lastSummaryRef,reminders:Ot,keepHistoryReminders:jt,includeUserMessageIds:Yt})',
       'prepareMessagesWithCaching(js,_t)',
     ],
     replace:
-      `capturedAt:Date.now(),${EXTENDER_KEY}:(($ODrem,$ODkeep,$ODopts,$ODsum)=>($ODask)=>this.llmCore.prepareMessagesWithCaching(` +
-      'Yn({rawHistory:[...this.params.getConversationHistory(),$ODask],lastSummary:$ODsum,reminders:$ODrem,keepHistoryReminders:$ODkeep}),$ODopts))' +
-      '(Ot,jt,_t,this.lastSummaryRef)};DJ(jn);',
+      `capturedAt:Date.now(),${EXTENDER_KEY}:(($ODrem,$ODkeep,$ODopts,$ODsum,$ODids)=>($ODask)=>this.llmCore.prepareMessagesWithCaching(` +
+      'Yn({rawHistory:[...this.params.getConversationHistory(),$ODask],lastSummary:$ODsum,reminders:$ODrem,keepHistoryReminders:$ODkeep,includeUserMessageIds:$ODids}),$ODopts))' +
+      '(Ot,jt,_t,this.lastSummaryRef,Yt)};DJ(jn);',
   },
   {
     name: 'compaction-reuse-prefix',

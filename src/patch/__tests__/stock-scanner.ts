@@ -1,3 +1,8 @@
+import { createRequire } from 'node:module';
+
+import { parse } from '@babel/parser';
+import { isMetaProperty, traverseFast } from '@babel/types';
+
 import { patchSource } from '../../binary/apply.ts';
 import type { App, AppModule } from '../../binary/graph.ts';
 import { embedName, joinApp, readApp } from '../../binary/graph.ts';
@@ -108,6 +113,27 @@ function closureAcross(app: App, module: AppModule, roots: readonly string[]): s
   return [...imported, own].join(';\n');
 }
 
+const IMPORT_META_BINDING = '$ODimportMeta';
+
+function replaceImportMeta(source: string): string {
+  const spans: { start: number; end: number }[] = [];
+  traverseFast(parse(source, { sourceType: 'module' }), (node) => {
+    if (
+      isMetaProperty(node) &&
+      node.meta.name === 'import' &&
+      typeof node.start === 'number' &&
+      typeof node.end === 'number'
+    ) {
+      spans.push({ start: node.start, end: node.end });
+    }
+  });
+  let code = source;
+  for (const { start, end } of spans.toSorted((a, b) => b.start - a.start)) {
+    code = `${code.slice(0, start)}${IMPORT_META_BINDING}${code.slice(end)}`;
+  }
+  return code;
+}
+
 export function lineMatcherIn(app: App): LineMatcher {
   const module = scannerModule(app);
   const { text } = module;
@@ -115,8 +141,10 @@ export function lineMatcherIn(app: App): LineMatcher {
   if (name === undefined) {
     throw new Error('the secret-scanner line matcher is not where the tests expect it');
   }
-  const source = closureAcross(app, module, [name]);
+  const source = replaceImportMeta(closureAcross(app, module, [name]));
+  const { url, dir, path, dirname, filename } = import.meta;
+  const importMeta = { require: createRequire(url), url, dir, path, dirname, filename };
   // SAFETY: the body is the shipped line matcher with the top-level declarations it reaches, across the modules it imports from.
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval, typescript/no-unsafe-type-assertion, typescript/no-unsafe-call
-  return new Function(`${source};return ${name}`)() as LineMatcher;
+  return new Function(IMPORT_META_BINDING, `${source};return ${name}`)(importMeta) as LineMatcher;
 }

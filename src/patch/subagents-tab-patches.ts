@@ -53,9 +53,9 @@ export const subagentsTabPatches: readonly Patch[] = [
   },
   {
     name: 'subagent-tab-grey',
-    find: 'let{session:S2}=T1,A2=T1===st,Vt=T1===W4||!i2(T1),$2=Re==="archive-confirm"&&t4(T1),Ut={bold:A2,color:$2?O3.color:A2?a.text.primary:a.text.muted,dimColor:Vt}',
+    find: 'let{session:L2}=v1,O2=v1===nt,Ht=v1!==m4&&J1(v1),W2=Re==="archive-confirm"&&d4(v1),Ft={bold:O2,color:W2?W3.color:O2?a.text.primary:Ht?a.text.secondary:a.text.muted}',
     replace:
-      'let{session:S2}=T1,A2=T1===st,Vt=T1===W4||!i2(T1),$2=Re==="archive-confirm"&&t4(T1),Ut={bold:A2,color:$2?O3.color:A2?a.text.primary:S2.$ODhead?a.diff.unchanged.dimText:a.text.muted,dimColor:Vt}',
+      'let{session:L2}=v1,O2=v1===nt,Ht=v1!==m4&&J1(v1),W2=Re==="archive-confirm"&&d4(v1),Ft={bold:O2,color:W2?W3.color:O2?a.text.primary:L2.$ODhead?a.diff.unchanged.dimText:Ht?a.text.secondary:a.text.muted}',
   },
   {
     name: 'subagent-tab-keeps-tree-order',

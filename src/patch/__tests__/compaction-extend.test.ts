@@ -171,6 +171,7 @@ interface Conversion {
   lastSummary: string;
   reminders: string[];
   keepHistoryReminders: boolean;
+  includeUserMessageIds: boolean;
 }
 
 interface Converted {
@@ -202,54 +203,59 @@ interface Stored {
 }
 
 describe('compaction-reuse-extender', () => {
-  test('rebuilds the next request from the live history with the reminders, summary, pin and cache options of the snapshot', () => {
-    const history = [textMessage('turn-1')];
-    const loop: LoopState = {
-      llmCore: {
-        prepareMessagesWithCaching: (messages, options) => ({ prepared: messages, options }),
-      },
-      params: { getConversationHistory: () => history },
-      lastSummaryRef: 'summary at snapshot',
-    };
-    const stored: Stored[] = [];
-    const reminders = ['tool catalog', 'skills reminder', 'subagent reminder'];
-    const cacheOptions: CacheOptions = {
-      sessionId: 'session',
-      modelId: 'model',
-      oneHourConversationCache: true,
-    };
-    const capture = payloadFunction<unknown[], Stored>(
-      ['Yn', 'Ot', 'jt', '_t', 'DJ'],
-      `let jn={sessionId:"s",${EXTENDER}return jn`,
-    );
-    const snapshot = capture.call(
-      loop,
-      (input: Conversion): Converted => ({ converted: input }),
-      reminders,
-      true,
-      cacheOptions,
-      (entry: Stored) => {
-        stored.push(entry);
-      },
-    );
-
-    expect(stored).toEqual([snapshot]);
-    loop.lastSummaryRef = 'summary written later';
-    history.push(LAST_REPLY);
-    const ask = textMessage('ask');
-    const rebuilt = snapshot.odExtend(ask);
-    expect(rebuilt).toEqual({
-      prepared: {
-        converted: {
-          rawHistory: [textMessage('turn-1'), LAST_REPLY, ask],
-          lastSummary: 'summary at snapshot',
-          reminders: ['tool catalog', 'skills reminder', 'subagent reminder'],
-          keepHistoryReminders: true,
+  test.each([true, false])(
+    'rebuilds the live history with the snapshot options (include user message IDs: %p)',
+    (includeUserMessageIds) => {
+      const history = [textMessage('turn-1')];
+      const loop: LoopState = {
+        llmCore: {
+          prepareMessagesWithCaching: (messages, options) => ({ prepared: messages, options }),
         },
-      },
-      options: cacheOptions,
-    });
-    expect(rebuilt.options).toBe(cacheOptions);
-    expect(snapshot.odExtend(textMessage('next-ask')).options).toBe(cacheOptions);
-  });
+        params: { getConversationHistory: () => history },
+        lastSummaryRef: 'summary at snapshot',
+      };
+      const stored: Stored[] = [];
+      const reminders = ['tool catalog', 'skills reminder', 'subagent reminder'];
+      const cacheOptions: CacheOptions = {
+        sessionId: 'session',
+        modelId: 'model',
+        oneHourConversationCache: true,
+      };
+      const capture = payloadFunction<unknown[], Stored>(
+        ['Yn', 'Ot', 'jt', '_t', 'DJ', 'Yt'],
+        `let jn={sessionId:"s",${EXTENDER}return jn`,
+      );
+      const snapshot = capture.call(
+        loop,
+        (input: Conversion): Converted => ({ converted: input }),
+        reminders,
+        true,
+        cacheOptions,
+        (entry: Stored) => {
+          stored.push(entry);
+        },
+        includeUserMessageIds,
+      );
+
+      expect(stored).toEqual([snapshot]);
+      loop.lastSummaryRef = 'summary written later';
+      history.push(LAST_REPLY);
+      const ask = textMessage('ask');
+      const rebuilt = snapshot.odExtend(ask);
+      expect(rebuilt).toEqual({
+        prepared: {
+          converted: {
+            rawHistory: [textMessage('turn-1'), LAST_REPLY, ask],
+            lastSummary: 'summary at snapshot',
+            reminders: ['tool catalog', 'skills reminder', 'subagent reminder'],
+            keepHistoryReminders: true,
+            includeUserMessageIds,
+          },
+        },
+        options: cacheOptions,
+      });
+      expect(rebuilt.options).toBe(cacheOptions);
+      expect(snapshot.odExtend(textMessage('next-ask')).options).toBe(cacheOptions);
+    },
+  );
 });

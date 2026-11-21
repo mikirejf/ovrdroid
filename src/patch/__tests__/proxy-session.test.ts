@@ -4,7 +4,7 @@ import { proxySessionPatches, SESSION_HEADER } from '../proxy-session-patches.ts
 import { describeStrayNames, patchNamed, payloadFunction } from './payload.ts';
 
 const STOCK =
-  'D=t.getRetryStrategy(),L=async({customModel:xe,proxy:$e,customHeaders:Fe})=>xe?{...Fe,"User-Agent":t.platform.userAgent()}:await t.platform.createProxyHeaders($e),N';
+  'O=async({customModel:Ee,proxy:Ve,customHeaders:Ne})=>{if(!Ee)return await t.platform.createProxyHeaders(Ve);return{...Ne,"User-Agent":t.platform.userAgent(),...gU({customModel:Ee,sessionId:Ve.sessionId,customHeaders:Ne})}}';
 
 interface CustomModel {
   provider: string;
@@ -23,10 +23,16 @@ interface Request {
 
 type Headers = Record<string, string>;
 type BuildHeaders = (request: Request) => Promise<Headers>;
+type OpenCodeHeaders = (args: {
+  customModel: CustomModel;
+  sessionId?: string;
+  customHeaders?: Headers;
+}) => Headers;
 
 const PROXY_HEADERS = { Authorization: 'factory' } satisfies Headers;
+const USER_AGENT = 'factory-cli/1.17.0';
 
-function headersBuilder(): BuildHeaders {
+function headersBuilder(openCodeHeaders: OpenCodeHeaders = () => ({})): BuildHeaders {
   const { find, replace } = patchNamed(
     proxySessionPatches,
     'anthropic-custom-model-sends-session-id',
@@ -34,13 +40,13 @@ function headersBuilder(): BuildHeaders {
   expect(STOCK).toContain(find);
   const source = STOCK.replace(find, () => replace);
   const platform = {
-    userAgent: () => 'factory-cli/1.6.0',
+    userAgent: () => USER_AGENT,
     createProxyHeaders: async () => await Promise.resolve(PROXY_HEADERS),
   };
-  return payloadFunction<[{ platform: typeof platform }, () => null], BuildHeaders>(
-    ['t', 'getRetry'],
-    `let ${source.replace('t.getRetryStrategy()', 'getRetry()')};return L;`,
-  )({ platform }, () => null);
+  return payloadFunction<[{ platform: typeof platform }, OpenCodeHeaders], BuildHeaders>(
+    ['t', 'gU'],
+    `const ${source};return O;`,
+  )({ platform }, openCodeHeaders);
 }
 
 const build = headersBuilder();
@@ -59,7 +65,22 @@ describe('Droid sends its session id to an Anthropic custom model', () => {
     ).toEqual({
       [SESSION_HEADER]: 'session-1',
       'X-Extra': 'kept',
-      'User-Agent': 'factory-cli/1.6.0',
+      'User-Agent': USER_AGENT,
+    });
+  });
+
+  test('the stock OpenCode helper still receives its inputs and adds its header', async () => {
+    const customModel = { provider: 'anthropic', baseUrl: 'https://opencode.ai/zen' };
+    const customHeaders = { 'X-Extra': 'kept', 'User-Agent': 'custom' };
+    const buildOpenCode = headersBuilder((args) => {
+      expect(args).toEqual({ customModel, sessionId: PROXY.sessionId, customHeaders });
+      return { 'x-opencode-session': PROXY.sessionId };
+    });
+    expect(await buildOpenCode({ customModel, proxy: PROXY, customHeaders })).toEqual({
+      [SESSION_HEADER]: 'session-1',
+      'X-Extra': 'kept',
+      'User-Agent': USER_AGENT,
+      'x-opencode-session': 'session-1',
     });
   });
 
@@ -72,13 +93,13 @@ describe('Droid sends its session id to an Anthropic custom model', () => {
     expect(headers[SESSION_HEADER]).toBe('pinned');
   });
 
-  test('other custom model providers get no session id', async () => {
-    for (const provider of ['openai', 'generic-chat-completion-api']) {
-      // oxlint-disable-next-line no-await-in-loop
+  test.each(['openai', 'generic-chat-completion-api'])(
+    '%s custom models get no session id',
+    async (provider) => {
       const headers = await build({ customModel: { provider }, proxy: PROXY });
       expect(Object.keys(headers)).toEqual(['User-Agent']);
-    }
-  });
+    },
+  );
 
   test('a request without a session id gets no header', async () => {
     const headers = await build({ customModel: { provider: 'anthropic' }, proxy: {} });
