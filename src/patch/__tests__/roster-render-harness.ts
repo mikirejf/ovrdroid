@@ -226,7 +226,7 @@ export function rootSelection(
     RootSelection
   >(
     ['$ODrosterStore', 'bm1', 'S3', 'b9', 'v9'],
-    `let ${replace}$ODresult={store:$ODrs,live:$ODrl,model:eR};return $ODresult`,
+    `let ${replace}return{store:$ODrs,live:$ODrl,model:eR}`,
   )(lib.$ODrosterStore, mission, sessionId, tags, isMission);
 }
 

@@ -87,9 +87,7 @@ export const CHECK_DROID =
   '$ODerr.push("skills must be a list of skill names, not "+JSON.stringify($ODmeta.skills));' +
   'return $ODerr}';
 
-const MODEL_IDS =
-  'function $ODids(){let $ODc=C().getCustomModels();' +
-  'return[...new Set([...Cs(),...(Array.isArray($ODc)?$ODc.map(($ODm)=>$ODm.id):[])])]}';
+const MODEL_IDS = 'function $ODids(){return[...new Set(Cs())]}';
 
 export const TASK_HELPERS =
   SPLIT_MODEL + MATCH_NAME + PICK_MODEL + REFUSE_RESUME_FIELDS + MODEL_IDS;
@@ -100,8 +98,7 @@ const LOAD_DROIDS_LOOKUP = 'y=await Do().loadAllDroids(),S=o?.sessionExecutionCo
 
 const BUILT_INS_LOOKUP = 'k=m().getCurrentSessionTags(),g=oO(k).map((h)=>h.name)';
 
-const LAUNCH_MODEL_LOOKUP =
-  'let R=v.type==="custom"?v.droid:Ele(v.config),b=[...Cs()],A=(Q)=>vi.validateModel(Q,b).valid,D=C().resolveModelWithFallback(R.metadata.model,A),F=';
+const MODEL_CATALOG_LOOKUP = 'b=Cs(),A=(Q)=>vi.validateModel(Q,b).valid';
 
 const MODEL_DESCRIPTION =
   'Optional model for the subagent: a model id from the list at the end of this tool\'s description, or "inherit" for this session\'s model. ' +
@@ -128,10 +125,7 @@ const STOCK_LOOKUP =
 export const STOCK_RESOLVE =
   '{modelId:O,reasoningEffort:W,complexity:j}=Ie.resolveSubagentModelSelection({subagent:v,requestedComplexity:t.complexity,droidModel:F,dependencies:o})';
 
-export const PICK_LOOKUPS: readonly string[] = [
-  LAUNCH_MODEL_LOOKUP,
-  'reasoningEffort:g.modelId?lw({modelId:g.modelId,',
-];
+export const PICK_LOOKUPS: readonly string[] = ['reasoningEffort:g.modelId?lw({modelId:g.modelId,'];
 
 export const PICK_CALL =
   '{modelId:O,reasoningEffort:W,complexity:j,$ODtoolModel}=$ODpick($ODl,{' +
@@ -176,19 +170,19 @@ export const subagentModelPatches: readonly Patch[] = [
   {
     name: 'task-model-helpers',
     find: TASK_EXECUTOR_HEAD,
-    lookups: [LAUNCH_MODEL_LOOKUP],
+    lookups: [MODEL_CATALOG_LOOKUP],
     replace: TASK_HELPERS + TASK_EXECUTOR_HEAD,
   },
   {
     name: 'task-launch-splits-model-and-matches-name',
     find: `${TASK_CONFIG_LOOKUP}if(t.resume){let X=await Do().loadAllDroids(),`,
-    lookups: [LAUNCH_MODEL_LOOKUP, BUILT_INS_LOOKUP],
+    lookups: [MODEL_CATALOG_LOOKUP, BUILT_INS_LOOKUP],
     replace:
       `${TASK_CONFIG_LOOKUP}$ODresume(t,m());let $ODdroids=await Do().loadAllDroids();` +
       'if(typeof t.subagent_type==="string")t.subagent_type=$ODname(t.subagent_type,' +
       '[...$ODdroids.map(($ODd)=>$ODd.metadata.name),' +
       '...oO(o?.sessionExecutionContext?.sessionTags??m().getCurrentSessionTags()).map(($ODb)=>$ODb.name)]);' +
-      'let $ODl=$ODsplit(t,($ODm)=>vi.validateModel($ODm,[...Cs()]).valid,$ODids);' +
+      'let $ODl=$ODsplit(t,($ODm)=>vi.validateModel($ODm,Cs()).valid,$ODids);' +
       'if(t.resume){let X=$ODdroids,',
   },
   {
@@ -206,9 +200,9 @@ export const subagentModelPatches: readonly Patch[] = [
   {
     name: 'effort-clamps-to-model',
     find: STOCK_LW_HEAD,
-    lookups: ['let l=U6(t,F6[o])??jL(t)[0];'],
+    lookups: ['let l=U6(t,F6[o])??jL(t,{skipDisabled:!1})[0];'],
     replace:
-      'function lw({modelId:t,complexity:o,inherited:a,$ODclamp:$ODc}){if($ODc)return U6(t,a)??jL(t)[0]??a;if(!o||a===void 0)return a;',
+      'function lw({modelId:t,complexity:o,inherited:a,$ODclamp:$ODc}){if($ODc)return U6(t,a)??jL(t,{skipDisabled:!1})[0]??a;if(!o||a===void 0)return a;',
   },
   {
     name: 'droid-validation-accepts-inherit-effort',

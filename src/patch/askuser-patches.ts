@@ -35,11 +35,6 @@ export const askUserTextPatches: readonly Patch[] = [
       'request in plain text that the user identify the exact setting or section before calling this tool.',
   },
   {
-    name: 'send-message-asks-in-text',
-    find: 'asks the human questions only the human can answer with AskUser',
-    replace: 'asks the human in plain text when only the human can answer',
-  },
-  {
     name: 'mission-scope-review-asks-in-text',
     find: '6. Use AskUser after the explanation so the user can decide how to proceed.',
     replace:
@@ -57,8 +52,8 @@ export const askUserTextPatches: readonly Patch[] = [
   },
   {
     name: 'mission-agent-asks-in-text',
-    find: 'Ask the human the questions only they can answer with AskUser',
-    replace: 'Ask the human in plain text when only they can answer',
+    find: 'Ask the human with AskUser only what the human alone can answer.',
+    replace: 'Ask the human in plain text only what the human alone can answer.',
   },
   {
     name: 'readiness-pick-category-asks-in-text',

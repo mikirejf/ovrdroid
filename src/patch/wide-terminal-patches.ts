@@ -42,8 +42,8 @@ const COMMAND =
 export const wideTerminalPatches: readonly Patch[] = [
   {
     name: 'wide-terminal-helpers',
-    find: 'var{runCli:',
-    replace: `${WIDE_TERMINAL_HELPERS}var{runCli:`,
+    find: 'let{runCli:',
+    replace: `${WIDE_TERMINAL_HELPERS}let{runCli:`,
   },
   {
     name: 'wide-terminal-layout-width',

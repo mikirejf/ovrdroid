@@ -16,10 +16,6 @@ interface Tool extends Omit<typeof STOCK_TOOL, 'description'> {
   description: string;
 }
 
-interface Settings {
-  getCustomModels: () => readonly { id: string }[];
-}
-
 class Executor {
   toolId = 'task-cli';
 }
@@ -29,28 +25,20 @@ interface Registration {
   executorFactory: () => Executor;
 }
 
-const registration = payloadFunction<
-  [() => Tool, () => string[], () => Settings, typeof Executor],
-  Registration
->(
-  ['s3e', 'Cs', 'C', 'ke'],
+type Catalog = () => readonly string[];
+
+const registration = payloadFunction<[() => Tool, Catalog, typeof Executor], Registration>(
+  ['s3e', 'Cs', 'ke'],
   `${TASK_HELPERS}return{${patchNamed(subagentModelPatches, 'task-description-lists-model-ids').replace}}`,
 );
 
-function register(settings: Settings): Registration {
-  return registration(
-    () => STOCK_TOOL,
-    () => ['builtin', 'shared'],
-    () => settings,
-    Executor,
-  );
+function register(catalog: Catalog): Registration {
+  return registration(() => STOCK_TOOL, catalog, Executor);
 }
 
 describe('the registered Task description lists model ids', () => {
   test('preserves the tool and executor', () => {
-    const result = register({
-      getCustomModels: () => [{ id: 'custom:one' }, { id: 'shared' }],
-    });
+    const result = register(() => ['builtin', 'shared', 'custom:one', 'shared']);
     expect(result.tool).toEqual({
       ...STOCK_TOOL,
       description:
@@ -63,18 +51,18 @@ describe('the registered Task description lists model ids', () => {
   });
 
   test('a registration refresh reads current ids and does not append twice', () => {
-    let custom = [{ id: 'custom:old' }];
-    const settings: Settings = { getCustomModels: () => custom };
-    expect(register(settings).tool.description).toContain('custom:old.');
-    custom = [{ id: 'custom:new' }];
-    const { description } = register(settings).tool;
+    let custom = 'custom:old';
+    const catalog = () => ['builtin', 'shared', custom];
+    expect(register(catalog).tool.description).toContain('custom:old.');
+    custom = 'custom:new';
+    const { description } = register(catalog).tool;
     expect(description).toContain('custom:new.');
     expect(description).not.toContain('custom:old');
     expect(description.split('Model ids')).toHaveLength(2);
   });
 
   test('built-in ids remain available without custom models', () => {
-    expect(register({ getCustomModels: () => [] }).tool.description).toEndWith(
+    expect(register(() => ['builtin', 'shared']).tool.description).toEndWith(
       'inherit, builtin, shared.',
     );
   });

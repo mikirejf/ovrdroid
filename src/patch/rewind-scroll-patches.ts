@@ -1,17 +1,15 @@
 import type { Patch } from './patches.ts';
 
-const UNIT_REF = 'K.current.set(e1.unitId,{node:o1,isUser:r1})';
-
 const PAGE_MEASURE =
-  'r1=[],o1=[];for(let i1 of K.current.values()){let s1=i1.node.yogaNode;if(!s1)continue;' +
-  'let a1=t1-s1.getComputedTop()-s1.getComputedHeight();if(o1.push(a1),i1.isUser)r1.push(a1)}' +
-  'V(g.index,t1,r1.toSorted((i1,s1)=>i1-s1),o1.toSorted((i1,s1)=>i1-s1))}';
+  'ie=new Map,se=[];for(let de of te){let Le=Q.current.get(de.unitId)?.yogaNode;if(!Le)continue;' +
+  'let Me=re-Le.getComputedTop()-Le.getComputedHeight();se.push(Me);let Te=A91(de);' +
+  'if(Te===void 0)continue;ie.set(Te,Math.min(Me,ie.get(Te)??Me))}' +
+  'z(g.index,re,[...ie.values()].toSorted((de,Le)=>de-Le),se.toSorted((de,Le)=>de-Le))';
 
-const PAGE_MEASURE_WITH_TOPS =
-  'r1=[],o1=[],$ODtops={};for(let i1 of K.current.values()){let s1=i1.node.yogaNode;if(!s1)continue;' +
-  'let a1=t1-s1.getComputedTop()-s1.getComputedHeight();if(o1.push(a1),i1.isUser)r1.push(a1),' +
-  '$ODtops[i1.odMessageId]=Math.max($ODtops[i1.odMessageId]??0,t1-s1.getComputedTop())}' +
-  'V(g.index,t1,r1.toSorted((i1,s1)=>i1-s1),o1.toSorted((i1,s1)=>i1-s1),$ODtops)}';
+const PAGE_MEASURE_WITH_TOPS = PAGE_MEASURE.replace('se=[];', 'se=[],$ODtops=Object.create(null);')
+  .replace('let Me=re-Le.getComputedTop()-', 'let $ODtop=re-Le.getComputedTop(),Me=$ODtop-')
+  .replace('ie.set(', '$ODtops[Te]=Math.max($ODtops[Te]??$ODtop,$ODtop);ie.set(')
+  .replace('se.toSorted((de,Le)=>de-Le))', 'se.toSorted((de,Le)=>de-Le),$ODtops)');
 
 const HOOK_START = 'function qve(g){let{onOpen:k,onExit:A}=g,[P,B]=_(),F=g.maxRows(P?.error),';
 
@@ -117,11 +115,6 @@ const USER_MESSAGE =
 const FOCUS_COLOR = 'g.$ODfocus===!0?a.primary:';
 
 export const rewindScrollPatches: readonly Patch[] = [
-  {
-    name: 'transcript-history-unit-knows-its-message',
-    find: UNIT_REF,
-    replace: 'K.current.set(e1.unitId,{node:o1,isUser:r1,odMessageId:r1?e1.item.id:void 0})',
-  },
   {
     name: 'transcript-history-page-reports-message-tops',
     find: PAGE_MEASURE,

@@ -235,7 +235,7 @@ export const stackedViewPatches: readonly Patch[] = [
       'function cbe(g){let y=g.map((S)=>Xw({status:S.status,result:S.result,isError:S.isError,executionPhase:S.executionPhase}));',
       'function LA(g,y){if(y===1)return g;if(g==="search")return"searches";',
       're=oe?.name??Uu(v)',
-      't(S2,{text:re,isPending:A==="active",color:L}),l(o,{color:VW,children:[" ",ie," ",LA(le,ie)]}),q>0&&t(o,{color:a.error',
+      'l(c,{flexDirection:"row",children:[t(S2,{text:re,isPending:A==="active",color:L}),l(o,{color:VW,children:[" ",ie," ",LA(le,ie)]})',
       't(c,{children:p0.type==="redacted_thinking"?t(o,{color:a.text.muted,italic:!0,children:u().t("common:thinking.contentEncrypted")})',
     ],
     replace:

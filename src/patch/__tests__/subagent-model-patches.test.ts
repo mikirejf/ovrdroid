@@ -191,11 +191,16 @@ const STEPS: readonly string[] = EFFORTS.filter((step) => step !== 'inherit');
 function clampWith(supported: readonly string[]): (request: ClampRequest) => string | undefined {
   const atOrBelow = (_model: string, effort: string): string | undefined =>
     supported.findLast((step) => STEPS.indexOf(step) <= STEPS.indexOf(effort));
+  const listSupported = (model: string, options: { skipDisabled: boolean }): readonly string[] => {
+    expect(model).toBe('m');
+    expect(options).toEqual({ skipDisabled: false });
+    return supported;
+  };
   const { replace } = patchNamed(subagentModelPatches, 'effort-clamps-to-model');
   return payloadFunction<
-    [typeof atOrBelow, () => readonly string[]],
+    [typeof atOrBelow, typeof listSupported],
     (request: ClampRequest) => string | undefined
-  >(['U6', 'jL'], `return ${replace}return "stock"}`)(atOrBelow, () => supported);
+  >(['U6', 'jL'], `return ${replace}return "stock"}`)(atOrBelow, listSupported);
 }
 
 interface ClampCase {

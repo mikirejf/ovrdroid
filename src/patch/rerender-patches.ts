@@ -58,7 +58,7 @@ export const rerenderPatches: readonly Patch[] = [
     lookups: [
       'var cP=dp(({groupedMessages:f,',
       'function EB({width:f,chatDraftEmpty:y,timerState:',
-      'function ZG({sessionId:f,modelId:y,reasoningEffort:S,width:x,lastTokenUsage:w,prState:I}){',
+      'function ZG({sessionId:f,modelId:y,reasoningEffort:S,width:x,lastTokenUsage:w,prState:',
       'function pme({processCount:f}){',
       'function ZK({sessionId:f,width:y}){let{t:S}=Q();if(!Sk(',
       'function Mhe(f){if(f===null||f===0)return null;',

@@ -6,7 +6,7 @@ import {
   TASK_HELPERS,
 } from '../subagent-model-patches.ts';
 import { failureOf, patchNamed, payloadFunction } from './payload.ts';
-import { isKnown, KNOWN, OPUS } from './subagent-model-harness.ts';
+import { KNOWN, OPUS, SONNET } from './subagent-model-harness.ts';
 
 interface TaskCall {
   subagent_type: string;
@@ -167,15 +167,10 @@ interface Registry {
 }
 
 interface ModelTools {
-  validateModel: (id: string) => { valid: boolean };
+  validateModel: (id: string, models: readonly string[]) => { valid: boolean };
 }
 
-interface Settings {
-  getCustomModels: () => string[];
-}
-
-const MODEL_TOOLS: ModelTools = { validateModel: (id) => ({ valid: isKnown(id) }) };
-const SETTINGS: Settings = { getCustomModels: () => [] };
+const MODEL_TOOLS: ModelTools = { validateModel: (id, models) => ({ valid: models.includes(id) }) };
 
 const MISSION_TAG = 'mission';
 const SESSION = { getCurrentSessionTags: (): readonly string[] => [], ...SAVED_SESSIONS };
@@ -187,18 +182,15 @@ function builtInsFor(tags: readonly string[] | undefined): { name: string }[] {
 }
 
 const makeLauncher = payloadFunction<
-  [
-    () => Registry,
-    ModelTools,
-    () => string[],
-    typeof builtInsFor,
-    () => typeof SESSION,
-    () => Settings,
-  ],
+  [() => Registry, ModelTools, () => readonly string[], typeof builtInsFor, () => typeof SESSION],
   { buildStreamJsonRpcTaskConfig: Launcher }
->(['Do', 'vi', 'Cs', 'oO', 'm', 'C'], `${TASK_HELPERS}return class{${patchedSource()}}`);
+>(['Do', 'vi', 'Cs', 'oO', 'm'], `${TASK_HELPERS}return class{${patchedSource()}}`);
 
-function launcherOf(counter: { loads: number }, droids: readonly Droid[]): Launcher {
+function launcherOf(
+  counter: { loads: number },
+  droids: readonly Droid[],
+  models: readonly string[] = KNOWN,
+): Launcher {
   const registry: Registry = {
     loadAllDroids: async () => {
       await Promise.resolve();
@@ -209,10 +201,9 @@ function launcherOf(counter: { loads: number }, droids: readonly Droid[]): Launc
   return makeLauncher(
     () => registry,
     MODEL_TOOLS,
-    () => [...KNOWN],
+    () => models,
     builtInsFor,
     () => SESSION,
-    () => SETTINGS,
   ).buildStreamJsonRpcTaskConfig;
 }
 
@@ -267,6 +258,15 @@ describe('the Task launcher loads the droid registry once per call', () => {
     );
     expect(message).toContain(`${field} applies only to a new launch`);
   });
+});
+
+test('launch validation and the error list use only the models allowed in the session', async () => {
+  const launch = launcherOf({ loads: 0 }, [], [SONNET]);
+  const result = await launch({ model: `${SONNET}[effort=high]`, subagent_type: 'worker' });
+  expect(result.kind).toBe('launch');
+  expect(await failureOf(launch({ model: OPUS, subagent_type: 'worker' }))).toBe(
+    `Unknown model "${OPUS}". Valid model ids: inherit, ${SONNET}`,
+  );
 });
 
 describe('the loose name match sees only the built-ins this session can launch', () => {

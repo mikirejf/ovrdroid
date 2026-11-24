@@ -131,7 +131,7 @@ export const sessionListPatches: readonly Patch[] = [
     find: PICKER_HEAD,
     lookups: [
       'return l(T,{flexDirection:"column",width:Q,children:[t(i,{color:o.error,children:r1("common:askUser.invalidQuestionnaire")})',
-      'let{width:q,height:K}=Zn(),X=B??q,Z=_s1(K),{maxLines:e1,tier:t1}=Z',
+      'let{width:q,height:K}=Zn(),X=Math.max(1,q),',
       'mt=S(null),Y3=S(0),ct=S(null)',
       'v(()=>()=>{if(mt.current)clearTimeout(mt.current);if(ct.current)clearTimeout(ct.current)},[])',
     ],

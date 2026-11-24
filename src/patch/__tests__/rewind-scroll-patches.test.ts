@@ -139,11 +139,21 @@ describe('seeking the history window to a message', () => {
 });
 
 interface Unit {
+  id: string;
+  sourceMessageId?: string;
+  role: 'user' | 'assistant';
   top: number;
   height: number;
-  isUser: boolean;
-  odMessageId?: string;
 }
+
+const STOCK_PAGE_MEASURE =
+  'function Ua(e){return e.sourceMessageId??e.id}' +
+  'function A91(g){return g.kind==="item"&&"role"in g.item&&g.item.role==="user"?Ua(g.item):void 0}' +
+  '(()=>{let ne=q.current;if(!ne)return;let{height:re}=c0(ne),ie=new Map,se=[];' +
+  'for(let de of te){let Le=Q.current.get(de.unitId)?.yogaNode;if(!Le)continue;' +
+  'let Me=re-Le.getComputedTop()-Le.getComputedHeight();se.push(Me);let Te=A91(de);' +
+  'if(Te===void 0)continue;ie.set(Te,Math.min(Me,ie.get(Te)??Me))}' +
+  'z(g.index,re,[...ie.values()].toSorted((de,Le)=>de-Le),se.toSorted((de,Le)=>de-Le))})()';
 
 type Measured = [
   index: number,
@@ -153,52 +163,67 @@ type Measured = [
   tops?: Record<string, number>,
 ];
 
-type Report = (...measured: Measured) => undefined;
+function readLayout(node: { height: number }): { height: number } {
+  return node;
+}
 
-function measure(pageHeight: number, units: readonly Unit[]) {
-  const patch = patchNamed(rewindScrollPatches, 'transcript-history-page-reports-message-tops');
+function measure(source: string, units: readonly Unit[]) {
   const calls: Measured[] = [];
-  const entries = units.map((unit) => ({
-    node: {
-      yogaNode: { getComputedTop: () => unit.top, getComputedHeight: () => unit.height },
-    },
-    isUser: unit.isUser,
-    odMessageId: unit.odMessageId,
-  }));
+  const pageRef = { current: { height: 50 } };
+  const renderUnits = units.map((item) => ({ unitId: item.id, kind: 'item', item }));
+  const unitRefs = {
+    current: new Map(
+      units.map((unit) => [
+        unit.id,
+        { yogaNode: { getComputedTop: () => unit.top, getComputedHeight: () => unit.height } },
+      ]),
+    ),
+  };
+  const report = (...args: Measured) => {
+    calls.push(args);
+  };
   payloadFunction<
-    [number, { current: Map<string, unknown> }, Report, { index: number }],
+    [
+      typeof pageRef,
+      typeof unitRefs,
+      typeof renderUnits,
+      typeof report,
+      { index: number },
+      typeof readLayout,
+    ],
     undefined
-  >(['t1', 'K', 'V', 'g'], `let ${patch.replace.slice(0, -1)}`)(
-    pageHeight,
-    { current: new Map(entries.map((entry, index) => [String(index), entry])) },
-    (...args) => {
-      calls.push(args);
-    },
+  >(['q', 'Q', 'te', 'z', 'g', 'c0'], source)(
+    pageRef,
+    unitRefs,
+    renderUnits,
+    report,
     { index: 3 },
+    readLayout,
   );
   return calls;
 }
 
 describe('measuring a history page', () => {
-  test('reports the top row of each user message, counted from the page bottom', () => {
-    const [call] = measure(50, [
-      { top: 0, height: 2, isUser: true, odMessageId: 'u1' },
-      { top: 2, height: 20, isUser: false },
-      { top: 22, height: 3, isUser: true, odMessageId: 'u2' },
-      { top: 25, height: 25, isUser: false },
-    ]);
-    expect(call?.[0]).toBe(3);
-    expect(call?.[2]).toEqual([25, 48]);
-    expect(call?.[3]).toEqual([0, 25, 28, 48]);
-    expect(call?.[4]).toEqual({ u1: 50, u2: 28 });
-  });
-
-  test('a message split into several units reports its topmost row', () => {
-    const [call] = measure(10, [
-      { top: 0, height: 2, isUser: true, odMessageId: 'u1' },
-      { top: 2, height: 2, isUser: true, odMessageId: 'u1' },
-    ]);
-    expect(call?.[4]).toEqual({ u1: 10 });
+  test('adds per-message tops to the stock bottom rows, even for split messages', () => {
+    const units: Unit[] = [
+      { id: 'u1-part-2', sourceMessageId: 'u1', role: 'user', top: 2, height: 4 },
+      { id: 'u1-part-1', sourceMessageId: 'u1', role: 'user', top: 0, height: 2 },
+      { id: 'a1', role: 'assistant', top: 6, height: 16 },
+      { id: 'u2', role: 'user', top: 22, height: 3 },
+      { id: 'a2', role: 'assistant', top: 25, height: 25 },
+    ];
+    const { find, replace } = patchNamed(
+      rewindScrollPatches,
+      'transcript-history-page-reports-message-tops',
+    );
+    const stockRows: [number, number, number[], number[]] = [3, 50, [25, 44], [0, 25, 28, 44, 48]];
+    expect(measure(STOCK_PAGE_MEASURE, units)).toEqual([stockRows]);
+    expect(
+      measure(
+        STOCK_PAGE_MEASURE.replace(find, () => replace),
+        units,
+      ),
+    ).toEqual([[...stockRows, { u1: 50, u2: 28 }]]);
   });
 });
 

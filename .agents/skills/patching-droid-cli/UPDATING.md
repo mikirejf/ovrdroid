@@ -503,6 +503,12 @@ patches (`rebaseAll` on that list, not the whole set) keeps working while the ot
 still mid-edit. A deleted patch file breaks every probe until the list that imports it is fixed,
 so delete the import in the same change.
 
+Split parallel work by patch file: each owner takes one file (or two that share constants) and
+every test that imports it (`rg "from '../<file>.ts'" src/patch/__tests__`); a test that
+imports two patch files goes to one owner. A `verify` or test run while another owner is
+mid-edit can fail on that owner's file, so rerun `verify` and the whole `bun test` once every
+owner has reported.
+
 ## 5. Install the new release on a copy
 
 ```bash
