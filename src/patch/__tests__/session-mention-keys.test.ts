@@ -43,6 +43,29 @@ function chats(count: number): Session[] {
   return Array.from({ length: count }, (_, index) => session(`s${index}`, `Chat ${index}`, index));
 }
 
+describe.skipIf(stock === undefined)('Enter and Tab select the right kind of suggestion', () => {
+  const quoted = '@"src"';
+
+  test('a closed file tag keeps Enter for sending and Tab for selecting', async () => {
+    const input = withFirst({});
+    await input.update(quoted, quoted.length - 1);
+    await input.runFileDebounce();
+    expect(input.suggestions.shown).toBe(true);
+    expect(input.pressEnter()).toBeUndefined();
+    expect(input.pressTab()).toBe('@src ');
+  });
+
+  test('a session suggestion restores Enter after a closed file tag', async () => {
+    const input = withFirst({});
+    await input.update(quoted, quoted.length - 1);
+    await input.runFileDebounce();
+    expect(input.pressEnter()).toBeUndefined();
+    await input.update('#', 1);
+    await input.finishLoad(chats(2));
+    expect(input.pressEnter()).toBe('#session-s0 ');
+  });
+});
+
 describe.skipIf(stock === undefined)('stock Esc on the session list', () => {
   test('stops later refreshes from opening a list that had no rows', async () => {
     const input = await zeroMatch();

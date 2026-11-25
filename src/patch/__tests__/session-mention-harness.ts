@@ -15,6 +15,7 @@ import {
   escaped,
   setterArrow,
 } from './session-mention-callback.ts';
+import { completeFilePath, FILE_TIMINGS, newService, pathQuery } from './session-mention-files.ts';
 import type { KeyEvent, KeyResult, Warmup } from './session-mention-keys.ts';
 import { enterKey, escapeKeys, namedKey, serviceEffect } from './session-mention-keys.ts';
 import type { Hash, Head, Item, Session } from './session-mention-picker.ts';
@@ -94,11 +95,13 @@ export interface Driver {
   pressEscape: () => KeyResult;
   pressDown: () => void;
   pressEnter: () => string | undefined;
+  pressTab: () => string | undefined;
   pressScope: (key?: ScopeKey) => boolean;
   redraw: () => boolean;
   replaceService: () => void;
   unmount: () => void;
   finishLoad: (sessions: readonly Session[]) => Promise<void>;
+  runFileDebounce: () => Promise<void>;
   runBatch: () => Promise<void>;
   runBatchUnrendered: () => void;
   runAllBatches: () => Promise<void>;
@@ -120,18 +123,6 @@ const SCOPE_KEYS: Record<ScopeKey, KeyEvent> = {
 };
 
 export type FirstMessages = Readonly<Record<string, string>>;
-
-const PATH_QUERY = /@(?<query>\S*)$/u;
-
-function newService() {
-  return {
-    workingDirectory: '/work',
-    getSuggestions: async () => {
-      await Promise.resolve();
-      return [];
-    },
-  };
-}
 
 async function settle(): Promise<void> {
   await Bun.sleep(5);
@@ -167,6 +158,7 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
       .flatMap((rebase) => Object.entries(rebase.renames)),
   );
   const named = (name: string): string => renames.get(name) ?? name;
+  const fileNames = rebasedNamed(rebased, 'session-mention-select').renames;
   const callback = callbackAround(
     patched,
     rebasedNamed(rebased, 'session-mention-invalidate').replace,
@@ -177,13 +169,15 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
   const transcriptsRead: string[] = [];
   const loads: ((sessions: readonly Session[]) => void)[] = [];
   const queued: (() => void)[] = [];
+  let fileDebounce: (() => void) | undefined;
   const transcriptHeads: unknown[] = [];
   const entry = { selected: 0, keyIndex: 0, text: '', cursor: 0 };
   const render = () => {
     entry.keyIndex = entry.selected;
   };
   const redrawn: Redraw = { current: undefined };
-  const fileSearch = {
+  let enterSelects = true;
+  const filePicker = {
     get $ODredraw(): (() => void) | undefined {
       return redrawn.current;
     },
@@ -195,17 +189,23 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
       const id = path.slice(path.lastIndexOf('/') + 1, -'.jsonl'.length);
       return { text: firstMessages[id] ?? `typed into ${path}`, branch: null };
     },
-    isInPathContext: ({ text, cursorPosition }: { text: string; cursorPosition: number }) =>
-      PATH_QUERY.test(text.slice(0, cursorPosition)),
-    extractPathQuery: ({ text, cursorPosition }: { text: string; cursorPosition: number }) => ({
-      pathQuery: PATH_QUERY.exec(text.slice(0, cursorPosition))?.groups?.['query'] ?? '',
-    }),
+    extractPathQuery: pathQuery,
+    completeFilePath,
   };
+  Object.setPrototypeOf(filePicker, picker);
   const stubs = new Map<string, Stand>([
     [named('Po'), { current: 0 }],
+    [named('Iq'), { current: null }],
     [named('Ba'), newService()],
-    [named('uu'), Object.create(picker, Object.getOwnPropertyDescriptors(fileSearch))],
+    [named('uu'), filePicker],
     [named('Wa'), () => ({ input: entry.text, cursorPosition: entry.cursor })],
+    [named('cs'), { getState: () => ({ active: { pastes: [], isBashMode: false } }) }],
+    [
+      named('Aj'),
+      (enabled: boolean) => {
+        enterSelects = enabled;
+      },
+    ],
     [named('Pe'), false],
     [named('_e'), false],
     [named('U'), 120],
@@ -219,6 +219,10 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     [
       'setTimeout',
       (run: () => void, delay?: number) => {
+        if (delay === FILE_TIMINGS.FILE_SUGGESTIONS_DEBOUNCE_MS) {
+          fileDebounce = run;
+          return 0;
+        }
         if (delay === undefined || delay === 0) {
           queued.push(run);
           return 0;
@@ -265,7 +269,8 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
       : null;
   });
   const timings = calleeAfter(callback, /(?<name>[\w$]+)\.FILE_SUGGESTIONS_DEBOUNCE_MS/u);
-  stubs.set(timings, { FILE_SUGGESTIONS_DEBOUNCE_MS: 50, FILE_SUGGESTIONS_LOADING_DELAY_MS: 100 });
+  stubs.set(timings, FILE_TIMINGS);
+  stubs.set(fileNames['pk'] ?? 'pk', (draft: string) => ({ draft }));
   stubs.set(commandMatches, () => ({
     commands: [{ name: 'sessions' }],
     menuGroupBlock: undefined,
@@ -294,6 +299,8 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     rows: () => suggestions.items,
     entry,
     picker,
+    filePicker,
+    enterSelects: () => enterSelects,
   };
   const escape = escapeKeys(patched, rebased, hooks);
   const enter = enterKey(patched, rebased, hooks);
@@ -319,10 +326,8 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     pressDown: () => {
       enter.down();
     },
-    pressEnter: () => {
-      enter.press();
-      return enter.written.at(-1);
-    },
+    pressEnter: () => (enter.press() ? enter.written.at(-1) : undefined),
+    pressTab: () => (enter.tab() ? enter.written.at(-1) : undefined),
     pressScope: (key = 'right') => enter.scope(SCOPE_KEYS[key]),
     redraw: () => {
       const redraw = redrawn.current;
@@ -338,6 +343,13 @@ export function sessionDriver(app: App, firstMessages: FirstMessages = {}): Driv
     },
     unmount: () => {
       unmount();
+    },
+    runFileDebounce: async () => {
+      const run = fileDebounce;
+      fileDebounce = undefined;
+      run?.();
+      await settle();
+      render();
     },
     runBatch: async () => {
       for (const run of queued.splice(0)) {

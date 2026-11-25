@@ -119,31 +119,39 @@ const CALLBACK_START = 'let Xa=Wa(),vr=wn??Xa.input,Di=$n??Xa.cursorPosition;if(
 const PO_LOOKUP =
   'Hs=++Po.current;if(go.current)clearTimeout(go.current);go.current=setTimeout(()=>{if(Hs===Po.current)On(!0)}';
 
-const UU_LOOKUP = 'var Wre=()=>R().t("common:fileSuggestions.file"),r5=100;class uu{';
+const PICKER_LOOKUP = 'class uu{workingDirectory;search;constructor(';
 
-const SUGGESTIONS_DEPS = '[Wa,Ba,Yi,Mt,qt,Zt.status,Nn,_e,Pe,Ko]';
+const FILE_COMPLETION =
+  'static completeFilePath({sent:y,cursorPosition:E,selectedSuggestion:Q,readsTags:W}){';
+
+const SUGGESTIONS_DEPS = '[Wa,Ba,Yi,Mt,qt,Zt.status,Nn,_e,Pe,Ko,Aj,cs]';
+
+const CLEAR_PATH_SUGGESTIONS = 'Yi(),Iq.current=null';
 
 const SUGGESTION_ENTER =
-  'if(N(to,"tab")||N(to,"return",{shift:!1,ctrl:!1}))return j({suggestion:xo[xt.current]';
+  'if(N(to,"tab")||Ee()&&N(to,"return",{shift:!1,ctrl:!1}))return j({suggestion:xo[xt.current]';
+
+const FILE_SELECT =
+  'uu.completeFilePath({sent:sd,cursorPosition:vr,selectedSuggestion:wn,readsTags:tV(sd,pa,bm)})';
 
 const PLAIN_KEY = '{ctrl:!1,shift:!1,altFamily:!1}';
 
 export const sessionMentionPatches: readonly Patch[] = [
   {
     name: 'session-mention-helpers',
-    find: 'static isInPathContext({text:y,cursorPosition:E}){return uu.extractPathQuery({text:y,cursorPosition:E})!==null}}',
+    find: FILE_COMPLETION,
     lookups: [
-      UU_LOOKUP,
+      '()=>R().t("common:fileSuggestions.file")',
       'ZT=(g)=>le(g,{stripSgr:!0}).replaceAll(`\n`," ")',
       'title:Li(be,Math.max(8,Math.floor(Le/2))),machine:',
       'let{slice:U}=Ar(D.text,F);if(U&&',
     ],
-    replace: `static isInPathContext({text:y,cursorPosition:E}){return uu.extractPathQuery({text:y,cursorPosition:E})!==null}${SESSION_STATICS}}`,
+    replace: SESSION_STATICS + FILE_COMPLETION,
   },
   {
     name: 'session-mention-invalidate',
     find: CALLBACK_START,
-    lookups: [UU_LOOKUP, PO_LOOKUP, 'Ba=k(()=>new uu(q,co),[q,co])'],
+    lookups: [PICKER_LOOKUP, PO_LOOKUP, 'Ba=k(()=>new uu(q,co),[q,co])'],
     replace:
       'let Xa=Wa(),vr=wn??Xa.input,Di=$n??Xa.cursorPosition,$ODseq=++Po.current;' +
       'if(!uu.$ODsessionQuery(vr,Di))Ba.$ODpool=Ba.$ODload=Ba.$ODfirst=void 0,uu.$ODwide=uu.$ODfell=!1;if(!_e){',
@@ -156,17 +164,18 @@ export const sessionMentionPatches: readonly Patch[] = [
   },
   {
     name: 'session-mention-suggest',
-    find: `Yi(),En([]),Qt(!1)},${SUGGESTIONS_DEPS})`,
+    find: `${CLEAR_PATH_SUGGESTIONS},En([]),Qt(!1)},${SUGGESTIONS_DEPS})`,
     lookups: [
       CALLBACK_START,
-      UU_LOOKUP,
-      'On(!1),En(oi),Ro(0),Qt(oi.length>0)',
+      PICKER_LOOKUP,
+      'this.search?await this.search({query:y,maxResults:r5,showHidden:',
+      'On(!1),Aj(!Pq.closedTag),En(oi),Ro(0),Qt(oi.length>0)',
       PO_LOOKUP,
       'catch(E){return h(E,"Error occurred while fetching file suggestions"),[]}',
       'await p().getSessionsForSelector(I())',
     ],
     replace:
-      'Yi();let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);' +
+      `${CLEAR_PATH_SUGGESTIONS};let $ODhash=Pe?null:uu.$ODsessionQuery(vr,Di);` +
       'if(!$ODhash){En([]),Qt(!1);return}$ODseq=Po.current;' +
       'let $ODseen=Ba.$ODfirst??=new Map,' +
       '$ODfirst=($ODs)=>{if(!$ODseen.has($ODs.id)){let $ODpath=p().getSessionMessagesPath($ODs.id,p().getSessionsDirectory($ODs.cwd));$ODseen.set($ODs.id,uu.$ODsessionHead($ODpath));' +
@@ -177,7 +186,7 @@ export const sessionMentionPatches: readonly Patch[] = [
       '$ODhit=uu.$ODsessionMatches($ODscoped,$ODhash.query,r5,$ODseen),$ODfell=!uu.$ODwide&&!$ODhit.length,' +
       '$ODpool=$ODfell?$ODall:$ODscoped;uu.$ODfell=$ODfell;' +
       'let $ODrows=uu.$ODsessionItems(uu.$ODsessionKeep($ODopen?$ODshown:[],$ODfell?uu.$ODsessionMatches($ODall,$ODhash.query,r5,$ODseen):$ODhit,$ODpool,r5),$ODfirst);' +
-      '$ODshown=$ODrows.map(($ODr)=>$ODr.$ODsession);En($ODrows);if(!$ODopen)Ro(0);' +
+      '$ODshown=$ODrows.map(($ODr)=>$ODr.$ODsession);Aj(!0);En($ODrows);if(!$ODopen)Ro(0);' +
       'Qt($ODrows.length>0);$ODseq=Po.current},' +
       '$ODscan=($ODpool)=>{let $ODi=0,$ODstep=()=>{if(Ba.$ODpool!==$ODpool)return;' +
       `for(let $ODend=Math.min($ODi+${SCAN_BATCH},$ODpool.length);$ODi<$ODend;$ODi++)$ODfirst($ODpool[$ODi]);` +
@@ -195,7 +204,7 @@ export const sessionMentionPatches: readonly Patch[] = [
   {
     name: 'session-mention-service-drops',
     lookups: [
-      UU_LOOKUP,
+      PICKER_LOOKUP,
       'catch(E){return h(E,"Error occurred while fetching file suggestions"),[]}',
       'await p().getSessionsForSelector(I())',
     ],
@@ -208,16 +217,17 @@ export const sessionMentionPatches: readonly Patch[] = [
   {
     name: 'session-mention-scope-key',
     find: SUGGESTION_ENTER,
-    lookups: [UU_LOOKUP],
+    lookups: [PICKER_LOOKUP],
     replace:
       `if(xo[0].$ODsession&&(N(to,"leftArrow",${PLAIN_KEY})||N(to,"rightArrow",${PLAIN_KEY})))` +
       `return uu.$ODsetWide(N(to,"rightArrow")),!0;${SUGGESTION_ENTER}`,
   },
   {
     name: 'session-mention-select',
-    find: 'let Di=uu.completeFilePath({text:$n,cursorPosition:vr,selectedSuggestion:wn});',
+    find: `let{pastes:pa,isBashMode:bm}=cs.getState().active,sd=pk($n,pa),Di=${FILE_SELECT};`,
     replace:
-      'let Di=wn.$ODsession?uu.$ODsessionComplete($n,vr,wn.$ODsession):uu.completeFilePath({text:$n,cursorPosition:vr,selectedSuggestion:wn});',
+      'let{pastes:pa,isBashMode:bm}=cs.getState().active,sd=pk($n,pa),' +
+      `Di=wn.$ODsession?uu.$ODsessionComplete($n,vr,wn.$ODsession):${FILE_SELECT};`,
   },
   {
     name: 'session-mention-prompt',

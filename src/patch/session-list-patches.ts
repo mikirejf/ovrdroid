@@ -123,7 +123,7 @@ const LIST_COMPONENT =
   't(T,{flexShrink:0,marginLeft:1,children:t(i,{color:o.text.muted,children:$ODview.right})})]})]})}';
 
 const SUGGESTION_DROPDOWN =
-  't(ff,{items:mo.map((wn)=>({label:wn.label,value:wn.value,fileDisplay:wn.fileDisplay})),selectedIndex:cn,helpText:oo("chatInput.navigationHint"),width:U})';
+  't(ff,{items:mo.map((wn)=>({label:wn.label,value:wn.value,fileDisplay:wn.fileDisplay})),selectedIndex:cn,helpText:oo(es?"chatInput.navigationHint":"chatInput.navigationHintEnterSends"),width:U})';
 
 export const sessionListPatches: readonly Patch[] = [
   {

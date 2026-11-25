@@ -23,9 +23,11 @@ export interface Hooks {
   close: (shown: boolean) => void;
   cancel: () => void;
   isShown: () => boolean;
+  enterSelects: () => boolean;
   rows: () => readonly Row[];
   entry: Entry;
   picker: object;
+  filePicker: object;
 }
 
 export interface KeyEvent {
@@ -68,6 +70,7 @@ export interface EscapeKeys {
 export interface EnterKey {
   readonly written: string[];
   press: () => boolean;
+  tab: () => boolean;
   down: () => boolean;
   scope: (event: KeyEvent) => boolean;
 }
@@ -193,7 +196,10 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   >(
     select,
     new Map<string, Stand>([
-      [named('uu'), hooks.picker],
+      [named('uu'), hooks.filePicker],
+      [named('cs'), { getState: () => ({ active: { pastes: [], isBashMode: false } }) }],
+      [named('pk'), (draft: string) => ({ draft })],
+      [named('tV'), () => true],
       [renamed(rebasedNamed(rebased, 'session-mention-suggest'))('Yi'), hooks.cancel],
       [group(writes, 'text', 'select callback'), (text: string) => written.push(text)],
       [
@@ -225,6 +231,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
     handler,
     new Map<string, Stand>([
       [scopeNamed('uu'), hooks.picker],
+      [scopeNamed('Ee'), () => hooks.isShown() && hooks.enterSelects()],
       [group(parts, 'is', what), keyIs],
       [
         group(parts, 'state', what),
@@ -254,6 +261,7 @@ export function enterKey(patched: string, rebased: readonly Rebase[], hooks: Hoo
   return {
     written,
     press: () => press(namedKey('return')),
+    tab: () => press(namedKey('tab')),
     down: () => press(namedKey('downArrow')),
     scope: (event) => press(event),
   };
