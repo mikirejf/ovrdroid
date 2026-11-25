@@ -68,8 +68,8 @@ So patches are ordinary text edits of any length on the extracted source, and th
 6. **Re-sign** with `codesign --force --sign -` on macOS. Skip this and macOS kills the process with
    SIGKILL at launch. Linux builds skip this step.
 7. **Prove it before installing.** `--version` must match stock, and the update gate
-   (`ovrdroid gate`, run by `update` and `apply`) must pass on the build. A `--version` that
-   passes says nothing about the chunks or the sidecars.
+   (`ovrdroid gate`, run by `update` before it installs a new Droid version) must pass on the
+   build. A `--version` that passes says nothing about the chunks or the sidecars.
 
 Transplanting rebuilt regions into the stock binary in place was the old path. It fails silently
 on a Bun version mismatch (the runtime rejects the cache and parses source, +326ms) and cannot
@@ -84,6 +84,10 @@ names differ.
 - Every name of 3 characters or fewer in `replace` must be captured by `find`, `until` or
   `lookups`. `lookups` are snippets from the same module as `find`, each matching once, that
   capture outer names the `replace` uses.
+- Every short name in a `find` is a wildcard, and the same letter twice means one binding twice.
+  Give each distinct binding its own letter: `{width:t,height:e,t}` matches only code that really
+  repeats `t`. Lookups share `find`'s letters, so a letter in a lookup is the same binding as in
+  `find`.
 - Payload-owned names (locals, parameters, helpers) start with `$OD`. `apply` refuses a source that
   already contains `$OD`.
 - Never renamed: names longer than 3 characters, dotted properties, object keys, and the short
@@ -91,7 +95,7 @@ names differ.
 - Drift is reported as `markers not found (Droid version drift): <name> (<reason>)`, reason one of
   unresolved, collides, ambiguous, missing, no-tail, no-lookup. [`UPDATING.md`](UPDATING.md) fixes
   each.
-- `bun run probe builds` checks the whole set against the stock pinned release of every platform.
+- `bun run probe builds` checks the whole set against the stock newest release of every platform.
   Run it before pushing a patch change.
 
 ## Finding a patch site
@@ -151,8 +155,8 @@ procedure, from triage through the proof on a copy, is [`UPDATING.md`](UPDATING.
 parser and the rebuild carry over, unless every patch goes missing at once, which means the module
 layout moved.
 
-Every update ends by adding its general lessons on workflow and technique to this skill, with
-nothing tied to one release. See step 7 of `UPDATING.md`.
+Every update ends by folding its lessons into the update guide, merging and pruning so it stays
+within its line budget. See step 8 of `UPDATING.md`.
 
 ## Adding a feature, not just deleting work
 

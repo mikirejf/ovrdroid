@@ -4,7 +4,7 @@ Sampling profilers tell you roughly where time went. Patches that make Droid rep
 tell you exactly. Both matter, and the instrumented build is the one that settles arguments.
 
 The harness in `~/dev/ovrdroid` ships these as `bun run probe`; the patches themselves live in
-`src/trace-patches.ts` and are worth re-deriving for a new release.
+`src/patch/trace-patches.ts` and are worth re-deriving for a new release.
 
 ## The three instrumented builds
 
