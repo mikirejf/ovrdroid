@@ -46,11 +46,6 @@ export const askUserTextPatches: readonly Patch[] = [
     replace: 'ask them in plain text when a decision is theirs',
   },
   {
-    name: 'mission-orchestrator-delegates-asks-in-text',
-    find: 'tell the agent to ask them with AskUser rather than bringing it to you.',
-    replace: 'tell the agent to ask them in plain text rather than bringing it to you.',
-  },
-  {
     name: 'mission-agent-asks-in-text',
     find: 'Ask the human with AskUser only what the human alone can answer.',
     replace: 'Ask the human in plain text only what the human alone can answer.',
