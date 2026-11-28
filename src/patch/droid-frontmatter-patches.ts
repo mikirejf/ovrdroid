@@ -9,7 +9,7 @@ export const droidFrontmatterPatches: readonly Patch[] = [
   {
     name: 'droid-frontmatter-keeps-new-fields',
     find: `${MCP_SERVERS_FIELD}}),WN=`,
-    lookups: ['metadata:Y(ie()).optional(),'],
+    lookups: ['metadata:Y(ie()).optional().catch(void 0),'],
     replace: `${MCP_SERVERS_FIELD},${DROID_FRONTMATTER_FIELDS.map((field) => `${field}:ie().optional()`).join(',')}}),WN=`,
   },
   {

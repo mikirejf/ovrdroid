@@ -1,56 +1,15 @@
 import type { Patch } from './patches.ts';
 
 export const STALE_EDIT_NOTE =
-  'This file had changed since you last read it. The text you replaced still matched exactly once, so the edit went onto the current contents. Read the file before relying on any other part of it.';
+  "This file's modification time changed after you last read it, so its contents may differ from that Read. old_str still matched exactly once in the current contents, so the edit was applied there. Read the file again before an edit that depends on its other contents.";
 
-const TOLERATE_PARAMETER = 'async function RY(t,o){if(!t||typeof t!=="string")return{success:!1,';
-
-const REFUSAL_HEAD = 'if(await c.hasFileChangedExternally(a.absolutePath))return{success:!1,';
-
-const EDIT_CHECKS =
-  'let g=await RY(o,f);if(!g.success)return{success:!1,message:g.message,filePath:o};' +
-  'let y=await wn({filePath:o,oldStr:a,newStr:c,changeAll:l});';
-
-const EDIT_RESULT = 'changesApplied:v,diffLines:I.diffLines}}catch(g)';
-
-const EDIT_REPLY =
-  'yield{type:"result",isError:!1,value:JSON.stringify(Yse({filePath:f,diffLines:y.diffLines,systemReminder:v}))}';
-
-const STILL_MATCHES_ONCE =
-  'async($ODpath)=>{if(l||a==="")return!1;' +
-  'return $ODstale=(await wn({filePath:$ODpath,oldStr:a,newStr:c,changeAll:l})).success}';
+const STALE_MATCH =
+  'if(g){let C=Rt(v,M);if(C===void 0||S.length!==v.length||S.slice(C.start,C.end)!==v.slice(C.start,C.end))return y}';
 
 export const staleEditPatches: readonly Patch[] = [
   {
-    name: 'edit-check-takes-stale-test',
-    find: TOLERATE_PARAMETER,
-    replace: 'async function RY(t,o,$ODtolerate){if(!t||typeof t!=="string")return{success:!1,',
-  },
-  {
-    name: 'edit-refusal-asks-stale-test',
-    find: REFUSAL_HEAD,
-    replace:
-      'if(await c.hasFileChangedExternally(a.absolutePath)&&!($ODtolerate&&await $ODtolerate(a.absolutePath)))return{success:!1,',
-  },
-  {
-    name: 'edit-accepts-stale-unique-match',
-    find: EDIT_CHECKS,
-    replace: EDIT_CHECKS.replace(
-      'let g=await RY(o,f);',
-      `let $ODstale=!1,g=await RY(o,f,${STILL_MATCHES_ONCE});`,
-    ),
-  },
-  {
-    name: 'edit-result-flags-stale-edit',
-    find: EDIT_RESULT,
-    replace: 'changesApplied:v,diffLines:I.diffLines,staleEdit:$ODstale}}catch(g)',
-  },
-  {
-    name: 'edit-reply-notes-stale-edit',
-    find: EDIT_REPLY,
-    replace: EDIT_REPLY.replace(
-      'systemReminder:v',
-      `systemReminder:y.staleEdit?(v?v+"\\n\\n":"")+${JSON.stringify(STALE_EDIT_NOTE)}:v`,
-    ),
+    name: 'edit-refuses-stale-change-all',
+    find: STALE_MATCH,
+    replace: STALE_MATCH.replace('let C=Rt(v,M);', 'if(M.change_all)return y;let C=Rt(v,M);'),
   },
 ];
