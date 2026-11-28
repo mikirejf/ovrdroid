@@ -1,9 +1,14 @@
-import { STALE_EDIT_NOTE } from '../patch/stale-edit-patches.ts';
-import { entriesOf, fieldsOf, worded } from './fields.ts';
+import { isDeepStrictEqual } from 'node:util';
+
+import type { Fields } from './fields.ts';
+import { entriesOf, fieldsOf, resultText, worded } from './fields.ts';
 import type { ToolCall } from './stub-model.ts';
 
+const STALE_EDIT_NOTE =
+  "This file's modification time changed after you last read it, so its contents may differ from that Read. old_str still matched exactly once in the current contents, so the edit was applied there. Read the file again before an edit that depends on its other contents.";
 export const STALE_REFUSAL = 'has been modified externally since it was last read';
-export const SCRIPT_FAILED = 'EDIT-FAILED';
+const SCRIPT_REPLY = 'EDIT-REPLY ';
+const SCRIPT_FAILED = 'EDIT-FAILED';
 
 export type Expected = 'tolerated' | 'applied' | 'refused-stale' | 'landed';
 export type Outcome = 'tolerated' | 'applied' | 'refused-stale' | 'failed' | 'no result';
@@ -57,7 +62,7 @@ export function staleEditCases(): StaleCase[] {
       final: ALPHA_TWICE,
     },
     {
-      what: 'change_all set after an outside change: Droid refuses as stock does and writes nothing',
+      what: 'change_all set after an outside change: the patched build refuses and writes nothing',
       via: 'direct',
       steps: [
         {
@@ -116,7 +121,7 @@ function scriptEditing(file: string, edit: EditSpec): string {
   return [
     'try {',
     `  const reply = await tools.Edit(${JSON.stringify(editInput(file, edit))});`,
-    "  text('EDIT-REPLY ' + (typeof reply === 'string' ? reply : JSON.stringify(reply)));",
+    `  text('${SCRIPT_REPLY}' + (typeof reply === 'string' ? reply : JSON.stringify(reply)));`,
     '} catch (error) {',
     `  text('${SCRIPT_FAILED} ' + String(error));`,
     '}',
@@ -165,25 +170,45 @@ export interface ToolResult {
   isError: boolean;
 }
 
-function textOf(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
+function toolBlocksIn(body: Fields): Fields[] {
+  return entriesOf(body, 'messages').flatMap((message) => entriesOf(message, 'content'));
+}
+
+function resultsFrom(blocks: readonly Fields[]): Map<string, ToolResult> {
+  const results = new Map<string, ToolResult>();
+  for (const block of blocks) {
+    if (worded(block, 'type') === 'tool_result') {
+      results.set(worded(block, 'tool_use_id'), {
+        text: resultText(block),
+        isError: block.get('is_error') === true,
+      });
+    }
   }
-  return Array.isArray(content)
-    ? content.map((part) => worded(fieldsOf(part), 'text')).join('\n')
-    : '';
+  return results;
 }
 
 export function toolResultsIn(body: unknown): Map<string, ToolResult> {
+  return resultsFrom(toolBlocksIn(fieldsOf(body)));
+}
+
+export function plannedResultsIn(
+  body: unknown,
+  planned: readonly StubCall[],
+): Map<string, ToolResult> {
+  const blocks = toolBlocksIn(fieldsOf(body));
+  const echoedResults = resultsFrom(blocks);
   const results = new Map<string, ToolResult>();
-  for (const message of entriesOf(fieldsOf(body), 'messages')) {
-    for (const block of entriesOf(message, 'content')) {
-      if (worded(block, 'type') === 'tool_result') {
-        results.set(worded(block, 'tool_use_id'), {
-          text: textOf(block.get('content')),
-          isError: block.get('is_error') === true,
-        });
-      }
+  for (const block of blocks) {
+    if (worded(block, 'type') !== 'tool_use') {
+      continue;
+    }
+    const result = echoedResults.get(worded(block, 'id'));
+    const call = planned.find(
+      ({ name, input }) =>
+        name === worded(block, 'name') && isDeepStrictEqual(input, block.get('input')),
+    );
+    if (call !== undefined && result !== undefined) {
+      results.set(call.id, result);
     }
   }
   return results;
@@ -201,6 +226,13 @@ export function outcomeOf(result: ToolResult | undefined): Outcome {
     return 'refused-stale';
   }
   if (result.isError || result.text.includes(SCRIPT_FAILED)) {
+    return 'failed';
+  }
+  const firstLine = result.text.split('\n', 1)[0] ?? '';
+  if (
+    !(firstLine.startsWith('The file ') || firstLine.startsWith(`${SCRIPT_REPLY}The file `)) ||
+    !firstLine.endsWith(' has been updated successfully.')
+  ) {
     return 'failed';
   }
   return result.text.includes(STALE_EDIT_NOTE) ? 'tolerated' : 'applied';

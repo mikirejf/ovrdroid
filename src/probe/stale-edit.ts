@@ -13,9 +13,9 @@ import {
   caseVerdict,
   describeVerdicts,
   INITIAL,
+  plannedResultsIn,
   staleEditCases,
   toolNamesIn,
-  toolResultsIn,
   turnsOf,
 } from './stale-edit-cases.ts';
 import { streamEvents, stubSettings, toolBatchEvents } from './stub-model.ts';
@@ -73,7 +73,7 @@ function serveTurns(turns: readonly Turn[], file: string): Serving {
         });
       }
       offered = names;
-      for (const [id, result] of toolResultsIn(body)) {
+      for (const [id, result] of plannedResultsIn(body, turns[served - 1]?.calls ?? [])) {
         results.set(id, result);
       }
       const turn = turns[served];
@@ -105,7 +105,9 @@ async function execOnce(run: CaseRun, { dir, url, model }: Target): Promise<void
   const settings = path.join(dir, 'settings.json');
   writeFileSync(settings, JSON.stringify(stubSettings(url, model)));
   const flags = path.join(dir, 'feature-flags.json');
-  writeFileSync(flags, JSON.stringify({ flags: {}, configs: {} }));
+  const configs =
+    run.staleCase.via === 'script' ? { script_tool_models: { models: [`custom:${model}`] } } : {};
+  writeFileSync(flags, JSON.stringify({ flags: {}, configs }));
   const ledger = new Ledger();
   try {
     const child = Bun.spawn(
@@ -185,7 +187,7 @@ export function registerStaleEditCommand(program: Command): void {
   program
     .command('stale-edit')
     .description(
-      'have a stub model Read a file, change the file from outside, then Edit it through droid exec: does Droid apply an Edit whose old_str still matches exactly once in the changed file (alone, in parallel with another Edit, inside a Script, and right after a tolerated one), and still refuse when the change removed old_str, duplicated it, or change_all is set?',
+      'have a stub model Read a file, change it from outside, then Edit it through droid exec: do unique matches apply with a warning (alone, in parallel, and inside Script), does the next Edit apply without a warning, and are missing matches, duplicate matches, and stale change_all refused?',
     )
     .argument('<binary>')
     .option('--timeout <s>', 'seconds to wait for each exec run', count, DEFAULT_TIMEOUT_S)

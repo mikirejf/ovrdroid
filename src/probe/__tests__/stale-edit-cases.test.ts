@@ -1,14 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
-import { STALE_EDIT_NOTE } from '../../patch/stale-edit-patches.ts';
 import type { Observed, StaleCase, ToolResult } from '../stale-edit-cases.ts';
 import {
   caseVerdict,
   describeVerdicts,
   INITIAL,
   outcomeOf,
-  SCRIPT_FAILED,
-  STALE_REFUSAL,
+  plannedResultsIn,
   staleEditCases,
   toolNamesIn,
   toolResultsIn,
@@ -46,44 +44,111 @@ function observe(results: Record<string, ToolResult>, extra: Partial<Observed> =
   };
 }
 
-const APPLIED: ToolResult = {
-  text: '{"success":true,"file_path":"/scratch/target.txt"}',
-  isError: false,
-};
+const SUCCESS = `The file ${FILE} has been updated successfully.`;
+const WARNING =
+  "This file's modification time changed after you last read it, so its contents may differ from that Read. old_str still matched exactly once in the current contents, so the edit was applied there. Read the file again before an edit that depends on its other contents.";
+const APPLIED: ToolResult = { text: SUCCESS, isError: false };
 const NOTED: ToolResult = {
-  text: JSON.stringify({ success: true, systemReminder: STALE_EDIT_NOTE }),
+  text: `${SUCCESS}\n\n<system-reminder>${WARNING}</system-reminder>`,
   isError: false,
 };
 const REFUSED: ToolResult = {
-  text: `Error: File "${FILE}" ${STALE_REFUSAL}. Please use the Read tool.`,
+  text: `Error: File "${FILE}" has been modified externally since it was last read. Please use the Read tool to get the latest version before editing.`,
   isError: true,
 };
-const NOT_FOUND: ToolResult = { text: 'Error: The text to replace was not found', isError: true };
+const NOT_FOUND: ToolResult = {
+  text: 'Error: The text to replace was not found in the file. Please ensure the old_str parameter matches the exact text in the file, including whitespace and line breaks.',
+  isError: true,
+};
+const SCRIPT_STATUS =
+  '[Script completed · 0.1 s elapsed · 1 call · log: /scratch/call_de7ffbfb92ac4905_0.log]';
+const SCRIPT_CONTENT = [
+  { type: 'text', text: `EDIT-REPLY ${SUCCESS}` },
+  {
+    type: 'text',
+    text: `<system-reminder>\nNested results this Script received carried guidance for you, not the program:\nr2 Edit target.txt: ${WARNING}\n</system-reminder>`,
+  },
+  { type: 'text', text: SCRIPT_STATUS },
+];
 
-describe('toolResultsIn', () => {
-  const body = {
-    messages: [
-      { role: 'user', content: 'hi' },
-      {
-        role: 'user',
-        content: [
-          { type: 'tool_result', tool_use_id: 'a', content: 'plain', is_error: true },
-          { type: 'tool_result', tool_use_id: 'b', content: [{ type: 'text', text: 'one' }] },
-          { type: 'text', text: 'ignored' },
-        ],
-      },
-    ],
-  };
-
-  test('reads string and block content, with the error flag', () => {
-    expect(toolResultsIn(body)).toEqual(
+describe('plannedResultsIn', () => {
+  test('uses echoed call inputs and rewritten IDs to join parallel results', () => {
+    const planned = turnsOf(PARALLEL_CASE, FILE, idOf)[1]?.calls ?? [];
+    const body = {
+      messages: [
+        { role: 'user', content: 'Edit the file.' },
+        {
+          role: 'assistant',
+          content: planned.map((call, index) => ({
+            ...call,
+            type: 'tool_use',
+            id: `call_df4350f45a527fec_${index}`,
+          })),
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'call_df4350f45a527fec_1',
+              content: REFUSED.text,
+              is_error: true,
+            },
+            { type: 'tool_result', tool_use_id: 'unrelated', content: 'ignored' },
+            {
+              type: 'tool_result',
+              tool_use_id: 'call_df4350f45a527fec_0',
+              content: NOTED.text,
+            },
+          ],
+        },
+      ],
+    };
+    expect(plannedResultsIn(body, planned)).toEqual(
       new Map([
-        ['a', { text: 'plain', isError: true }],
-        ['b', { text: 'one', isError: false }],
+        ['call1_0', NOTED],
+        ['call1_1', REFUSED],
       ]),
     );
   });
 
+  test('reads the Script result with its nested Edit warning in a separate text block', () => {
+    const turns = turnsOf(SCRIPT_CASE, FILE, idOf);
+    const planned = turns[1]?.calls ?? [];
+    const id = 'call_de7ffbfb92ac4905_0';
+    const body = {
+      messages: [
+        {
+          role: 'assistant',
+          content: planned.map((call) => ({ ...call, type: 'tool_use', id })),
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: id, content: SCRIPT_CONTENT }],
+        },
+      ],
+    };
+    const results = plannedResultsIn(body, planned);
+    expect(results.get('call1')).toEqual({
+      text: SCRIPT_CONTENT.map((block) => block.text).join('\n'),
+      isError: false,
+    });
+    expect(caseVerdict(SCRIPT_CASE, turns, observe(Object.fromEntries(results))).pass).toBe(true);
+  });
+
+  test('a result with no matching call is ignored', () => {
+    const body = {
+      messages: [
+        { content: [{ type: 'tool_result', tool_use_id: 'call_1', content: APPLIED.text }] },
+      ],
+    };
+    expect(plannedResultsIn(body, turnsOf(TOLERATED_CASE, FILE, idOf)[1]?.calls ?? []).size).toBe(
+      0,
+    );
+  });
+});
+
+describe('toolResultsIn', () => {
   test('a body with no messages has no results', () => {
     expect(toolResultsIn({ model: 'x' }).size).toBe(0);
   });
@@ -106,18 +171,19 @@ describe('outcomeOf', () => {
     ['tolerated', NOTED],
     ['applied', APPLIED],
     ['failed', NOT_FOUND],
+    ['failed', { text: SCRIPT_STATUS, isError: false }],
   ] as const)('%s', (outcome, result) => {
     expect(outcomeOf(result)).toBe(outcome);
   });
 
   test('a Script whose nested Edit threw is failed', () => {
-    expect(outcomeOf({ text: `${SCRIPT_FAILED} Error: nope`, isError: false })).toBe('failed');
+    expect(outcomeOf({ text: `EDIT-FAILED ${NOT_FOUND.text}`, isError: false })).toBe('failed');
   });
 
   test('a Script whose nested Edit was refused is refused', () => {
-    expect(
-      outcomeOf({ text: `${SCRIPT_FAILED} Error: File ${STALE_REFUSAL}`, isError: false }),
-    ).toBe('refused-stale');
+    expect(outcomeOf({ text: `EDIT-FAILED ${REFUSED.text}`, isError: false })).toBe(
+      'refused-stale',
+    );
   });
 });
 
