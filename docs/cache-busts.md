@@ -4,6 +4,11 @@ A bust is a request that rewrites a prefix that was already cached. On this plan
 free and a write is not, so busts are where cache quota goes ([token-spend.md](token-spend.md)).
 Measured on Droid 0.222.0, 2026-09-19, with `probe busts` over the logs `probe logs` keeps.
 
+Patched Droid copies each `prompt_cache_miss_detected` result into
+`~/.factory/ovrdroid/cache-usage.jsonl` as `{t, s, m, miss}`: the time in Unix milliseconds, session
+ID, model ID, and the unchanged miss details. This keeps a record of what changed after Droid's own
+logs rotate out, which takes only a few hours.
+
 ## What the API says invalidates the cache
 
 From Anthropic's
